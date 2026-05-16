@@ -191,10 +191,17 @@ function renderHourly(hourly) {
   const probs = hourly.precipitation_probability || [];
   let html = '';
 
+  // L'API Open-Meteo retourne les heures déjà dans le fuseau horaire de la ville
+  // (grâce à timezone='auto'). On extrait l'heure depuis la chaîne ISO
+  // pour éviter tout décalage lié au fuseau du navigateur.
+  const currentHour = times[0] ? parseInt(times[0].split('T')[1].split(':')[0]) : 0;
+
   for (let i = 0; i < Math.min(24, times.length); i++) {
-    const h = new Date(times[i]).getHours();
+    const h = parseInt(times[i].split('T')[1].split(':')[0]);
     const label = i === 0 ? 'Maintenant' : `${h}h`;
-    const icon = createWeatherIconSVG(codes[i], true, 28);
+    // isDay = entre 6h et 21h (jour) sinon nuit
+    const isDay = h >= 6 && h < 21;
+    const icon = createWeatherIconSVG(codes[i], isDay, 28);
       html += `<div class="hourly-item">
         <div class="time">${label}</div>
         <div class="icon">${icon}</div>
