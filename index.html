@@ -25,12 +25,28 @@
         .loading{display:flex;justify-content:center;align-items:center;height:50vh}
         .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top:3px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
         @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-    </style>
+    
+.ui-icon-svg {
+    display: block;
+    fill: currentColor;
+    width: 100%;
+    height: 100%;
+}
+.cities-edit, .settings-btn, .cities-close, .back-btn, .search-clear, .close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
     
     <!-- Chargement différé des styles -->
-    <link rel="preload" href="style.css?v=18" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="style.css?v=16" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <link rel="preload" href="weather-icons.css?v=6" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <link rel="preload" href="apple-weather-atmosphere.css?v=3" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <!-- Apple-style Icons -->
+    <link rel="preload" href="apple-weather-icons.css?v=1" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <script src="apple-weather-icons.js?v=1" defer></script>
+
     
     <script>
         if('serviceWorker' in navigator) {
@@ -41,6 +57,35 @@
     </script>
 </head>
 <body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="icon-settings" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.48.48 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.12.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.27.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.12-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+  </symbol>
+  <symbol id="icon-edit" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.41l-2.34-2.34a1.003 1.003 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+  </symbol>
+  <symbol id="icon-close" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+  </symbol>
+  <symbol id="icon-menu" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+  </symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+  </symbol>
+  <symbol id="icon-location" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+  </symbol>
+  <symbol id="icon-refresh" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+  </symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+  </symbol>
+  <symbol id="icon-warning" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+  </symbol>
+</svg>
     <div class="app">
         <div class="background">
             <div class="bg-layer bg-blue"></div>
@@ -52,9 +97,9 @@
                 <div class="cities-header">
                     <div class="cities-title">Météo</div>
                     <div class="cities-actions">
-                        <button id="cities-edit" class="cities-edit" aria-label="Modifier" aria-pressed="false">✎</button>
-                        <button id="settings-btn" class="settings-btn" aria-label="Paramètres">⚙</button>
-                        <button id="cities-close" class="cities-close" aria-label="Fermer">✕</button>
+                        <button id="cities-edit" class="cities-edit" aria-label="Modifier" aria-pressed="false"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-edit"></use></svg></button>
+                        <button id="settings-btn" class="settings-btn" aria-label="Paramètres"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="22" height="22"><use href="apple-ui-icons.svg#icon-settings"></use></svg></button>
+                        <button id="cities-close" class="cities-close" aria-label="Fermer"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-close"></use></svg></button>
                     </div>
                 </div>
 <div id="cities-list" class="cities-list"></div>
@@ -70,17 +115,17 @@
                         <!-- Hero Section -->
                         <div class="hero">
                             <div class="nav nav-detail">
-                                <button id="back-to-cities" class="back-btn" aria-label="Menu">☰</button>
+                                <button id="back-to-cities" class="back-btn" aria-label="Menu"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="22" height="22"><use href="apple-ui-icons.svg#icon-menu"></use></svg></button>
                                 
-                                <button id="settings-btn-detail" class="settings-btn" aria-label="Paramètres">⚙</button>
+                                <button id="settings-btn-detail" class="settings-btn" aria-label="Paramètres"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="22" height="22"><use href="apple-ui-icons.svg#icon-settings"></use></svg></button>
                             </div>
                             
                             
                             <div class="search-container search-container-centered">
                                 <div class="search-box">
-                                    <span class="search-icon">🔍</span>
+                                    <span class="search-icon"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-search"></use></svg></span>
                                     <input type="text" id="city-input" value="" placeholder="Rechercher une ville..." autocomplete="off">
-                                    <button class="search-clear" id="search-clear" style="display: none;">✕</button>
+                                    <button class="search-clear" id="search-clear" style="display: none;"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-close"></use></svg></button>
                                 </div>
                                 <div class="search-suggestions" id="search-suggestions"></div>
                             </div>
@@ -101,7 +146,7 @@
                             <!-- Alerte (au-dessus des prévisions horaires) -->
                             <div class="card alert-card">
                                 <div class="card-label">
-                                    <span class="label-icon">⚠️</span>
+                                    <span class="label-icon"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-warning"></use></svg>️</span>
                                     <span>ALERTE MÉTÉO</span>
                                 </div>
                                 <div class="separator"></div>
@@ -116,7 +161,7 @@
                                     <span>PRÉVISIONS HORAIRES</span>
                                 </div>
                                 <div class="separator"></div>
-                                 <div class="hourly-scroll" id="hourly-list"></div>
+                                <div class="hourly-scroll" id="hourly-list"></div>
                             </div>
 
                             <!-- Daily -->
@@ -273,7 +318,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Paramètres</h2>
-                <button id="close-settings" class="close-btn">✕</button>
+                <button id="close-settings" class="close-btn"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-close"></use></svg></button>
             </div>
             <div class="modal-body">
                 <div class="setting-item">
@@ -299,8 +344,8 @@
         </div>
     </div>
 
-    <script src="apple-weather-icons.js?v=6"></script>
-    <script src="weather-icons.js?v=14"></script>
-    <script src="script.js?v=104"></script>
+    <script src="apple-weather-icons.js?v=4"></script>
+    <script src="weather-icons.js?v=12"></script>
+    <script src="script.js?v=102"></script>
 </body>
 </html>

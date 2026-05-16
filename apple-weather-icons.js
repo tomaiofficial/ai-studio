@@ -1,423 +1,49 @@
-/**
- * Apple Weather Style Icons v2
- * Icônes SVG fidèles aux SF Symbols Apple Weather
- * - Formes pleines (filled) avec couleurs natives Apple
- * - Positions correctes : soleil derrière le nuage, etc.
- * - viewBox 0 0 100 100 pour scaling parfait
- */
+// Apple-style Weather Icons (SF Symbols style)
+// Usage: getWeatherIcon(code, isDay, size)
 
-class AppleWeatherIcons {
-    constructor() {
-        this.icons = {
-            sun: this.createSun(),
-            moon: this.createMoon(),
-            cloud: this.createCloud(),
-            'cloud.sun': this.createCloudSun(),
-            'cloud.moon': this.createCloudMoon(),
-            rain: this.createRain(),
-            'cloud.rain': this.createCloudRain(),
-            snow: this.createSnow(),
-            'cloud.snow': this.createCloudSnow(),
-            thunder: this.createThunder(),
-            'cloud.bolt': this.createCloudBolt(),
-            'cloud.bolt.rain': this.createCloudBoltRain(),
-            fog: this.createFog(),
-            'cloud.fog': this.createCloudFog(),
-            'sun.dust': this.createSunDust(),
-            haze: this.createHaze(),
-            'cloud.sun.rain': this.createCloudSunRain(),
-            drizzle: this.createDrizzle(),
-            sleet: this.createSleet(),
-            smoke: this.createSmoke(),
-            tornado: this.createTornado(),
-            hurricane: this.createHurricane(),
-            'thermometer.sun': this.createThermometerSun(),
-            'thermometer.snowflake': this.createThermometerSnow(),
-            wind: this.createWind(),
-            'sun.haze': this.createSunHaze()
-        };
-    }
-
-    createSVG(content, viewBox = '0 0 100 100', className = '') {
-        return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" class="apple-weather-icon ${className}" width="100%" height="100%" stroke-linecap="round" stroke-linejoin="round">${content}</svg>`;
-    }
-
-    // ─── SOLEIL ───
-    createSun() {
-        return this.createSVG(`
-            <circle cx="50" cy="50" r="18" fill="#FFD60A"/>
-            <g stroke="#FFD60A" stroke-width="3.5" stroke-linecap="round">
-                <line x1="50" y1="14" x2="50" y2="22"/>
-                <line x1="50" y1="78" x2="50" y2="86"/>
-                <line x1="14" y1="50" x2="22" y2="50"/>
-                <line x1="78" y1="50" x2="86" y2="50"/>
-                <line x1="24.5" y1="24.5" x2="30.5" y2="30.5"/>
-                <line x1="69.5" y1="69.5" x2="75.5" y2="75.5"/>
-                <line x1="24.5" y1="75.5" x2="30.5" y2="69.5"/>
-                <line x1="69.5" y1="30.5" x2="75.5" y2="24.5"/>
-            </g>
-        `);
-    }
-
-    // ─── LUNE ───
-    createMoon() {
-        return this.createSVG(`
-            <path d="M65 18 A32 32 0 1 1 35 82 A26 26 0 1 0 65 18 Z" fill="#E9E9EF"/>
-            <circle cx="30" cy="38" r="4" fill="#D1D1D6" opacity="0.4"/>
-            <circle cx="38" cy="58" r="3" fill="#D1D1D6" opacity="0.3"/>
-            <circle cx="22" cy="52" r="2" fill="#D1D1D6" opacity="0.25"/>
-        `);
-    }
-
-    // ─── NUAGE (plein) ───
-    createCloud() {
-        return this.createSVG(`
-            <path d="M28 68 Q16 68 14 56 Q12 44 22 40 Q22 26 36 24 Q44 16 56 20 Q66 16 72 26 Q82 26 84 38 Q90 42 86 54 Q84 68 72 68 Z" fill="#C7C7CC"/>
-            <path d="M28 68 Q16 68 14 56 Q12 44 22 40 Q22 26 36 24 Q44 16 56 20 Q66 16 72 26 Q82 26 84 38 Q90 42 86 54 Q84 68 72 68 Z" fill="url(#cloudGrad)"/>
-            <defs>
-                <linearGradient id="cloudGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#F2F2F7" stop-opacity="0.9"/>
-                    <stop offset="100%" stop-color="#E5E5EA" stop-opacity="0.3"/>
-                </linearGradient>
-            </defs>
-        `);
-    }
-
-    // ─── SOLEIL + NUAGE (partiellement nuageux) ───
-    createCloudSun() {
-        return this.createSVG(`
-            <circle cx="70" cy="30" r="18" fill="#FFD60A"/>
-            <g stroke="#FFD60A" stroke-width="3" stroke-linecap="round">
-                <line x1="70" y1="2" x2="70" y2="8"/>
-                <line x1="70" y1="52" x2="70" y2="58"/>
-                <line x1="42" y1="30" x2="48" y2="30"/>
-                <line x1="92" y1="30" x2="98" y2="30"/>
-                <line x1="50" y1="10" x2="54.5" y2="14.5"/>
-                <line x1="85.5" y1="45.5" x2="90" y2="50"/>
-                <line x1="50" y1="50" x2="54.5" y2="45.5"/>
-                <line x1="85.5" y1="14.5" x2="90" y2="10"/>
-            </g>
-            <path d="M18 78 Q8 78 6 66 Q4 54 14 50 Q14 36 28 34 Q36 26 48 30 Q58 26 64 36 Q74 36 76 48 Q82 52 78 64 Q76 78 64 78 Z" fill="#C7C7CC"/>
-            <path d="M18 78 Q8 78 6 66 Q4 54 14 50 Q14 36 28 34 Q36 26 48 30 Q58 26 64 36 Q74 36 76 48 Q82 52 78 64 Q76 78 64 78 Z" fill="url(#csGrad)"/>
-            <defs>
-                <linearGradient id="csGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#F2F2F7" stop-opacity="0.95"/>
-                    <stop offset="100%" stop-color="#E5E5EA" stop-opacity="0.4"/>
-                </linearGradient>
-            </defs>
-        `);
-    }
-
-    // ─── LUNE + NUAGE ───
-    createCloudMoon() {
-        return this.createSVG(`
-            <path d="M72 20 A18 18 0 1 1 58 48 A14 14 0 1 0 72 20 Z" fill="#E9E9EF"/>
-            <path d="M18 78 Q8 78 6 66 Q4 54 14 50 Q14 36 28 34 Q36 26 48 30 Q58 26 64 36 Q74 36 76 48 Q82 52 78 64 Q76 78 64 78 Z" fill="#C7C7CC"/>
-            <path d="M18 78 Q8 78 6 66 Q4 54 14 50 Q14 36 28 34 Q36 26 48 30 Q58 26 64 36 Q74 36 76 48 Q82 52 78 64 Q76 78 64 78 Z" fill="url(#cmGrad)"/>
-            <defs>
-                <linearGradient id="cmGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#F2F2F7" stop-opacity="0.95"/>
-                    <stop offset="100%" stop-color="#E5E5EA" stop-opacity="0.4"/>
-                </linearGradient>
-            </defs>
-        `);
-    }
-
-    // ─── PLUIE ───
-    createRain() {
-        return this.createSVG(`
-            <path d="M22 60 Q12 60 10 50 Q8 40 16 36 Q16 24 28 22 Q36 14 48 18 Q58 14 64 24 Q74 24 76 36 Q82 40 78 52 Q76 60 64 60 Z" fill="#8E8E93"/>
-            <g stroke="#007AFF" stroke-width="3.5" stroke-linecap="round">
-                <line x1="22" y1="65" x2="20" y2="84"/>
-                <line x1="36" y1="65" x2="34" y2="88"/>
-                <line x1="50" y1="65" x2="48" y2="80"/>
-                <line x1="64" y1="65" x2="62" y2="86"/>
-            </g>
-        `);
-    }
-
-    createCloudRain() {
-        return this.createRain();
-    }
-
-    // ─── NEIGE ───
-    createSnow() {
-        return this.createSVG(`
-            <path d="M22 60 Q12 60 10 50 Q8 40 16 36 Q16 24 28 22 Q36 14 48 18 Q58 14 64 24 Q74 24 76 36 Q82 40 78 52 Q76 60 64 60 Z" fill="#8E8E93"/>
-            <g fill="#E0F2FE" stroke="#0EA5E9" stroke-width="1.5">
-                <circle cx="22" cy="72" r="4"/>
-                <circle cx="38" cy="78" r="4"/>
-                <circle cx="54" cy="70" r="4"/>
-            </g>
-        `);
-    }
-
-    createCloudSnow() {
-        return this.createSnow();
-    }
-
-    // ─── ÉCLAIR ───
-    createThunder() {
-        return this.createSVG(`
-            <path d="M22 60 Q12 60 10 50 Q8 40 16 36 Q16 24 28 22 Q36 14 48 18 Q58 14 64 24 Q74 24 76 36 Q82 40 78 52 Q76 60 64 60 Z" fill="#8E8E93"/>
-            <path d="M40 58 L28 78 L40 78 L32 96 L54 72 L42 72 Z" fill="#FFD60A"/>
-        `);
-    }
-
-    createCloudBolt() {
-        return this.createThunder();
-    }
-
-    // ─── ÉCLAIR + PLUIE ───
-    createCloudBoltRain() {
-        return this.createSVG(`
-            <path d="M22 60 Q12 60 10 50 Q8 40 16 36 Q16 24 28 22 Q36 14 48 18 Q58 14 64 24 Q74 24 76 36 Q82 40 78 52 Q76 60 64 60 Z" fill="#8E8E93"/>
-            <path d="M42 58 L32 74 L42 74 L36 88 L52 70 L42 70 Z" fill="#FFD60A"/>
-            <g stroke="#007AFF" stroke-width="3" stroke-linecap="round">
-                <line x1="22" y1="64" x2="20" y2="74"/>
-                <line x1="62" y1="64" x2="60" y2="74"/>
-            </g>
-        `);
-    }
-
-    // ─── BROUILLARD ───
-    createFog() {
-        return this.createSVG(`
-            <g stroke="#C7C7CC" stroke-width="4" stroke-linecap="round">
-                <line x1="12" y1="32" x2="88" y2="32" opacity="0.9"/>
-                <line x1="18" y1="46" x2="82" y2="46" opacity="0.8"/>
-                <line x1="14" y1="60" x2="86" y2="60" opacity="0.7"/>
-                <line x1="24" y1="74" x2="76" y2="74" opacity="0.5"/>
-            </g>
-        `);
-    }
-
-    // ─── NUAGE + BROUILLARD ───
-    createCloudFog() {
-        return this.createSVG(`
-            <path d="M22 44 Q12 44 10 34 Q8 24 16 20 Q16 10 28 8 Q36 2 46 6 Q56 2 62 12 Q72 12 74 24 Q80 28 76 40 Q74 44 64 44 Z" fill="#AEAEB2"/>
-            <g stroke="#C7C7CC" stroke-width="3.5" stroke-linecap="round">
-                <line x1="16" y1="50" x2="72" y2="50"/>
-                <line x1="20" y1="62" x2="64" y2="62" opacity="0.6"/>
-                <line x1="28" y1="74" x2="56" y2="74" opacity="0.4"/>
-            </g>
-        `);
-    }
-
-    // ─── SOLEIL + POUSSIÈRE ───
-    createSunDust() {
-        return this.createSVG(`
-            <circle cx="50" cy="42" r="18" fill="#FFD60A"/>
-            <g stroke="#FFD60A" stroke-width="3" stroke-linecap="round">
-                <line x1="50" y1="10" x2="50" y2="16"/>
-                <line x1="50" y1="68" x2="50" y2="74"/>
-                <line x1="18" y1="42" x2="24" y2="42"/>
-                <line x1="76" y1="42" x2="82" y2="42"/>
-            </g>
-            <g fill="#AEAEB2" opacity="0.6">
-                <circle cx="30" cy="72" r="3"/>
-                <circle cx="68" cy="76" r="2.5"/>
-                <circle cx="45" cy="82" r="2"/>
-                <circle cx="60" cy="68" r="2.5"/>
-                <circle cx="78" cy="64" r="2"/>
-            </g>
-        `);
-    }
-
-    createHaze() {
-        return this.createSunDust();
-    }
-
-    // ─── SOLEIL + NUAGE + PLUIE ───
-    createCloudSunRain() {
-        return this.createSVG(`
-            <circle cx="70" cy="24" r="15" fill="#FFD60A"/>
-            <g stroke="#FFD60A" stroke-width="2.5" stroke-linecap="round">
-                <line x1="70" y1="1" x2="70" y2="6"/>
-                <line x1="70" y1="42" x2="70" y2="47"/>
-                <line x1="47" y1="24" x2="52" y2="24"/>
-                <line x1="88" y1="24" x2="93" y2="24"/>
-            </g>
-            <path d="M18 78 Q8 78 6 66 Q4 54 14 50 Q14 36 28 34 Q36 26 48 30 Q58 26 64 36 Q74 36 76 48 Q82 52 78 64 Q76 78 64 78 Z" fill="#AEAEB2"/>
-            <g stroke="#007AFF" stroke-width="3" stroke-linecap="round">
-                <line x1="22" y1="82" x2="20" y2="94"/>
-                <line x1="36" y1="82" x2="34" y2="96"/>
-                <line x1="50" y1="82" x2="48" y2="92"/>
-                <line x1="64" y1="82" x2="62" y2="94"/>
-            </g>
-        `);
-    }
-
-    // ─── BRUINE (drizzle) ───
-    createDrizzle() {
-        return this.createSVG(`
-            <path d="M22 60 Q12 60 10 50 Q8 40 16 36 Q16 24 28 22 Q36 14 48 18 Q58 14 64 24 Q74 24 76 36 Q82 40 78 52 Q76 60 64 60 Z" fill="#8E8E93"/>
-            <g stroke="#007AFF" stroke-width="2" stroke-linecap="round">
-                <line x1="22" y1="66" x2="20" y2="74"/>
-                <line x1="36" y1="66" x2="34" y2="76"/>
-                <line x1="50" y1="66" x2="48" y2="72"/>
-                <line x1="64" y1="66" x2="62" y2="75"/>
-            </g>
-        `);
-    }
-
-    // ─── PLUIE VERGLACANTE (sleet) ───
-    createSleet() {
-        return this.createSVG(`
-            <path d="M22 60 Q12 60 10 50 Q8 40 16 36 Q16 24 28 22 Q36 14 48 18 Q58 14 64 24 Q74 24 76 36 Q82 40 78 52 Q76 60 64 60 Z" fill="#8E8E93"/>
-            <g stroke="#007AFF" stroke-width="2.5" stroke-linecap="round">
-                <line x1="22" y1="66" x2="20" y2="78"/>
-                <line x1="50" y1="66" x2="48" y2="76"/>
-            </g>
-            <circle cx="36" cy="74" r="3.5" fill="#E0F2FE" stroke="#0EA5E9" stroke-width="1.5"/>
-            <circle cx="62" cy="72" r="3.5" fill="#E0F2FE" stroke="#0EA5E9" stroke-width="1.5"/>
-        `);
-    }
-
-    // ─── FUMÉE ───
-    createSmoke() {
-        return this.createSVG(`
-            <path d="M22 50 Q12 50 10 40 Q8 30 16 26 Q16 14 28 12 Q38 6 48 10 Q58 6 64 16 Q74 16 76 28 Q82 32 78 44 Q76 50 66 50 Z" fill="#AEAEB2" opacity="0.5"/>
-            <g fill="#C7C7CC" opacity="0.25">
-                <circle cx="28" cy="60" r="10"/>
-                <circle cx="56" cy="66" r="12"/>
-                <circle cx="44" cy="78" r="8"/>
-            </g>
-        `);
-    }
-
-    // ─── TORNADE ───
-    createTornado() {
-        return this.createSVG(`
-            <path d="M55 10 Q70 10 76 20 Q82 30 68 36 Q54 42 48 52 Q42 62 52 68" stroke="#AEAEB2" stroke-width="3.5" fill="none"/>
-            <path d="M52 68 Q46 74 52 80" stroke="#AEAEB2" stroke-width="3.5" fill="none"/>
-            <path d="M42 28 Q52 28 58 32" stroke="#C7C7CC" stroke-width="2.5" fill="none"/>
-            <path d="M38 42 Q48 42 54 46" stroke="#C7C7CC" stroke-width="2.5" fill="none"/>
-        `);
-    }
-
-    // ─── OURAGAN ───
-    createHurricane() {
-        return this.createSVG(`
-            <g fill="none" stroke="#007AFF" stroke-width="3.5">
-                <circle cx="50" cy="50" r="32"/>
-                <circle cx="50" cy="50" r="18"/>
-                <circle cx="50" cy="50" r="6"/>
-            </g>
-            <path d="M50 18 Q62 35 50 50 Q38 35 50 18" fill="#007AFF"/>
-            <path d="M50 82 Q38 65 50 50 Q62 65 50 82" fill="#007AFF"/>
-        `);
-    }
-
-    // ─── THERMOMÈTRE CHAUD ───
-    createThermometerSun() {
-        return this.createSVG(`
-            <rect x="42" y="26" width="16" height="48" rx="8" fill="none" stroke="#AEAEB2" stroke-width="3"/>
-            <circle cx="50" cy="64" r="10" fill="#FF3B30"/>
-            <rect x="46" y="36" width="8" height="20" rx="4" fill="#FF3B30"/>
-            <circle cx="74" cy="24" r="8" fill="#FFD60A"/>
-            <g stroke="#FFD60A" stroke-width="2.5" stroke-linecap="round">
-                <line x1="74" y1="10" x2="74" y2="14"/>
-                <line x1="74" y1="34" x2="74" y2="38"/>
-                <line x1="60" y1="24" x2="64" y2="24"/>
-                <line x1="84" y1="24" x2="88" y2="24"/>
-            </g>
-        `);
-    }
-
-    // ─── THERMOMÈTRE FROID ───
-    createThermometerSnow() {
-        return this.createSVG(`
-            <rect x="42" y="26" width="16" height="48" rx="8" fill="none" stroke="#AEAEB2" stroke-width="3"/>
-            <circle cx="50" cy="64" r="10" fill="#0EA5E9"/>
-            <rect x="46" y="44" width="8" height="12" rx="4" fill="#0EA5E9"/>
-            <circle cx="72" cy="22" r="6" fill="none" stroke="#0EA5E9" stroke-width="2.5"/>
-            <g stroke="#0EA5E9" stroke-width="2.5" stroke-linecap="round">
-                <line x1="72" y1="12" x2="72" y2="9"/>
-                <line x1="64" y1="22" x2="61" y2="22"/>
-                <line x1="80" y1="22" x2="83" y2="22"/>
-            </g>
-        `);
-    }
-
-    // ─── VENT ───
-    createWind() {
-        return this.createSVG(`
-            <g fill="none" stroke="#007AFF" stroke-width="3.5" stroke-linecap="round">
-                <path d="M14 28 Q24 18 38 28 Q48 38 56 28"/>
-                <path d="M8 50 Q24 40 42 50 Q56 60 70 50"/>
-                <path d="M18 72 Q32 62 48 72 Q62 82 76 72"/>
-            </g>
-        `);
-    }
-
-    // ─── SOLEIL + BRUME ───
-    createSunHaze() {
-        return this.createSVG(`
-            <circle cx="50" cy="38" r="16" fill="#FFD60A"/>
-            <g stroke="#FFD60A" stroke-width="2.5" stroke-linecap="round">
-                <line x1="50" y1="10" x2="50" y2="16"/>
-                <line x1="50" y1="60" x2="50" y2="66"/>
-                <line x1="22" y1="38" x2="28" y2="38"/>
-                <line x1="72" y1="38" x2="78" y2="38"/>
-                <line x1="30" y1="18" x2="34.5" y2="22.5"/>
-                <line x1="65.5" y1="53.5" x2="70" y2="58"/>
-                <line x1="30" y1="58" x2="34.5" y2="53.5"/>
-                <line x1="65.5" y1="22.5" x2="70" y2="18"/>
-            </g>
-            <g stroke="#C7C7CC" stroke-width="3" stroke-linecap="round" opacity="0.5">
-                <line x1="12" y1="74" x2="88" y2="74"/>
-                <line x1="20" y1="84" x2="80" y2="84" opacity="0.35"/>
-            </g>
-        `);
-    }
-
-    // ─── MAPPING WMO ───
-    getIcon(code, isDay = true) {
-        const iconMap = {
-            0: isDay ? 'sun' : 'moon',
-            1: isDay ? 'cloud.sun' : 'cloud.moon',
-            2: isDay ? 'cloud.sun' : 'cloud.moon',
-            3: 'cloud',
-            45: 'cloud.fog',
-            48: 'cloud.fog',
-            51: 'drizzle',
-            53: 'drizzle',
-            55: 'drizzle',
-            56: 'sleet',
-            57: 'sleet',
-            61: 'rain',
-            63: 'rain',
-            65: 'rain',
-            66: 'sleet',
-            67: 'sleet',
-            71: 'snow',
-            73: 'snow',
-            75: 'snow',
-            77: 'snow',
-            80: 'rain',
-            81: 'rain',
-            82: 'thunder',
-            85: 'snow',
-            86: 'snow',
-            95: 'cloud.bolt',
-            96: 'cloud.bolt.rain',
-            99: 'cloud.bolt.rain'
-        };
-        const iconName = iconMap[code] || (isDay ? 'sun' : 'moon');
-        return this.icons[iconName] || this.icons.sun;
-    }
-}
-
-// Instance globale
-const appleWeatherIcons = new AppleWeatherIcons();
-
-// Helper : retourne le container HTML avec l'icône SVG
-function getWeatherIcon(code, isDay = true, size = 48) {
-    const svg = appleWeatherIcons.getIcon(code, isDay);
-    return `<div class="apple-weather-icon-container" style="width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center">${svg}</div>`;
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { AppleWeatherIcons, getWeatherIcon };
-}
+(function() {
+    'use strict';
+    
+    const iconPaths = {
+        clear: {
+            day: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sunG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#FFD700;stop-opacity:1"/><stop offset="100%" style="stop-color:#FFA500;stop-opacity:1"/></linearGradient></defs><circle cx="32" cy="32" r="14" fill="url(#sunG)"/><g stroke="url(#sunG)" stroke-width="3" stroke-linecap="round"><line x1="32" y1="6" x2="32" y2="12"/><line x1="32" y1="52" x2="32" y2="58"/><line x1="6" y1="32" x2="12" y2="32"/><line x1="52" y1="32" x2="58" y2="32"/><line x1="13.6" y1="13.6" x2="17.8" y2="17.8"/><line x1="46.2" y1="46.2" x2="50.4" y2="50.4"/><line x1="13.6" y1="50.4" x2="17.8" y2="46.2"/><line x1="46.2" y1="17.8" x2="50.4" y2="13.6"/></g></svg>',
+            night: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="moonG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#F5F5F5;stop-opacity:1"/><stop offset="100%" style="stop-color:#E8E8E8;stop-opacity:1"/></linearGradient></defs><path d="M 42 14 A 18 18 0 1 0 42 50 A 14 14 0 1 1 42 14" fill="url(#moonG)"/></svg>'
+        },
+        partlyCloudy: {
+            day: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="sunG2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#FFD700;stop-opacity:1"/><stop offset="100%" style="stop-color:#FFA500;stop-opacity:1"/></linearGradient><linearGradient id="cloudG" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1"/><stop offset="100%" style="stop-color:#E0E0E0;stop-opacity:1"/></linearGradient></defs><circle cx="40" cy="28" r="10" fill="url(#sunG2)"/><g stroke="url(#sunG2)" stroke-width="2.5" stroke-linecap="round"><line x1="40" y1="10" x2="40" y2="14"/><line x1="54.1" y1="17.9" x2="56.9" y2="20.7"/><line x1="54.1" y1="38.1" x2="56.9" y2="35.3"/></g><path d="M 48 44 A 8 8 0 0 1 48 28 L 52 28 A 10 10 0 0 1 52 48 L 24 48 A 8 8 0 0 1 24 32 L 28 32 A 6 6 0 0 1 28 20 L 34 20 A 8 8 0 0 1 48 24 Z" fill="url(#cloudG)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"/></svg>',
+            night: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="moonG2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#F5F5F5;stop-opacity:1"/><stop offset="100%" style="stop-color:#E8E8E8;stop-opacity:1"/></linearGradient><linearGradient id="cloudG2" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1"/><stop offset="100%" style="stop-color:#E0E0E0;stop-opacity:1"/></linearGradient></defs><path d="M 38 22 A 12 12 0 1 0 38 46 A 10 10 0 1 1 38 22" fill="url(#moonG2)"/><path d="M 44 46 A 6 6 0 0 1 44 34 L 47 34 A 8 8 0 0 1 47 50 L 20 50 A 6 6 0 0 1 20 38 L 23 38 A 5 5 0 0 1 23 30 L 28 30 A 6 6 0 0 1 44 36 Z" fill="url(#cloudG2)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"/></svg>'
+        },
+        cloudy: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="cloudG3" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#F0F0F0;stop-opacity:1"/><stop offset="100%" style="stop-color:#C0C0C0;stop-opacity:1"/></linearGradient></defs><path d="M 48 44 A 10 10 0 0 1 48 24 L 54 24 A 12 12 0 0 1 54 48 L 20 48 A 10 10 0 0 1 20 28 L 26 28 A 8 8 0 0 1 26 12 L 36 12 A 10 10 0 0 1 48 24 Z" fill="url(#cloudG3)" filter="drop-shadow(0 3px 6px rgba(0,0,0,0.15))"/></svg>',
+        rain: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="rainC" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#A0A0A0;stop-opacity:1"/><stop offset="100%" style="stop-color:#707070;stop-opacity:1"/></linearGradient><linearGradient id="rainD" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#6BB6FF;stop-opacity:1"/><stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1"/></linearGradient></defs><path d="M 46 38 A 8 8 0 0 1 46 22 L 51 22 A 10 10 0 0 1 51 42 L 18 42 A 8 8 0 0 1 18 26 L 23 26 A 6 6 0 0 1 23 14 L 31 14 A 8 8 0 0 1 46 26 Z" fill="url(#rainC)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))"/><g stroke="url(#rainD)" stroke-width="2" stroke-linecap="round"><line x1="24" y1="46" x2="22" y2="54"/><line x1="32" y1="46" x2="30" y2="54"/><line x1="40" y1="46" x2="38" y2="54"/></g></svg>',
+        storm: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="stormC" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#5A5A5A;stop-opacity:1"/><stop offset="100%" style="stop-color:#3A3A3A;stop-opacity:1"/></linearGradient><linearGradient id="lightning" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#FFE135;stop-opacity:1"/><stop offset="100%" style="stop-color:#FFA500;stop-opacity:1"/></linearGradient></defs><path d="M 46 36 A 8 8 0 0 1 46 20 L 51 20 A 10 10 0 0 1 51 40 L 18 40 A 8 8 0 0 1 18 24 L 23 24 A 6 6 0 0 1 23 12 L 31 12 A 8 8 0 0 1 46 24 Z" fill="url(#stormC)" filter="drop-shadow(0 3px 6px rgba(0,0,0,0.3))"/><path d="M 34 42 L 28 52 L 32 52 L 30 60 L 38 48 L 34 48 Z" fill="url(#lightning)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.3))"/></svg>',
+        snow: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="snowC" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#E8E8E8;stop-opacity:1"/><stop offset="100%" style="stop-color:#C0C0C0;stop-opacity:1"/></linearGradient></defs><path d="M 46 38 A 8 8 0 0 1 46 22 L 51 22 A 10 10 0 0 1 51 42 L 18 42 A 8 8 0 0 1 18 26 L 23 26 A 6 6 0 0 1 23 14 L 31 14 A 8 8 0 0 1 46 26 Z" fill="url(#snowC)" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))"/><g fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"><circle cx="24" cy="50" r="3"/><circle cx="32" cy="52" r="3"/><circle cx="40" cy="50" r="3"/><circle cx="28" cy="58" r="2.5"/><circle cx="36" cy="58" r="2.5"/></g></svg>',
+        fog: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="fogG" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#D0D0D0;stop-opacity:1"/><stop offset="100%" style="stop-color:#A0A0A0;stop-opacity:1"/></linearGradient></defs><g fill="url(#fogG)" opacity="0.8"><rect x="12" y="24" width="40" height="6" rx="3"/><rect x="16" y="34" width="32" height="6" rx="3"/><rect x="14" y="44" width="36" height="6" rx="3"/></g></svg>',
+        wind: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="windG" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" style="stop-color:#A0C4FF;stop-opacity:1"/><stop offset="100%" style="stop-color:#6B9BFF;stop-opacity:1"/></linearGradient></defs><g stroke="url(#windG)" stroke-width="4" stroke-linecap="round" fill="none"><path d="M 12 28 Q 28 28 34 24 Q 40 20 52 24"/><path d="M 12 38 Q 30 38 38 34 Q 46 30 52 34"/><path d="M 12 48 Q 26 48 32 46"/></g></svg>'
+    };
+    
+    const wmoIconMap = {
+        0: 'clear', 1: 'partlyCloudy', 2: 'partlyCloudy', 3: 'cloudy',
+        45: 'fog', 48: 'fog',
+        51: 'rain', 53: 'rain', 55: 'rain', 56: 'rain', 57: 'rain',
+        61: 'rain', 63: 'rain', 65: 'rain', 66: 'rain', 67: 'rain',
+        71: 'snow', 73: 'snow', 75: 'snow', 77: 'snow',
+        80: 'rain', 81: 'rain', 82: 'storm',
+        85: 'snow', 86: 'snow',
+        95: 'storm', 96: 'storm', 99: 'storm'
+    };
+    
+    window.getWeatherIcon = function(code, isDay, size) {
+        const c = Number(code || 0);
+        let iconName = wmoIconMap[c] || 'clear';
+        let iconData;
+        if (typeof iconPaths[iconName] === 'string') {
+            iconData = iconPaths[iconName];
+        } else if (iconPaths[iconName]) {
+            iconData = isDay ? iconPaths[iconName].day : iconPaths[iconName].night;
+        } else {
+            iconData = isDay ? iconPaths.clear.day : iconPaths.clear.night;
+        }
+        if (!iconData) iconData = iconPaths.clear.day;
+        return '<div class="weather-icon-container" style="width:' + size + 'px;height:' + size + 'px;display:flex;align-items:center;justify-content:center;">' + iconData + '</div>';
+    };
+})();

@@ -1,0 +1,73 @@
+/* Apple-style Weather Icons Styles */
+.weather-icon {
+    display: inline-block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.weather-icon svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+    transition: transform 0.3s ease;
+}
+
+.weather-icon:hover svg {
+    transform: scale(1.05);
+}
+
+/* Icon animations */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Weather icon sizes */
+.icon-small { width: 24px; height: 24px; }
+.icon-medium { width: 48px; height: 48px; }
+.icon-large { width: 64px; height: 64px; }
+.icon-xlarge { width: 96px; height: 96px; }
+
+/* UI Icons */
+.ui-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: currentColor;
+}
+
+.ui-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.ui-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.ui-icon-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.ui-icon-btn:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
