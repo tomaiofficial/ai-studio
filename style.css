@@ -347,15 +347,6 @@ body {
     transform: translateY(-2px);
 }
 
-.hourly-item, .daily-item {
-    transition: all 0.3s ease;
-}
-
-.hourly-item:hover, .daily-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    transform: scale(1.05);
-}
-
 /* Dynamic Background Animations */
 .bg-layer {
     position: absolute;
@@ -672,8 +663,8 @@ body {
     margin: 0 -14px 12px;
 }
 
-/* Hourly */
-.hourly-container {
+/* Hourly — horizontal scroll strict */
+.hourly-scroll {
     display: flex;
     gap: 12px;
     overflow-x: auto;
@@ -682,52 +673,53 @@ body {
     -ms-overflow-style: none;
 }
 
-.hourly-container::-webkit-scrollbar {
+.hourly-scroll::-webkit-scrollbar {
     display: none;
 }
 
-.hour-card {
+.hourly-item {
     min-width: 60px;
     flex-shrink: 0;
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     padding: 10px 6px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 14px;
     transition: all 0.3s ease;
 }
 
-.hour-card:hover {
+.hourly-item:hover {
     background: rgba(255, 255, 255, 0.1);
     transform: scale(1.05);
 }
 
-.hour-card .time {
+.hourly-item .time {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.6);
     font-weight: 300;
     white-space: nowrap;
 }
 
-.hour-card .icon {
+.hourly-item .icon {
     display: flex;
     align-items: center;
     justify-content: center;
     height: 44px;
     width: 44px;
-    margin: 2px 0;
+    margin: 0;
+    font-size: 0;
 }
 
-.hour-card .temp {
+.hourly-item .temp {
     font-size: 15px;
     font-weight: 400;
     color: #fff;
 }
 
-.hour-card .rain {
+.hourly-item .rain {
     font-size: 11px;
     color: #87CEEB;
     text-align: center;
