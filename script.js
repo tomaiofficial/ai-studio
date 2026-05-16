@@ -1684,10 +1684,8 @@ async function displayWeatherData(weatherData) {
             const rainDisplay = isRainCode ? 
                 `<div class="rain">💧 ${precipProb}%</div>` : '';
             
-            // Créer l'icône SVG météo IA réaliste
-            const iconHTML = typeof createWeatherIconSVG === 'function' 
-                ? createWeatherIconSVG(code, hourlyIsDay, 48) 
-                : '';
+            // Apple weather emoji icon
+            const iconHTML = getAppleWeatherIcon(code, hourlyIsDay);
             
             // Ajouter des détails supplémentaires
             const weatherInfo = getWeatherInfo(code);
@@ -1741,9 +1739,8 @@ async function displayWeatherData(weatherData) {
             const weatherInfo = getWeatherInfo(code);
             
             // Créer l'icône SVG météo IA réaliste
-            const iconHTML = typeof createWeatherIconSVG === 'function' 
-                ? createWeatherIconSVG(code, true, 52) 
-                : '';
+            // Apple weather emoji icon
+            const iconHTML = getAppleWeatherIcon(code, true);
             
             const tempLow = daily.temperature_2m_min[i];
             const tempHigh = daily.temperature_2m_max[i];
@@ -3175,7 +3172,7 @@ function displayTempRange(weatherData) {
         const maxTemp = Math.round(daily.temperature_2m_max[i]);
         const minTemp = Math.round(daily.temperature_2m_min[i]);
         const dayName = days[i] || new Date(daily.time[i]).toLocaleDateString('fr-FR', {weekday:'short'});
-        const iconHTML = createWeatherIconSVG(daily.weather_code[i], 1, 36);
+        const iconHTML = getAppleWeatherIcon(daily.weather_code[i], 1);
         
         html += '<div class="temp-range-item"><div class="temp-range-day">'+dayName+'</div><div class="temp-range-icon">'+iconHTML+'</div><div class="temp-range-temps"><span class="temp-max">'+maxTemp+'°</span><span class="temp-min">'+minTemp+'°</span></div></div>';
     }
@@ -3209,3 +3206,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// Apple-style weather emoji icons
+function getAppleWeatherIcon(code, isDay = true) {
+    const icons = {
+        0: isDay ? '☀️' : '🌙',
+        1: isDay ? '⛅' : '☁️',
+        2: isDay ? '⛅' : '☁️',
+        3: '☁️',
+        45: '🌫️',
+        48: '🌫️',
+        51: '🌧️',
+        53: '🌧️',
+        55: '🌧️',
+        56: '🌨️',
+        57: '🌨️',
+        61: '🌧️',
+        63: '🌧️',
+        65: '⛈️',
+        66: '🌨️',
+        67: '🌨️',
+        71: '🌨️',
+        73: '❄️',
+        75: '❄️',
+        77: '🌨️',
+        80: '🌧️',
+        81: '🌧️',
+        82: '⛈️',
+        85: '🌨️',
+        86: '❄️',
+        95: '⛈️',
+        96: '⛈️',
+        99: '⛈️',
+    };
+    return icons[code] || (isDay ? '☀️' : '🌙');
+}
