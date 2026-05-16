@@ -146,7 +146,7 @@ function renderWeatherDetail(cityData, data) {
   setText('alert-desc', '—');
 
   // --- Horaire ---
-  renderHourly(hourly);
+  renderHourly(hourly, data.utc_offset_seconds);
 
   // --- Quotidien ---
   renderDaily(daily);
@@ -181,7 +181,7 @@ function setInnerHTML(id, val) {
 }
 
 // ---- Horaire ----
-function renderHourly(hourly) {
+function renderHourly(hourly, utcOffsetSeconds) {
   const container = $('hourly-list');
   if (!container) return;
 
@@ -189,24 +189,35 @@ function renderHourly(hourly) {
   const temps = hourly.temperature_2m || [];
   const codes = hourly.weather_code || [];
   const probs = hourly.precipitation_probability || [];
+  if (!times.length) return;
+
+  // Calcul de l'heure actuelle dans le fuseau de la ville
+  // Les times[0] = "2026-05-16T00:00" (minuit dans le fuseau local)
+  const offsetSec = utcOffsetSeconds || 0;
+  const now = new Date();
+  const localMinutes = (now.getUTCHours() * 60 + now.getUTCMinutes()) + offsetSec / 60;
+  const localHour = ((localMinutes / 60) % 24 + 24) % 24;
+
+  // Trouver l'index de départ dans le tableau times
+  // times[0] = 00:00, times[1] = 01:00, ..., times[h] = h:00
+  let startIdx = Math.floor(localHour + 0.5); // arrondi à l'heure la plus proche
+
+  // Sécurité : si on dépasse le nombre d'heures disponibles
+  if (startIdx >= times.length) startIdx = 0;
+
   let html = '';
 
-  // L'API Open-Meteo retourne les heures déjà dans le fuseau horaire de la ville
-  // (grâce à timezone='auto'). On extrait l'heure depuis la chaîne ISO
-  // pour éviter tout décalage lié au fuseau du navigateur.
-  const currentHour = times[0] ? parseInt(times[0].split('T')[1].split(':')[0]) : 0;
-
-  for (let i = 0; i < Math.min(24, times.length); i++) {
-    const h = parseInt(times[i].split('T')[1].split(':')[0]);
+  for (let i = 0; i < Math.min(24, times.length - startIdx); i++) {
+    const idx = startIdx + i;
+    const h = parseInt(times[idx].split('T')[1].split(':')[0]);
     const label = i === 0 ? 'Maintenant' : `${h}h`;
-    // isDay = entre 6h et 21h (jour) sinon nuit
     const isDay = h >= 6 && h < 21;
-    const icon = createWeatherIconSVG(codes[i], isDay, 28);
-      html += `<div class="hourly-item">
+    const icon = createWeatherIconSVG(codes[idx], isDay, 28);
+    html += `<div class="hourly-item">
         <div class="time">${label}</div>
         <div class="icon">${icon}</div>
-        <div class="temp">${Math.round(temps[i] || 0)}°</div>
-        ${probs[i] != null ? `<div class="rain">${probs[i]}%</div>` : ''}
+        <div class="temp">${Math.round(temps[idx] || 0)}°</div>
+        ${probs[idx] != null ? `<div class="rain">${probs[idx]}%</div>` : ''}
       </div>`;
   }
   container.innerHTML = html;
