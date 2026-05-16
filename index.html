@@ -2,623 +2,233 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    
-    <!-- Optimisations de performance -->
-    <meta http-equiv="Cache-Control" content="max-age=31536000, public">
-    <meta name="theme-color" content="#00BFFF">
-    <title>Météo - Prévisions en temps réel</title>
-    
-    <!-- Chargement critique CSS inline -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Météo France</title>
     <style>
-        /* CSS critique pour le premier affichage */
-        body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;background:#00BFFF;color:#fff;overflow-x:hidden}
-        .app{position:relative;min-height:100vh}
-        .hero{padding:20px;text-align:center}
-        .city{font-size:2.5rem;font-weight:300;margin-bottom:10px}
-        .big-temp{font-size:4rem;font-weight:200;margin-bottom:5px}
-        .condition{font-size:1.2rem;opacity:0.9}
-        .bg-layer{position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#00BFFF 0%,#87CEEB 50%,#FFD700 100%);transition:all 1s ease-in-out}
-        .loading{display:flex;justify-content:center;align-items:center;height:50vh}
-        .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top:3px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
-        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+        body { background: linear-gradient(180deg, #1e3a5f 0%, #2b5876 100%); min-height: 100vh; color: white; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
+        .header h1 { font-size: 32px; font-weight: 600; }
+        .header button { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+        
+        /* Search */
+        .search { background: rgba(255,255,255,0.15); border-radius: 12px; padding: 14px; margin-bottom: 20px; }
+        .search input { background: none; border: none; color: white; width: 100%; font-size: 16px; outline: none; }
+        .search input::placeholder { color: rgba(255,255,255,0.5); }
+        
+        /* Current */
+        .current { text-align: center; padding: 30px 0; }
+        .city { font-size: 28px; font-weight: 500; margin-bottom: 10px; }
+        .icon { font-size: 90px; line-height: 1; }
+        .temp { font-size: 80px; font-weight: 200; letter-spacing: -3px; }
+        .desc { font-size: 20px; opacity: 0.85; margin-bottom: 8px; }
+        .hl { font-size: 18px; opacity: 0.7; }
+        
+        /* Scroll forecast */
+        .scroll-title { font-size: 14px; font-weight: 600; opacity: 0.6; margin: 25px 0 15px; }
+        .scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 20px; scrollbar-width: none; }
+        .scroll::-webkit-scrollbar { display: none; }
+        .hour { min-width: 60px; background: rgba(255,255,255,0.1); border-radius: 16px; padding: 14px 10px; text-align: center; }
+        .hour-time { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
+        .hour-icon { font-size: 26px; }
+        .hour-temp { font-size: 15px; margin-top: 5px; }
+        
+        /* Daily */
+        .day-item { display: flex; align-items: center; background: rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; margin-bottom: 8px; }
+        .day-name { width: 90px; font-size: 16px; }
+        .day-icon { font-size: 26px; }
+        .day-high { margin-left: auto; font-size: 16px; font-weight: 500; padding: 0 15px; }
+        .day-low { font-size: 16px; opacity: 0.5; }
+        
+        /* Details */
+        .details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
+        .detail { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 16px; }
+        .detail-label { font-size: 13px; opacity: 0.6; margin-bottom: 8px; }
+        .detail-value { font-size: 22px; font-weight: 500; }
+        
+        /* Update */
+        .update { text-align: center; font-size: 12px; opacity: 0.4; margin-top: 20px; }
+        
+        /* Loading */
+        .loading { text-align: center; padding: 50px; opacity: 0.5; }
+        
+        /* Error */
+        .error { background: rgba(255,0,0,0.2); padding: 15px; border-radius: 12px; display: none; }
     </style>
-    
-    <!-- Chargement différé des styles -->
-    <link rel="preload" href="style.css?v=16" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="weather-icons.css?v=6" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="apple-weather-atmosphere.css?v=3" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    
-    <script>
-        if('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js?v=33').then(() => {
-                console.log('Service Worker active - Mode ultra-rapide mobile');
-            }).catch(console.log);
-        }
-    </script>
 </head>
 <body>
-    <div class="app">
-        <div class="background">
-            <div class="bg-layer bg-blue"></div>
+    <div class="container">
+        <div class="header">
+            <button>☰</button>
+            <h1>Météo</h1>
+            <button>⚙</button>
         </div>
         
-        <!-- ===== iOS "Liste des villes" (comme sur l'image) ===== -->
-        <div id="cities-view" class="view cities-view hidden">
-            <div class="cities-scroll">
-                <div class="cities-header">
-                    <div class="cities-title">Météo</div>
-                    <div class="cities-actions">
-                        <button id="cities-edit" class="cities-edit" aria-label="Modifier" aria-pressed="false">✎</button>
-                        <button id="settings-btn" class="settings-btn" aria-label="Paramètres">⚙</button>
-                        <button id="cities-close" class="cities-close" aria-label="Fermer">✕</button>
-                    </div>
-                </div>
-<div id="cities-list" class="cities-list"></div>
-            </div>
+        <div class="search">
+            <input type="text" id="search" placeholder="Rechercher une ville..." onkeypress="search(event)">
         </div>
-
-        <!-- ===== Détail d'une ville ===== -->
-        <div id="detail-view" class="view detail-view">
-            <div class="scroll-container">
-                <div class="detail-layout">
-                    <!-- ===== “Milieu” (principal) ===== -->
-                    <section class="detail-main">
-                        <!-- Hero Section -->
-                        <div class="hero">
-                            <div class="nav nav-detail">
-                                
-                                
-                                <button id="settings-btn" class="settings-btn" aria-label="Paramètres">⚙</button>
-                            </div>
-                            
-                            
-                            <div class="search-container search-container-centered">
-                                <div class="search-box">
-                                    <span class="search-icon">🔍</span>
-                                    <input type="text" id="city-input" value="" placeholder="Rechercher une ville..." autocomplete="off">
-                                    <button class="search-clear" id="search-clear" style="display: none;">✕</button>
-                                </div>
-                                <div class="search-suggestions" id="search-suggestions"></div>
-                            </div>
-                            
-                            <div class="weather-hero">
-                                <h1 class="city"></h1>
-                                <div class="big-temp" id="current-temp"></div>
-                                <div class="condition"></div>
-                                <div class="high-low">
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Cards (milieu) -->
-                        <div class="cards cards-main">
-                            <!-- Alerte (au-dessus des prévisions horaires) -->
-                            <div class="card alert-card">
-                                <div class="card-label">
-                                    <span class="label-icon">⚠️</span>
-                                    <span>ALERTE MÉTÉO</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="alert-title" id="alert-title">Aucune alerte</div>
-                                <div class="alert-desc" id="alert-desc">—</div>
-                            </div>
-
-                            <!-- Hourly -->
-                            <div class="card">
-                                <div class="card-label" id="label-hourly">
-                                    <span class="label-icon"></span>
-                                    <span>PRÉVISIONS HORAIRES</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="hourly-scroll" id="hourly-list"></div>
-                            </div>
-
-                            <!-- Daily -->
-                            <div class="card">
-                                <div class="card-label" id="label-daily">
-                                    <span class="label-icon"></span>
-                                    <span>PRÉVISIONS SUR 10 JOURS</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="daily-list" id="daily-list"></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- ===== “Tout à droite” (infos / widgets) ===== -->
-                    <aside class="detail-side">
-                        <div class="cards cards-side">
-                            <!-- Prochaine heure -->
-                            <div class="card rain-next-card">
-                                <div class="card-label">
-                                    <span class="label-icon">☔</span>
-                                    <span>PROCHAINE HEURE</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="next-hour-forecast">
-                                    <div class="rain-info">
-                                        <div class="rain-percentage" id="next-hour-rain-prob">--%</div>
-                                        <div class="rain-text" id="next-hour-rain-text">Chargement…</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Qualité de l'air (placeholder UI) -->
-                            <div class="card air-card">
-                                <div class="card-label">
-                                    <span class="label-icon">🌫</span>
-                                    <span>QUALITÉ DE L’AIR</span>
-                                </div>
-                                <div class="detail-big" id="air-quality">—</div>
-                                <div class="detail-small" id="air-quality-desc">Données bientôt</div>
-
-                            <!-- Indice UV -->
-                            <div class="card detail-card">
-                                <div class="card-label">
-                                    <span class="label-icon">☀️</span>
-                                    <span>INDICE UV</span>
-                                </div>
-                                <div class="detail-big" id="uv-index">—</div>
-                                <div class="detail-small" id="uv-desc">—</div>
-                            </div>
-
-                            <!-- Température ressentie -->
-                            <div class="card detail-card">
-                                <div class="card-label">
-                                    <span class="label-icon">🌡️</span>
-                                    <span>RESSENTI</span>
-                                </div>
-                                <div class="detail-big" id="feels-like">—</div>
-                                <div class="detail-small" id="feels-desc">—</div>
-                            </div>
-                            </div>
-
-                            <!-- IA Météo -->
-                            <div class="card ia-card">
-                                <div class="card-label ia-label">
-                                    <span class="ia-badge">IA</span>
-                                    <span>ANALYSE MÉTÉO INTELLIGENTE</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div id="ia-meteo-content" class="ia-meteo-content"></div>
-                            </div>
-
-                            <!-- Details Grid -->
-                            <div class="grid-2">
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-precip">
-                                        <span class="label-icon"></span>
-                                        <span>PRÉCIPITATIONS</span>
-                                    </div>
-                                    <div class="detail-big" id="precipitation">0 <span class="unit">mm</span></div>
-                                    <div class="detail-small" id="precip-desc">Aucune</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-humidity">
-                                        <span class="label-icon"></span>
-                                        <span>HUMIDITÉ</span>
-                                    </div>
-                                    <div class="detail-big" id="humidity">45%</div>
-                                    <div class="detail-small">Le point de rosée est de 13°</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-wind">
-                                        <span class="label-icon"></span>
-                                        <span>VENT</span>
-                                    </div>
-                                    <div class="detail-big" id="wind">12 <span class="unit">km/h</span></div>
-                                    <div class="detail-small" id="wind-direction">Direction Nord-Ouest</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-visibility">
-                                        <span class="label-icon"></span>
-                                        <span>VISIBILITÉ</span>
-                                    </div>
-                                    <div class="detail-big" id="visibility-value">10 <span class="unit">km</span></div>
-                                    <div class="detail-small" id="visibility-desc">Excellente</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-pressure">
-                                        <span class="label-icon"></span>
-                                        <span>PRESSION</span>
-                                    </div>
-                                    <div class="detail-big" id="pressure">1015 <span class="unit">hPa</span></div>
-                                    <div class="detail-small" id="pressure-trend">Stable</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-cloud">
-                                        <span class="label-icon"></span>
-                                        <span>NUAGES</span>
-                                    </div>
-                                    <div class="detail-big" id="clouds">0 <span class="unit">%</span></div>
-                                    <div class="detail-small" id="cloud-desc">Ciel dégagé</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-dew">
-                                        <span class="label-icon"></span>
-                                        <span>POINT DE ROSÉE</span>
-                                    </div>
-                                    <div class="detail-big" id="dewpoint">10°</div>
-                                    <div class="detail-small" id="dew-desc">Confortable</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-sunrise">
-                                        <span class="label-icon"></span>
-                                        <span>LEVER</span>
-                                    </div>
-                                    <div class="detail-big" id="sunrise">06:45</div>
-                                    <div class="detail-small" id="sunrise-desc">Matin</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-sunset">
-                                        <span class="label-icon"></span>
-                                        <span>COUCHER</span>
-                                    </div>
-                                    <div class="detail-big" id="sunset">20:30</div>
-                                    <div class="detail-small" id="sunset-desc">Soir</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-temp-avg" class="icon-temp-avg">
-                                        <span class="label-icon"></span>
-                                        <span>MOYENNE</span>
-                                    </div>
-                                    <div class="detail-big" id="temp-avg">-- <span class="unit">°</span></div>
-                                    <div class="detail-small" id="temp-avg-desc">Température du jour</div>
-                                </div>
-                            </div>
-                        </div>
-                    </aside>
+        
+        <div class="loading" id="loading">Chargement...</div>
+        <div class="error" id="error"></div>
+        
+        <div id="weather" style="display:none;">
+            <div class="current">
+                <div class="city" id="city">Paris</div>
+                <div class="icon" id="icon">☀️</div>
+                <div class="temp" id="temp">18°</div>
+                <div class="desc" id="desc">Ciel dégagé</div>
+                <div class="hl" id="hl">H:20° L:10°</div>
+            </div>
+            
+            <div class="scroll-title">PRÉVISIONS HORAIRES</div>
+            <div class="scroll" id="hourly"></div>
+            
+            <div class="scroll-title">10 JOURS</div>
+            <div class="scroll" id="daily"></div>
+            
+            <div class="details">
+                <div class="detail">
+                    <div class="detail-label">💧 Humidité</div>
+                    <div class="detail-value" id="humidity">65%</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">💨 Vent</div>
+                    <div class="detail-value" id="wind">12km/h</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">☀️ UV</div>
+                    <div class="detail-value" id="uv">3</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">🌡️ Ressenti</div>
+                    <div class="detail-value" id="feels">17°</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">👁️ Visibilité</div>
+                    <div class="detail-value" id="vis">10km</div>
+                </div>
+                <div class="detail">
+                    <div class="detail-label">📊 Pression</div>
+                    <div class="detail-value" id="pressure">1015hPa</div>
                 </div>
             </div>
+            
+            <div class="update">Mise à jour: <span id="update">--:--</span></div>
         </div>
     </div>
 
-    <script src="apple-weather-icons.js?v=3"></script>
-    <script src="weather-icons.js?v=10"></script>
-    <script src="ia-meteo.js?v=3"></script>
-    <script src="apple-weather-atmosphere.js?v=2"></script>
-    <script src="script.js?v=99"></script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    
-    <!-- Optimisations de performance -->
-    <meta http-equiv="Cache-Control" content="max-age=31536000, public">
-    <meta name="theme-color" content="#00BFFF">
-    <title>Météo - Prévisions en temps réel</title>
-    
-    <!-- Chargement critique CSS inline -->
-    <style>
-        /* CSS critique pour le premier affichage */
-        body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;background:#00BFFF;color:#fff;overflow-x:hidden}
-        .app{position:relative;min-height:100vh}
-        .hero{padding:20px;text-align:center}
-        .city{font-size:2.5rem;font-weight:300;margin-bottom:10px}
-        .big-temp{font-size:4rem;font-weight:200;margin-bottom:5px}
-        .condition{font-size:1.2rem;opacity:0.9}
-        .bg-layer{position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#00BFFF 0%,#87CEEB 50%,#FFD700 100%);transition:all 1s ease-in-out}
-        .loading{display:flex;justify-content:center;align-items:center;height:50vh}
-        .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top:3px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
-        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-    </style>
-    
-    <!-- Chargement différé des styles -->
-    <link rel="preload" href="style.css?v=10" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="weather-icons.css?v=5" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="apple-weather-atmosphere.css?v=2" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    
     <script>
-        if('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js?v=27').then(() => {
-                console.log('Service Worker active - Mode ultra-rapide mobile');
-            }).catch(console.log);
-        }
-    </script>
-</head>
-<body>
-    <div class="app">
-        <div class="background">
-            <div class="bg-layer bg-blue"></div>
-        </div>
+        const icons = {
+            0: {d:'☀️',n:'🌙',t:'Ciel dégagé'},
+            1: {d:'⛅',n:'☁️',t:'Partiellement nuageux'},
+            2: {d:'⛅',n:'☁️',t:'Partiellement nuageux'},
+            3: {d:'☁️',n:'☁️',t:'Nuageux'},
+            45:{d:'🌫️',n:'🌫️',t:'Brouillard'},
+            48:{d:'🌫️',n:'🌫️',t:'Brouillard givrant'},
+            51:{d:'🌧️',n:'🌧️',t:'Bruine'},
+            53:{d:'🌧️',n:'🌧️',t:'Bruine'},
+            55:{d:'🌧️',n:'🌧️',t:'Bruine'},
+            61:{d:'🌧️',n:'🌧️',t:'Pluie légère'},
+            63:{d:'🌧️',n:'🌧️',t:'Pluie'},
+            65:{d:'⛈️',n:'⛈️',t:'Pluie forte'},
+            71:{d:'🌨️',n:'🌨️',t:'Neige légère'},
+            73:{d:'❄️',n:'❄️',t:'Neige'},
+            75:{d:'❄️',n:'❄️',t:'Neige abondante'},
+            80:{d:'🌧️',n:'🌧️',t:'Averses'},
+            81:{d:'🌧️',n:'🌧️',t:'Averses'},
+            82:{d:'⛈️',n:'⛈️',t:'Averses fortes'},
+            95:{d:'⛈️',n:'⛈️',t:'Orage'},
+            96:{d:'⛈️',n:'⛈️',t:'Orage grêle'},
+            99:{d:'⛈️',n:'⛈️',t:'Orage violent'}
+        };
         
-        <!-- ===== iOS "Liste des villes" (comme sur l'image) ===== -->
-        <div id="cities-view" class="view cities-view hidden">
-            <div class="cities-scroll">
-                <div class="cities-header">
-                    <div class="cities-title">Météo</div>
-                    <div class="cities-actions">
-                        <button id="cities-edit" class="cities-edit" aria-label="Modifier" aria-pressed="false">✎</button>
-                        <button id="settings-btn" class="settings-btn" aria-label="Paramètres">⚙</button>
-                        <button id="cities-close" class="cities-close" aria-label="Fermer">✕</button>
-                    </div>
-                </div>
-
-                <div class="search-container">
-                    <div class="search-box">
-                        <span class="search-icon">🔍</span>
-                        <input type="text" id="city-input" value="" placeholder="Rechercher une ville..." autocomplete="off">
-                        <button class="search-clear" id="search-clear" style="display: none;">✕</button>
-                    </div>
-                    <div class="search-suggestions" id="search-suggestions"></div>
-                </div>
-
-                <div id="cities-list" class="cities-list"></div>
-            </div>
-        </div>
-
-        <!-- ===== Détail d'une ville ===== -->
-        <div id="detail-view" class="view detail-view">
-            <div class="scroll-container">
-                <div class="detail-layout">
-                    <!-- ===== “Milieu” (principal) ===== -->
-                    <section class="detail-main">
-                        <!-- Hero Section -->
-                        <div class="hero">
-                            <div class="nav nav-detail">
-                                
-                                <div class="nav-title">Météo</div>
-                            </div>
-                            
-                            <div class="weather-hero">
-                                <h1 class="city"></h1>
-                                <div class="big-temp" id="current-temp"></div>
-                                <div class="condition"></div>
-                                <div class="high-low">
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Cards (milieu) -->
-                        <div class="cards cards-main">
-                            <!-- Alerte (au-dessus des prévisions horaires) -->
-                            <div class="card alert-card">
-                                <div class="card-label">
-                                    <span class="label-icon">⚠️</span>
-                                    <span>ALERTE MÉTÉO</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="alert-title" id="alert-title">Aucune alerte</div>
-                                <div class="alert-desc" id="alert-desc">—</div>
-                            </div>
-
-                            <!-- Hourly -->
-                            <div class="card">
-                                <div class="card-label" id="label-hourly">
-                                    <span class="label-icon"></span>
-                                    <span>PRÉVISIONS HORAIRES</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="hourly-scroll" id="hourly-list"></div>
-                            </div>
-
-                            <!-- Daily -->
-                            <div class="card">
-                                <div class="card-label" id="label-daily">
-                                    <span class="label-icon"></span>
-                                    <span>PRÉVISIONS SUR 10 JOURS</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="daily-list" id="daily-list"></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- ===== “Tout à droite” (infos / widgets) ===== -->
-                    <aside class="detail-side">
-                        <div class="cards cards-side">
-                            <!-- Prochaine heure -->
-                            <div class="card rain-next-card">
-                                <div class="card-label">
-                                    <span class="label-icon">☔</span>
-                                    <span>PROCHAINE HEURE</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="next-hour-forecast">
-                                    <div class="rain-info">
-                                        <div class="rain-percentage" id="next-hour-rain-prob">--%</div>
-                                        <div class="rain-text" id="next-hour-rain-text">Chargement…</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Qualité de l'air (placeholder UI) -->
-                            <div class="card air-card">
-                                <div class="card-label">
-                                    <span class="label-icon">🌫</span>
-                                    <span>QUALITÉ DE L’AIR</span>
-                                </div>
-                                <div class="detail-big" id="air-quality">—</div>
-
-                            <!-- Indice UV -->
-                            <div class="card detail-card">
-                                <div class="card-label">
-                                    <span class="label-icon">☀️</span>
-                                    <span>INDICE UV</span>
-                                </div>
-                                <div class="detail-big" id="uv-index">—</div>
-                                <div class="detail-small" id="uv-desc">—</div>
-                            </div>
-
-                            <!-- Température ressentie -->
-                            <div class="card detail-card">
-                                <div class="card-label">
-                                    <span class="label-icon">🌡️</span>
-                                    <span>RESSENTI</span>
-                                </div>
-                                <div class="detail-big" id="feels-like">—</div>
-                                <div class="detail-small" id="feels-desc">—</div>
-                            </div>
-                                <div class="detail-small" id="air-quality-desc">Données bientôt</div>
-                            </div>
-
-                            <!-- IA Météo -->
-                            <div class="card ia-card">
-                                <div class="card-label ia-label">
-                                    <span class="ia-badge">IA</span>
-                                    <span>ANALYSE MÉTÉO INTELLIGENTE</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div id="ia-meteo-content" class="ia-meteo-content"></div>
-                            </div>
-
-                            <!-- Details Grid -->
-                            <div class="grid-2">
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-precip">
-                                        <span class="label-icon"></span>
-                                        <span>PRÉCIPITATIONS</span>
-                                    </div>
-                                    <div class="detail-big" id="precipitation">0 <span class="unit">mm</span></div>
-                                    <div class="detail-small" id="precip-desc">Aucune</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-humidity">
-                                        <span class="label-icon"></span>
-                                        <span>HUMIDITÉ</span>
-                                    </div>
-                                    <div class="detail-big" id="humidity">45%</div>
-                                    <div class="detail-small">Le point de rosée est de 13°</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-wind">
-                                        <span class="label-icon"></span>
-                                        <span>VENT</span>
-                                    </div>
-                                    <div class="detail-big" id="wind">12 <span class="unit">km/h</span></div>
-                                    <div class="detail-small" id="wind-direction">Direction Nord-Ouest</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-visibility">
-                                        <span class="label-icon"></span>
-                                        <span>VISIBILITÉ</span>
-                                    </div>
-                                    <div class="detail-big" id="visibility-value">10 <span class="unit">km</span></div>
-                                    <div class="detail-small" id="visibility-desc">Excellente</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-pressure">
-                                        <span class="label-icon"></span>
-                                        <span>PRESSION</span>
-                                    </div>
-                                    <div class="detail-big" id="pressure">1015 <span class="unit">hPa</span></div>
-                                    <div class="detail-small" id="pressure-trend">Stable</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-cloud">
-                                        <span class="label-icon"></span>
-                                        <span>NUAGES</span>
-                                    </div>
-                                    <div class="detail-big" id="clouds">0 <span class="unit">%</span></div>
-                                    <div class="detail-small" id="cloud-desc">Ciel dégagé</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-dew">
-                                        <span class="label-icon"></span>
-                                        <span>POINT DE ROSÉE</span>
-                                    </div>
-                                    <div class="detail-big" id="dewpoint">10°</div>
-                                    <div class="detail-small" id="dew-desc">Confortable</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-sunrise">
-                                        <span class="label-icon"></span>
-                                        <span>LEVER</span>
-                                    </div>
-                                    <div class="detail-big" id="sunrise">06:45</div>
-                                    <div class="detail-small" id="sunrise-desc">Matin</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-sunset">
-                                        <span class="label-icon"></span>
-                                        <span>COUCHER</span>
-                                    </div>
-                                    <div class="detail-big" id="sunset">20:30</div>
-                                    <div class="detail-small" id="sunset-desc">Soir</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-temp-avg" class="icon-temp-avg">
-                                        <span class="label-icon"></span>
-                                        <span>MOYENNE</span>
-                                    </div>
-                                    <div class="detail-big" id="temp-avg">-- <span class="unit">°</span></div>
-                                    <div class="detail-small" id="temp-avg-desc">Température du jour</div>
-                                </div>
-                            </div>
-                        </div>
-                    </aside>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="apple-weather-icons.js?v=3"></script>
-    <script src="weather-icons.js?v=9"></script>
-    <script src="ia-meteo.js?v=3"></script>
-    <script src="apple-weather-atmosphere.js?v=2"></script>
-    <script src="script.js?v=99"></script>
+        function getIcon(code, isDay) {
+            return icons[code]? (isDay? icons[code].d : icons[code].n) : '☀️';
+        }
+        
+        let coords = {lat:48.8566, lon:2.3522};
+        
+        async function searchCity(q) {
+            let r = await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=fr');
+            let d = await r.json();
+            if(d.results && d.results[0]) {
+                coords = {lat:d.results[0].latitude, lon:d.results[0].longitude};
+                return d.results[0].name + (d.results[0].country?', '+d.results[0].country:'');
+            }
+            return 'Paris';
+        }
+        
+        async function fetchWeather(lat, lon) {
+            let url = 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
+                '&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,visibility,precipitation,cloud_cover'+
+                '&hourly=temperature_2m,weather_code,is_day,precipitation_probability'+
+                '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max'+
+                '&timezone=auto&lang=fr';
+            let r = await fetch(url);
+            return await r.json();
+        }
+        
+        function display(data, cityName) {
+            if(!data) return;
+            let c = data.current, d = data.daily, h = data.hourly;
+            
+            document.getElementById('city').textContent = cityName;
+            document.getElementById('icon').textContent = getIcon(c.weather_code, c.is_day);
+            document.getElementById('temp').textContent = Math.round(c.temperature_2m)+'°';
+            document.getElementById('desc').textContent = icons[c.weather_code]?.t || 'Inconnu';
+            document.getElementById('hl').textContent = 'H:'+Math.round(d.temperature_2m_max[0])+'° L:'+Math.round(d.temperature_2m_min[0])+'°';
+            
+            // Hourly
+            let hourlyDiv = document.getElementById('hourly');
+            hourlyDiv.innerHTML = '';
+            let now = new Date().getHours();
+            for(let i=0; i<24; i++) {
+                let hIdx = i;
+                let hourHtml = '<div class="hour"><div class="hour-time">'+(now+i)%24+'h</div><div class="hour-icon">'+getIcon(h.weather_code[hIdx], h.is_day[hIdx])+'</div><div class="hour-temp">'+Math.round(h.temperature_2m[hIdx])+'°</div></div>';
+                hourlyDiv.innerHTML += hourHtml;
+            }
+            
+            // Daily
+            let dailyDiv = document.getElementById('daily');
+            dailyDiv.innerHTML = '';
+            let days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+            for(let i=0; i<7; i++) {
+                let dayName = i===0?'Aujourd\'hui':(i===1?'Demain':days[new Date(Date.now()+i*86400000).getDay()]);
+                dailyDiv.innerHTML += '<div class="day-item"><div class="day-name">'+dayName+'</div><div class="day-icon">'+getIcon(d.weather_code[i],1)+'</div><div class="day-high">'+Math.round(d.temperature_2m_max[i])+'°</div><div class="day-low">'+Math.round(d.temperature_2m_min[i])+'°</div></div>';
+            }
+            
+            // Details
+            document.getElementById('humidity').textContent = c.relative_humidity_2m+'%';
+            document.getElementById('wind').textContent = Math.round(c.wind_speed_10m)+'km/h';
+            document.getElementById('uv').textContent = Math.round(d.uv_index_max[0]);
+            document.getElementById('feels').textContent = Math.round(c.apparent_temperature)+'°';
+            document.getElementById('vis').textContent = (c.visibility/1000).toFixed(1)+'km';
+            document.getElementById('pressure').textContent = Math.round(c.pressure_msl)+'hPa';
+            document.getElementById('update').textContent = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('weather').style.display = 'block';
+        }
+        
+        async function init(city) {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('weather').style.display = 'none';
+            
+            let cityName = city || 'Paris';
+            if(city) cityName = await searchCity(city);
+            
+            let data = await fetchWeather(coords.lat, coords.lon);
+            display(data, cityName);
+        }
+        
+        function search(e) {
+            if(e.key === 'Enter') init(e.target.value);
+        }
+        
+        init();
+    </script>
 </body>
 </html>
-
-<!-- Settings Modal -->
-<div id="settings-modal" class="modal hidden">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Paramètres</h2>
-            <button id="close-settings" class="close-btn">✕</button>
-        </div>
-        <div class="modal-body">
-            <div class="setting-item">
-                <label>Température</label>
-                <div class="setting-toggle">
-                    <span>°C</span>
-                    <button class="toggle-btn active">°F</button>
-                </div>
-            </div>
-            <div class="setting-item">
-                <label>Notifications</label>
-                <button class="toggle-btn active">Activé</button>
-            </div>
-            <div class="setting-item">
-                <label>Dernière mise à jour</label>
-                <span class="setting-value">Il y a 2 min</span>
-            </div>
-            <div class="setting-item">
-                <label>Version</label>
-                <span class="setting-value">1.0.0</span>
-            </div>
-        </div>
-    </div>
-</div>
