@@ -529,39 +529,44 @@
         }
 
         const icons = {
-            0: {d:'sun', n:'moon', t:'Ciel dégagé'},
-            1: {d:'sun', n:'moon', t:'Ciel plutôt dégagé'},
-            2: {d:'cloud-sun', n:'cloud-moon', t:'Quelques nuages'},
-            3: {d:'cloud', n:'cloud', t:'Ciel nuageux'},
-            45:{d:'cloud-fog', n:'cloud-fog', t:'Brouillard'},
-            48:{d:'cloud-fog', n:'cloud-fog', t:'Brouillard'},
-            51:{d:'cloud-drizzle', n:'cloud-drizzle', t:'Bruine'},
-            53:{d:'cloud-drizzle', n:'cloud-drizzle', t:'Bruine'},
-            55:{d:'cloud-drizzle', n:'cloud-drizzle', t:'Bruine'},
-            56:{d:'cloud-snow', n:'cloud-snow', t:'Bruine verglaçante'},
-            57:{d:'cloud-snow', n:'cloud-snow', t:'Bruine verglaçante'},
-            61:{d:'cloud-rain', n:'cloud-rain', t:'Pluie'},
-            63:{d:'cloud-rain', n:'cloud-rain', t:'Pluie'},
-            65:{d:'cloud-rain-wind', n:'cloud-rain-wind', t:'Fortes pluies'},
-            66:{d:'cloud-snow', n:'cloud-snow', t:'Pluie verglaçante'},
-            67:{d:'cloud-snow', n:'cloud-snow', t:'Pluie verglaçante'},
-            71:{d:'snowflake', n:'snowflake', t:'Neige'},
-            73:{d:'snowflake', n:'snowflake', t:'Neige'},
-            75:{d:'cloud-snow', n:'cloud-snow', t:'Neige abondante'},
-            77:{d:'snowflake', n:'snowflake', t:'Grains de neige'},
-            80:{d:'cloud-rain', n:'cloud-rain', t:'Averses'},
-            81:{d:'cloud-rain', n:'cloud-rain', t:'Averses'},
-            82:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'},
-            85:{d:'cloud-snow', n:'cloud-snow', t:'Averses de neige'},
-            86:{d:'cloud-snow', n:'cloud-snow', t:'Averses de neige'},
-            95:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'},
-            96:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'},
-            99:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'}
+            0: {d:'sun', n:'moon', td:'Ensoleillé', tn:'Clair'},
+            1: {d:'sun', n:'moon', td:'Éclaircies', tn:'Clair'},
+            2: {d:'cloud-sun', n:'cloud-moon', td:'Partiellement nuageux', tn:'Partiellement nuageux'},
+            3: {d:'cloud', n:'cloud', td:'Couvert', tn:'Couvert'},
+            45:{d:'cloud-fog', n:'cloud-fog', td:'Brouillard', tn:'Brouillard'},
+            48:{d:'cloud-fog', n:'cloud-fog', td:'Brouillard', tn:'Brouillard'},
+            51:{d:'cloud-drizzle', n:'cloud-drizzle', td:'Bruine', tn:'Bruine'},
+            53:{d:'cloud-drizzle', n:'cloud-drizzle', td:'Bruine', tn:'Bruine'},
+            55:{d:'cloud-drizzle', n:'cloud-drizzle', td:'Bruine', tn:'Bruine'},
+            56:{d:'cloud-snow', n:'cloud-snow', td:'Bruine verglaçante', tn:'Bruine verglaçante'},
+            57:{d:'cloud-snow', n:'cloud-snow', td:'Bruine verglaçante', tn:'Bruine verglaçante'},
+            61:{d:'cloud-rain', n:'cloud-rain', td:'Pluie faible', tn:'Pluie faible'},
+            63:{d:'cloud-rain', n:'cloud-rain', td:'Pluie', tn:'Pluie'},
+            65:{d:'cloud-rain-wind', n:'cloud-rain-wind', td:'Forte pluie', tn:'Forte pluie'},
+            66:{d:'cloud-snow', n:'cloud-snow', td:'Pluie verglaçante', tn:'Pluie verglaçante'},
+            67:{d:'cloud-snow', n:'cloud-snow', td:'Pluie verglaçante', tn:'Pluie verglaçante'},
+            71:{d:'snowflake', n:'snowflake', td:'Neige faible', tn:'Neige faible'},
+            73:{d:'snowflake', n:'snowflake', td:'Neige', tn:'Neige'},
+            75:{d:'cloud-snow', n:'cloud-snow', td:'Forte neige', tn:'Forte neige'},
+            77:{d:'snowflake', n:'snowflake', td:'Grains de neige', tn:'Grains de neige'},
+            80:{d:'cloud-rain', n:'cloud-rain', td:'Averses', tn:'Averses'},
+            81:{d:'cloud-rain', n:'cloud-rain', td:'Averses', tn:'Averses'},
+            82:{d:'cloud-lightning', n:'cloud-lightning', td:'Orage', tn:'Orage'},
+            85:{d:'cloud-snow', n:'cloud-snow', td:'Averses de neige', tn:'Averses de neige'},
+            86:{d:'cloud-snow', n:'cloud-snow', td:'Averses de neige', tn:'Averses de neige'},
+            95:{d:'cloud-lightning', n:'cloud-lightning', td:'Orage', tn:'Orage'},
+            96:{d:'cloud-lightning', n:'cloud-lightning', td:'Orage', tn:'Orage'},
+            99:{d:'cloud-lightning', n:'cloud-lightning', td:'Orage', tn:'Orage'}
         };
         
         function getIcon(code, isDay) {
-            const iconName = icons[code]? (isDay? icons[code].d : icons[code].n) : 'sun';
+            const iconName = icons[code]? (isDay? icons[code].d : icons[code].n) : (isDay ? 'sun' : 'moon');
             return `<i data-lucide="${iconName}"></i>`;
+        }
+
+        function getDesc(code, isDay) {
+            if (!icons[code]) return 'Inconnu';
+            return isDay ? icons[code].td : icons[code].tn;
         }
         
         let coords = {lat:48.8566, lon:2.3522};
@@ -630,7 +635,7 @@
             document.getElementById('city').textContent = cityName;
             document.getElementById('icon').innerHTML = getIcon(c.weather_code, c.is_day);
             document.getElementById('temp').textContent = convertTemp(c.temperature_2m)+'°';
-            document.getElementById('desc').textContent = icons[c.weather_code]?.t || 'Inconnu';
+            document.getElementById('desc').textContent = getDesc(c.weather_code, c.is_day);
             document.getElementById('hl').textContent = 'H:'+convertTemp(d.temperature_2m_max[0])+'° L:'+convertTemp(d.temperature_2m_min[0])+'°';
             
             // Hourly
