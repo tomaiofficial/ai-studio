@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Météo France</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
         body { min-height: 100vh; color: white; overflow-x: hidden; background: #000; }
@@ -92,7 +93,8 @@
         /* Current */
         .current { text-align: center; padding: 30px 0; }
         .city { font-size: 28px; font-weight: 500; margin-bottom: 10px; }
-        .icon { font-size: 90px; line-height: 1; }
+        .icon { padding: 10px 0; display: flex; justify-content: center; }
+        .icon .lucide { width: 100px; height: 100px; stroke-width: 1.5; }
         .temp { font-size: 80px; font-weight: 200; letter-spacing: -3px; }
         .desc { font-size: 20px; opacity: 0.85; margin-bottom: 8px; }
         .hl { font-size: 18px; opacity: 0.7; }
@@ -103,14 +105,16 @@
         .scroll::-webkit-scrollbar { display: none; }
         .hour { min-width: 60px; background: rgba(255,255,255,0.1); border-radius: 16px; padding: 14px 10px; text-align: center; }
         .hour-time { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
-        .hour-icon { font-size: 26px; }
+        .hour-icon { display: flex; justify-content: center; margin-bottom: 5px; }
+        .hour-icon .lucide { width: 28px; height: 28px; stroke-width: 2; }
         .precip { font-size: 11px; color: #00d2ff; font-weight: 700; margin-top: -2px; margin-bottom: 2px; height: 14px; }
         .hour-temp { font-size: 15px; }
         
         /* Daily */
         .day-item { display: flex; align-items: center; background: rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; margin-bottom: 8px; }
         .day-name { width: 90px; font-size: 16px; }
-        .day-icon { font-size: 26px; }
+        .day-icon { display: flex; justify-content: center; }
+        .day-icon .lucide { width: 28px; height: 28px; stroke-width: 2; }
         .day-high { margin-left: auto; font-size: 16px; font-weight: 500; padding: 0 15px; }
         .day-low { font-size: 16px; opacity: 0.5; }
         
@@ -127,7 +131,27 @@
         .loading { text-align: center; padding: 50px; opacity: 0.5; }
         
         /* Error */
-        .error { background: rgba(255,0,0,0.2); padding: 15px; border-radius: 12px; display: none; }
+        .error { background: rgba(255,0,0,0.2); padding: 15px; border-radius: 12px; display: none; margin-bottom: 15px; }
+
+        /* Alerts */
+        .alert-card {
+            background: rgba(255, 152, 0, 0.2);
+            border-left: 4px solid #ff9800;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+        .alert-card.danger {
+            background: rgba(244, 67, 54, 0.2);
+            border-left: 4px solid #f44336;
+        }
+        .alert-card i { font-size: 20px; }
+        .alert-content { font-size: 14px; font-weight: 500; }
 
         /* Sidebar & Modals */
         .sidebar { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1a2a3a; z-index: 1000; transition: 0.3s; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; }
@@ -216,6 +240,7 @@
             <input type="text" id="search" placeholder="Rechercher une ville..." onkeypress="search(event)">
         </div>
         
+        <div id="alerts-container"></div>
         <div class="loading" id="loading">Chargement...</div>
         <div class="error" id="error"></div>
         
@@ -504,38 +529,39 @@
         }
 
         const icons = {
-            0: {d:'☀️', n:'🌙', t:'Ciel dégagé'},
-            1: {d:'☀️', n:'🌙', t:'Ciel plutôt dégagé'},
-            2: {d:'🌤️', n:'☁️🌙', t:'Quelques nuages'},
-            3: {d:'☁️', n:'☁️', t:'Ciel nuageux'},
-            45:{d:'🌫️', n:'🌫️', t:'Brouillard'},
-            48:{d:'🌫️', n:'🌫️', t:'Brouillard'},
-            51:{d:'🌦️', n:'🌧️🌙', t:'Bruine'},
-            53:{d:'🌦️', n:'🌧️🌙', t:'Bruine'},
-            55:{d:'🌦️', n:'🌧️🌙', t:'Bruine'},
-            56:{d:'🌨️', n:'🌨️', t:'Bruine verglaçante'},
-            57:{d:'🌨️', n:'🌨️', t:'Bruine verglaçante'},
-            61:{d:'🌧️', n:'🌧️', t:'Pluie'},
-            63:{d:'🌧️', n:'🌧️', t:'Pluie'},
-            65:{d:'🌧️', n:'🌧️', t:'Fortes pluies'},
-            66:{d:'🌨️', n:'🌨️', t:'Pluie verglaçante'},
-            67:{d:'🌨️', n:'🌨️', t:'Pluie verglaçante'},
-            71:{d:'❄️', n:'❄️', t:'Neige'},
-            73:{d:'❄️', n:'❄️', t:'Neige'},
-            75:{d:'🌨️', n:'🌨️', t:'Neige abondante'},
-            77:{d:'❄️', n:'❄️', t:'Grains de neige'},
-            80:{d:'🌦️', n:'🌦️', t:'Averses'},
-            81:{d:'🌦️', n:'🌦️', t:'Averses'},
-            82:{d:'⛈️', n:'⛈️', t:'Orage'},
-            85:{d:'🌨️', n:'🌨️', t:'Averses de neige'},
-            86:{d:'🌨️', n:'🌨️', t:'Averses de neige'},
-            95:{d:'⛈️', n:'⛈️', t:'Orage'},
-            96:{d:'⛈️', n:'⛈️', t:'Orage'},
-            99:{d:'⛈️', n:'⛈️', t:'Orage'}
+            0: {d:'sun', n:'moon', t:'Ciel dégagé'},
+            1: {d:'sun', n:'moon', t:'Ciel plutôt dégagé'},
+            2: {d:'cloud-sun', n:'cloud-moon', t:'Quelques nuages'},
+            3: {d:'cloud', n:'cloud', t:'Ciel nuageux'},
+            45:{d:'cloud-fog', n:'cloud-fog', t:'Brouillard'},
+            48:{d:'cloud-fog', n:'cloud-fog', t:'Brouillard'},
+            51:{d:'cloud-drizzle', n:'cloud-drizzle', t:'Bruine'},
+            53:{d:'cloud-drizzle', n:'cloud-drizzle', t:'Bruine'},
+            55:{d:'cloud-drizzle', n:'cloud-drizzle', t:'Bruine'},
+            56:{d:'cloud-snow', n:'cloud-snow', t:'Bruine verglaçante'},
+            57:{d:'cloud-snow', n:'cloud-snow', t:'Bruine verglaçante'},
+            61:{d:'cloud-rain', n:'cloud-rain', t:'Pluie'},
+            63:{d:'cloud-rain', n:'cloud-rain', t:'Pluie'},
+            65:{d:'cloud-rain-wind', n:'cloud-rain-wind', t:'Fortes pluies'},
+            66:{d:'cloud-snow', n:'cloud-snow', t:'Pluie verglaçante'},
+            67:{d:'cloud-snow', n:'cloud-snow', t:'Pluie verglaçante'},
+            71:{d:'snowflake', n:'snowflake', t:'Neige'},
+            73:{d:'snowflake', n:'snowflake', t:'Neige'},
+            75:{d:'cloud-snow', n:'cloud-snow', t:'Neige abondante'},
+            77:{d:'snowflake', n:'snowflake', t:'Grains de neige'},
+            80:{d:'cloud-rain', n:'cloud-rain', t:'Averses'},
+            81:{d:'cloud-rain', n:'cloud-rain', t:'Averses'},
+            82:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'},
+            85:{d:'cloud-snow', n:'cloud-snow', t:'Averses de neige'},
+            86:{d:'cloud-snow', n:'cloud-snow', t:'Averses de neige'},
+            95:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'},
+            96:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'},
+            99:{d:'cloud-lightning', n:'cloud-lightning', t:'Orage'}
         };
         
         function getIcon(code, isDay) {
-            return icons[code]? (isDay? icons[code].d : icons[code].n) : '☀️';
+            const iconName = icons[code]? (isDay? icons[code].d : icons[code].n) : 'sun';
+            return `<i data-lucide="${iconName}"></i>`;
         }
         
         let coords = {lat:48.8566, lon:2.3522};
@@ -565,12 +591,44 @@
             return Math.round(t);
         }
 
+        function checkAlerts(data) {
+            const container = document.getElementById('alerts-container');
+            container.innerHTML = '';
+            const c = data.current;
+            const d = data.daily;
+
+            let alerts = [];
+            if ([82, 95, 96, 99].includes(c.weather_code)) {
+                alerts.push({ text: "Vigilance Orages : Risque de foudre et fortes averses.", type: "danger", icon: "cloud-lightning" });
+            } else if ([65].includes(c.weather_code)) {
+                alerts.push({ text: "Vigilance Pluie-Inondation : Fortes précipitations en cours.", type: "warning", icon: "cloud-rain-wind" });
+            }
+
+            if (c.wind_speed_10m > 70) {
+                alerts.push({ text: "Vigilance Vent : Rafales dangereuses signalées.", type: "danger", icon: "wind" });
+            } else if (c.wind_speed_10m > 50) {
+                alerts.push({ text: "Avis de Vent Fort : Soyez prudents lors de vos déplacements.", type: "warning", icon: "wind" });
+            }
+
+            if (d.temperature_2m_max[0] > 35) {
+                alerts.push({ text: "Vigilance Canicule : Températures très élevées prévues.", type: "danger", icon: "thermometer-sun" });
+            }
+
+            alerts.forEach(a => {
+                const card = document.createElement('div');
+                card.className = `alert-card ${a.type}`;
+                card.innerHTML = `<i data-lucide="${a.icon}"></i><div class="alert-content">${a.text}</div>`;
+                container.appendChild(card);
+            });
+        }
+
         function display(data, cityName) {
             if(!data) return;
             let c = data.current, d = data.daily, h = data.hourly;
             
+            checkAlerts(data);
             document.getElementById('city').textContent = cityName;
-            document.getElementById('icon').textContent = getIcon(c.weather_code, c.is_day);
+            document.getElementById('icon').innerHTML = getIcon(c.weather_code, c.is_day);
             document.getElementById('temp').textContent = convertTemp(c.temperature_2m)+'°';
             document.getElementById('desc').textContent = icons[c.weather_code]?.t || 'Inconnu';
             document.getElementById('hl').textContent = 'H:'+convertTemp(d.temperature_2m_max[0])+'° L:'+convertTemp(d.temperature_2m_min[0])+'°';
@@ -578,10 +636,18 @@
             // Hourly
             let hourlyDiv = document.getElementById('hourly');
             hourlyDiv.innerHTML = '';
-            let now = new Date().getHours();
+
+            // Align hourly forecast to the current hour of the location
+            const currentHourStr = c.time.substring(0, 13) + ":00";
+            let startIndex = h.time.findIndex(t => t === currentHourStr);
+            if (startIndex === -1) startIndex = 0;
+
             for(let i=0; i<24; i++) {
-                let hIdx = now + i;
-                let timeLabel = (now+i)%24 + 'h';
+                let hIdx = startIndex + i;
+                if (hIdx >= h.time.length) break;
+
+                const hourNum = parseInt(h.time[hIdx].substring(11, 13));
+                let timeLabel = hourNum + 'h';
                 let icon, temp, precip = '';
 
                 let pProb = h.precipitation_probability[hIdx];
@@ -616,10 +682,13 @@
             document.getElementById('feels').textContent = convertTemp(c.apparent_temperature)+'°';
             document.getElementById('vis').textContent = (c.visibility/1000).toFixed(1)+'km';
             document.getElementById('pressure').textContent = Math.round(c.pressure_msl)+'hPa';
-            document.getElementById('update').textContent = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+
+            const updateTime = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+            document.getElementById('update').textContent = updateTime;
             
             document.getElementById('loading').style.display = 'none';
             document.getElementById('weather').style.display = 'block';
+            lucide.createIcons();
         }
         
         function updateBgByCode(code, isDay) {
