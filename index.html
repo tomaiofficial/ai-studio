@@ -390,7 +390,7 @@
             partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #7597BA 50%, #E8EEF5 100%)',
             cloudy: 'linear-gradient(to bottom, #b8c6d8, #9fb2c7)',
             rainy: 'linear-gradient(to bottom, #b8c6d8, #9fb2c7)',
-            thunderstorm: 'linear-gradient(180deg, #05080F 0%, #1A2440 55%, #1A2038 100%)',
+            thunderstorm: 'linear-gradient(180deg, #05080F 0%, #0A1020 18%, #101828 35%, #1A2440 55%, #1E2D4A 70%, #263450 85%, #1A2038 100%)',
             snowy: 'linear-gradient(180deg, #8395A7 0%, #A4B0BE 50%, #CED6E0 100%)',
             foggy: 'linear-gradient(180deg, #576574 0%, #8395A7 60%, #CED6E0 100%)',
             clearNight: 'linear-gradient(180deg, #0A0E27 0%, #162447 70%, #1B262C 100%)',
@@ -441,7 +441,7 @@
                 tilt: 0.15 + Math.random() * 0.1,
                 op: 0.1 + layer * 0.4,
                 w: 0.5 + layer * 0.8,
-                splash: false, sx: 0, sy: 0, sr: 0, sa: 0
+                splashing: false, splashX: 0, splashY: 0, splashR: 0, splashAge: 0
             };
         }
 
@@ -458,6 +458,7 @@
             };
         }
 
+        // Fractal bolt generator
         function fractal(ax, ay, bx, by, rough, depth) {
             if (depth === 0) return [[ax, ay], [bx, by]];
             const mx = (ax + bx) / 2 + (Math.random() - 0.5) * rough;
@@ -466,23 +467,38 @@
                     ...fractal(mx, my, bx, by, rough * 0.58, depth - 1)];
         }
 
-        function triggerFlash() {
+        function generateLightning() {
             const sx = W * (0.2 + Math.random() * 0.6);
-            const ey = H * (0.4 + Math.random() * 0.45);
+            const sy = 0;
             const ex = sx + (Math.random() - 0.5) * 200;
-            const pts = fractal(sx, 0, ex, ey, 180, 8);
+            const ey = H * (0.4 + Math.random() * 0.45);
+            const points = fractal(sx, sy, ex, ey, 180, 8);
 
-            const branches = Array.from({ length: 2 + Math.floor(Math.random() * 3) }, () => {
-                const i = Math.floor(pts.length * (0.2 + Math.random() * 0.6));
-                const p = pts[i];
-                return {
-                    pts: fractal(p[0], p[1], p[0] + (Math.random()-0.5)*120, p[1]+60+Math.random()*120, 80, 6),
-                    a: 0.3 + Math.random() * 0.4
-                };
-            });
+            const branches = [];
+            const branchCount = 2 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < branchCount; i++) {
+                const idx = Math.floor(points.length * (0.2 + Math.random() * 0.6));
+                const bp = points[idx];
+                const bex = bp[0] + (Math.random() - 0.5) * 120;
+                const bey = bp[1] + 60 + Math.random() * 120;
+                branches.push({ points: fractal(bp[0], bp[1], bex, bey, 80, 6), alpha: 0.3 + Math.random() * 0.4 });
+            }
 
-            flashState = { bolts: [{ pts, branches, sx }], start: Date.now() };
+            return { sx, sy, points, branches };
+        }
+
+        function triggerFlash() {
+            const count = 1 + (Math.random() < 0.4 ? 1 : 0) + (Math.random() < 0.2 ? 1 : 0);
+            const sequence = [];
+            for (let i = 0; i < count; i++) {
+                sequence.push({ delay: i * (80 + Math.random() * 120), bolt: generateLightning() });
+            }
+            flashState = { sequence, start: Date.now(), bgAlpha: 0 };
             nextFlash = Date.now() + 3000 + Math.random() * 8000;
+
+            if (audioCtx) {
+                playThunder(400 + Math.random() * 600);
+            }
         }
 
         function drawBolt(ctx, pts, alpha, w) {
@@ -535,7 +551,39 @@
             if (condition === 'thunderstorm') nextFlash = Date.now() + 2000;
         }
 
-        function loop() {
+        // ─── Audio ──────────────────────────────────────────────────
+        let audioCtx = null;
+        function initAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playThunder(delay = 0) {
+            if (!audioCtx) return;
+            setTimeout(() => {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const bufLen = audioCtx.sampleRate * 3.5;
+                const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+                const data = buf.getChannelData(0);
+                let v = 0;
+                for (let i = 0; i < bufLen; i++) {
+                    v = v * 0.998 + (Math.random() * 2 - 1) * 0.002;
+                    data[i] = v * Math.exp(-i / (audioCtx.sampleRate * 1.2));
+                }
+                const src = audioCtx.createBufferSource();
+                src.buffer = buf;
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0, audioCtx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 3.0);
+                const lp = audioCtx.createBiquadFilter();
+                lp.type = 'lowpass'; lp.frequency.value = 180;
+                src.connect(lp); lp.connect(gain); gain.connect(audioCtx.destination);
+                src.start();
+            }, delay);
+        }
+
+        function loop(t) {
             rCtx.clearRect(0, 0, W, H);
             sCtx.clearRect(0, 0, W, H);
             lBgCtx.clearRect(0, 0, W, H);
@@ -545,15 +593,40 @@
                 rainDrops.forEach(d => {
                     d.x += Math.sin(d.tilt) * d.spd * 0.5;
                     d.y += Math.cos(d.tilt) * d.spd;
-                    if (d.y > H || d.x > W + 20) Object.assign(d, createRainDrop(false));
+                    if (d.y - d.len > H || d.x > W + 20) {
+                        const nd = createRainDrop(false);
+                        Object.assign(d, nd);
+                    }
 
                     const x2 = d.x - Math.sin(d.tilt) * d.len;
                     const y2 = d.y - Math.cos(d.tilt) * d.len;
                     const g = rCtx.createLinearGradient(x2, y2, d.x, d.y);
                     g.addColorStop(0, 'rgba(170,200,235,0)');
+                    g.addColorStop(0.4, `rgba(160,190,230,${d.op * 0.5})`);
                     g.addColorStop(1, `rgba(180,210,240,${d.op})`);
                     rCtx.strokeStyle = g; rCtx.lineWidth = d.w; rCtx.lineCap = 'round';
                     rCtx.beginPath(); rCtx.moveTo(x2, y2); rCtx.lineTo(d.x, d.y); rCtx.stroke();
+
+                    // splash on ground
+                    if (d.y >= H - 10 && !d.splashing) {
+                        d.splashing = true;
+                        d.splashX = d.x; d.splashY = H - 4; d.splashR = 0; d.splashAge = 0;
+                    }
+                    if (d.splashing) {
+                        d.splashR += 0.8; d.splashAge++;
+                        const sa = Math.max(0, 0.45 - d.splashAge * 0.05);
+                        if (sa > 0) {
+                            rCtx.save();
+                            rCtx.strokeStyle = `rgba(160,190,230,${sa})`;
+                            rCtx.lineWidth = 0.6;
+                            rCtx.beginPath();
+                            rCtx.ellipse(d.splashX, d.splashY, d.splashR * 1.8, d.splashR * 0.5, 0, 0, Math.PI * 2);
+                            rCtx.stroke();
+                            rCtx.restore();
+                        } else {
+                            d.splashing = false;
+                        }
+                    }
                 });
             }
 
@@ -572,23 +645,33 @@
                     if (Date.now() > nextFlash) triggerFlash();
                 } else {
                     const elapsed = Date.now() - flashState.start;
-                    flashState.bolts.forEach(bolt => {
+                    let anyVisible = false;
+
+                    flashState.sequence.forEach(fs => {
+                        const localT = elapsed - fs.delay;
+                        if (localT < 0) return;
+
+                        const bolt = fs.bolt;
                         let ba = 0;
-                        if (elapsed < 100) ba = elapsed / 100;
-                        else if (elapsed < 200) ba = 1.0;
-                        else if (elapsed < 400) ba = 1 - (elapsed - 200) / 200;
+                        if (localT < 40) ba = localT / 40;
+                        else if (localT < 100) ba = 1.0;
+                        else if (localT < 200) ba = 1.0 - (localT - 100) / 100;
 
                         if (ba > 0.01) {
+                            anyVisible = true;
                             const bgA = ba * 0.35;
                             const rg = lBgCtx.createRadialGradient(bolt.sx, 0, 0, bolt.sx, H * 0.5, H * 0.8);
                             rg.addColorStop(0, `rgba(160,185,255,${bgA})`);
                             rg.addColorStop(1, 'rgba(10,20,60,0)');
                             lBgCtx.fillStyle = rg; lBgCtx.fillRect(0, 0, W, H);
-                            drawBolt(bCtx, bolt.pts, ba, 3.5);
-                            bolt.branches.forEach(br => drawBolt(bCtx, br.pts, ba * br.a, 1.5));
+
+                            drawBolt(bCtx, bolt.points, ba, 3.5);
+                            bolt.branches.forEach(br => drawBolt(bCtx, br.points, ba * br.alpha, 1.5));
                         }
                     });
-                    if (elapsed > 400) flashState = null;
+
+                    const last = flashState.sequence[flashState.sequence.length - 1];
+                    if (elapsed > last.delay + 250) flashState = null;
                 }
             }
 
@@ -601,6 +684,9 @@
         document.addEventListener('copy', e => e.preventDefault());
         document.addEventListener('cut', e => e.preventDefault());
         document.addEventListener('paste', e => e.preventDefault());
+        document.addEventListener('click', () => {
+            initAudio();
+        }, { once: true });
 
         let unit = localStorage.getItem('weather_unit') || 'C';
         let savedLocations = JSON.parse(localStorage.getItem('saved_locations') || '[]');
