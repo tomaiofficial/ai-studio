@@ -2,13 +2,47 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Météo France</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
-        body { min-height: 100vh; color: white; overflow-x: hidden; background: #000; }
         
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 100%;
+            overflow-x: hidden;
+            background: linear-gradient(to bottom, #b8c6d8, #9fb2c7);
+        }
+
+        html, body, .app, .container {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar,
+        .app::-webkit-scrollbar,
+        .container::-webkit-scrollbar {
+            display: none;
+        }
+
+        body {
+            color: white;
+            padding-top: env(safe-area-inset-top);
+            background-attachment: fixed;
+            background-size: cover;
+            overflow-y: scroll;
+            overscroll-behavior: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
         #bg-container {
             position: fixed;
             top: 0;
@@ -89,7 +123,13 @@
             transition: opacity 2s;
         }
 
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
         /* UI Glass Effect */
         .search, .hour, .day-item, .detail, .modal, .sidebar {
             backdrop-filter: blur(20px);
@@ -200,7 +240,6 @@
         .option-item:hover { background: rgba(255,255,255,0.1); }
 
         /* Mobile restrictions */
-        body { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; }
         input { user-select: text; -webkit-user-select: text; }
     </style>
 </head>
@@ -349,8 +388,8 @@
         const palettes = {
             sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%)',
             partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #7597BA 50%, #E8EEF5 100%)',
-            cloudy: 'linear-gradient(180deg, #4A6076 0%, #6D879D 50%, #8BA1B5 100%)',
-            rainy: 'linear-gradient(180deg, #1B263B 0%, #415A77 70%, #778DA9 100%)',
+            cloudy: 'linear-gradient(to bottom, #b8c6d8, #9fb2c7)',
+            rainy: 'linear-gradient(to bottom, #b8c6d8, #9fb2c7)',
             thunderstorm: 'linear-gradient(180deg, #05080F 0%, #1A2440 55%, #1A2038 100%)',
             snowy: 'linear-gradient(180deg, #8395A7 0%, #A4B0BE 50%, #CED6E0 100%)',
             foggy: 'linear-gradient(180deg, #576574 0%, #8395A7 60%, #CED6E0 100%)',
