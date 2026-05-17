@@ -14,7 +14,7 @@
             width: 100%;
             min-height: 100%;
             overflow-x: hidden;
-            background: linear-gradient(to bottom, #b8c6d8, #9fb2c7);
+            background: transparent;
         }
 
         html, body, .app, .container {
@@ -339,27 +339,27 @@
             
             <div class="details">
                 <div class="detail">
-                    <div class="detail-label">💧 Humidité</div>
+                    <div class="detail-label"><i data-lucide="droplets" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Humidité</div>
                     <div class="detail-value" id="humidity">65%</div>
                 </div>
                 <div class="detail">
-                    <div class="detail-label">💨 Vent</div>
+                    <div class="detail-label"><i data-lucide="wind" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Vent</div>
                     <div class="detail-value" id="wind">12km/h</div>
                 </div>
                 <div class="detail">
-                    <div class="detail-label">☀️ UV</div>
+                    <div class="detail-label"><i data-lucide="sun" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> UV</div>
                     <div class="detail-value" id="uv">3</div>
                 </div>
                 <div class="detail">
-                    <div class="detail-label">🌡️ Ressenti</div>
+                    <div class="detail-label"><i data-lucide="thermometer" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Ressenti</div>
                     <div class="detail-value" id="feels">17°</div>
                 </div>
                 <div class="detail">
-                    <div class="detail-label">👁️ Visibilité</div>
+                    <div class="detail-label"><i data-lucide="eye" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Visibilité</div>
                     <div class="detail-value" id="vis">10km</div>
                 </div>
                 <div class="detail">
-                    <div class="detail-label">📊 Pression</div>
+                    <div class="detail-label"><i data-lucide="gauge" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Pression</div>
                     <div class="detail-value" id="pressure">1015hPa</div>
                 </div>
             </div>
@@ -398,7 +398,7 @@
         const palettes = {
             sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%)',
             partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #7597BA 50%, #E8EEF5 100%)',
-            cloudy: 'linear-gradient(to bottom, #b8c6d8, #9fb2c7)',
+            cloudy: 'linear-gradient(180deg, #4A5B70 0%, #6E8299 40%, #A3B1C2 100%)',
             rainy: 'linear-gradient(to bottom, #4b617a, #304352)',
             rainyNight: 'linear-gradient(180deg, #0A1018 0%, #141E30 100%)',
             thunderstorm: 'linear-gradient(180deg, #05080F 0%, #0A1020 18%, #101828 35%, #1A2440 55%, #1E2D4A 70%, #263450 85%, #1A2038 100%)',
