@@ -123,25 +123,32 @@
     <script>
         const icons = {
             0: {d:'☀️',n:'🌙',t:'Ciel dégagé'},
-            1: {d:'⛅',n:'☁️',t:'Partiellement nuageux'},
+            1: {d:'🌤️',n:'🌙',t:'Plutôt dégagé'},
             2: {d:'⛅',n:'☁️',t:'Partiellement nuageux'},
             3: {d:'☁️',n:'☁️',t:'Nuageux'},
             45:{d:'🌫️',n:'🌫️',t:'Brouillard'},
-            48:{d:'🌫️',n:'🌫️',t:'Brouillard givrant'},
-            51:{d:'🌧️',n:'🌧️',t:'Bruine'},
-            53:{d:'🌧️',n:'🌧️',t:'Bruine'},
-            55:{d:'🌧️',n:'🌧️',t:'Bruine'},
+            48:{d:'🌫️',n:'🌫️',t:'Brouillard'},
+            51:{d:'🌦️',n:'🌦️',t:'Bruine'},
+            53:{d:'🌦️',n:'🌦️',t:'Bruine'},
+            55:{d:'🌦️',n:'🌦️',t:'Bruine'},
+            56:{d:'🌨️',n:'🌨️',t:'Bruine verglaçante'},
+            57:{d:'🌨️',n:'🌨️',t:'Bruine verglaçante'},
             61:{d:'🌧️',n:'🌧️',t:'Pluie légère'},
             63:{d:'🌧️',n:'🌧️',t:'Pluie'},
-            65:{d:'⛈️',n:'⛈️',t:'Pluie forte'},
+            65:{d:'🌧️',n:'🌧️',t:'Fortes pluies'},
+            66:{d:'🧊',n:'🧊',t:'Pluie verglaçante'},
+            67:{d:'🧊',n:'🧊',t:'Pluie verglaçante'},
             71:{d:'🌨️',n:'🌨️',t:'Neige légère'},
             73:{d:'❄️',n:'❄️',t:'Neige'},
             75:{d:'❄️',n:'❄️',t:'Neige abondante'},
-            80:{d:'🌧️',n:'🌧️',t:'Averses'},
-            81:{d:'🌧️',n:'🌧️',t:'Averses'},
-            82:{d:'⛈️',n:'⛈️',t:'Averses fortes'},
+            77:{d:'🌨️',n:'🌨️',t:'Grains de neige'},
+            80:{d:'🌦️',n:'🌦️',t:'Averses'},
+            81:{d:'🌦️',n:'🌦️',t:'Averses'},
+            82:{d:'⛈️',n:'⛈️',t:'Orage'},
+            85:{d:'🌨️',n:'🌨️',t:'Averses de neige'},
+            86:{d:'🌨️',n:'🌨️',t:'Averses de neige'},
             95:{d:'⛈️',n:'⛈️',t:'Orage'},
-            96:{d:'⛈️',n:'⛈️',t:'Orage grêle'},
+            96:{d:'⛈️',n:'⛈️',t:'Orage'},
             99:{d:'⛈️',n:'⛈️',t:'Orage violent'}
         };
         
@@ -166,7 +173,7 @@
                 '&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,visibility,precipitation,cloud_cover'+
                 '&hourly=temperature_2m,weather_code,is_day,precipitation_probability'+
                 '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max'+
-                '&forecast_days=3&timezone=auto&lang=fr';
+                '&forecast_days=10&timezone=auto&lang=fr';
             let r = await fetch(url);
             return await r.json();
         }
@@ -239,7 +246,13 @@
                         navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 10000});
                     });
                     coords = {lat: pos.coords.latitude, lon: pos.coords.longitude};
-                    cityName = "Ma position";
+                    try {
+                        const geoR = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${coords.lat}&longitude=${coords.lon}&localityLanguage=fr`);
+                        const geoD = await geoR.json();
+                        cityName = geoD.city || geoD.locality || geoD.principalSubdivision || "Ma position";
+                    } catch (ge) {
+                        cityName = "Ma position";
+                    }
                 } catch (e) {
                     console.log("Geolocation failed:", e);
                 }
