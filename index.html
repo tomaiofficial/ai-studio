@@ -16,17 +16,33 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            transition: opacity 1s ease-in-out;
+            overflow: hidden;
         }
 
-        .sky {
+        .sky-layer {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            transition: background 2s ease-in-out;
+            inset: 0;
+            transition: opacity 2s ease-in-out;
         }
+
+        #sky-base {
+            background: linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%);
+        }
+
+        .cloud-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            transition: opacity 2s ease-in-out;
+        }
+
+        #cloud-layer-far { animation: driftFar 80s ease-in-out infinite alternate; }
+        #cloud-layer-mid { animation: driftMid 55s ease-in-out infinite alternate; }
+        #cloud-layer-near { animation: driftNear 38s ease-in-out infinite alternate; }
+
+        @keyframes driftFar { from { transform: translateX(-20px); } to { transform: translateX(20px); } }
+        @keyframes driftMid { from { transform: translateX(15px) translateY(-5px); } to { transform: translateX(-25px) translateY(5px); } }
+        @keyframes driftNear { from { transform: translateX(-10px) translateY(3px); } to { transform: translateX(30px) translateY(-3px); } }
 
         .sun-glow {
             position: absolute;
@@ -38,7 +54,6 @@
             border-radius: 50%;
             filter: blur(40px);
             animation: breathe 8s infinite ease-in-out;
-            display: none;
         }
 
         @keyframes breathe {
@@ -46,29 +61,32 @@
             50% { transform: scale(1.03); opacity: 0.5; }
         }
 
-        .clouds-container {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            pointer-events: none;
-        }
-
-        .cloud {
-            position: absolute;
-            background: rgba(255, 255, 255, 0.2);
-            filter: blur(50px);
-            border-radius: 50%;
-            transition: opacity 2s;
-        }
-
-        canvas#weather-canvas {
+        canvas.weather-canvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             pointer-events: none;
+        }
+
+        #haze {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.1) 100%);
+        }
+
+        #ground-fog {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 35%;
+            background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.05) 100%);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 2s;
         }
 
         .container { max-width: 600px; margin: 0 auto; padding: 20px; position: relative; z-index: 1; }
@@ -86,8 +104,10 @@
         .header button { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
         
         /* Search */
-        .search { background: rgba(255,255,255,0.15); border-radius: 12px; padding: 14px; margin-bottom: 20px; }
-        .search input { background: none; border: none; color: white; width: 100%; font-size: 16px; outline: none; }
+        .search { background: rgba(255,255,255,0.15); border-radius: 12px; padding: 14px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .search input { background: none; border: none; color: white; flex: 1; font-size: 16px; outline: none; }
+        .geo-btn { background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+        .geo-btn:hover { color: white; }
         .search input::placeholder { color: rgba(255,255,255,0.5); }
         
         /* Current */
@@ -186,10 +206,17 @@
 </head>
 <body>
     <div id="bg-container">
-        <div class="sky" id="sky"></div>
-        <div class="sun-glow" id="sun-glow"></div>
-        <div class="clouds-container" id="clouds-container"></div>
-        <canvas id="weather-canvas"></canvas>
+        <div id="sky-base" class="sky-layer"></div>
+        <div id="cloud-layer-far" class="cloud-layer"></div>
+        <div id="cloud-layer-mid" class="cloud-layer"></div>
+        <div id="cloud-layer-near" class="cloud-layer"></div>
+        <div id="sun-glow" class="sun-glow" style="display: none;"></div>
+        <div id="haze"></div>
+        <canvas id="rain-canvas" class="weather-canvas"></canvas>
+        <canvas id="lightning-bg" class="weather-canvas"></canvas>
+        <canvas id="lightning-bolt" class="weather-canvas"></canvas>
+        <canvas id="snow-canvas" class="weather-canvas"></canvas>
+        <div id="ground-fog"></div>
     </div>
 
     <div class="sidebar" id="sidebar">
@@ -238,6 +265,9 @@
         
         <div class="search">
             <input type="text" id="search" placeholder="Rechercher une ville..." onkeypress="search(event)">
+            <button class="geo-btn" onclick="init()" title="Ma position">
+                <i data-lucide="map-pin"></i>
+            </button>
         </div>
         
         <div id="alerts-container"></div>
@@ -291,171 +321,241 @@
     </div>
 
     <script>
-        // Background System
-        const canvas = document.getElementById('weather-canvas');
-        const ctx = canvas.getContext('2d');
-        let particles = [];
-        let animationId;
-        let currentCondition = '';
+        // ─── Background & Weather Visuals ────────────────────────────
+        const rainCv = document.getElementById('rain-canvas');
+        const lightBgCv = document.getElementById('lightning-bg');
+        const boltCv = document.getElementById('lightning-bolt');
+        const snowCv = document.getElementById('snow-canvas');
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        const rCtx = rainCv.getContext('2d');
+        const lBgCtx = lightBgCv.getContext('2d');
+        const bCtx = boltCv.getContext('2d');
+        const sCtx = snowCv.getContext('2d');
+
+        let W, H;
+        function resize() {
+            W = window.innerWidth; H = window.innerHeight;
+            [rainCv, lightBgCv, boltCv, snowCv].forEach(c => { c.width = W; c.height = H; });
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        resize();
+        window.addEventListener('resize', resize);
+
+        let currentCondition = '';
+        let rainDrops = [];
+        let snowflakes = [];
+        let flashState = null;
+        let nextFlash = 0;
 
         const palettes = {
             sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%)',
             partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #7597BA 50%, #E8EEF5 100%)',
             cloudy: 'linear-gradient(180deg, #4A6076 0%, #6D879D 50%, #8BA1B5 100%)',
-            rainy: 'linear-gradient(180deg, #2C3E50 0%, #5D7A99 70%, #FFFFFF 100%)',
-            thunderstorm: 'linear-gradient(180deg, #1A1A2E 0%, #2E4057 80%, #4A5D75 100%)',
-            snowy: 'linear-gradient(180deg, #C9D6E3 0%, #DAE4ED 50%, #EAF0F6 100%)',
-            foggy: 'linear-gradient(180deg, #B0BEC5 0%, #CFD8DC 50%, #ECEFF1 100%)',
+            rainy: 'linear-gradient(180deg, #1B263B 0%, #415A77 70%, #778DA9 100%)',
+            thunderstorm: 'linear-gradient(180deg, #05080F 0%, #1A2440 55%, #1A2038 100%)',
+            snowy: 'linear-gradient(180deg, #8395A7 0%, #A4B0BE 50%, #CED6E0 100%)',
+            foggy: 'linear-gradient(180deg, #576574 0%, #8395A7 60%, #CED6E0 100%)',
             clearNight: 'linear-gradient(180deg, #0A0E27 0%, #162447 70%, #1B262C 100%)',
-            windy: 'linear-gradient(180deg, #607D8B 0%, #8DA4AE 60%, #B2DFDB 100%)'
+            windy: 'linear-gradient(180deg, #485460 0%, #808E9B 60%, #D2DAE2 100%)'
         };
 
-        class Particle {
-            constructor(type) {
-                this.type = type;
-                this.reset();
+        const cloudConfigs = {
+            sunny: { far: 'none', mid: 'none', near: 'none' },
+            partlyCloudy: {
+                far: 'radial-gradient(ellipse 600px 200px at 20% 25%, rgba(255,255,255,0.15) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 500px 180px at 70% 30%, rgba(255,255,255,0.2) 0%, transparent 70%)',
+                near: 'radial-gradient(ellipse 400px 150px at 40% 40%, rgba(255,255,255,0.25) 0%, transparent 70%)'
+            },
+            cloudy: {
+                far: 'radial-gradient(ellipse 800px 300px at 30% 20%, rgba(255,255,255,0.2) 0%, transparent 80%)',
+                mid: 'radial-gradient(ellipse 900px 350px at 80% 25%, rgba(255,255,255,0.2) 0%, transparent 80%)',
+                near: 'radial-gradient(ellipse 1000px 400px at 50% 30%, rgba(255,255,255,0.2) 0%, transparent 80%)'
+            },
+            rainy: {
+                far: 'radial-gradient(ellipse 700px 250px at 15% 20%, rgba(30,40,60,0.8) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 800px 280px at 85% 25%, rgba(25,35,55,0.85) 0%, transparent 70%)',
+                near: 'radial-gradient(ellipse 900px 300px at 50% 30%, rgba(20,30,50,0.9) 0%, transparent 70%)'
+            },
+            thunderstorm: {
+                far: 'radial-gradient(ellipse 700px 200px at 20% 25%, rgba(30,38,70,0.7) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 800px 220px at 30% 30%, rgba(20,28,55,0.9) 0%, transparent 65%)',
+                near: 'radial-gradient(ellipse 900px 250px at 50% 18%, rgba(12,18,42,0.95) 0%, transparent 55%)'
+            },
+            snowy: {
+                far: 'radial-gradient(ellipse 600px 200px at 20% 25%, rgba(255,255,255,0.4) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 700px 220px at 80% 20%, rgba(255,255,255,0.5) 0%, transparent 70%)',
+                near: 'radial-gradient(ellipse 800px 250px at 40% 35%, rgba(255,255,255,0.6) 0%, transparent 70%)'
+            },
+            clearNight: {
+                far: 'radial-gradient(circle 1.5px at 20% 20%, white 100%, transparent 100%), radial-gradient(circle 1px at 80% 40%, white 100%, transparent 100%)',
+                mid: 'radial-gradient(circle 1.2px at 40% 60%, white 100%, transparent 100%), radial-gradient(circle 1px at 10% 80%, white 100%, transparent 100%)',
+                near: 'radial-gradient(circle 1px at 60% 10%, white 100%, transparent 100%), radial-gradient(circle 1.4px at 90% 90%, white 100%, transparent 100%)'
             }
-            reset() {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                if (this.type === 'rain') {
-                    this.length = 15 + Math.random() * 10;
-                    this.speed = 10 + Math.random() * 10;
-                    this.opacity = 0.3 + Math.random() * 0.3;
-                    this.y = -this.length;
-                } else if (this.type === 'snow') {
-                    this.radius = 1 + Math.random() * 3;
-                    this.speed = 1 + Math.random() * 2;
-                    this.sway = Math.random() * 2 - 1;
-                    this.opacity = 0.5 + Math.random() * 0.4;
-                    this.y = -this.radius;
-                } else if (this.type === 'star') {
-                    this.radius = Math.random() * 1.5;
-                    this.opacity = 0.4 + Math.random() * 0.6;
-                    this.twinkleSpeed = 0.01 + Math.random() * 0.02;
-                    this.twinkleDir = 1;
-                }
-            }
-            update() {
-                if (this.type === 'rain') {
-                    this.y += this.speed;
-                    this.x += this.speed * Math.tan(15 * Math.PI / 180);
-                    if (this.y > canvas.height) this.reset();
-                } else if (this.type === 'snow') {
-                    this.y += this.speed;
-                    this.x += Math.sin(this.y / 30) * this.sway;
-                    if (this.y > canvas.height) this.reset();
-                } else if (this.type === 'star') {
-                    this.opacity += this.twinkleSpeed * this.twinkleDir;
-                    if (this.opacity >= 1 || this.opacity <= 0.4) this.twinkleDir *= -1;
-                }
-            }
-            draw() {
-                ctx.beginPath();
-                ctx.globalAlpha = this.opacity;
-                if (this.type === 'rain') {
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1;
-                    ctx.moveTo(this.x, this.y);
-                    ctx.lineTo(this.x + this.length * Math.tan(15 * Math.PI / 180), this.y + this.length);
-                    ctx.stroke();
-                } else if (this.type === 'snow') {
-                    ctx.fillStyle = '#fff';
-                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                    ctx.fill();
-                } else if (this.type === 'star') {
-                    ctx.fillStyle = '#fff';
-                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
+        };
+
+        function createRainDrop(randomY = false) {
+            const layer = Math.random();
+            return {
+                x: Math.random() * W,
+                y: randomY ? Math.random() * H : -20,
+                len: 10 + layer * 25,
+                spd: 12 + layer * 16,
+                tilt: 0.15 + Math.random() * 0.1,
+                op: 0.1 + layer * 0.4,
+                w: 0.5 + layer * 0.8,
+                splash: false, sx: 0, sy: 0, sr: 0, sa: 0
+            };
         }
 
-        function createClouds(count) {
-            const container = document.getElementById('clouds-container');
-            container.innerHTML = '';
-            for (let i = 0; i < count; i++) {
-                const cloud = document.createElement('div');
-                cloud.className = 'cloud';
-                const size = 200 + Math.random() * 400;
-                cloud.style.width = size + 'px';
-                cloud.style.height = (size * 0.6) + 'px';
-                cloud.style.top = (Math.random() * 60) + '%';
-                cloud.style.left = (Math.random() * 100) + '%';
-                const duration = 20 + Math.random() * 40;
-                cloud.style.animation = `drift ${duration}s infinite ease-in-out`;
-                container.appendChild(cloud);
-            }
+        function createSnowflake(randomY = false) {
+            const layer = Math.random();
+            return {
+                x: Math.random() * W,
+                y: randomY ? Math.random() * H : -10,
+                r: 1 + layer * 3,
+                spd: 1 + layer * 2,
+                sway: Math.random() * 2 - 1,
+                op: 0.4 + layer * 0.5,
+                swing: Math.random() * 0.02
+            };
         }
 
-        const driftStyle = document.createElement('style');
-        driftStyle.textContent = `@keyframes drift {
-            0% { transform: translateX(0); }
-            50% { transform: translateX(100px); }
-            100% { transform: translateX(0); }
-        }`;
-        document.head.appendChild(driftStyle);
+        function fractal(ax, ay, bx, by, rough, depth) {
+            if (depth === 0) return [[ax, ay], [bx, by]];
+            const mx = (ax + bx) / 2 + (Math.random() - 0.5) * rough;
+            const my = (ay + by) / 2 + (Math.random() - 0.5) * rough * 0.4;
+            return [...fractal(ax, ay, mx, my, rough * 0.58, depth - 1),
+                    ...fractal(mx, my, bx, by, rough * 0.58, depth - 1)];
+        }
 
-        let lightningTimeout;
-        function doLightning() {
-            if (currentCondition !== 'thunderstorm') return;
-            const sky = document.getElementById('sky');
-            sky.style.filter = 'brightness(3)';
-            setTimeout(() => {
-                sky.style.filter = 'brightness(1)';
-            }, 80);
-            lightningTimeout = setTimeout(doLightning, 20000 + Math.random() * 70000);
+        function triggerFlash() {
+            const sx = W * (0.2 + Math.random() * 0.6);
+            const ey = H * (0.4 + Math.random() * 0.45);
+            const ex = sx + (Math.random() - 0.5) * 200;
+            const pts = fractal(sx, 0, ex, ey, 180, 8);
+
+            const branches = Array.from({ length: 2 + Math.floor(Math.random() * 3) }, () => {
+                const i = Math.floor(pts.length * (0.2 + Math.random() * 0.6));
+                const p = pts[i];
+                return {
+                    pts: fractal(p[0], p[1], p[0] + (Math.random()-0.5)*120, p[1]+60+Math.random()*120, 80, 6),
+                    a: 0.3 + Math.random() * 0.4
+                };
+            });
+
+            flashState = { bolts: [{ pts, branches, sx }], start: Date.now() };
+            nextFlash = Date.now() + 3000 + Math.random() * 8000;
+        }
+
+        function drawBolt(ctx, pts, alpha, w) {
+            if (pts.length < 2) return;
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.shadowBlur = 30; ctx.shadowColor = 'rgba(180,200,255,0.9)';
+            ctx.strokeStyle = `rgba(200,220,255,${alpha})`;
+            ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+            pts.forEach(p => ctx.lineTo(p[0], p[1]));
+            ctx.stroke();
+            ctx.shadowBlur = 6;
+            ctx.strokeStyle = `rgba(240,248,255,${alpha * 0.9})`;
+            ctx.lineWidth = w * 0.3;
+            ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+            pts.forEach(p => ctx.lineTo(p[0], p[1]));
+            ctx.stroke();
+            ctx.restore();
         }
 
         function setBackground(condition) {
             if (condition === currentCondition) return;
             currentCondition = condition;
-            const sky = document.getElementById('sky');
+
+            const base = document.getElementById('sky-base');
+            const far = document.getElementById('cloud-layer-far');
+            const mid = document.getElementById('cloud-layer-mid');
+            const near = document.getElementById('cloud-layer-near');
             const sun = document.getElementById('sun-glow');
+            const fog = document.getElementById('ground-fog');
 
-            sky.style.background = palettes[condition] || palettes.sunny;
-            sun.style.display = condition === 'sunny' ? 'block' : 'none';
+            base.style.background = palettes[condition] || palettes.sunny;
+            sun.style.display = (condition === 'sunny') ? 'block' : 'none';
+            fog.style.opacity = (condition === 'foggy' || condition === 'rainy' || condition === 'thunderstorm') ? '1' : '0';
 
-            clearTimeout(lightningTimeout);
-            particles = [];
+            const config = cloudConfigs[condition] || cloudConfigs.sunny;
+            far.style.background = config.far;
+            mid.style.background = config.mid;
+            near.style.background = config.near;
 
-            if (condition === 'partlyCloudy') createClouds(5);
-            else if (condition === 'cloudy') createClouds(12);
-            else if (condition === 'rainy') {
-                for (let i = 0; i < 100; i++) particles.push(new Particle('rain'));
-                createClouds(8);
-            } else if (condition === 'thunderstorm') {
-                for (let i = 0; i < 150; i++) particles.push(new Particle('rain'));
-                createClouds(15);
-                doLightning();
-            } else if (condition === 'snowy') {
-                for (let i = 0; i < 100; i++) particles.push(new Particle('snow'));
-                createClouds(5);
-            } else if (condition === 'clearNight') {
-                for (let i = 0; i < 150; i++) particles.push(new Particle('star'));
-            } else if (condition === 'windy') {
-                createClouds(10);
-            } else {
-                document.getElementById('clouds-container').innerHTML = '';
+            rainDrops = [];
+            snowflakes = [];
+            if (condition === 'rainy' || condition === 'thunderstorm') {
+                rainDrops = Array.from({ length: 300 }, () => createRainDrop(true));
             }
+            if (condition === 'snowy') {
+                snowflakes = Array.from({ length: 150 }, () => createSnowflake(true));
+            }
+            if (condition === 'thunderstorm') nextFlash = Date.now() + 2000;
         }
 
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach(p => {
-                p.update();
-                p.draw();
-            });
-            animationId = requestAnimationFrame(animate);
+        function loop() {
+            rCtx.clearRect(0, 0, W, H);
+            sCtx.clearRect(0, 0, W, H);
+            lBgCtx.clearRect(0, 0, W, H);
+            bCtx.clearRect(0, 0, W, H);
+
+            if (currentCondition === 'rainy' || currentCondition === 'thunderstorm') {
+                rainDrops.forEach(d => {
+                    d.x += Math.sin(d.tilt) * d.spd * 0.5;
+                    d.y += Math.cos(d.tilt) * d.spd;
+                    if (d.y > H || d.x > W + 20) Object.assign(d, createRainDrop(false));
+
+                    const x2 = d.x - Math.sin(d.tilt) * d.len;
+                    const y2 = d.y - Math.cos(d.tilt) * d.len;
+                    const g = rCtx.createLinearGradient(x2, y2, d.x, d.y);
+                    g.addColorStop(0, 'rgba(170,200,235,0)');
+                    g.addColorStop(1, `rgba(180,210,240,${d.op})`);
+                    rCtx.strokeStyle = g; rCtx.lineWidth = d.w; rCtx.lineCap = 'round';
+                    rCtx.beginPath(); rCtx.moveTo(x2, y2); rCtx.lineTo(d.x, d.y); rCtx.stroke();
+                });
+            }
+
+            if (currentCondition === 'snowy') {
+                snowflakes.forEach(s => {
+                    s.y += s.spd;
+                    s.x += Math.sin(s.y * s.swing) * 2 + s.sway;
+                    if (s.y > H) s.y = -10, s.x = Math.random() * W;
+                    sCtx.fillStyle = `rgba(255,255,255,${s.op})`;
+                    sCtx.beginPath(); sCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2); sCtx.fill();
+                });
+            }
+
+            if (currentCondition === 'thunderstorm') {
+                if (!flashState) {
+                    if (Date.now() > nextFlash) triggerFlash();
+                } else {
+                    const elapsed = Date.now() - flashState.start;
+                    flashState.bolts.forEach(bolt => {
+                        let ba = 0;
+                        if (elapsed < 100) ba = elapsed / 100;
+                        else if (elapsed < 200) ba = 1.0;
+                        else if (elapsed < 400) ba = 1 - (elapsed - 200) / 200;
+
+                        if (ba > 0.01) {
+                            const bgA = ba * 0.35;
+                            const rg = lBgCtx.createRadialGradient(bolt.sx, 0, 0, bolt.sx, H * 0.5, H * 0.8);
+                            rg.addColorStop(0, `rgba(160,185,255,${bgA})`);
+                            rg.addColorStop(1, 'rgba(10,20,60,0)');
+                            lBgCtx.fillStyle = rg; lBgCtx.fillRect(0, 0, W, H);
+                            drawBolt(bCtx, bolt.pts, ba, 3.5);
+                            bolt.branches.forEach(br => drawBolt(bCtx, br.pts, ba * br.a, 1.5));
+                        }
+                    });
+                    if (elapsed > 400) flashState = null;
+                }
+            }
+
+            requestAnimationFrame(loop);
         }
-        animate();
+        loop();
 
         // Zoom and Mobile protection
         document.addEventListener('contextmenu', e => e.preventDefault());
