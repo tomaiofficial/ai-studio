@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orage — Apple Weather</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+  #scene {
+    position: relative; width: 100%; height: 100vh;
+    font-family: -apple-system, 'SF Pro Display', sans-serif;
+  }
+
+  /* Sky layers */
+  #sky-base {
+    position: absolute; inset: 0;
+    background: linear-gradient(
+      180deg,
+      #05080F 0%,
+      #0A1020 18%,
+      #101828 35%,
+      #1A2440 55%,
+      #1E2D4A 70%,
+      #263450 85%,
+      #1A2038 100%
+    );
+  }
+
+  #cloud-layer-far {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 700px 200px at 20% 25%, rgba(30,38,70,0.7) 0%, transparent 70%),
+      radial-gradient(ellipse 600px 180px at 75% 15%, rgba(25,32,58,0.8) 0%, transparent 70%),
+      radial-gradient(ellipse 500px 160px at 50% 35%, rgba(18,25,50,0.6) 0%, transparent 70%);
+    animation: driftFar 80s ease-in-out infinite alternate;
+  }
+
+  #cloud-layer-mid {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 800px 220px at 30% 30%, rgba(20,28,55,0.9) 0%, transparent 65%),
+      radial-gradient(ellipse 600px 180px at 80% 20%, rgba(15,22,48,0.85) 0%, transparent 65%),
+      radial-gradient(ellipse 700px 200px at 10% 40%, rgba(22,30,60,0.75) 0%, transparent 60%);
+    animation: driftMid 55s ease-in-out infinite alternate;
+  }
+
+  #cloud-layer-near {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 900px 250px at 50% 18%, rgba(12,18,42,0.95) 0%, transparent 55%),
+      radial-gradient(ellipse 650px 200px at 15% 10%, rgba(10,15,38,0.9) 0%, transparent 55%),
+      radial-gradient(ellipse 750px 220px at 85% 22%, rgba(14,20,45,0.9) 0%, transparent 55%);
+    animation: driftNear 38s ease-in-out infinite alternate;
+  }
+
+  /* Atmospheric haze */
+  #haze {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(15,22,50,0.3) 40%,
+      rgba(20,30,60,0.5) 70%,
+      rgba(8,12,28,0.7) 100%
+    );
+  }
+
+  /* Rain canvas */
+  #rain-canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+  }
+
+  /* Lightning canvases */
+  #lightning-bg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  #lightning-bolt {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+
+  /* Ground fog */
+  #ground-fog {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 35%;
+    background: linear-gradient(180deg,
+      transparent 0%,
+      rgba(30,40,80,0.1) 30%,
+      rgba(20,30,65,0.3) 65%,
+      rgba(10,18,45,0.55) 100%
+    );
+    animation: fogPulse 12s ease-in-out infinite;
+  }
+
+  /* UI card */
+  #ui-card {
+    position: absolute;
+    bottom: 8vh; left: 50%; transform: translateX(-50%);
+    width: 200px; text-align: center; color: white;
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(20px) saturate(1.5);
+    -webkit-backdrop-filter: blur(20px) saturate(1.5);
+    border: 0.5px solid rgba(255,255,255,0.18);
+    border-radius: 22px; padding: 20px 24px;
+  }
+  .city { font-size: 16px; font-weight: 400; opacity: 0.75; letter-spacing: 0.3px; }
+  .temp { font-size: 64px; font-weight: 200; line-height: 1.0; margin: 4px 0 2px; }
+  .cond { font-size: 14px; opacity: 0.7; font-weight: 300; }
+  .details {
+    margin-top: 12px; display: flex; justify-content: space-between;
+    font-size: 12px; opacity: 0.6; border-top: 0.5px solid rgba(255,255,255,0.15);
+    padding-top: 10px;
+  }
+
+  @keyframes driftFar {
+    from { transform: translateX(-20px); }
+    to   { transform: translateX(20px); }
+  }
+  @keyframes driftMid {
+    from { transform: translateX(15px) translateY(-5px); }
+    to   { transform: translateX(-25px) translateY(5px); }
+  }
+  @keyframes driftNear {
+    from { transform: translateX(-10px) translateY(3px); }
+    to   { transform: translateX(30px) translateY(-3px); }
+  }
+  @keyframes fogPulse {
+    0%,100% { opacity: 0.8; }
+    50%      { opacity: 1.0; }
+  }
+</style>
+</head>
+<body>
+<div id="scene">
+  <div id="sky-base"></div>
+  <div id="cloud-layer-far"></div>
+  <div id="cloud-layer-mid"></div>
+  <div id="cloud-layer-near"></div>
+  <div id="haze"></div>
+  <canvas id="rain-canvas"></canvas>
+  <canvas id="lightning-bg"></canvas>
+  <canvas id="lightning-bolt"></canvas>
+  <div id="ground-fog"></div>
+
+  <div id="ui-card">
+    <div class="city">Paris</div>
+    <div class="temp">10°</div>
+    <div class="cond">Orage violent</div>
+    <div class="details">
+      <span>💧 92%</span>
+      <span>💨 38 km/h</span>
+      <span>👁 1.2 km</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Setup ───────────────────────────────────────────────────
+const rainCanvas = document.getElementById('rain-canvas');
+const lightBgCanvas = document.getElementById('lightning-bg');
+const boltCanvas = document.getElementById('lightning-bolt');
+const rCtx = rainCanvas.getContext('2d');
+const lBgCtx = lightBgCanvas.getContext('2d');
+const bCtx = boltCanvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  [rainCanvas, lightBgCanvas, boltCanvas].forEach(c => { c.width = W; c.height = H; });
+}
+resize();
+window.addEventListener('resize', () => { resize(); initRain(); });
+
+// ─── Rain ─────────────────────────────────────────────────────
+const RAIN_COUNT = 420;
+let drops = [];
+
+function initRain() {
+  drops = Array.from({ length: RAIN_COUNT }, () => makeRaindrop(true));
+}
+
+function makeRaindrop(randomY = false) {
+  const layer = Math.random(); // 0=far, 1=near
+  const speedBase = 14 + layer * 18;
+  return {
+    x: Math.random() * W,
+    y: randomY ? Math.random() * H : -20,
+    len: 8 + layer * 28,
+    speed: speedBase + Math.random() * 8,
+    angle: 0.22 + Math.random() * 0.06, // radians tilt
+    opacity: 0.12 + layer * 0.35,
+    width: 0.4 + layer * 0.9,
+    layer,
+    // splash state
+    splashing: false, splashX: 0, splashY: 0, splashR: 0, splashAge: 0,
+  };
+}
+
+function drawRain(t) {
+  rCtx.clearRect(0, 0, W, H);
+  drops.forEach(d => {
+    // move
+    d.x += Math.sin(d.angle) * d.speed * 0.55;
+    d.y += Math.cos(d.angle) * d.speed;
+
+    // reset
+    if (d.y - d.len > H || d.x > W + 20) {
+      const nd = makeRaindrop(false);
+      nd.x = Math.random() * W - 30;
+      Object.assign(d, nd);
+    }
+
+    // draw streak
+    const x2 = d.x - Math.sin(d.angle) * d.len;
+    const y2 = d.y - Math.cos(d.angle) * d.len;
+
+    const grad = rCtx.createLinearGradient(x2, y2, d.x, d.y);
+    grad.addColorStop(0, `rgba(140,175,220,0)`);
+    grad.addColorStop(0.4, `rgba(160,190,230,${d.opacity * 0.5})`);
+    grad.addColorStop(1, `rgba(180,210,240,${d.opacity})`);
+
+    rCtx.save();
+    rCtx.strokeStyle = grad;
+    rCtx.lineWidth = d.width;
+    rCtx.lineCap = 'round';
+    rCtx.beginPath();
+    rCtx.moveTo(x2, y2);
+    rCtx.lineTo(d.x, d.y);
+    rCtx.stroke();
+    rCtx.restore();
+
+    // splash on ground
+    if (d.y >= H - 10 && !d.splashing) {
+      d.splashing = true;
+      d.splashX = d.x; d.splashY = H - 4; d.splashR = 0; d.splashAge = 0;
+    }
+    if (d.splashing) {
+      d.splashR += 0.8; d.splashAge++;
+      const sa = Math.max(0, 0.45 - d.splashAge * 0.05);
+      if (sa > 0) {
+        rCtx.save();
+        rCtx.strokeStyle = `rgba(160,190,230,${sa})`;
+        rCtx.lineWidth = 0.6;
+        rCtx.beginPath();
+        rCtx.ellipse(d.splashX, d.splashY, d.splashR * 1.8, d.splashR * 0.5, 0, 0, Math.PI * 2);
+        rCtx.stroke();
+        rCtx.restore();
+      } else {
+        d.splashing = false;
+      }
+    }
+  });
+
+  // puddle shimmer on ground
+  rCtx.save();
+  rCtx.globalAlpha = 0.06 + 0.02 * Math.sin(t * 0.003);
+  const pg = rCtx.createLinearGradient(0, H - 60, 0, H);
+  pg.addColorStop(0, 'transparent');
+  pg.addColorStop(1, 'rgba(100,150,220,0.8)');
+  rCtx.fillStyle = pg;
+  rCtx.fillRect(0, H - 60, W, 60);
+  rCtx.restore();
+}
+
+// ─── Lightning system ─────────────────────────────────────────
+let activeBolt = null;
+let nextFlashTime = Date.now() + 1500 + Math.random() * 3000;
+let flashPhase = 0; // 0=idle,1=pre-glow,2=bolt,3=afterglow,4=secondary
+let flashTimer = 0;
+let bgAlpha = 0;
+let bgColor = { r: 180, g: 200, b: 255 };
+
+function scheduleLightning() {
+  // randomize between 2–10s, more frequent during "storm peak"
+  return Date.now() + 2000 + Math.random() * 8000;
+}
+
+// Fractal bolt generator
+function generateBolt(sx, sy, ex, ey, roughness, depth) {
+  if (depth === 0) return [[sx, sy], [ex, ey]];
+  const mx = (sx + ex) / 2 + (Math.random() - 0.5) * roughness;
+  const my = (ay + by) / 2 + (Math.random() - 0.5) * roughness * 0.4;
+  const left = generateBolt(sx, sy, mx, my, roughness * 0.58, depth - 1);
+  const right = generateBolt(mx, my, ex, ey, roughness * 0.58, depth - 1);
+  return [...left, ...right];
+}
+
+function generateLightning() {
+  const sx = W * (0.2 + Math.random() * 0.6);
+  const sy = 0;
+  const ex = sx + (Math.random() - 0.5) * 200;
+  const ey = H * (0.4 + Math.random() * 0.45);
+  const points = generateBolt(sx, sy, ex, ey, 180, 8);
+
+  // Branches
+  const branches = [];
+  const branchCount = 2 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < branchCount; i++) {
+    const idx = Math.floor(points.length * (0.2 + Math.random() * 0.6));
+    const bp = points[idx];
+    const bex = bp[0] + (Math.random() - 0.5) * 120;
+    const bey = bp[1] + 60 + Math.random() * 120;
+    branches.push({ points: generateBolt(bp[0], bp[1], bex, bey, 80, 6), alpha: 0.3 + Math.random() * 0.4 });
+  }
+
+  return { sx, sy, ex, ey, points, branches, alpha: 1.0 };
+}
+
+function drawLightningBolt(ctx, points, alpha, width, color = [200, 220, 255]) {
+  if (points.length < 2) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Outer glow
+  ctx.shadowBlur = 30;
+  ctx.shadowColor = `rgba(${color[0]},${color[1]},${color[2]},0.9)`;
+  ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.stroke();
+  // Core bright white
+  ctx.shadowBlur = 6;
+  ctx.strokeStyle = `rgba(240,248,255,${alpha * 0.9})`;
+  ctx.lineWidth = width * 0.3;
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Multi-flash sequence
+let flashSequence = [];
+let flashIndex = 0;
+let flashStart = 0;
+
+function startFlashSequence() {
+  const count = 1 + (Math.random() < 0.4 ? 1 : 0) + (Math.random() < 0.2 ? 1 : 0);
+  flashSequence = [];
+  for (let i = 0; i < count; i++) {
+    flashSequence.push({ delay: i * (80 + Math.random() * 120), bolt: generateLightning() });
+  }
+  flashIndex = 0;
+  flashStart = Date.now();
+  flashPhase = 1;
+  bgAlpha = 0;
+}
+
+function drawLightning(t) {
+  lBgCtx.clearRect(0, 0, W, H);
+  bCtx.clearRect(0, 0, W, H);
+
+  if (flashPhase === 0) {
+    if (Date.now() > nextFlashTime) {
+      startFlashSequence();
+      nextFlashTime = scheduleLightning();
+    }
+    return;
+  }
+
+  const elapsed = Date.now() - flashStart;
+
+  flashSequence.forEach((fs, idx) => {
+    const localT = elapsed - fs.delay;
+    if (localT < 0) return;
+
+    const bolt = fs.bolt;
+    let boltAlpha = 0;
+
+    if (localT < 40) {
+      // pre-glow sky
+      boltAlpha = localT / 40;
+      bgAlpha = Math.max(bgAlpha, boltAlpha * 0.35);
+    } else if (localT < 100) {
+      boltAlpha = 1.0;
+      bgAlpha = Math.max(bgAlpha, 0.45);
+    } else if (localT < 200) {
+      boltAlpha = 1.0 - (localT - 100) / 100;
+      bgAlpha = Math.max(bgAlpha, boltAlpha * 0.3);
+    } else {
+      boltAlpha = 0;
+    }
+
+    if (boltAlpha > 0.02) {
+      // Draw background glow
+      const gx = bolt.sx, gy = bolt.sy;
+      const bgGlow = lBgCtx.createRadialGradient(gx, gy, 0, gx, H / 2, H * 0.7);
+      bgGlow.addColorStop(0, `rgba(160,185,255,${bgAlpha * 0.6})`);
+      bgGlow.addColorStop(0.3, `rgba(100,130,220,${bgAlpha * 0.25})`);
+      bgGlow.addColorStop(1, `rgba(40,60,160,0)`);
+      lBgCtx.fillStyle = bgGlow;
+      lBgCtx.fillRect(0, 0, W, H);
+
+      // Cloud illumination
+      const ci = lBgCtx.createRadialGradient(gx, 0, 0, gx, 0, W * 0.6);
+      ci.addColorStop(0, `rgba(180,200,255,${bgAlpha * 0.5})`);
+      ci.addColorStop(1, `rgba(100,130,220,0)`);
+      lBgCtx.fillStyle = ci;
+      lBgCtx.fillRect(0, 0, W, H * 0.5);
+
+      // Draw bolt
+      drawLightningBolt(bCtx, bolt.points, boltAlpha, 3.5);
+      bolt.branches.forEach(b => drawLightningBolt(bCtx, b.points, boltAlpha * b.alpha, 1.5));
+    }
+  });
+
+  // Fade global bg alpha
+  bgAlpha *= 0.88;
+  if (bgAlpha < 0.002) bgAlpha = 0;
+
+  // End sequence
+  const totalDuration = flashSequence[flashSequence.length - 1].delay + 250;
+  if (elapsed > totalDuration) {
+    flashPhase = 0;
+  }
+}
+
+// ─── Thunder sound (Web Audio) ────────────────────────────────
+let audioCtx = null;
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playThunder(delay = 0) {
+  if (!audioCtx) return;
+  setTimeout(() => {
+    const bufLen = audioCtx.sampleRate * 3.5;
+    const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    let v = 0;
+    for (let i = 0; i < bufLen; i++) {
+      v = v * 0.998 + (Math.random() * 2 - 1) * 0.002;
+      data[i] = v * Math.exp(-i / (audioCtx.sampleRate * 1.2));
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 3.0);
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 180;
+    src.connect(lp); lp.connect(gain); gain.connect(audioCtx.destination);
+    src.start();
+  }, delay);
+}
+
+document.body.addEventListener('click', () => {
+  initAudio();
+  playThunder(200);
+}, { once: true });
+
+// ─── Main loop ────────────────────────────────────────────────
+initRain();
+
+function loop(t) {
+  drawRain(t);
+  drawLightning(t);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// Thunder tied to flash
+const origStart = startFlashSequence.bind(null);
+function hookedFlash() {
+  startFlashSequence();
+  if (audioCtx) playThunder(400 + Math.random() * 600);
+}
+
+// Patch nextFlashTime check to call thunder
+let _origPhase = 0;
+setInterval(() => {
+  if (flashPhase === 1 && _origPhase === 0) {
+    if (audioCtx) playThunder(350 + Math.random() * 500);
+  }
+  _origPhase = flashPhase;
+}, 50);
+</script>
+</body>
+</html>
