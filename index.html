@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Météo France</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
@@ -58,14 +58,63 @@
         
         /* Error */
         .error { background: rgba(255,0,0,0.2); padding: 15px; border-radius: 12px; display: none; }
+
+        /* Sidebar & Modals */
+        .sidebar { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1a2a3a; z-index: 1000; transition: 0.3s; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; }
+        .sidebar.active { left: 0; }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        .sidebar-title { font-size: 18px; font-weight: 600; }
+        .close-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+        .location-item { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .location-item:hover { background: rgba(255,255,255,0.1); }
+        .delete-btn { color: #ff4d4d; border: none; background: none; padding: 5px 10px; font-size: 18px; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1001; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #243b55; width: 90%; max-width: 400px; border-radius: 20px; padding: 25px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .toggle-group { display: flex; background: rgba(255,255,255,0.1); border-radius: 10px; padding: 4px; }
+        .toggle-item { padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .toggle-item.active { background: #3a7bd5; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+        /* Mobile restrictions */
+        body { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        input { user-select: text; -webkit-user-select: text; }
     </style>
 </head>
 <body>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">Mes Lieux</div>
+            <button class="close-btn" onclick="toggleSidebar()">×</button>
+        </div>
+        <div id="locations-list">
+            <!-- Locations will be injected here -->
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settings-modal" onclick="if(event.target === this) toggleSettings()">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Paramètres</h2>
+                <button class="close-btn" onclick="toggleSettings()">×</button>
+            </div>
+            <div class="setting-row">
+                <span>Unités de température</span>
+                <div class="toggle-group" id="unit-toggle">
+                    <div class="toggle-item active" onclick="setUnit('C')" id="unit-C">°C</div>
+                    <div class="toggle-item" onclick="setUnit('F')" id="unit-F">°F</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
-            <button>☰</button>
+            <button onclick="toggleSidebar()">☰</button>
             <h1>Météo</h1>
-            <button>⚙</button>
+            <button onclick="toggleSettings()">⚙</button>
         </div>
         
         <div class="search">
@@ -122,6 +171,67 @@
     </div>
 
     <script>
+        // Zoom and Mobile protection
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('copy', e => e.preventDefault());
+        document.addEventListener('cut', e => e.preventDefault());
+        document.addEventListener('paste', e => e.preventDefault());
+
+        let unit = localStorage.getItem('weather_unit') || 'C';
+        let savedLocations = JSON.parse(localStorage.getItem('saved_locations') || '[]');
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+
+        function toggleSettings() {
+            document.getElementById('settings-modal').classList.toggle('active');
+            updateSettingsUI();
+        }
+
+        function updateSettingsUI() {
+            document.querySelectorAll('.toggle-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('unit-' + unit).classList.add('active');
+        }
+
+        function setUnit(u) {
+            unit = u;
+            localStorage.setItem('weather_unit', u);
+            updateSettingsUI();
+            init(document.getElementById('city').textContent);
+        }
+
+        function saveLocation(name, lat, lon) {
+            if (!savedLocations.find(l => l.name === name)) {
+                savedLocations.push({name, lat, lon});
+                localStorage.setItem('saved_locations', JSON.stringify(savedLocations));
+                updateLocationsUI();
+            }
+        }
+
+        function removeLocation(name, e) {
+            e.stopPropagation();
+            savedLocations = savedLocations.filter(l => l.name !== name);
+            localStorage.setItem('saved_locations', JSON.stringify(savedLocations));
+            updateLocationsUI();
+        }
+
+        function updateLocationsUI() {
+            const list = document.getElementById('locations-list');
+            list.innerHTML = '';
+            savedLocations.forEach(loc => {
+                const item = document.createElement('div');
+                item.className = 'location-item';
+                item.innerHTML = `<span>${loc.name}</span><button class="delete-btn" onclick="removeLocation('${loc.name}', event)">×</button>`;
+                item.onclick = () => {
+                    coords = {lat: loc.lat, lon: loc.lon};
+                    init(loc.name);
+                    toggleSidebar();
+                };
+                list.appendChild(item);
+            });
+        }
+
         const icons = {
             0: {d:'☀️', n:'🌙', t:'Ciel dégagé'},
             1: {d:'☀️', n:'🌙', t:'Ciel plutôt dégagé'},
@@ -179,15 +289,20 @@
             return await r.json();
         }
         
+        function convertTemp(t) {
+            if (unit === 'F') return Math.round((t * 9/5) + 32);
+            return Math.round(t);
+        }
+
         function display(data, cityName) {
             if(!data) return;
             let c = data.current, d = data.daily, h = data.hourly;
             
             document.getElementById('city').textContent = cityName;
             document.getElementById('icon').textContent = getIcon(c.weather_code, c.is_day);
-            document.getElementById('temp').textContent = Math.round(c.temperature_2m)+'°';
+            document.getElementById('temp').textContent = convertTemp(c.temperature_2m)+'°';
             document.getElementById('desc').textContent = icons[c.weather_code]?.t || 'Inconnu';
-            document.getElementById('hl').textContent = 'H:'+Math.round(d.temperature_2m_max[0])+'° L:'+Math.round(d.temperature_2m_min[0])+'°';
+            document.getElementById('hl').textContent = 'H:'+convertTemp(d.temperature_2m_max[0])+'° L:'+convertTemp(d.temperature_2m_min[0])+'°';
             
             // Hourly
             let hourlyDiv = document.getElementById('hourly');
@@ -204,10 +319,10 @@
                 if(i === 0) {
                     timeLabel = 'Maint';
                     icon = getIcon(c.weather_code, c.is_day);
-                    temp = Math.round(c.temperature_2m);
+                    temp = convertTemp(c.temperature_2m);
                 } else {
                     icon = getIcon(h.weather_code[hIdx], h.is_day[hIdx]);
-                    temp = Math.round(h.temperature_2m[hIdx]);
+                    temp = convertTemp(h.temperature_2m[hIdx]);
                 }
 
                 let hourHtml = '<div class="hour"><div class="hour-time">'+timeLabel+'</div><div class="hour-icon">'+icon+'</div><div class="precip">'+precip+'</div><div class="hour-temp">'+temp+'°</div></div>';
@@ -220,14 +335,14 @@
             let days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
             for(let i=0; i<7; i++) {
                 let dayName = i===0?'Aujourd\'hui':(i===1?'Demain':days[new Date(Date.now()+i*86400000).getDay()]);
-                dailyDiv.innerHTML += '<div class="day-item"><div class="day-name">'+dayName+'</div><div class="day-icon">'+getIcon(d.weather_code[i],1)+'</div><div class="day-high">'+Math.round(d.temperature_2m_max[i])+'°</div><div class="day-low">'+Math.round(d.temperature_2m_min[i])+'°</div></div>';
+                dailyDiv.innerHTML += '<div class="day-item"><div class="day-name">'+dayName+'</div><div class="day-icon">'+getIcon(d.weather_code[i],1)+'</div><div class="day-high">'+convertTemp(d.temperature_2m_max[i])+'°</div><div class="day-low">'+convertTemp(d.temperature_2m_min[i])+'°</div></div>';
             }
             
             // Details
             document.getElementById('humidity').textContent = c.relative_humidity_2m+'%';
             document.getElementById('wind').textContent = Math.round(c.wind_speed_10m)+'km/h';
             document.getElementById('uv').textContent = Math.round(d.uv_index_max[0]);
-            document.getElementById('feels').textContent = Math.round(c.apparent_temperature)+'°';
+            document.getElementById('feels').textContent = convertTemp(c.apparent_temperature)+'°';
             document.getElementById('vis').textContent = (c.visibility/1000).toFixed(1)+'km';
             document.getElementById('pressure').textContent = Math.round(c.pressure_msl)+'hPa';
             document.getElementById('update').textContent = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
@@ -264,6 +379,8 @@
             
             let data = await fetchWeather(coords.lat, coords.lon);
             display(data, cityName);
+            saveLocation(cityName, coords.lat, coords.lon);
+            updateLocationsUI();
         }
         
         function search(e) {
