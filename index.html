@@ -34,7 +34,8 @@
         .hour { min-width: 60px; background: rgba(255,255,255,0.1); border-radius: 16px; padding: 14px 10px; text-align: center; }
         .hour-time { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
         .hour-icon { font-size: 26px; }
-        .hour-temp { font-size: 15px; margin-top: 5px; }
+        .precip { font-size: 11px; color: #00d2ff; font-weight: 700; margin-top: -2px; margin-bottom: 2px; height: 14px; }
+        .hour-temp { font-size: 15px; }
         
         /* Daily */
         .day-item { display: flex; align-items: center; background: rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; margin-bottom: 8px; }
@@ -122,34 +123,34 @@
 
     <script>
         const icons = {
-            0: {d:'☀️',n:'🌙',t:'Ciel dégagé'},
-            1: {d:'🌤️',n:'🌙',t:'Plutôt dégagé'},
-            2: {d:'⛅',n:'☁️',t:'Partiellement nuageux'},
-            3: {d:'☁️',n:'☁️',t:'Nuageux'},
-            45:{d:'🌫️',n:'🌫️',t:'Brouillard'},
-            48:{d:'🌫️',n:'🌫️',t:'Brouillard'},
-            51:{d:'🌦️',n:'🌦️',t:'Bruine'},
-            53:{d:'🌦️',n:'🌦️',t:'Bruine'},
-            55:{d:'🌦️',n:'🌦️',t:'Bruine'},
-            56:{d:'🌨️',n:'🌨️',t:'Bruine verglaçante'},
-            57:{d:'🌨️',n:'🌨️',t:'Bruine verglaçante'},
-            61:{d:'🌧️',n:'🌧️',t:'Pluie légère'},
-            63:{d:'🌧️',n:'🌧️',t:'Pluie'},
-            65:{d:'🌧️',n:'🌧️',t:'Fortes pluies'},
-            66:{d:'🧊',n:'🧊',t:'Pluie verglaçante'},
-            67:{d:'🧊',n:'🧊',t:'Pluie verglaçante'},
-            71:{d:'🌨️',n:'🌨️',t:'Neige légère'},
-            73:{d:'❄️',n:'❄️',t:'Neige'},
-            75:{d:'❄️',n:'❄️',t:'Neige abondante'},
-            77:{d:'🌨️',n:'🌨️',t:'Grains de neige'},
-            80:{d:'🌦️',n:'🌦️',t:'Averses'},
-            81:{d:'🌦️',n:'🌦️',t:'Averses'},
-            82:{d:'⛈️',n:'⛈️',t:'Orage'},
-            85:{d:'🌨️',n:'🌨️',t:'Averses de neige'},
-            86:{d:'🌨️',n:'🌨️',t:'Averses de neige'},
-            95:{d:'⛈️',n:'⛈️',t:'Orage'},
-            96:{d:'⛈️',n:'⛈️',t:'Orage'},
-            99:{d:'⛈️',n:'⛈️',t:'Orage violent'}
+            0: {d:'☀️', n:'🌙', t:'Ciel dégagé'},
+            1: {d:'☀️', n:'🌙', t:'Ciel plutôt dégagé'},
+            2: {d:'🌤️', n:'☁️🌙', t:'Quelques nuages'},
+            3: {d:'☁️', n:'☁️', t:'Ciel nuageux'},
+            45:{d:'🌫️', n:'🌫️', t:'Brouillard'},
+            48:{d:'🌫️', n:'🌫️', t:'Brouillard'},
+            51:{d:'🌦️', n:'🌧️🌙', t:'Bruine'},
+            53:{d:'🌦️', n:'🌧️🌙', t:'Bruine'},
+            55:{d:'🌦️', n:'🌧️🌙', t:'Bruine'},
+            56:{d:'🌨️', n:'🌨️', t:'Bruine verglaçante'},
+            57:{d:'🌨️', n:'🌨️', t:'Bruine verglaçante'},
+            61:{d:'🌧️', n:'🌧️', t:'Pluie'},
+            63:{d:'🌧️', n:'🌧️', t:'Pluie'},
+            65:{d:'🌧️', n:'🌧️', t:'Fortes pluies'},
+            66:{d:'🌨️', n:'🌨️', t:'Pluie verglaçante'},
+            67:{d:'🌨️', n:'🌨️', t:'Pluie verglaçante'},
+            71:{d:'❄️', n:'❄️', t:'Neige'},
+            73:{d:'❄️', n:'❄️', t:'Neige'},
+            75:{d:'🌨️', n:'🌨️', t:'Neige abondante'},
+            77:{d:'❄️', n:'❄️', t:'Grains de neige'},
+            80:{d:'🌦️', n:'🌦️', t:'Averses'},
+            81:{d:'🌦️', n:'🌦️', t:'Averses'},
+            82:{d:'⛈️', n:'⛈️', t:'Orage'},
+            85:{d:'🌨️', n:'🌨️', t:'Averses de neige'},
+            86:{d:'🌨️', n:'🌨️', t:'Averses de neige'},
+            95:{d:'⛈️', n:'⛈️', t:'Orage'},
+            96:{d:'⛈️', n:'⛈️', t:'Orage'},
+            99:{d:'⛈️', n:'⛈️', t:'Orage'}
         };
         
         function getIcon(code, isDay) {
@@ -195,7 +196,10 @@
             for(let i=0; i<24; i++) {
                 let hIdx = now + i;
                 let timeLabel = (now+i)%24 + 'h';
-                let icon, temp;
+                let icon, temp, precip = '';
+
+                let pProb = h.precipitation_probability[hIdx];
+                if(pProb >= 5) precip = pProb + '%';
 
                 if(i === 0) {
                     timeLabel = 'Maint';
@@ -206,7 +210,7 @@
                     temp = Math.round(h.temperature_2m[hIdx]);
                 }
 
-                let hourHtml = '<div class="hour"><div class="hour-time">'+timeLabel+'</div><div class="hour-icon">'+icon+'</div><div class="hour-temp">'+temp+'°</div></div>';
+                let hourHtml = '<div class="hour"><div class="hour-time">'+timeLabel+'</div><div class="hour-icon">'+icon+'</div><div class="precip">'+precip+'</div><div class="hour-temp">'+temp+'°</div></div>';
                 hourlyDiv.innerHTML += hourHtml;
             }
             
