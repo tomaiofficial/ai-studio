@@ -14,16 +14,20 @@
             width: 100%;
             min-height: 100%;
             overflow-x: hidden;
-            background: transparent;
-        }
-
-        html, body, .app, .container {
+            background: linear-gradient(to bottom, #b8c6d8, #9fb2c7);
             scrollbar-width: none;
             -ms-overflow-style: none;
         }
 
         html::-webkit-scrollbar,
-        body::-webkit-scrollbar,
+        body::-webkit-scrollbar {
+            display: none;
+        }
+
+        .app, .container {
+            scrollbar-width: none;
+        }
+
         .app::-webkit-scrollbar,
         .container::-webkit-scrollbar {
             display: none;
