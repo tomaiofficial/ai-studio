@@ -14,7 +14,7 @@
             width: 100%;
             min-height: 100%;
             overflow-x: hidden;
-            background: linear-gradient(to bottom, #b8c6d8, #9fb2c7);
+            background: transparent;
             scrollbar-width: none;
             -ms-overflow-style: none;
         }
@@ -36,8 +36,6 @@
         body {
             color: white;
             padding-top: env(safe-area-inset-top);
-            background-attachment: fixed;
-            background-size: cover;
             overflow-y: scroll;
             overscroll-behavior: none;
             -webkit-user-select: none;
@@ -64,7 +62,7 @@
         }
 
         #sky-base {
-            background: linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%);
+            background: linear-gradient(to bottom, #4b5d73, #8ea0b8);
         }
 
         .cloud-layer {
@@ -173,12 +171,18 @@
             padding: 20px;
             position: relative;
             z-index: 1;
+            background: transparent !important;
         }
+
+        .main-container, .weather-container, .app {
+            background: transparent !important;
+        }
+
         /* UI Glass Effect */
         .search, .hour, .day-item, .detail, .modal, .sidebar {
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            background: rgba(255, 255, 255, 0.1) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
@@ -188,7 +192,7 @@
         .header button { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
         
         /* Search */
-        .search { background: rgba(255,255,255,0.15); border-radius: 12px; padding: 14px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .search { border-radius: 12px; padding: 14px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
         .search input { background: none; border: none; color: white; flex: 1; font-size: 16px; outline: none; }
         .geo-btn { background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
         .geo-btn:hover { color: white; }
@@ -207,7 +211,7 @@
         .scroll-title { font-size: 14px; font-weight: 600; opacity: 0.6; margin: 25px 0 15px; }
         .scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 20px; scrollbar-width: none; }
         .scroll::-webkit-scrollbar { display: none; }
-        .hour { min-width: 60px; background: rgba(255,255,255,0.1); border-radius: 16px; padding: 14px 10px; text-align: center; }
+        .hour { min-width: 60px; border-radius: 16px; padding: 14px 10px; text-align: center; }
         .hour-time { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
         .hour-icon { display: flex; justify-content: center; margin-bottom: 5px; }
         .hour-icon .lucide { width: 28px; height: 28px; stroke-width: 2; }
@@ -215,7 +219,7 @@
         .hour-temp { font-size: 15px; }
         
         /* Daily */
-        .day-item { display: flex; align-items: center; background: rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; margin-bottom: 8px; }
+        .day-item { display: flex; align-items: center; border-radius: 14px; padding: 16px; margin-bottom: 8px; }
         .day-name { width: 90px; font-size: 16px; }
         .day-icon { display: flex; justify-content: center; }
         .day-icon .lucide { width: 28px; height: 28px; stroke-width: 2; }
@@ -224,20 +228,20 @@
         
         /* Details */
         .details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
-        .detail { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 16px; }
+        .detail { border-radius: 16px; padding: 16px; }
         .detail-label { font-size: 13px; opacity: 0.6; margin-bottom: 8px; }
         .detail-value { font-size: 22px; font-weight: 500; }
 
         /* Smart Summary Card */
         .summary-card {
             width: 100%;
-            background: linear-gradient(135deg, rgba(58, 123, 213, 0.2), rgba(58, 123, 213, 0.1));
-            backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-radius: 24px;
             padding: 20px;
             margin: 20px 0;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             animation: slideUpFade 0.8s ease-out forwards;
             opacity: 0;
@@ -286,8 +290,8 @@
         .alert-content { font-size: 14px; font-weight: 500; }
 
         /* Sidebar & Modals */
-        .sidebar { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: #1a2a3a; z-index: 1000; transition: 0.3s; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; }
-        .sidebar.active { left: 0; }
+        .sidebar { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; z-index: 1000; transition: 0.3s; padding: 20px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; }
+        .sidebar.active { left: 0; backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); }
         .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
         .sidebar-title { font-size: 18px; font-weight: 600; }
         .close-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
@@ -295,9 +299,9 @@
         .location-item:hover { background: rgba(255,255,255,0.1); }
         .delete-btn { color: #ff4d4d; border: none; background: none; padding: 5px 10px; font-size: 18px; }
 
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1001; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1001; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .modal-overlay.active { display: flex; }
-        .modal { background: #243b55; width: 90%; max-width: 400px; border-radius: 20px; padding: 25px; }
+        .modal { width: 90%; max-width: 400px; border-radius: 20px; padding: 25px; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .toggle-group { display: flex; background: rgba(255,255,255,0.1); border-radius: 10px; padding: 4px; }
@@ -463,7 +467,7 @@
         let nextFlash = 0;
 
         const palettes = {
-            sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%)',
+            sunny: 'linear-gradient(to bottom, #4b5d73, #8ea0b8)',
             partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #5D7A99 50%, #E8EEF5 100%)',
             cloudy: 'linear-gradient(180deg, #4A5B70 0%, #6E8299 40%, #A3B1C2 100%)',
             rainy: 'linear-gradient(180deg, #2C3E50 0%, #5D7A99 60%, #FFFFFF 100%)',
@@ -666,9 +670,9 @@
             }
 
             const config = cloudConfigs[condition] || cloudConfigs.sunny;
-            far.style.background = config.far;
-            mid.style.background = config.mid;
-            near.style.background = config.near;
+            document.getElementById('cloud-layer-far').style.background = config.far;
+            document.getElementById('cloud-layer-mid').style.background = config.mid;
+            document.getElementById('cloud-layer-near').style.background = config.near;
 
             if (['cloudy', 'rainy', 'thunderstorm'].includes(condition)) {
                 initPuffs(25, condition === 'cloudy' ? 0.4 : 0.8);
