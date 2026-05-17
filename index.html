@@ -166,7 +166,7 @@
                 '&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,visibility,precipitation,cloud_cover'+
                 '&hourly=temperature_2m,weather_code,is_day,precipitation_probability'+
                 '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max'+
-                '&timezone=auto&lang=fr';
+                '&forecast_days=3&timezone=auto&lang=fr';
             let r = await fetch(url);
             return await r.json();
         }
@@ -186,8 +186,20 @@
             hourlyDiv.innerHTML = '';
             let now = new Date().getHours();
             for(let i=0; i<24; i++) {
-                let hIdx = i;
-                let hourHtml = '<div class="hour"><div class="hour-time">'+(now+i)%24+'h</div><div class="hour-icon">'+getIcon(h.weather_code[hIdx], h.is_day[hIdx])+'</div><div class="hour-temp">'+Math.round(h.temperature_2m[hIdx])+'°</div></div>';
+                let hIdx = now + i;
+                let timeLabel = (now+i)%24 + 'h';
+                let icon, temp;
+
+                if(i === 0) {
+                    timeLabel = 'Maint';
+                    icon = getIcon(c.weather_code, c.is_day);
+                    temp = Math.round(c.temperature_2m);
+                } else {
+                    icon = getIcon(h.weather_code[hIdx], h.is_day[hIdx]);
+                    temp = Math.round(h.temperature_2m[hIdx]);
+                }
+
+                let hourHtml = '<div class="hour"><div class="hour-time">'+timeLabel+'</div><div class="hour-icon">'+icon+'</div><div class="hour-temp">'+temp+'°</div></div>';
                 hourlyDiv.innerHTML += hourHtml;
             }
             
@@ -218,7 +230,20 @@
             document.getElementById('weather').style.display = 'none';
             
             let cityName = city || 'Paris';
-            if(city) cityName = await searchCity(city);
+
+            if (city) {
+                cityName = await searchCity(city);
+            } else if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 10000});
+                    });
+                    coords = {lat: pos.coords.latitude, lon: pos.coords.longitude};
+                    cityName = "Ma position";
+                } catch (e) {
+                    console.log("Geolocation failed:", e);
+                }
+            }
             
             let data = await fetchWeather(coords.lat, coords.lon);
             display(data, cityName);
