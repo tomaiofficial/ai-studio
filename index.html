@@ -16,13 +16,11 @@
             margin: 0;
             padding: 0;
             width: 100%;
-            max-width: 100%;
-            min-height: 100%;
-            overflow-x: hidden !important;
-            background: transparent;
+            height: 100%;
+            overflow-x: hidden;
+            background: black;
             scrollbar-width: none;
             -ms-overflow-style: none;
-            position: relative;
         }
 
         html::-webkit-scrollbar,
@@ -30,46 +28,42 @@
             display: none;
         }
 
-        .app, .container {
-            scrollbar-width: none;
+        .container {
             width: 100%;
-            max-width: 100%;
-            overflow-x: hidden !important;
-        }
-
-        .app::-webkit-scrollbar,
-        .container::-webkit-scrollbar {
-            display: none;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+            background: transparent !important;
+            overflow-x: hidden;
         }
 
         body {
             color: white;
             padding-top: env(safe-area-inset-top);
             overflow-y: scroll;
-            overflow-x: hidden !important;
+            overflow-x: hidden;
             overscroll-behavior: none;
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
-            width: 100%;
-            max-width: 100%;
         }
 
-        #bg-container {
+        .weather-background {
             position: fixed;
             inset: 0;
-            width: 100% !important;
-            height: 100% !important;
-            left: 0 !important;
-            right: 0 !important;
+            width: 100%;
+            height: 100%;
             z-index: -1;
             overflow: hidden;
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            transform: none !important;
+            transform: translateZ(0);
+            will-change: transform;
             pointer-events: none;
         }
 
@@ -340,7 +334,7 @@
     </style>
 </head>
 <body>
-    <div id="bg-container">
+    <div id="bg-container" class="weather-background">
         <div id="sky-base" class="sky-layer"></div>
         <div id="sky-overlay" class="sky-layer" style="opacity: 0;"></div>
         <div id="stars-layer" class="stars-layer"></div>
@@ -487,7 +481,7 @@
         let nextFlash = 0;
 
         const palettes = {
-            sunny: 'linear-gradient(to bottom, #4b5d73, #8ea0b8)',
+            sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%)',
             partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #5D7A99 50%, #E8EEF5 100%)',
             cloudy: 'linear-gradient(180deg, #4A5B70 0%, #6E8299 40%, #A3B1C2 100%)',
             rainy: 'linear-gradient(180deg, #2C3E50 0%, #5D7A99 60%, #FFFFFF 100%)',
@@ -498,7 +492,8 @@
             foggy: 'linear-gradient(180deg, #B0BEC5 0%, #ECEFF1 100%)',
             clearNight: 'linear-gradient(180deg, #0A0E27 0%, #162447 100%)',
             cloudyNight: 'linear-gradient(180deg, #131921 0%, #232D3F 100%)',
-            windy: 'linear-gradient(180deg, #607D8B 0%, #B2DFDB 100%)'
+            windy: 'linear-gradient(180deg, #607D8B 0%, #B2DFDB 100%)',
+            sunset: 'linear-gradient(180deg, #2c3e50 0%, #e67e22 50%, #f1c40f 100%)'
         };
 
         const cloudConfigs = {
@@ -532,6 +527,16 @@
                 far: 'radial-gradient(circle 1.5px at 20% 20%, white 100%, transparent 100%), radial-gradient(circle 1px at 80% 40%, white 100%, transparent 100%)',
                 mid: 'radial-gradient(circle 1.2px at 40% 60%, white 100%, transparent 100%), radial-gradient(circle 1px at 10% 80%, white 100%, transparent 100%)',
                 near: 'radial-gradient(circle 1px at 60% 10%, white 100%, transparent 100%), radial-gradient(circle 1.4px at 90% 90%, white 100%, transparent 100%)'
+            },
+            foggy: {
+                far: 'radial-gradient(ellipse 800px 400px at 50% 50%, rgba(255,255,255,0.1), transparent)',
+                mid: 'none',
+                near: 'none'
+            },
+            sunset: {
+                far: 'radial-gradient(ellipse 600px 200px at 30% 30%, rgba(255,200,150,0.2), transparent)',
+                mid: 'radial-gradient(ellipse 500px 150px at 70% 40%, rgba(255,180,100,0.15), transparent)',
+                near: 'none'
             }
         };
 
@@ -637,14 +642,17 @@
                 const layerIdx = i % 3;
                 const puff = document.createElement('div');
                 puff.className = 'cloud-puff';
-                const size = 300 + Math.random() * 500;
+                const size = 400 + Math.random() * 600;
                 puff.style.width = size + 'px';
-                puff.style.height = (size * 0.5) + 'px';
-                puff.style.left = (Math.random() * 120 - 10) + '%';
-                puff.style.top = (Math.random() * 60 - 10) + '%';
-                puff.style.opacity = (opBase * (0.5 + Math.random() * 0.5));
+                puff.style.height = (size * 0.4) + 'px';
+                puff.style.left = (Math.random() * 140 - 20) + '%';
+                puff.style.top = (Math.random() * 50 - 5) + '%';
+                puff.style.background = `radial-gradient(ellipse at center, rgba(255,255,255,${opBase * 0.6}) 0%, rgba(255,255,255,0) 75%)`;
+                puff.style.filter = 'blur(60px)';
+                puff.style.opacity = '0';
                 layers[layerIdx].appendChild(puff);
                 puffs.push(puff);
+                setTimeout(() => puff.style.opacity = (0.3 + Math.random() * 0.7), 100);
             }
         }
 
@@ -694,9 +702,9 @@
             document.getElementById('cloud-layer-mid').style.background = config.mid;
             document.getElementById('cloud-layer-near').style.background = config.near;
 
-            if (['cloudy', 'rainy', 'thunderstorm'].includes(condition)) {
-                initPuffs(25, condition === 'cloudy' ? 0.4 : 0.8);
-            } else if (condition === 'partlyCloudy') {
+            if (['cloudy', 'rainy', 'thunderstorm', 'cloudyNight', 'rainyNight'].includes(condition)) {
+                initPuffs(25, condition.includes('cloudy') ? 0.4 : 0.8);
+            } else if (['partlyCloudy', 'sunset'].includes(condition)) {
                 initPuffs(12, 0.3);
             } else {
                 initPuffs(0, 0);
@@ -1154,7 +1162,7 @@
             lucide.createIcons();
         }
         
-        function updateBgByCode(code, isDay) {
+        function updateBgByCode(code, isDay, sunrise, sunset) {
             if (!isDay) {
                 if (code <= 1) setBackground('clearNight');
                 else if (code <= 3) setBackground('cloudyNight');
@@ -1162,6 +1170,16 @@
                 else if ([82, 95, 96, 99].includes(code)) setBackground('thunderstorm');
                 else if ([56, 57, 66, 67, 71, 73, 75, 77, 85, 86].includes(code)) setBackground('snowyNight');
                 else setBackground('clearNight');
+                return;
+            }
+
+            const now = new Date();
+            const currentHour = now.getHours();
+            const sunHour = new Date(sunset).getHours();
+
+            // Sunset detection
+            if (code <= 2 && (currentHour >= sunHour - 1 && currentHour <= sunHour + 1)) {
+                setBackground('sunset');
                 return;
             }
 
@@ -1203,7 +1221,7 @@
             
             let data = await fetchWeather(coords.lat, coords.lon);
             display(data, cityName);
-            updateBgByCode(data.current.weather_code, data.current.is_day);
+            updateBgByCode(data.current.weather_code, data.current.is_day, data.daily.sunrise[0], data.daily.sunset[0]);
             saveLocation(cityName, coords.lat, coords.lon);
             updateLocationsUI();
         }
