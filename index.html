@@ -12,6 +12,7 @@
             margin: 0;
             padding: 0;
             width: 100%;
+            max-width: 100%;
             min-height: 100%;
             overflow-x: hidden;
             background: transparent;
@@ -28,7 +29,7 @@
         .app, .container {
             scrollbar-width: none;
             width: 100%;
-            max-width: 100vw;
+            max-width: 100%;
             overflow-x: hidden;
         }
 
@@ -49,17 +50,22 @@
             user-select: none;
             -webkit-touch-callout: none;
             width: 100%;
-            max-width: 100vw;
+            max-width: 100%;
         }
 
         #bg-container {
             position: fixed;
-            top: 0;
-            left: 0;
+            inset: 0;
             width: 100%;
             height: 100%;
             z-index: -1;
             overflow: hidden;
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            transform: translateZ(0);
+            will-change: transform;
+            pointer-events: none;
         }
 
         .sky-layer {
@@ -173,12 +179,14 @@
         }
 
         .container {
+            width: 100%;
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
             position: relative;
             z-index: 1;
             background: transparent !important;
+            overflow-x: hidden;
         }
 
         .main-container, .weather-container, .app {
