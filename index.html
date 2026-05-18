@@ -6,15 +6,19 @@
     <title>Météo France</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; max-width: 100%; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
         
+        body::before, body::after, .app::before, .app::after, .container::before, .container::after {
+            display: none !important;
+        }
+
         html, body {
             margin: 0;
             padding: 0;
             width: 100%;
             max-width: 100%;
             min-height: 100%;
-            overflow-x: hidden;
+            overflow-x: hidden !important;
             background: transparent;
             scrollbar-width: none;
             -ms-overflow-style: none;
@@ -30,7 +34,7 @@
             scrollbar-width: none;
             width: 100%;
             max-width: 100%;
-            overflow-x: hidden;
+            overflow-x: hidden !important;
         }
 
         .app::-webkit-scrollbar,
@@ -42,7 +46,7 @@
             color: white;
             padding-top: env(safe-area-inset-top);
             overflow-y: scroll;
-            overflow-x: hidden;
+            overflow-x: hidden !important;
             overscroll-behavior: none;
             -webkit-user-select: none;
             -moz-user-select: none;
@@ -56,15 +60,16 @@
         #bg-container {
             position: fixed;
             inset: 0;
-            width: 100%;
-            height: 100%;
+            width: 100% !important;
+            height: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
             z-index: -1;
             overflow: hidden;
-            background-size: 100% 100%;
+            background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
-            transform: translateZ(0);
-            will-change: transform;
+            transform: none !important;
             pointer-events: none;
         }
 
@@ -186,7 +191,7 @@
             position: relative;
             z-index: 1;
             background: transparent !important;
-            overflow-x: hidden;
+            overflow-x: hidden !important;
         }
 
         .main-container, .weather-container, .app {
