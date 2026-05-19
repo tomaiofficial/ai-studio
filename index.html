@@ -268,6 +268,10 @@
         .scroll-title { font-size: 14px; font-weight: 600; opacity: 0.6; margin: 25px 0 15px; }
         .scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 20px; scrollbar-width: none; }
         .scroll::-webkit-scrollbar { display: none; }
+        #daily { display: block; overflow-x: hidden; overflow-y: auto; max-height: 70vh; }
+        #daily .day-item { margin-bottom: 8px; }
+        #daily { display: block; overflow-x: hidden; }
+        #daily .day-item { margin-bottom: 8px; }
         .hour { min-width: 60px; border-radius: 16px; padding: 14px 10px; text-align: center; }
         .hour-time { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
         .hour-icon { display: flex; justify-content: center; margin-bottom: 5px; }
@@ -414,6 +418,14 @@
                 <div class="toggle-group" id="unit-toggle">
                     <div class="toggle-item active" onclick="setUnit('C')" id="unit-C">°C</div>
                     <div class="toggle-item" onclick="setUnit('F')" id="unit-F">°F</div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <span>Rafraîchissement auto</span>
+                <div class="toggle-group" id="refresh-toggle">
+                    <div class="toggle-item active" onclick="setRefresh(30)" id="ref-30">30 min</div>
+                    <div class="toggle-item" onclick="setRefresh(60)" id="ref-60">1 h</div>
+                    <div class="toggle-item" onclick="setRefresh(120)" id="ref-120">2 h</div>
                 </div>
             </div>
 
@@ -1048,14 +1060,73 @@
             return 'Paris';
         }
         
+        let weatherCache = {};
+        const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+        function getCachedWeather(lat, lon) {
+            const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+            const cached = weatherCache[key];
+            if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
+                return cached.data;
+            }
+            return null;
+        }
+
+        function setCachedWeather(lat, lon, data) {
+            const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+            weatherCache[key] = { data, ts: Date.now() };
+            // Also store in localStorage for instant reload
+            try {
+                localStorage.setItem('weather_cache_' + key, JSON.stringify({ data, ts: Date.now() }));
+            } catch(e) {}
+        }
+
+        function getLocalCachedWeather(lat, lon) {
+            try {
+                const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+                const item = localStorage.getItem('weather_cache_' + key);
+                if (item) {
+                    const parsed = JSON.parse(item);
+                    if (parsed.ts && (Date.now() - parsed.ts) < CACHE_TTL) {
+                        return parsed.data;
+                    }
+                }
+            } catch(e) {}
+            return null;
+        }
+
+        function fetchWithTimeout(url, timeout = 8000) {
+            return Promise.race([
+                fetch(url),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
+            ]);
+        }
+
         async function fetchWeather(lat, lon) {
+            // Check in-memory cache first
+            const memCached = getCachedWeather(lat, lon);
+            if (memCached) {
+                console.log('⚡ Using in-memory cache');
+                return memCached;
+            }
+
+            // Check localStorage cache (instant even on page reload)
+            const localCached = getLocalCachedWeather(lat, lon);
+            if (localCached) {
+                console.log('⚡ Using localStorage cache');
+                weatherCache[`${lat.toFixed(2)},${lon.toFixed(2)}`] = { data: localCached, ts: Date.now() };
+                return localCached;
+            }
+
             let url = 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
                 '&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,visibility,precipitation,cloud_cover'+
                 '&hourly=temperature_2m,weather_code,is_day,precipitation_probability'+
                 '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max'+
                 '&forecast_days=10&timezone=auto&lang=fr';
-            let r = await fetch(url);
-            return await r.json();
+            let r = await fetchWithTimeout(url, 8000);
+            let data = await r.json();
+            setCachedWeather(lat, lon, data);
+            return data;
         }
         
         function convertTemp(t) {
@@ -1187,11 +1258,11 @@
                 hourlyDiv.innerHTML += hourHtml;
             }
             
-            // Daily
+            // Daily - 10 jours
             let dailyDiv = document.getElementById('daily');
             dailyDiv.innerHTML = '';
             let days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-            for(let i=0; i<7; i++) {
+            for(let i=0; i<10; i++) {
                 let dayName = i===0?'Aujourd\'hui':(i===1?'Demain':days[new Date(Date.now()+i*86400000).getDay()]);
                 dailyDiv.innerHTML += '<div class="day-item"><div class="day-name">'+dayName+'</div><div class="day-icon">'+getIcon(d.weather_code[i],1)+'</div><div class="day-high">'+convertTemp(d.temperature_2m_max[i])+'°</div><div class="day-low">'+convertTemp(d.temperature_2m_min[i])+'°</div></div>';
             }
@@ -1255,7 +1326,7 @@
             } else if (navigator.geolocation) {
                 try {
                     const pos = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 10000});
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 5000, maximumAge: 300000});
                     });
                     coords = {lat: pos.coords.latitude, lon: pos.coords.longitude};
                     try {
@@ -1273,16 +1344,50 @@
             let data = await fetchWeather(coords.lat, coords.lon);
             display(data, cityName);
             updateBgByCode(data.current.weather_code, data.current.is_day, data.daily.sunrise[0], data.daily.sunset[0]);
-            saveLocation(cityName, coords.lat, coords.lon);
+            // Ne plus sauvegarder automatiquement - utilise le bouton favoris
             updateLocationsUI();
         }
         
+        let refreshInterval = 30; // minutes
+        let refreshTimer = null;
+
+        function setRefresh(minutes) {
+            refreshInterval = minutes;
+            localStorage.setItem('weather_refresh', minutes);
+            // Update UI
+            document.querySelectorAll('#refresh-toggle .toggle-item').forEach(el => el.classList.remove('active'));
+            const btn = document.getElementById('ref-' + minutes);
+            if (btn) btn.classList.add('active');
+            // Reset timer
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(autoRefresh, refreshInterval * 60 * 1000);
+            console.log('🔄 Rafraîchissement réglé à ' + minutes + ' minutes');
+        }
+
+        function autoRefresh() {
+            const cityEl = document.getElementById('city');
+            if (cityEl && cityEl.textContent && coords) {
+                console.log('🔄 Rafraîchissement auto...');
+                fetchWeather(coords.lat, coords.lon).then(data => {
+                    display(data, cityEl.textContent);
+                    updateBgByCode(data.current.weather_code, data.current.is_day, data.daily.sunrise[0], data.daily.sunset[0]);
+                    const updateTime = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+                    document.getElementById('update').textContent = updateTime;
+                }).catch(e => console.log('Auto-refresh failed:', e));
+            }
+        }
+
         function search(e) {
             if(e.key === 'Enter') init(e.target.value);
         }
         
         document.addEventListener('DOMContentLoaded', () => {
+            // Restore refresh preference
+            const savedRefresh = localStorage.getItem('weather_refresh');
+            if (savedRefresh) refreshInterval = parseInt(savedRefresh);
             init();
+            // Start auto-refresh
+            refreshTimer = setInterval(autoRefresh, refreshInterval * 60 * 1000);
         });
     </script>
 </body>
