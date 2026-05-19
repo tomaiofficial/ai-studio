@@ -6,7 +6,7 @@
     <title>Météo France</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; max-width: 100%; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
         
         body::before, body::after, .app::before, .app::after, .container::before, .container::after {
             display: none !important;
@@ -98,19 +98,19 @@
         }
 
         @keyframes driftFar {
-            0% { transform: translateX(-10%); }
-            50% { transform: translateX(5%); }
-            100% { transform: translateX(-10%); }
+            0% { transform: translateX(-3%); }
+            50% { transform: translateX(2%); }
+            100% { transform: translateX(-3%); }
         }
         @keyframes driftMid {
-            0% { transform: translateX(-15%); }
-            50% { transform: translateX(10%); }
-            100% { transform: translateX(-15%); }
+            0% { transform: translateX(-5%); }
+            50% { transform: translateX(3%); }
+            100% { transform: translateX(-5%); }
         }
         @keyframes driftNear {
-            0% { transform: translateX(-20%); }
-            50% { transform: translateX(15%); }
-            100% { transform: translateX(-20%); }
+            0% { transform: translateX(-6%); }
+            50% { transform: translateX(4%); }
+            100% { transform: translateX(-6%); }
         }
 
         .sun-glow {
@@ -645,8 +645,8 @@
                 const size = 400 + Math.random() * 600;
                 puff.style.width = size + 'px';
                 puff.style.height = (size * 0.4) + 'px';
-                puff.style.left = (Math.random() * 140 - 20) + '%';
-                puff.style.top = (Math.random() * 50 - 5) + '%';
+                puff.style.left = (Math.random() * 70) + '%';
+                puff.style.top = (Math.random() * 40) + '%';
                 puff.style.background = `radial-gradient(ellipse at center, rgba(255,255,255,${opBase * 0.6}) 0%, rgba(255,255,255,0) 75%)`;
                 puff.style.filter = 'blur(60px)';
                 puff.style.opacity = '0';
