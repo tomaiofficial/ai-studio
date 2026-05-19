@@ -106,19 +106,19 @@
         }
 
         @keyframes driftFar {
+            0% { transform: translateX(-2%); }
+            50% { transform: translateX(1.5%); }
+            100% { transform: translateX(-2%); }
+        }
+        @keyframes driftMid {
             0% { transform: translateX(-3%); }
             50% { transform: translateX(2%); }
             100% { transform: translateX(-3%); }
         }
-        @keyframes driftMid {
-            0% { transform: translateX(-5%); }
-            50% { transform: translateX(3%); }
-            100% { transform: translateX(-5%); }
-        }
         @keyframes driftNear {
-            0% { transform: translateX(-6%); }
-            50% { transform: translateX(4%); }
-            100% { transform: translateX(-6%); }
+            0% { transform: translateX(-4%); }
+            50% { transform: translateX(3%); }
+            100% { transform: translateX(-4%); }
         }
 
         .sun-glow {
@@ -495,10 +495,10 @@
         let nextFlash = 0;
 
         const palettes = {
-            sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 60%, #FFF9C4 100%)',
+            sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 55%, #FFF9C4 100%)',
             partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #5D7A99 50%, #E8EEF5 100%)',
-            cloudy: 'linear-gradient(180deg, #4A5B70 0%, #6E8299 40%, #A3B1C2 100%)',
-            rainy: 'linear-gradient(180deg, #2C3E50 0%, #5D7A99 60%, #FFFFFF 100%)',
+            cloudy: 'linear-gradient(180deg, #4A5B70 0%, #6E8299 45%, #A3B1C2 100%)',
+            rainy: 'linear-gradient(180deg, #2C3E50 0%, #5D7A99 50%, rgba(255,255,255,0.2) 100%)',
             rainyNight: 'linear-gradient(180deg, #0A1018 0%, #141E30 100%)',
             thunderstorm: 'linear-gradient(180deg, #1A1A2E 0%, #2E4057 100%)',
             snowy: 'linear-gradient(180deg, #C9D6E3 0%, #EAF0F6 100%)',
@@ -507,52 +507,50 @@
             clearNight: 'linear-gradient(180deg, #0A0E27 0%, #162447 100%)',
             cloudyNight: 'linear-gradient(180deg, #131921 0%, #232D3F 100%)',
             windy: 'linear-gradient(180deg, #607D8B 0%, #B2DFDB 100%)',
-            sunset: 'linear-gradient(180deg, #2c3e50 0%, #e67e22 50%, #f1c40f 100%)'
+            sunset: 'linear-gradient(180deg, #2c3e50 0%, #e67e22 45%, #f1c40f 100%)'
         };
+
 
         const cloudConfigs = {
             sunny: { far: 'none', mid: 'none', near: 'none' },
             partlyCloudy: {
-                far: 'radial-gradient(ellipse 600px 200px at 20% 25%, rgba(255,255,255,0.15) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 500px 180px at 70% 30%, rgba(255,255,255,0.2) 0%, transparent 70%)',
-                near: 'radial-gradient(ellipse 400px 150px at 40% 40%, rgba(255,255,255,0.25) 0%, transparent 70%)'
+                far: 'radial-gradient(ellipse 500px 150px at 25% 20%, rgba(255,255,255,0.08) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 400px 120px at 65% 28%, rgba(255,255,255,0.12) 0%, transparent 70%)',
+                near: 'radial-gradient(ellipse 350px 100px at 45% 38%, rgba(255,255,255,0.18) 0%, transparent 70%)'
             },
             cloudy: {
-                far: 'radial-gradient(ellipse 800px 300px at 30% 20%, rgba(255,255,255,0.2) 0%, transparent 80%)',
-                mid: 'radial-gradient(ellipse 900px 350px at 80% 25%, rgba(255,255,255,0.2) 0%, transparent 80%)',
-                near: 'radial-gradient(ellipse 1000px 400px at 50% 30%, rgba(255,255,255,0.2) 0%, transparent 80%)'
+                far: 'radial-gradient(ellipse 700px 250px at 30% 18%, rgba(255,255,255,0.12) 0%, transparent 80%)',
+                mid: 'radial-gradient(ellipse 800px 300px at 75% 22%, rgba(255,255,255,0.14) 0%, transparent 80%)',
+                near: 'radial-gradient(ellipse 900px 350px at 50% 28%, rgba(255,255,255,0.18) 0%, transparent 80%)'
             },
             rainy: {
-                far: 'radial-gradient(ellipse 700px 250px at 15% 20%, rgba(30,40,60,0.8) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 800px 280px at 85% 25%, rgba(25,35,55,0.85) 0%, transparent 70%)',
-                near: 'radial-gradient(ellipse 900px 300px at 50% 30%, rgba(20,30,50,0.9) 0%, transparent 70%)'
+                far: 'radial-gradient(ellipse 600px 200px at 20% 18%, rgba(25,35,55,0.5) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 700px 250px at 80% 22%, rgba(20,30,50,0.6) 0%, transparent 70%)',
+                near: 'radial-gradient(ellipse 800px 280px at 50% 28%, rgba(15,25,45,0.75) 0%, transparent 70%)'
             },
             thunderstorm: {
-                far: 'radial-gradient(ellipse 700px 200px at 20% 25%, rgba(30,38,70,0.7) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 800px 220px at 30% 30%, rgba(20,28,55,0.9) 0%, transparent 65%)',
-                near: 'radial-gradient(ellipse 900px 250px at 50% 18%, rgba(12,18,42,0.95) 0%, transparent 55%)'
+                far: 'radial-gradient(ellipse 650px 200px at 25% 20%, rgba(25,32,60,0.6) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 750px 220px at 70% 25%, rgba(18,25,50,0.8) 0%, transparent 65%)',
+                near: 'radial-gradient(ellipse 850px 250px at 45% 18%, rgba(10,16,38,0.95) 0%, transparent 55%)'
             },
             snowy: {
-                far: 'radial-gradient(ellipse 600px 200px at 20% 25%, rgba(255,255,255,0.4) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 700px 220px at 80% 20%, rgba(255,255,255,0.5) 0%, transparent 70%)',
-                near: 'radial-gradient(ellipse 800px 250px at 40% 35%, rgba(255,255,255,0.6) 0%, transparent 70%)'
+                far: 'radial-gradient(ellipse 500px 180px at 25% 22%, rgba(255,255,255,0.25) 0%, transparent 70%)',
+                mid: 'radial-gradient(ellipse 600px 200px at 75% 20%, rgba(255,255,255,0.35) 0%, transparent 70%)',
+                near: 'radial-gradient(ellipse 700px 220px at 45% 32%, rgba(255,255,255,0.45) 0%, transparent 70%)'
             },
             clearNight: {
-                far: 'radial-gradient(circle 1.5px at 20% 20%, white 100%, transparent 100%), radial-gradient(circle 1px at 80% 40%, white 100%, transparent 100%)',
-                mid: 'radial-gradient(circle 1.2px at 40% 60%, white 100%, transparent 100%), radial-gradient(circle 1px at 10% 80%, white 100%, transparent 100%)',
-                near: 'radial-gradient(circle 1px at 60% 10%, white 100%, transparent 100%), radial-gradient(circle 1.4px at 90% 90%, white 100%, transparent 100%)'
+                far: 'none', mid: 'none', near: 'none'
             },
             foggy: {
-                far: 'radial-gradient(ellipse 800px 400px at 50% 50%, rgba(255,255,255,0.1), transparent)',
-                mid: 'none',
-                near: 'none'
+                far: 'none', mid: 'none', near: 'none'
             },
             sunset: {
-                far: 'radial-gradient(ellipse 600px 200px at 30% 30%, rgba(255,200,150,0.2), transparent)',
-                mid: 'radial-gradient(ellipse 500px 150px at 70% 40%, rgba(255,180,100,0.15), transparent)',
+                far: 'radial-gradient(ellipse 500px 180px at 30% 25%, rgba(255,200,150,0.15), transparent)',
+                mid: 'radial-gradient(ellipse 450px 140px at 65% 35%, rgba(255,180,100,0.1), transparent)',
                 near: 'none'
             }
         };
+
 
         function createRainDrop(randomY = false) {
             const layer = Math.random();
@@ -656,23 +654,23 @@
                 const layerIdx = i % 3;
                 const puff = document.createElement('div');
                 puff.className = 'cloud-puff';
-                const size = 200 + Math.random() * 200;
+                const size = 150 + Math.random() * 250;
                 puff.style.width = size + 'px';
-                puff.style.height = (size * 0.4) + 'px';
-                puff.style.left = (Math.random() * 30) + '%';
-                puff.style.top = (Math.random() * 40) + '%';
-                puff.style.background = `radial-gradient(ellipse at center, rgba(255,255,255,${opBase * 0.6}) 0%, rgba(255,255,255,0) 75%)`;
-                puff.style.filter = 'blur(60px)';
+                puff.style.height = (size * 0.35) + 'px';
+                puff.style.left = (5 + Math.random() * 35) + '%';
+                puff.style.top = (5 + Math.random() * 35) + '%';
+                const a = opBase * (0.35 + Math.random() * 0.45);
+                puff.style.background = `radial-gradient(ellipse at center, rgba(255,255,255,${a}) 0%, rgba(255,255,255,0) 75%)`;
+                puff.style.filter = 'blur(' + (40 + Math.random() * 40) + 'px)';
                 puff.style.opacity = '0';
                 layers[layerIdx].appendChild(puff);
                 puffs.push(puff);
-                setTimeout(() => puff.style.opacity = (0.3 + Math.random() * 0.7), 100);
+                setTimeout(() => puff.style.opacity = (0.25 + Math.random() * 0.5), 100);
             }
         }
 
         function setBackground(condition) {
             if (condition === currentCondition) return;
-            const prevCondition = currentCondition;
             currentCondition = condition;
 
             const base = document.getElementById('sky-base');
@@ -681,56 +679,65 @@
             const sun = document.getElementById('sun-glow');
             const fog = document.getElementById('ground-fog');
 
-            // Crossfade backgrounds
-            if (prevCondition) {
-                overlay.style.background = palettes[condition] || palettes.sunny;
-                overlay.style.opacity = '1';
-                setTimeout(() => {
-                    base.style.background = overlay.style.background;
-                    overlay.style.opacity = '0';
-                }, 2000);
-            } else {
-                base.style.background = palettes[condition] || palettes.sunny;
-            }
+            const newBg = palettes[condition] || palettes.sunny;
 
+            // Crossfade: set overlay to new bg, fade in, then swap
+            overlay.style.background = newBg;
+            overlay.style.opacity = '1';
+            setTimeout(() => {
+                base.style.background = newBg;
+                overlay.style.opacity = '0';
+            }, 2000);
+
+            // Sun glow
             sun.style.display = (condition === 'sunny') ? 'block' : 'none';
-            fog.style.opacity = (condition === 'foggy' || condition === 'rainy' || condition === 'thunderstorm') ? '1' : '0';
-            stars.style.opacity = (condition === 'clearNight') ? '1' : '0';
 
-            if (condition === 'clearNight' && stars.innerHTML === '') {
-                for (let i = 0; i < 100; i++) {
+            // Ground fog
+            const foggyConditions = ['foggy', 'rainy', 'thunderstorm', 'rainyNight'];
+            fog.style.opacity = foggyConditions.includes(condition) ? '1' : '0';
+
+            // Stars
+            const nightSky = condition === 'clearNight';
+            stars.style.opacity = nightSky ? '1' : '0';
+
+            if (nightSky && stars.innerHTML === '') {
+                for (let i = 0; i < 80; i++) {
                     const star = document.createElement('div');
                     star.className = 'star';
-                    const size = Math.random() * 2;
-                    star.style.width = size + 'px';
-                    star.style.height = size + 'px';
+                    const s = 0.5 + Math.random() * 1.8;
+                    star.style.width = s + 'px';
+                    star.style.height = s + 'px';
                     star.style.left = Math.random() * 100 + '%';
                     star.style.top = Math.random() * 100 + '%';
-                    star.style.setProperty('--duration', (3 + Math.random() * 3) + 's');
+                    star.style.setProperty('--duration', (3 + Math.random() * 4) + 's');
                     stars.appendChild(star);
                 }
             }
 
+            // Clouds
             const config = cloudConfigs[condition] || cloudConfigs.sunny;
             document.getElementById('cloud-layer-far').style.background = config.far;
             document.getElementById('cloud-layer-mid').style.background = config.mid;
             document.getElementById('cloud-layer-near').style.background = config.near;
 
-            if (['cloudy', 'rainy', 'thunderstorm', 'cloudyNight', 'rainyNight'].includes(condition)) {
-                initPuffs(25, condition.includes('cloudy') ? 0.4 : 0.8);
-            } else if (['partlyCloudy', 'sunset'].includes(condition)) {
-                initPuffs(12, 0.3);
+            const cloudyTypes = ['cloudy', 'rainy', 'thunderstorm', 'cloudyNight', 'rainyNight'];
+            const partlyTypes = ['partlyCloudy', 'sunset'];
+            if (cloudyTypes.includes(condition)) {
+                initPuffs(20, condition.includes('cloudy') ? 0.35 : 0.7);
+            } else if (partlyTypes.includes(condition)) {
+                initPuffs(10, 0.25);
             } else {
                 initPuffs(0, 0);
             }
 
+            // Particles
             rainDrops = [];
             snowflakes = [];
             if (condition === 'rainy' || condition === 'thunderstorm') {
-                rainDrops = Array.from({ length: 400 }, () => createRainDrop(true));
+                rainDrops = Array.from({ length: 350 }, () => createRainDrop(true));
             }
             if (condition === 'snowy') {
-                snowflakes = Array.from({ length: 200 }, () => createSnowflake(true));
+                snowflakes = Array.from({ length: 180 }, () => createSnowflake(true));
             }
             if (condition === 'thunderstorm') nextFlash = Date.now() + 2000;
         }
@@ -1177,34 +1184,35 @@
         }
         
         function updateBgByCode(code, isDay, sunrise, sunset) {
+            // Night conditions
             if (!isDay) {
-                if (code <= 1) setBackground('clearNight');
-                else if (code <= 3) setBackground('cloudyNight');
-                else if ([51, 53, 55, 61, 63, 65, 80, 81].includes(code)) setBackground('rainyNight');
-                else if ([82, 95, 96, 99].includes(code)) setBackground('thunderstorm');
-                else if ([56, 57, 66, 67, 71, 73, 75, 77, 85, 86].includes(code)) setBackground('snowyNight');
-                else setBackground('clearNight');
-                return;
+                if (code <= 1) { setBackground('clearNight'); return; }
+                if (code <= 3) { setBackground('cloudyNight'); return; }
+                if ([45,48].includes(code)) { setBackground('foggy'); return; }
+                if ([51,53,55,56,57,61,63,65,80,81].includes(code)) { setBackground('rainyNight'); return; }
+                if ([82,95,96,99].includes(code)) { setBackground('thunderstorm'); return; }
+                if ([66,67,71,73,75,77,85,86].includes(code)) { setBackground('snowyNight'); return; }
+                setBackground('clearNight'); return;
             }
 
+            // Day conditions
             const now = new Date();
             const currentHour = now.getHours();
             const sunHour = new Date(sunset).getHours();
 
-            // Sunset detection
-            if (code <= 2 && (currentHour >= sunHour - 1 && currentHour <= sunHour + 1)) {
-                setBackground('sunset');
-                return;
+            // Sunset glow - 2h window around sunset
+            if (code <= 2 && currentHour >= sunHour - 2 && currentHour <= sunHour + 1) {
+                setBackground('sunset'); return;
             }
 
-            if (code === 0 || code === 1) setBackground('sunny');
-            else if (code === 2) setBackground('partlyCloudy');
-            else if (code === 3) setBackground('cloudy');
-            else if ([45, 48].includes(code)) setBackground('foggy');
-            else if ([51, 53, 55, 61, 63, 65, 80, 81].includes(code)) setBackground('rainy');
-            else if ([82, 95, 96, 99].includes(code)) setBackground('thunderstorm');
-            else if ([56, 57, 66, 67, 71, 73, 75, 77, 85, 86].includes(code)) setBackground('snowy');
-            else setBackground('sunny');
+            if ([0,1].includes(code)) { setBackground('sunny'); }
+            else if (code === 2) { setBackground('partlyCloudy'); }
+            else if (code === 3 || code === 45 || code === 48) { setBackground('cloudy'); }
+            else if ([45,48].includes(code)) { setBackground('foggy'); }
+            else if ([51,53,55,56,57,61,63,65,80,81].includes(code)) { setBackground('rainy'); }
+            else if ([82,95,96,99].includes(code)) { setBackground('thunderstorm'); }
+            else if ([66,67,71,73,75,77,85,86].includes(code)) { setBackground('snowy'); }
+            else { setBackground('partlyCloudy'); }
         }
 
         async function init(city) {
