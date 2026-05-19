@@ -148,24 +148,41 @@
         @keyframes driftNear {
             0% { transform: translateX(-4%); }
             50% { transform: translateX(3%); }
+        @keyframes driftCloud {
+            0%, 100% { transform: translateX(0px) scale(1); }
+            25% { transform: translateX(15px) scale(1.02); }
+            50% { transform: translateX(-8px) scale(0.98); }
+            75% { transform: translateX(5px) scale(1.01); }
+        }
             100% { transform: translateX(-4%); }
         }
 
         .sun-glow {
             position: absolute;
-            top: 15%;
-            right: 15%;
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(255,249,196,0.3) 0%, rgba(255,249,196,0) 70%);
+            top: 10%;
+            right: 12%;
+            width: 500px;
+            height: 500px;
             border-radius: 50%;
-            filter: blur(60px);
+            filter: blur(80px);
             animation: breathe 8s infinite ease-in-out;
+            pointer-events: none;
+        }
+        .sun-core {
+            position: absolute;
+            top: 18%;
+            right: 18%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255,252,235,0.6) 0%, rgba(255,240,180,0.2) 40%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            filter: blur(15px);
         }
 
         @keyframes breathe {
-            0%, 100% { transform: scale(0.97); opacity: 0.4; }
-            50% { transform: scale(1.03); opacity: 0.6; }
+            0%, 100% { transform: scale(0.96); opacity: 0.35; }
+            50% { transform: scale(1.04); opacity: 0.55; }
         }
 
         .stars-layer {
@@ -208,16 +225,33 @@
             background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.1) 100%);
         }
 
-        #ground-fog {
+        
+        .heat-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30%;
+            background: linear-gradient(180deg, transparent 0%, rgba(255,200,100,0.04) 100%);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 2s;
+            animation: heatShimmer 3s ease-in-out infinite;
+        }
+        @keyframes heatShimmer {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.5; }
+        }
+#ground-fog {
             position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
             height: 35%;
-            background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.05) 100%);
+            background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.06) 60%, rgba(255,255,255,0.12) 100%);
             pointer-events: none;
             opacity: 0;
-            transition: opacity 2s;
+            transition: opacity 3s ease;
         }
 
         .container {
@@ -530,80 +564,116 @@
 
         let currentCondition = '';
         let rainDrops = [];
+        let airParticles = [];
         let snowflakes = [];
         let puffs = [];
         let flashState = null;
         let nextFlash = 0;
 
         const palettes = {
-            sunny: 'linear-gradient(180deg, #1A6EBF 0%, #4FC3F7 55%, #FFF9C4 100%)',
-            partlyCloudy: 'linear-gradient(180deg, #2E5B8C 0%, #5D7A99 50%, #E8EEF5 100%)',
-            cloudy: 'linear-gradient(180deg, #4A5B70 0%, #6E8299 45%, #A3B1C2 100%)',
-            rainy: 'linear-gradient(180deg, #2C3E50 0%, #5D7A99 50%, rgba(255,255,255,0.2) 100%)',
-            rainyNight: 'linear-gradient(180deg, #0A1018 0%, #141E30 100%)',
-            thunderstorm: 'linear-gradient(180deg, #1A1A2E 0%, #2E4057 100%)',
-            snowy: 'linear-gradient(180deg, #C9D6E3 0%, #EAF0F6 100%)',
-            snowyNight: 'linear-gradient(180deg, #1e272e 0%, #2f3640 100%)',
-            foggy: 'linear-gradient(180deg, #B0BEC5 0%, #ECEFF1 100%)',
-            clearNight: 'linear-gradient(180deg, #0A0E27 0%, #162447 100%)',
-            cloudyNight: 'linear-gradient(180deg, #131921 0%, #232D3F 100%)',
-            windy: 'linear-gradient(180deg, #607D8B 0%, #B2DFDB 100%)',
-            sunset: 'linear-gradient(180deg, #2c3e50 0%, #e67e22 45%, #f1c40f 100%)'
+            sunny: [
+                { pos: 0, color: '#1A6EBF' },
+                { pos: 0.45, color: '#3BA0E8' },
+                { pos: 0.7, color: '#7EC8F8' },
+                { pos: 1, color: '#B8E2FC' }
+            ],
+            partlyCloudy: [
+                { pos: 0, color: '#2E5B8C' },
+                { pos: 0.5, color: '#5D8AA8' },
+                { pos: 0.8, color: '#9BB7D4' },
+                { pos: 1, color: '#D4E2F0' }
+            ],
+            cloudy: [
+                { pos: 0, color: '#3A4D61' },
+                { pos: 0.5, color: '#5B6F85' },
+                { pos: 0.8, color: '#8A9BB0' },
+                { pos: 1, color: '#B8C5D4' }
+            ],
+            rainy: [
+                { pos: 0, color: '#1C2833' },
+                { pos: 0.5, color: '#2E4053' },
+                { pos: 0.8, color: '#566D82' },
+                { pos: 1, color: '#8599AD' }
+            ],
+            rainyNight: [
+                { pos: 0, color: '#0A0F18' },
+                { pos: 0.6, color: '#111B2A' },
+                { pos: 1, color: '#1A2740' }
+            ],
+            thunderstorm: [
+                { pos: 0, color: '#0D1117' },
+                { pos: 0.4, color: '#151B2E' },
+                { pos: 0.8, color: '#1C2844' },
+                { pos: 1, color: '#253355' }
+            ],
+            snowy: [
+                { pos: 0, color: '#A8B8C8' },
+                { pos: 0.5, color: '#C8D4E0' },
+                { pos: 0.8, color: '#DEE6EE' },
+                { pos: 1, color: '#F0F4F8' }
+            ],
+            snowyNight: [
+                { pos: 0, color: '#1A2330' },
+                { pos: 0.5, color: '#263545' },
+                { pos: 1, color: '#344B5E' }
+            ],
+            foggy: [
+                { pos: 0, color: '#8B9DAF' },
+                { pos: 0.6, color: '#B0BEC5' },
+                { pos: 1, color: '#CFD8DC' }
+            ],
+            clearNight: [
+                { pos: 0, color: '#060B18' },
+                { pos: 0.5, color: '#0D1530' },
+                { pos: 0.8, color: '#132048' },
+                { pos: 1, color: '#192A55' }
+            ],
+            cloudyNight: [
+                { pos: 0, color: '#0A0E1A' },
+                { pos: 0.5, color: '#141C2E' },
+                { pos: 1, color: '#1E2A42' }
+            ],
+            sunset: [
+                { pos: 0, color: '#1C2E4A' },
+                { pos: 0.3, color: '#D4693A' },
+                { pos: 0.55, color: '#E8894A' },
+                { pos: 0.75, color: '#F4B860' },
+                { pos: 1, color: '#8FB8DE' }
+            ]
         };
 
+        function gradientCSS(palette) {
+            return 'linear-gradient(180deg, ' + palette.map(p => p.color + ' ' + (p.pos * 100) + '%').join(', ') + ')';
+        }
 
-        const cloudConfigs = {
-            sunny: { far: 'none', mid: 'none', near: 'none' },
-            partlyCloudy: {
-                far: 'radial-gradient(ellipse 500px 150px at 25% 20%, rgba(255,255,255,0.08) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 400px 120px at 65% 28%, rgba(255,255,255,0.12) 0%, transparent 70%)',
-                near: 'radial-gradient(ellipse 350px 100px at 45% 38%, rgba(255,255,255,0.18) 0%, transparent 70%)'
-            },
-            cloudy: {
-                far: 'radial-gradient(ellipse 700px 250px at 30% 18%, rgba(255,255,255,0.12) 0%, transparent 80%)',
-                mid: 'radial-gradient(ellipse 800px 300px at 75% 22%, rgba(255,255,255,0.14) 0%, transparent 80%)',
-                near: 'radial-gradient(ellipse 900px 350px at 50% 28%, rgba(255,255,255,0.18) 0%, transparent 80%)'
-            },
-            rainy: {
-                far: 'radial-gradient(ellipse 600px 200px at 20% 18%, rgba(25,35,55,0.5) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 700px 250px at 80% 22%, rgba(20,30,50,0.6) 0%, transparent 70%)',
-                near: 'radial-gradient(ellipse 800px 280px at 50% 28%, rgba(15,25,45,0.75) 0%, transparent 70%)'
-            },
-            thunderstorm: {
-                far: 'radial-gradient(ellipse 650px 200px at 25% 20%, rgba(25,32,60,0.6) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 750px 220px at 70% 25%, rgba(18,25,50,0.8) 0%, transparent 65%)',
-                near: 'radial-gradient(ellipse 850px 250px at 45% 18%, rgba(10,16,38,0.95) 0%, transparent 55%)'
-            },
-            snowy: {
-                far: 'radial-gradient(ellipse 500px 180px at 25% 22%, rgba(255,255,255,0.25) 0%, transparent 70%)',
-                mid: 'radial-gradient(ellipse 600px 200px at 75% 20%, rgba(255,255,255,0.35) 0%, transparent 70%)',
-                near: 'radial-gradient(ellipse 700px 220px at 45% 32%, rgba(255,255,255,0.45) 0%, transparent 70%)'
-            },
-            clearNight: {
-                far: 'none', mid: 'none', near: 'none'
-            },
-            foggy: {
-                far: 'none', mid: 'none', near: 'none'
-            },
-            sunset: {
-                far: 'radial-gradient(ellipse 500px 180px at 30% 25%, rgba(255,200,150,0.15), transparent)',
-                mid: 'radial-gradient(ellipse 450px 140px at 65% 35%, rgba(255,180,100,0.1), transparent)',
-                near: 'none'
-            }
+        // Nuages : nombre de puffs par couche selon la condition
+        const cloudLayers = {
+            sunny:          { count: 0,  opacity: 0 },
+            partlyCloudy:   { count: 8,  opacity: 0.25 },
+            cloudy:         { count: 18, opacity: 0.45 },
+            rainy:          { count: 24, opacity: 0.65 },
+            rainyNight:     { count: 22, opacity: 0.55 },
+            thunderstorm:   { count: 26, opacity: 0.75 },
+            snowy:          { count: 20, opacity: 0.55 },
+            snowyNight:     { count: 18, opacity: 0.45 },
+            foggy:          { count: 0,  opacity: 0 },
+            clearNight:     { count: 0,  opacity: 0 },
+            cloudyNight:    { count: 14, opacity: 0.35 },
+            sunset:         { count: 6,  opacity: 0.3 }
         };
 
-
-        function createRainDrop(randomY = false) {
+                function createRainDrop(randomY = false) {
             const layer = Math.random();
             return {
                 x: Math.random() * W,
-                y: randomY ? Math.random() * H : -20,
-                len: 15 + layer * 20,
-                spd: 15 + layer * 10,
-                tilt: 0.26, // Exactly 15 degrees (~0.26 rad)
-                op: 0.3 + layer * 0.3,
-                w: 0.5 + layer * 0.5,
-                splashing: false, splashX: 0, splashY: 0, splashR: 0, splashAge: 0
+                y: randomY ? Math.random() * H : -30,
+                len: 12 + layer * 25,
+                spd: 18 + layer * 12,
+                tilt: 0.22,
+                op: 0.25 + layer * 0.35,
+                w: 0.4 + layer * 0.6,
+                splashing: false, splashX: 0, splashY: 0, splashR: 0, splashAge: 0,
+                shimmer: Math.random() * 0.3
             };
         }
 
@@ -682,7 +752,7 @@
             ctx.restore();
         }
 
-        function initPuffs(count, opBase) {
+        function initPuffs(condition) {
             const layers = [
                 document.getElementById('cloud-layer-far'),
                 document.getElementById('cloud-layer-mid'),
@@ -691,22 +761,34 @@
             layers.forEach(l => l.innerHTML = '');
             puffs = [];
 
+            const cfg = cloudLayers[condition] || cloudLayers.sunny;
+            const count = cfg.count;
+            const opBase = cfg.opacity;
+
             for(let i=0; i<count; i++) {
                 const layerIdx = i % 3;
                 const puff = document.createElement('div');
                 puff.className = 'cloud-puff';
-                const size = 150 + Math.random() * 250;
-                puff.style.width = size + 'px';
-                puff.style.height = (size * 0.35) + 'px';
-                puff.style.left = (5 + Math.random() * 35) + '%';
-                puff.style.top = (5 + Math.random() * 35) + '%';
-                const a = opBase * (0.35 + Math.random() * 0.45);
-                puff.style.background = `radial-gradient(ellipse at center, rgba(255,255,255,${a}) 0%, rgba(255,255,255,0) 75%)`;
-                puff.style.filter = 'blur(' + (40 + Math.random() * 40) + 'px)';
+                // Formes variées : plus larges ou plus hautes
+                const isWide = Math.random() > 0.5;
+                const w = 200 + Math.random() * 400;
+                const h = isWide ? w * (0.2 + Math.random() * 0.2) : w * (0.3 + Math.random() * 0.3);
+                puff.style.width = w + 'px';
+                puff.style.height = h + 'px';
+                puff.style.left = (-5 + Math.random() * 110) + '%';
+                puff.style.top = (5 + Math.random() * 30) + '%';
+                const a = opBase * (0.3 + Math.random() * 0.5);
+                puff.style.background = `radial-gradient(ellipse at ${30 + Math.random()*40}% ${30 + Math.random()*40}%, rgba(255,255,255,${a}) 0%, rgba(255,255,255,0) 70%)`;
+                puff.style.filter = 'blur(' + (30 + Math.random() * 50) + 'px)';
                 puff.style.opacity = '0';
+                puff.style.transition = 'opacity ' + (1.5 + Math.random() * 2) + 's ease-in-out';
+                // Animation de dérive individuelle
+                const driftDuration = 60 + Math.random() * 80;
+                const driftX = -2 + Math.random() * 4;
+                puff.style.animation = `driftCloud ${driftDuration}s ease-in-out infinite`;
                 layers[layerIdx].appendChild(puff);
                 puffs.push(puff);
-                setTimeout(() => puff.style.opacity = (0.25 + Math.random() * 0.5), 100);
+                setTimeout(() => puff.style.opacity = (0.25 + Math.random() * 0.6), 100 + Math.random() * 300);
             }
         }
 
@@ -720,7 +802,8 @@
             const sun = document.getElementById('sun-glow');
             const fog = document.getElementById('ground-fog');
 
-            const newBg = palettes[condition] || palettes.sunny;
+            const palette = palettes[condition] || palettes.sunny;
+            const newBg = gradientCSS(palette);
 
             // Crossfade: set overlay to new bg, fade in, then swap
             overlay.style.background = newBg;
@@ -731,7 +814,10 @@
             }, 2000);
 
             // Sun glow
-            sun.style.display = (condition === 'sunny') ? 'block' : 'none';
+            const sunCore = document.getElementById('sun-core');
+            const showSun = (condition === 'sunny' || condition === 'partlyCloudy' || condition === 'sunset');
+            sun.style.display = showSun ? 'block' : 'none';
+            if (sunCore) sunCore.style.display = (condition === 'sunny') ? 'block' : 'none';
 
             // Ground fog
             const foggyConditions = ['foggy', 'rainy', 'thunderstorm', 'rainyNight'];
@@ -764,21 +850,34 @@
             const cloudyTypes = ['cloudy', 'rainy', 'thunderstorm', 'cloudyNight', 'rainyNight'];
             const partlyTypes = ['partlyCloudy', 'sunset'];
             if (cloudyTypes.includes(condition)) {
-                initPuffs(20, condition.includes('cloudy') ? 0.35 : 0.7);
+                initPuffs(condition);
             } else if (partlyTypes.includes(condition)) {
-                initPuffs(10, 0.25);
+                initPuffs(condition);
             } else {
-                initPuffs(0, 0);
+                initPuffs(condition);
             }
 
             // Particles
             rainDrops = [];
             snowflakes = [];
+            airParticles = [];
             if (condition === 'rainy' || condition === 'thunderstorm') {
-                rainDrops = Array.from({ length: 350 }, () => createRainDrop(true));
+                rainDrops = Array.from({ length: 300 }, () => createRainDrop(true));
             }
-            if (condition === 'snowy') {
-                snowflakes = Array.from({ length: 180 }, () => createSnowflake(true));
+            if (condition === 'snowy' || condition === 'snowyNight') {
+                snowflakes = Array.from({ length: 150 }, () => createSnowflake(true));
+            }
+            // Particules d'ambiance (pollen/poussière) pour temps clair
+            if (condition === 'sunny' || condition === 'partlyCloudy') {
+                airParticles = Array.from({ length: 40 }, () => ({
+                    x: Math.random() * W,
+                    y: Math.random() * H,
+                    r: 0.5 + Math.random() * 1.8,
+                    spd: 0.15 + Math.random() * 0.5,
+                    sway: Math.random() * 0.6 - 0.3,
+                    op: 0.15 + Math.random() * 0.35,
+                    shimmer: Math.random() * 0.02
+                }));
             }
             if (condition === 'thunderstorm') nextFlash = Date.now() + 2000;
         }
@@ -884,13 +983,26 @@
                 rCtx.restore();
             }
 
-            if (currentCondition === 'snowy') {
+            if (currentCondition === 'snowy' || currentCondition === 'snowyNight') {
                 snowflakes.forEach(s => {
                     s.y += s.spd;
                     s.x += Math.sin(s.y * s.swing) * 2 + s.sway;
                     if (s.y > H) s.y = -10, s.x = Math.random() * W;
                     sCtx.fillStyle = `rgba(255,255,255,${s.op})`;
                     sCtx.beginPath(); sCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2); sCtx.fill();
+                });
+            }
+
+            // Particules d'ambiance (flottement subtil)
+            if (airParticles && airParticles.length > 0) {
+                airParticles.forEach(p => {
+                    p.y -= p.spd;
+                    p.x += Math.sin(Date.now() * p.shimmer + p.sway) * 0.3;
+                    p.op += Math.sin(Date.now() * p.shimmer * 0.7) * 0.005;
+                    if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+                    const alpha = Math.max(0.02, Math.min(0.5, p.op));
+                    rCtx.fillStyle = `rgba(255,250,220,${alpha})`;
+                    rCtx.beginPath(); rCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2); rCtx.fill();
                 });
             }
 
