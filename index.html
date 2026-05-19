@@ -7,18 +7,37 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            max-width: 100%;
+        }
         
-        body::before, body::after, .app::before, .app::after, .container::before, .container::after {
+        body::before,
+        body::after,
+        .app::before,
+        .app::after,
+        .container::before,
+        .container::after {
+            content: none !important;
             display: none !important;
         }
 
-        html { overflow-x: hidden; background: #1a2a3a; }
+        html {
+            overflow-x: hidden;
+            width: 100vw;
+            width: 100%;
+            background: #1a2a3a;
+            backdrop-filter: none;
+        }
         html, body {
             margin: 0;
             padding: 0;
             width: 100%;
+            max-width: 100%;
             height: 100%;
-            overflow-x: hidden;
+            overflow-x: hidden !important;
             scrollbar-width: none;
             -ms-overflow-style: none;
         }
@@ -58,18 +77,23 @@
             -webkit-touch-callout: none;
         }
 
-        .weather-background {
+        .weather-background,
+        .background,
+        .app-bg,
+        .overlay,
+        .blur-layer {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100vh;
-            z-index: 0;
-            overflow: hidden;
+            inset: 0;
+            width: 100% !important;
+            height: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            overflow: hidden !important;
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             pointer-events: none;
+            transform: none !important;
         }
 
         .sky-layer {
