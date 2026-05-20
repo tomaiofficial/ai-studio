@@ -73,10 +73,16 @@ body.night-clear { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 25%, 
 <body>
     <div class="container">
         <div class="header">
-            <button>☰</button>
+            <button onclick="document.getElementById('menu').style.display=document.getElementById('menu').style.display==='flex'?'none':'flex'">☰</button>
             <h1>Météo</h1>
             <button>⚙</button>
         </div>
+        <div id="menu" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;flex-direction:column;align-items:center;justify-content:center;">
+            <button onclick="location.reload()" style="background:none;border:none;color:white;font-size:20px;padding:20px;">🔄 Actualiser</button>
+            <button onclick="document.getElementById('search').focus();document.getElementById('menu').style.display='none'" style="background:none;border:none;color:white;font-size:20px;padding:20px;">🔍 Rechercher</button>
+            <button onclick="document.getElementById('menu').style.display='none'" style="background:none;border:none;color:white;font-size:20px;padding:20px;">✕ Fermer</button>
+        </div>
+
         <div class="search">
             <input type="text" id="search" placeholder="Rechercher une ville..." onkeypress="search(event)" autocomplete="off" autocorrect="off" autocapitalize="off">
         </div>
