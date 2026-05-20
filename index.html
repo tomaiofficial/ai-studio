@@ -102,44 +102,19 @@ body { background-attachment: scroll; }
 <button onclick="closeMenu()">✕ Fermer</button>
 </div>
 <script>
-// Global coordinates - default to Paris
 let cr = {lat:48.8566, lon:2.3522};
 
-// Icons mapping (Lucide names to emoji)
 function getIcon(code, isDay) {
-const icons = {
-0: isDay ? '☀️' : '🌙',
-1: isDay ? '⛅' : '☁️',
-2: '🌥️', 3: '☁️',
-45: '🌫️', 48: '🌫️',
-51: '🌧️', 53: '🌧️', 55: '🌧️',
-61: '🌧️', 63: '🌧️', 65: '🌧️',
-71: '❄️', 73: '❄️', 75: '❄️',
-77: '❄️', 80: '🌧️', 81: '🌧️', 82: '⛈️',
-95: '⛈️', 96: '⛈️', 99: '⛈️'
-};
-return icons[code] || '☀️';
+const icons = {0:isDay?'☀️':'🌙',1:isDay?'⛅':'☁️',2:'🌥️',3:'☁️',45:'🌫️',48:'🌫️',51:'🌧️',53:'🌧️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',73:'❄️',75:'❄️',77:'❄️',80:'🌧️',81:'🌧️',82:'⛈️',95:'⛈️',96:'⛈️',99:'⛈️'};
+return icons[code]||'☀️';
 }
 
-// Weather descriptions
-const weatherDesc = {
-0: 'Ciel dégagé', 1: 'Majoritairement dégagé', 2: 'Partiellement nuageux', 3: 'Nuageux',
-45: 'Brouillard', 48: 'Brouillard',
-51: 'Bruine légère', 53: 'Bruine', 55: 'Bruine forte',
-61: 'Pluie légère', 63: 'Pluie', 65: 'Forte pluie',
-71: 'Neige légère', 73: 'Neige', 75: 'Forte neige', 77: 'Flocons',
-80: 'Averses', 81: 'Averses', 82: 'Fortes averses',
-95: 'Orage', 96: 'Orage', 99: 'Orage violent'
-};
+const weatherDesc = {0:'Ciel dégagé',1:'Majoritairement dégagé',2:'Partiellement nuageux',3:'Nuageux',45:'Brouillard',48:'Brouillard',51:'Bruine légère',53:'Bruine',55:'Bruine forte',61:'Pluie légère',63:'Pluie',65:'Forte pluie',71:'Neige légère',73:'Neige',75:'Forte neige',77:'Flocons',80:'Averses',81:'Averses',82:'Fortes averses',95:'Orage',96:'Orage',99:'Orage violent'};
 
-// Set background based on weather
 function setBg(code, isDay) {
 const b = document.body;
 b.className = '';
-if (!isDay) {
-b.classList.add(code <= 3 ? 'night-clear' : 'stormy');
-return;
-}
+if (!isDay) { b.classList.add(code <= 3 ? 'night-clear' : 'stormy'); return; }
 if (code === 0 || code === 1) b.classList.add('sunny');
 else if (code === 2 || code === 3) b.classList.add('cloudy');
 else if (code >= 45 && code <= 48) b.classList.add('foggy');
@@ -149,34 +124,24 @@ else if (code >= 71 && code <= 77) b.classList.add('snowy');
 else b.classList.add('sunny');
 }
 
-// Get user location
 function getLocation() {
 return new Promise((resolve, reject) => {
-if (!navigator.geolocation) {
-reject(new Error('no geolocation'));
-return;
-}
-navigator.geolocation.getCurrentPosition(
-p => resolve({lat: p.coords.latitude, lon: p.coords.longitude}),
-e => { console.log('geo error', e.message); reject(e); },
-{enableHighAccuracy: true, timeout: 10000, maximumAge: 0}
-);
+if (!navigator.geolocation) { reject(new Error('no geolocation')); return; }
+navigator.geolocation.getCurrentPosition(p => resolve({lat:p.coords.latitude, lon:p.coords.longitude}), e => { console.log('geo error', e.message); reject(e); }, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
 });
 }
 
-// Reverse geocode - get city name from coordinates
 async function reverseGeo(lat, lon) {
 try {
-const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&language=fr`);
+const res = await fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lon+'&format=json&language=fr');
 const data = await res.json();
 return data.address.city || data.address.town || data.address.village || data.address.county || 'Inconnu';
 } catch(e) { return 'Paris'; }
 }
 
-// Search city
 async function searchCity(q) {
 try {
-const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=fr`);
+const res = await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(q)+'&count=1&language=fr');
 const data = await res.json();
 if (data.results && data.results[0]) {
 cr = {lat: data.results[0].latitude, lon: data.results[0].longitude};
@@ -186,14 +151,12 @@ return 'Paris';
 } catch(e) { return 'Paris'; }
 }
 
-// Fetch weather data
 async function getWeather(lat, lon) {
-const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,pressure_msl,visibility&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max&timezone=auto&lang=fr`;
+const url = 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,pressure_msl,visibility&hourly=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max&timezone=auto&lang=fr';
 const res = await fetch(url);
 return await res.json();
 }
 
-// Display weather data
 function display(data, cityName) {
 if (!data || !data.current) return;
 const c = data.current, d = data.daily, h = data.hourly;
@@ -203,21 +166,19 @@ document.getElementById('icon').textContent = getIcon(c.weather_code, c.is_day);
 document.getElementById('temp').textContent = Math.round(c.temperature_2m) + '°';
 document.getElementById('desc').textContent = weatherDesc[c.weather_code] || 'Inconnu';
 document.getElementById('hl').textContent = 'H:' + Math.round(d.temperature_2m_max[0]) + '° L:' + Math.round(d.temperature_2m_min[0]) + '°';
-// Hourly
 const hourlyEl = document.getElementById('hourly');
 hourlyEl.innerHTML = '';
 const now = new Date().getHours();
 for (let i = 0; i < 24; i++) {
 const hi = Math.min(i, h.temperature_2m.length - 1);
-hourlyEl.innerHTML += `<div class="hour"><div class="hour-time">${i === 0 ? 'Maintenant' : (now + i) % 24 + 'h'}</div><div class="hour-icon">${getIcon(h.weather_code[hi], h.is_day[hi])}</div><div class="hour-temp">${Math.round(h.temperature_2m[hi])}°</div></div>`;
+hourlyEl.innerHTML += '<div class="hour"><div class="hour-time">' + (i === 0 ? 'Maintenant' : (now + i) % 24 + 'h') + '</div><div class="hour-icon">' + getIcon(h.weather_code[hi], h.is_day[hi]) + '</div><div class="hour-temp">' + Math.round(h.temperature_2m[hi]) + '°</div></div>';
 }
-// Daily
 const dailyEl = document.getElementById('daily');
 dailyEl.innerHTML = '';
 const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 for (let i = 0; i < 7; i++) {
 const dayName = i === 0 ? "Aujourd'hui" : i === 1 ? 'Demain' : days[new Date(Date.now() + i * 86400000).getDay()];
-dailyEl.innerHTML += `<div class="day-item"><div class="day-name">${dayName}</div><div class="day-icon">${getIcon(d.weather_code[i], 1)}</div><div class="day-high">${Math.round(d.temperature_2m_max[i])}°</div><div class="day-low">${Math.round(d.temperature_2m_min[i])}°</div></div>`;
+dailyEl.innerHTML += '<div class="day-item"><div class="day-name">' + dayName + '</div><div class="day-icon">' + getIcon(d.weather_code[i], 1) + '</div><div class="day-high">' + Math.round(d.temperature_2m_max[i]) + '°</div><div class="day-low">' + Math.round(d.temperature_2m_min[i]) + '°</div></div>';
 }
 document.getElementById('humidity').textContent = c.relative_humidity_2m + '%';
 document.getElementById('wind').textContent = Math.round(c.wind_speed_10m) + 'km/h';
@@ -225,44 +186,21 @@ document.getElementById('uv').textContent = Math.round(d.uv_index_max[0]);
 document.getElementById('feels').textContent = Math.round(c.apparent_temperature) + '°';
 document.getElementById('vis').textContent = (c.visibility / 1000).toFixed(1) + 'km';
 document.getElementById('pressure').textContent = Math.round(c.pressure_msl) + 'hPa';
-const now2 = new Date();
-document.getElementById('update').textContent = now2.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+document.getElementById('update').textContent = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
 document.getElementById('loading').style.display = 'none';
 document.getElementById('weather').classList.add('show');
 }
 
-// Load weather for Paris (default)
 async function loadParis() {
 try {
 const data = await getWeather(cr.lat, cr.lon);
 display(data, 'Paris');
-} catch(e) {
-document.getElementById('loading').textContent = 'Erreur de connexion';
-}
+} catch(e) { document.getElementById('loading').textContent = 'Erreur de connexion'; }
 }
 
-// Load weather for current location
-async function loadCurrentLocation() {
-document.getElementById('loading').style.display = 'block';
-document.getElementById('loading').textContent = 'Géolocalisation...';
-document.getElementById('weather').classList.remove('show');
-try {
-const pos = await getLocation();
-cr = pos;
-const city = await reverseGeo(pos.lat, pos.lon);
-const data = await getWeather(pos.lat, pos.lon);
-display(data, city);
-} catch(e) {
-console.log('Using Paris as fallback');
-await loadParis();
-}
-}
-
-// Initialize app
 async function init() {
 document.getElementById('loading').style.display = 'block';
 document.getElementById('weather').classList.remove('show');
-// First try geolocation
 try {
 const pos = await getLocation();
 cr = pos;
@@ -275,13 +213,12 @@ await loadParis();
 }
 }
 
-// Event Listeners
-document.getElementById('menuBtn').addEventListener('click', () => {
-document.getElementById('menu').classList.add('show');
-});
-document.getElementById('closeMenu').addEventListener('click', () => {
-document.getElementById('menu').classList.remove('show');
-});
+function closeMenu() { document.getElementById('menu').classList.remove('show'); }
+window.closeMenu = closeMenu;
+window.loadParis = loadParis;
+
+document.getElementById('menuBtn').addEventListener('click', () => { document.getElementById('menu').classList.add('show'); });
+document.getElementById('closeMenu').addEventListener('click', closeMenu);
 document.getElementById('reloadBtn').addEventListener('click', init);
 document.getElementById('search').addEventListener('keypress', async (e) => {
 if (e.key === 'Enter') {
@@ -294,23 +231,12 @@ try {
 const cityName = await searchCity(q);
 const data = await getWeather(cr.lat, cr.lon);
 display(data, cityName);
-} catch(err) {
-document.getElementById('loading').textContent = 'Erreur de recherche';
-}
-}
+} catch(err) { document.getElementById('loading').textContent = 'Erreur de recherche'; }
 }
 }
 });
-// Close menu function
-function closeMenu() {
-document.getElementById('menu').classList.remove('show');
-}
-// Make closeMenu available globally
-window.closeMenu = closeMenu;
-window.loadParis = loadParis;
-// Auto-refresh every 10 minutes
+
 setInterval(init, 600000);
-// Start the app
 init();
 </script>
 </body>
