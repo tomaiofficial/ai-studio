@@ -963,6 +963,7 @@
             resize();
             window.addEventListener('resize', resize);
             drawSky();
+            requestAnimationFrame(loop);
             }
         startBackground();
 
@@ -996,138 +997,7 @@
                 src.connect(lp); lp.connect(gain); gain.connect(audioCtx.destination);
                 src.start();
             }, delay);
-        }
 
-        function loop(t) {
-            rCtx.clearRect(0, 0, W, H);
-            sCtx.clearRect(0, 0, W, H);
-            lBgCtx.clearRect(0, 0, W, H);
-            bCtx.clearRect(0, 0, W, H);
-
-            // Solar flare effect for sunny
-            if (currentCondition === 'sunny') {
-                rCtx.save();
-                const sx = W * 0.85, sy = H * 0.15;
-                const g = rCtx.createRadialGradient(sx, sy, 0, sx, sy, W * 0.5);
-                g.addColorStop(0, 'rgba(255,255,240,0.05)');
-                g.addColorStop(1, 'rgba(255,255,240,0)');
-                rCtx.fillStyle = g;
-                rCtx.fillRect(0, 0, W, H);
-                rCtx.restore();
-            }
-
-            if (currentCondition === 'rainy' || currentCondition === 'thunderstorm') {
-                rainDrops.forEach(d => {
-                    d.x += Math.sin(d.tilt) * d.spd * 0.5;
-                    d.y += Math.cos(d.tilt) * d.spd;
-                    if (d.y - d.len > H || d.x > W + 20) {
-                        const nd = createRainDrop(false);
-                        Object.assign(d, nd);
-                    }
-
-                    const x2 = d.x - Math.sin(d.tilt) * d.len;
-                    const y2 = d.y - Math.cos(d.tilt) * d.len;
-                    const g = rCtx.createLinearGradient(x2, y2, d.x, d.y);
-                    g.addColorStop(0, 'rgba(170,200,235,0)');
-                    g.addColorStop(0.4, `rgba(160,190,230,${d.op * 0.5})`);
-                    g.addColorStop(1, `rgba(180,210,240,${d.op})`);
-                    rCtx.strokeStyle = g; rCtx.lineWidth = d.w; rCtx.lineCap = 'round';
-                    rCtx.beginPath(); rCtx.moveTo(x2, y2); rCtx.lineTo(d.x, d.y); rCtx.stroke();
-
-                    // splash on ground
-                    if (d.y >= H - 10 && !d.splashing) {
-                        d.splashing = true;
-                        d.splashX = d.x; d.splashY = H - 4; d.splashR = 0; d.splashAge = 0;
-                    }
-                    if (d.splashing) {
-                        d.splashR += 0.8; d.splashAge++;
-                        const sa = Math.max(0, 0.45 - d.splashAge * 0.05);
-                        if (sa > 0) {
-                            rCtx.save();
-                            rCtx.strokeStyle = `rgba(160,190,230,${sa})`;
-                            rCtx.lineWidth = 0.6;
-                            rCtx.beginPath();
-                            rCtx.ellipse(d.splashX, d.splashY, d.splashR * 1.8, d.splashR * 0.5, 0, 0, Math.PI * 2);
-                            rCtx.stroke();
-                            rCtx.restore();
-                        } else {
-                            d.splashing = false;
-                        }
-                    }
-                });
-
-                // Ground mist shimmer
-                rCtx.save();
-                rCtx.globalAlpha = 0.04 + 0.01 * Math.sin(t * 0.002);
-                const pg = rCtx.createLinearGradient(0, H - 100, 0, H);
-                pg.addColorStop(0, 'transparent');
-                pg.addColorStop(1, 'rgba(200,220,255,0.3)');
-                rCtx.fillStyle = pg;
-                rCtx.fillRect(0, H - 100, W, 100);
-                rCtx.restore();
-            }
-
-            if (currentCondition === 'snowy' || currentCondition === 'snowyNight') {
-                snowflakes.forEach(s => {
-                    s.y += s.spd;
-                    s.x += Math.sin(s.y * s.swing) * 2 + s.sway;
-                    if (s.y > H) s.y = -10, s.x = Math.random() * W;
-                    sCtx.fillStyle = `rgba(255,255,255,${s.op})`;
-                    sCtx.beginPath(); sCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2); sCtx.fill();
-                });
-            }
-
-            // Particules d'ambiance (flottement subtil)
-            if (airParticles && airParticles.length > 0) {
-                airParticles.forEach(p => {
-                    p.y -= p.spd;
-                    p.x += Math.sin(Date.now() * p.shimmer + p.sway) * 0.3;
-                    p.op += Math.sin(Date.now() * p.shimmer * 0.7) * 0.005;
-                    if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
-                    const alpha = Math.max(0.02, Math.min(0.5, p.op));
-                    rCtx.fillStyle = `rgba(255,250,220,${alpha})`;
-                    rCtx.beginPath(); rCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2); rCtx.fill();
-                });
-            }
-
-            if (currentCondition === 'thunderstorm') {
-                if (!flashState) {
-                    if (Date.now() > nextFlash) triggerFlash();
-                } else {
-                    const elapsed = Date.now() - flashState.start;
-                    let anyVisible = false;
-
-                    flashState.sequence.forEach(fs => {
-                        const localT = elapsed - fs.delay;
-                        if (localT < 0) return;
-
-                        const bolt = fs.bolt;
-                        let ba = 0;
-                        if (localT < 40) ba = localT / 40;
-                        else if (localT < 100) ba = 1.0;
-                        else if (localT < 200) ba = 1.0 - (localT - 100) / 100;
-
-                        if (ba > 0.01) {
-                            anyVisible = true;
-                            const bgA = ba * 0.35;
-                            const rg = lBgCtx.createRadialGradient(bolt.sx, 0, 0, bolt.sx, H * 0.5, H * 0.8);
-                            rg.addColorStop(0, `rgba(160,185,255,${bgA})`);
-                            rg.addColorStop(1, 'rgba(10,20,60,0)');
-                            lBgCtx.fillStyle = rg; lBgCtx.fillRect(0, 0, W, H);
-
-                            drawBolt(bCtx, bolt.points, ba, 3.5);
-                            bolt.branches.forEach(br => drawBolt(bCtx, br.points, ba * br.alpha, 1.5));
-                        }
-                    });
-
-                    const last = flashState.sequence[flashState.sequence.length - 1];
-                    if (elapsed > last.delay + 250) flashState = null;
-                }
-            }
-
-            requestAnimationFrame(loop);
-        }
-        loop();
 
         // Zoom and Mobile protection
         document.addEventListener('contextmenu', e => e.preventDefault());
