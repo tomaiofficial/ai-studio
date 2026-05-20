@@ -15,3 +15,179 @@
     display: block;
     object-fit: contain;
 }
+
+/* Weather-specific atmosphere effects */
+.bg-clear-day {
+    position: relative;
+    overflow: hidden;
+}
+
+.bg-clear-day::before {
+    content: '';
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(255,215,0,0.3) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: sunGlow 4s ease-in-out infinite;
+}
+
+.bg-clear-day::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,0.1) 1px, transparent 1px),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 1px, transparent 1px),
+        radial-gradient(circle at 60% 70%, rgba(255,255,255,0.1) 1px, transparent 1px),
+        radial-gradient(circle at 40% 50%, rgba(255,255,255,0.1) 1px, transparent 1px);
+    animation: sparkle 8s linear infinite;
+}
+
+@keyframes sunGlow {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+@keyframes sparkle {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.bg-clear-night {
+    position: relative;
+    overflow: hidden;
+}
+
+.bg-clear-night::before {
+    content: '';
+    position: absolute;
+    top: 10%;
+    left: 80%;
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,215,0,0.4) 50%, transparent 70%);
+    border-radius: 50%;
+    box-shadow: 0 0 30px rgba(255,215,0,0.5);
+}
+
+.bg-clear-night::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 10% 20%, rgba(255,255,255,0.8) 1px, transparent 1px),
+        radial-gradient(circle at 30% 15%, rgba(255,255,255,0.6) 1px, transparent 1px),
+        radial-gradient(circle at 50% 10%, rgba(255,255,255,0.9) 1px, transparent 1px),
+        radial-gradient(circle at 70% 25%, rgba(255,255,255,0.7) 1px, transparent 1px),
+        radial-gradient(circle at 90% 20%, rgba(255,255,255,0.8) 1px, transparent 1px);
+}
+
+.bg-rain {
+    position: relative;
+    overflow: hidden;
+}
+
+.bg-rain::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        repeating-linear-gradient(
+            to bottom,
+            transparent,
+            transparent 20px,
+            rgba(255,255,255,0.03) 20px,
+            rgba(255,255,255,0.03) 22px
+        );
+    animation: rainFall 0.5s linear infinite;
+}
+
+@keyframes rainFall {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 22px; }
+}
+
+.bg-snow {
+    position: relative;
+    overflow: hidden;
+}
+
+.bg-snow::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 10% 10%, rgba(255,255,255,0.4) 2px, transparent 2px),
+        radial-gradient(circle at 30% 20%, rgba(255,255,255,0.4) 1px, transparent 1px),
+        radial-gradient(circle at 50% 30%, rgba(255,255,255,0.4) 2px, transparent 2px),
+        radial-gradient(circle at 70% 40%, rgba(255,255,255,0.4) 1px, transparent 1px),
+        radial-gradient(circle at 90% 50%, rgba(255,255,255,0.4) 2px, transparent 2px);
+    animation: snowFall 10s linear infinite;
+}
+
+@keyframes snowFall {
+    0% { transform: translateY(-100px) rotate(0deg); }
+    100% { transform: translateY(100vh) rotate(360deg); }
+}
+
+.bg-thunderstorm {
+    position: relative;
+    overflow: hidden;
+}
+
+.bg-thunderstorm::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0);
+    animation: thunderFlash 8s ease-in-out infinite;
+}
+
+@keyframes thunderFlash {
+    0%, 95%, 100% { background: rgba(255,255,255,0); }
+    96%, 97% { background: rgba(255,255,255,0.1); }
+}
+
+/* Cloud effect for cloudy weather */
+.bg-cloudy::before {
+    content: '';
+    position: absolute;
+    top: 20%;
+    left: 10%;
+    width: 150px;
+    height: 60px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+    filter: blur(10px);
+}
+
+.bg-cloudy::after {
+    content: '';
+    position: absolute;
+    top: 30%;
+    right: 15%;
+    width: 100px;
+    height: 50px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 50%;
+    filter: blur(8px);
+}

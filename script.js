@@ -74,6 +74,36 @@ function showDetailView() {
   $('detail-view').classList.remove('hidden');
 }
 
+// ---- Background based on weather ----
+function setBackground(weatherCode, isDay) {
+  const bgLayer = document.querySelector('.bg-layer');
+  if (!bgLayer) return;
+  
+  // Remove all bg-* classes
+  bgLayer.className = 'bg-layer';
+  
+  // Determine background class based on weather code and time
+  let bgClass = 'bg-default';
+  
+  if (weatherCode === 0) {
+    bgClass = isDay ? 'bg-clear-day' : 'bg-clear-night';
+  } else if ([1, 2].includes(weatherCode)) {
+    bgClass = isDay ? 'bg-partly-cloudy-day' : 'bg-partly-cloudy-night';
+  } else if ([3, 45, 48].includes(weatherCode)) {
+    bgClass = 'bg-cloudy';
+  } else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(weatherCode)) {
+    bgClass = 'bg-rain';
+  } else if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) {
+    bgClass = 'bg-snow';
+  } else if ([95, 96, 99].includes(weatherCode)) {
+    bgClass = 'bg-thunderstorm';
+  } else if ([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39].includes(weatherCode)) {
+    bgClass = 'bg-fog';
+  }
+  
+  bgLayer.classList.add(bgClass);
+}
+
 // ---- Description WMO ----
 function getWeatherDescription(code) {
   const map = {
@@ -96,6 +126,9 @@ function renderWeatherDetail(cityData, data) {
   const current = data.current;
   const daily = data.daily;
   const hourly = data.hourly;
+
+  // --- Background based on weather ---
+  setBackground(current.weather_code, current.is_day !== 0);
 
   // --- En-tête ---
   document.querySelector('.city').textContent = currentCity;
@@ -317,7 +350,7 @@ async function updateWeather(cityName) {
   const condEl = document.querySelector('.condition');
   if (cityEl) cityEl.textContent = cityName;
   if (tempEl) tempEl.textContent = '...';
-  if (condEl) condEl.textContent = 'Recherche…';
+  if (condEl) condEl.textContent = 'Recherche.';
 
   const cityData = await searchCityCoords(cityName);
   if (requestId !== weatherRequestSeq) return;
@@ -330,7 +363,13 @@ async function updateWeather(cityName) {
   currentCity = cityData.name;
   currentCoords = { lat: cityData.lat, lon: cityData.lon };
   if (cityEl) cityEl.textContent = currentCity;
-  if (condEl) condEl.textContent = 'Chargement…';
+  if (condEl) condEl.textContent = 'Chargement.';
+
+  // Sauvegarder la ville
+  if (!savedCities.some(c => normalizeCityKey(c) === normalizeCityKey(cityData.name))) {
+    savedCities.push(cityData.name);
+    saveSavedCities();
+  }
 
   try {
     const weather = await fetchWeather(cityData.lat, cityData.lon);
