@@ -161,7 +161,28 @@ body.night-clear { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 25%, 
     else{b.classList.add("sunny");}
 }
 function display(d,cn){if(!d)return;let c=d.current,D=d.daily,h=d.hourly;document.getElementById("city").textContent=cn;setBg(c.weather_code,c.is_day);document.getElementById("icon").textContent=gi(c.weather_code,c.is_day);document.getElementById("temp").textContent=Math.round(c.temperature_2m)+"°";document.getElementById("desc").textContent=ic[c.weather_code]?.t||"Inconnu";document.getElementById("hl").textContent="H:"+Math.round(D.temperature_2m_max[0])+"° L:"+Math.round(D.temperature_2m_min[0])+"°";let hdl=document.getElementById("hourly");hdl.innerHTML="";let nh=new Date().getHours();for(let i=0;i<24;i++){let hi=Math.min(i,h.temperature_2m.length-1);hdl.innerHTML+="<div class="hour"><div class="hour-time">"+ (i===0 ? "Maintenant" : (nh+i)%24 + "h") + "</div><div class="hour-icon">"+gi(h.weather_code[hi],h.is_day[hi])+"</div><div class="hour-temp">"+Math.round(h.temperature_2m[hi])+"°</div></div>"}let ddl=document.getElementById("daily");ddl.innerHTML="";let ds=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];for(let i=0;i<7;i++){let dn=i===0?"Aujourd'hui":(i===1?"Demain":ds[new Date(Date.now()+i*864e5).getDay()]);ddl.innerHTML+="<div class="day-item"><div class="day-name">"+dn+"</div><div class="day-icon">"+gi(D.weather_code[i],1)+"</div><div class="day-high">"+Math.round(D.temperature_2m_max[i])+"°</div><div class="day-low">"+Math.round(D.temperature_2m_min[i])+"°</div></div>"}document.getElementById("humidity").textContent=c.relative_humidity_2m+"%";document.getElementById("wind").textContent=Math.round(c.wind_speed_10m)+"km/h";document.getElementById("uv").textContent=Math.round(D.uv_index_max[0]);document.getElementById("feels").textContent=Math.round(c.apparent_temperature)+"°";document.getElementById("vis").textContent=(c.visibility/1e3).toFixed(1)+"km";document.getElementById("pressure").textContent=Math.round(c.pressure_msl)+"hPa";document.getElementById("update").textContent=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});document.getElementById("loading").style.display="none";document.getElementById("weather").style.display="block"}
-        async function init(){document.getElementById("loading").style.display="block";document.getElementById("weather").style.display="none";let cn="Paris";try{let p=await gl();cn=await rg(p.lat,p.lon)}catch(e){console.log("geo fail",e.message)}let d=await fw(cr.lat,cr.lon);display(d,cn)}
+        async function init(){
+            document.getElementById("loading").style.display="block";
+            document.getElementById("weather").style.display="none";
+            // Default to Paris - will be overridden if geolocation works
+            cr = {lat:48.8566,lon:2.3522};
+            let cn = "Paris";
+            try {
+                let p = await gl();
+                if (p && p.lat) {
+                    cn = await rg(p.lat, p.lon);
+                }
+            } catch(e) {
+                console.log("geo fail, using Paris", e.message);
+            }
+            try {
+                let d = await fw(cr.lat, cr.lon);
+                display(d, cn);
+            } catch(e) {
+                console.log("weather fail", e.message);
+                document.getElementById("loading").textContent = "Erreur météo";
+            }
+        }
         function search(e){if(e.key==="Enter"){document.getElementById("loading").textContent="Recherche...";initByCity(e.target.value)}}
         async function initByCity(city){document.getElementById("loading").style.display="block";document.getElementById("weather").style.display="none";let cn=await sc(city);let d=await fw(cr.lat,cr.lon);display(d,cn)}
         init();
