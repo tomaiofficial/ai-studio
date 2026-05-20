@@ -1,1 +1,184 @@
- ```html <!DOCTYPE html> <html lang="fr"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Tableau de bord Météo - Atmosphere</title> <script src="https://cdn.tailwindcss.com"></script> <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"> <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" /> <style> body { font-family: 'Inter', sans-serif; background: linear-gradient(180deg, #3a7bd5 0%, #00d2ff 100%); min-height: 100vh; } .glass-card { background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 1rem; } </style> </head> <body class="text-white flex flex-col items-center p-4 pb-24"> <!-- Header --> <header class="w-full flex justify-between items-center py-4 mb-8"> <span class="material-symbols-outlined text-2xl">search</span> <h1 class="text-2xl font-bold tracking-tight">Atmosphere</h1> <span class="material-symbols-outlined text-2xl">settings</span> </header> <!-- Main Weather Info --> <main class="text-center mb-12"> <h2 class="text-3xl font-medium mb-2">Paris</h2> <div class="text-8xl font-bold mb-2">18°</div> <p class="text-xl font-medium mb-1">Ciel dégagé</p> <div class="flex justify-center gap-4 text-white/80"> <span>Max: 20°</span> <span>Min: 10°</span> </div> </main> <!-- Hourly Forecast --> <section class="w-full glass-card p-6 mb-6"> <h3 class="text-xs font-bold uppercase tracking-widest text-white/70 mb-6">Prévisions Horaires</h3> <div class="flex justify-between items-center text-center"> <div class="flex flex-col items-center gap-2"> <span class="text-sm">Main.</span> <span class="material-symbols-outlined">sunny</span> <span class="font-bold">18°</span> </div> <div class="flex flex-col items-center gap-2"> <span class="text-sm">15h</span> <span class="material-symbols-outlined">sunny</span> <span class="font-bold">19°</span> </div> <div class="flex flex-col items-center gap-2"> <span class="text-sm">16h</span> <span class="material-symbols-outlined">partly_cloudy_day</span> <span class="font-bold">20°</span> </div> <div class="flex flex-col items-center gap-2"> <span class="text-sm">17h</span> <span class="material-symbols-outlined">partly_cloudy_day</span> <span class="font-bold">19°</span> </div> <div class="flex flex-col items-center gap-2"> <span class="text-sm">18h</span> <span class="material-symbols-outlined">cloud</span> <span class="font-bold">17°</span> </div> </div> </section> <!-- 10-Day Forecast --> <section class="w-full glass-card p-6 mb-6"> <div class="flex items-center gap-2 mb-6"> <span class="material-symbols-outlined text-sm">calendar_month</span> <h3 class="text-xs font-bold uppercase tracking-widest text-white/70">Prévisions sur 10 jours</h3> </div> <div class="space-y-4"> <div class="flex justify-between items-center"> <span class="w-24">Aujourd'hui</span> <span class="material-symbols-outlined">sunny</span> <div class="flex gap-4"> <span class="text-white/60">10°</span> <span class="font-bold">20°</span> </div> </div> <div class="border-t border-white/10 pt-4 flex justify-between items-center"> <span class="w-24">Lundi</span> <span class="material-symbols-outlined">partly_cloudy_day</span> <div class="flex gap-4"> <span class="text-white/60">12°</span> <span class="font-bold">21°</span> </div> </div> <div class="border-t border-white/10 pt-4 flex justify-between items-center"> <span class="w-24">Mardi</span> <span class="material-symbols-outlined text-blue-300">rainy</span> <div class="flex gap-4"> <span class="text-white/60">11°</span> <span class="font-bold">18°</span> </div> </div> <div class="border-t border-white/10 pt-4 flex justify-between items-center"> <span class="w-24">Mercredi</span> <span class="material-symbols-outlined">cloud</span> <div class="flex gap-4"> <span class="text-white/60">9°</span> <span class="font-bold">16°</span> </div> </div> </div> <button class="w-full mt-6 py-2 text-white/80 hover:text-white transition-colors text-sm font-medium">Voir plus</button> </section> <!-- Details Grid --> <div class="grid grid-cols-2 gap-4 w-full mb-12"> <div class="glass-card p-4 flex flex-col justify-between h-40"> <div> <div class="flex items-center gap-2 text-white/70 mb-2"> <span class="material-symbols-outlined text-sm">humidity_percentage</span> <span class="text-[10px] font-bold uppercase tracking-wider">Humidité</span> </div> <div class="text-3xl font-medium">65%</div> </div> <div class="w-full h-1 bg-white/20 rounded-full overflow-hidden"> <div class="w-[65%] h-full bg-white"></div> </div> </div> <div class="glass-card p-4 flex flex-col justify-between h-40"> <div> <div class="flex items-center gap-2 text-white/70 mb-2"> <span class="material-symbols-outlined text-sm">air</span> <span class="text-[10px] font-bold uppercase tracking-wider">Vent</span> </div> <div class="text-3xl font-medium">12 <span class="text-lg">km/h</span></div> </div> <div class="flex items-center gap-2 text-sm text-white/80"> <span class="material-symbols-outlined text-sm rotate-[-45deg]">navigation</span> <span>Nord-Est</span> </div> </div> <div class="glass-card p-4 flex flex-col justify-between h-40"> <div> <div class="flex items-center gap-2 text-white/70 mb-2"> <span class="material-symbols-outlined text-sm">sunny</span> <span class="text-[10px] font-bold uppercase tracking-wider">Indice UV</span> </div> <div class="text-3xl font-medium">3</div> <div class="text-sm mt-1">Modéré</div> </div> <div class="w-full h-1 bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 rounded-full relative"> <div class="absolute w-2 h-2 bg-white rounded-full border border-black/20 -top-0.5 left-[30%]"></div> </div> </div> <div class="glass-card p-4 flex flex-col justify-between h-40"> <div> <div class="flex items-center gap-2 text-white/70 mb-2"> <span class="material-symbols-outlined text-sm">thermostat</span> <span class="text-[10px] font-bold uppercase tracking-wider">Ressenti</span> </div> <div class="text-3xl font-medium">17°</div> </div> <p class="text-[11px] text-white/70 leading-tight">Similaire à la température actuelle.</p> </div> <div class="glass-card p-4 flex flex-col justify-between h-40"> <div> <div class="flex items-center gap-2 text-white/70 mb-2"> <span class="material-symbols-outlined text-sm">visibility</span> <span class="text-[10px] font-bold uppercase tracking-wider">Visibilité</span> </div> <div class="text-3xl font-medium">10 <span class="text-lg">km</span></div> </div> <p class="text-[11px] text-white/70">Excellente visibilité.</p> </div> <div class="glass-card p-4 flex flex-col justify-between h-40"> <div> <div class="flex items-center gap-2 text-white/70 mb-2"> <span class="material-symbols-outlined text-sm">speed</span> <span class="text-[10px] font-bold uppercase tracking-wider">Pression</span> </div> <div class="text-3xl font-medium">1015 <span class="text-lg">hPa</span></div> </div> <p class="text-[11px] text-white/70">Stable</p> </div> </div> <!-- Footer Info --> <footer class="w-full text-center space-y-4 text-white/70 text-sm pb-8"> <p>Mise à jour: 14:17</p> <button class="hover:text-white transition-colors underline decoration-white/30 underline-offset-4">Signaler un problème</button> </footer> <!-- Bottom Navigation --> <nav class="fixed bottom-0 left-0 w-full bg-white/10 backdrop-blur-xl border-t border-white/20 px-6 py-3 flex justify-between items-center z-50"> <div class="flex flex-col items-center gap-1"> <span class="material-symbols-outlined">cloudy</span> <span class="text-[10px] font-bold uppercase tracking-widest">Weather</span> </div> <div class="flex flex-col items-center gap-1 opacity-50"> <span class="material-symbols-outlined">layers</span> <span class="text-[10px] font-bold uppercase tracking-widest">Radar</span> </div> <div class="flex flex-col items-center gap-1 opacity-50"> <span class="material-symbols-outlined">bookmarks</span> <span class="text-[10px] font-bold uppercase tracking-widest">Saved</span> </div> <div class="flex flex-col items-center gap-1 opacity-50 relative"> <span class="material-symbols-outlined">notifications_active</span> <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span> <span class="text-[10px] font-bold uppercase tracking-widest">Alerts</span> </div> </nav> </body> </html> ````
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Météo France</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        html, body { touch-action: manipulation; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+        body { transition: background 0.8s ease; background: linear-gradient(180deg, #1e3a5f 0%, #2b5876 100%); min-height: 100vh; color: white; overflow: hidden; }
+body.sunny { background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%); background-size: cover; background-attachment: fixed; }
+body.cloudy { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 25%, #ff9a56 50%, #fed6e3 75%, #a8edea 100%); background-size: cover; background-attachment: fixed; }
+body.rainy { background: linear-gradient(135deg, #2c3e50 0%, #34495e 25%, #3498db 50%, #2980b9 75%, #1a252f 100%); background-size: cover; background-attachment: fixed; }
+body.stormy { background: linear-gradient(135deg, #1a1a2e 0%, #2d3a4a 25%, #1a1a2e 50%, #2d3a4a 75%, #1a1a2e 100%); background-size: cover; background-attachment: fixed; }
+body.snowy { background: linear-gradient(135deg, #e0f7ff 0%, #b3e5fc 25%, #81d4fa 50%, #4fc3f7 75%, #29b6f6 100%); background-size: cover; background-attachment: fixed; }
+body.foggy { background: linear-gradient(135deg, #8a9ba8 0%, #6b7b8b 25%, #8a9ba8 50%, #6b7b8b 75%, #8a9ba8 100%); background-size: cover; background-attachment: fixed; }
+body.night { background: linear-gradient(135deg, #0f0c29 0%, #302b63 25%, #24243e 50%, #302b63 75%, #0f0c29 100%); background-size: cover; background-attachment: fixed; }
+body.night-clear { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 25%, #2a2a5a 50%, #1a1a3a 75%, #0a0a1a 100%); background-size: cover; background-attachment: fixed; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
+        .header h1 { font-size: 32px; font-weight: 600; }
+        .header button { background: none; border: none; color: white; font-size: 24px; }
+        .search { background: rgba(255,255,255,0.15); border-radius: 12px; padding: 14px; margin-bottom: 20px; }
+        .search input { background: none; border: none; color: white; width: 100%; font-size: 16px; outline: none; }
+        .search input::placeholder { color: rgba(255,255,255,0.5); }
+        .current { text-align: center; padding: 30px 0; }
+        .city { font-size: 28px; font-weight: 500; margin-bottom: 10px; }
+        .icon { font-size: 90px; line-height: 1; }
+        .temp { font-size: 80px; font-weight: 200; letter-spacing: -3px; }
+        .desc { font-size: 20px; opacity: 0.85; margin-bottom: 8px; }
+        .hl { font-size: 18px; opacity: 0.7; }
+        .scroll-title { font-size: 14px; font-weight: 600; opacity: 0.6; margin: 25px 0 15px; }
+        .scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 20px; scrollbar-width: none; touch-action: pan-x; }
+        .scroll::-webkit-scrollbar { display: none; }
+        .hour { min-width: 60px; background: rgba(255,255,255,0.1); border-radius: 16px; padding: 14px 10px; text-align: center; }
+        .hour-time { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
+        .hour-icon { font-size: 26px; }
+        .hour-temp { font-size: 15px; margin-top: 5px; }
+        .day-item { display: flex; align-items: center; background: rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; margin-bottom: 8px; }
+        .day-name { width: 90px; font-size: 16px; }
+        .day-icon { font-size: 26px; }
+        .day-high { margin-left: auto; font-size: 16px; font-weight: 500; padding: 0 15px; }
+        .day-low { font-size: 16px; opacity: 0.5; }
+        .details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px; }
+        .detail { background: rgba(255,255,255,0.1); border-radius: 16px; padding: 16px; }
+        .detail-label { font-size: 13px; opacity: 0.6; margin-bottom: 8px; }
+        .detail-value { font-size: 22px; font-weight: 500; }
+        .update { text-align: center; font-size: 12px; opacity: 0.4; margin-top: 20px; }
+        .loading { text-align: center; padding: 50px; opacity: 0.5; }
+        /* Mobile optimization */
+        @media (max-width: 768px) {
+            body { background-attachment: scroll; }
+            body.sunny, body.cloudy, body.rainy, body.stormy, body.snowy, body.foggy, body.night, body.night-clear {
+                background-attachment: scroll;
+                background-size: cover;
+            }
+            .container { padding: 15px; }
+            .header h1 { font-size: 28px; }
+            .temp { font-size: 70px; }
+            .icon { font-size: 80px; }
+        }
+        @media (max-width: 480px) {
+            body { min-height: 100vh; height: 100vh; overflow: hidden; }
+            .container { max-width: 100%; padding: 12px; }
+            .header h1 { font-size: 24px; }
+            .temp { font-size: 60px; }
+            .icon { font-size: 70px; }
+            .city { font-size: 24px; }
+            .desc { font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button>☰</button>
+            <h1>Météo</h1>
+            <button>⚙</button>
+        </div>
+        <div class="search">
+            <input type="text" id="search" placeholder="Rechercher une ville..." onkeypress="search(event)" autocomplete="off" autocorrect="off" autocapitalize="off">
+        </div>
+        <div class="loading" id="loading">Géolocalisation...</div>
+        <div id="weather" style="display:none;">
+            <div class="current">
+                <div class="city" id="city">Paris</div>
+                <div class="icon" id="icon">☀️</div>
+                <div class="temp" id="temp">18°</div>
+                <div class="desc" id="desc">Ciel dégagé</div>
+                <div class="hl" id="hl">H:20° L:10°</div>
+            </div>
+            <div class="scroll-title">PRÉVISIONS HORAIRES</div>
+            <div class="scroll" id="hourly"></div>
+            <div class="scroll-title">10 JOURS</div>
+            <div class="scroll" id="daily"></div>
+            <div class="details">
+                <div class="detail"><div class="detail-label">💧 Humidité</div><div class="detail-value" id="humidity">65%</div></div>
+                <div class="detail"><div class="detail-label">💨 Vent</div><div class="detail-value" id="wind">12km/h</div></div>
+                <div class="detail"><div class="detail-label">☀️ UV</div><div class="detail-value" id="uv">3</div></div>
+                <div class="detail"><div class="detail-label">🌡️ Ressenti</div><div class="detail-value" id="feels">17°</div></div>
+                <div class="detail"><div class="detail-label">👁️ Visibilité</div><div class="detail-value" id="vis">10km</div></div>
+                <div class="detail"><div class="detail-label">📊 Pression</div><div class="detail-value" id="pressure">1015hPa</div></div>
+            </div>
+            <div class="update">Mise à jour: <span id="update">--:--</span></div>
+        </div>
+    </div>
+    <script>
+        const ic = {
+    // Clear sky
+    0:{d:"☀️",n:"🌙",t:"Ciel dégagé"},
+    // Mostly clear / Clear night
+    1:{d:"⛅",n:"🌙",t:"Mostly clear"},
+    // Partly cloudy
+    2:{d:"⛅",n:"🌙",t:"Partiellement nuageux"},
+    // Cloudy / Overcast
+    3:{d:"☁️",n:"☁️",t:"Nuageux"},
+    // Fog
+    45:{d:"🌫️",n:"🌫️",t:"Brouillard"},
+    48:{d:"🌫️",n:"🌫️",t:"Brouillard"},
+    // Light drizzle
+    51:{d:"🌧️",n:"🌧️",t:"Bruine"},
+    53:{d:"🌧️",n:"🌧️",t:"Bruine"},
+    55:{d:"🌧️",n:"🌧️",t:"Bruine"},
+    // Light rain
+    61:{d:"🌧️",n:"🌧️",t:"Pluie légère"},
+    // Rain
+    63:{d:"🌧️",n:"🌧️",t:"Pluie"},
+    // Heavy rain
+    65:{d:"⛈️",n:"⛈️",t:"Pluie forte"},
+    // Light snow
+    71:{d:"🌨️",n:"🌨️",t:"Neige légère"},
+    // Snow
+    73:{d:"❄️",n:"❄️",t:"Neige"},
+    // Heavy snow
+    75:{d:"❄️",n:"❄️",t:"Averses fortes"},
+    // Showers
+    80:{d:"🌧️",n:"🌧️",t:"Averses"},
+    81:{d:"⛈️",n:"⛈️",t:"Averses"},
+    82:{d:"⛈️",n:"⛈️",t:"Averses fortes"},
+    // Thunderstorm
+    95:{d:"⛈️",n:"⛈️",t:"Orage"},
+    96:{d:"⛈️",n:"⛈️",t:"Orage grêle"},
+    99:{d:"⛈️",n:"⛈️",t:"Orage violent"}
+};
+        function gi(c,day){return ic[c]?(day?ic[c].d:ic[c].n):"☀️"}
+        let cr={lat:48.8566,lon:2.3522};
+        function gl(){return new Promise((r,e)=>{if(!navigator.geolocation){e(new Error("no"));return}navigator.geolocation.getCurrentPosition(p=>{cr={lat:p.coords.latitude,lon:p.coords.longitude};r(cr)},e,{enableHighAccuracy:true,timeout:1e4,maximumAge:0})})}
+        async function rg(lat,lon){try{let f=await fetch("https://nominatim.openstreetmap.org/reverse?lat="+lat+"&lon="+lon+"&format=json&language=fr");let d=await f.json();return d.address.city||d.address.town||d.address.village||d.address.county||"Position"}catch(e){return"Votre position"}}
+        async function sc(q){try{let f=await fetch("https://geocoding-api.open-meteo.com/v1/search?name="+encodeURIComponent(q)+"&count=1&language=fr");let d=await f.json();if(d.results&&d.results[0]){cr={lat:d.results[0].latitude,lon:d.results[0].longitude};return d.results[0].name+(d.results[0].country?", "+d.results[0].country:"")}return"Paris"}catch(e){return"Paris"}}
+        async function fw(lat,lon){let u="https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,visibility,precipitation,cloud_cover&hourly=temperature_2m,weather_code,is_day,precipitation_probability&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max&timezone=auto&lang=fr";let f=await fetch(u);return await f.json()}
+        function setBg(code,isDay){
+    const b=document.body;
+    b.className="";
+    if(!isDay){b.classList.add("night");return;}
+    if(code===0||code===1){b.classList.add("sunny");}
+    else if(code>=2&&code<=3){b.classList.add("cloudy");}
+    else if(code>=45&&code<=48){b.classList.add("foggy");}
+    else if(code>=51&&code<=82){b.classList.add("rainy");}
+    else if(code>=95){b.classList.add("stormy");}
+    else if(code>=71&&code<=77){b.classList.add("snowy");}
+    else{b.classList.add("sunny");}
+}
+function display(d,cn){if(!d)return;let c=d.current,D=d.daily,h=d.hourly;document.getElementById("city").textContent=cn;setBg(c.weather_code,c.is_day);document.getElementById("icon").textContent=gi(c.weather_code,c.is_day);document.getElementById("temp").textContent=Math.round(c.temperature_2m)+"°";document.getElementById("desc").textContent=ic[c.weather_code]?.t||"Inconnu";document.getElementById("hl").textContent="H:"+Math.round(D.temperature_2m_max[0])+"° L:"+Math.round(D.temperature_2m_min[0])+"°";let hdl=document.getElementById("hourly");hdl.innerHTML="";let nh=new Date().getHours();for(let i=0;i<24;i++){let hi=Math.min(i,h.temperature_2m.length-1);hdl.innerHTML+="<div class="hour"><div class="hour-time">"+ (i===0 ? "Maintenant" : (nh+i)%24 + "h") + "</div><div class="hour-icon">"+gi(h.weather_code[hi],h.is_day[hi])+"</div><div class="hour-temp">"+Math.round(h.temperature_2m[hi])+"°</div></div>"}let ddl=document.getElementById("daily");ddl.innerHTML="";let ds=["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];for(let i=0;i<7;i++){let dn=i===0?"Aujourd'hui":(i===1?"Demain":ds[new Date(Date.now()+i*864e5).getDay()]);ddl.innerHTML+="<div class="day-item"><div class="day-name">"+dn+"</div><div class="day-icon">"+gi(D.weather_code[i],1)+"</div><div class="day-high">"+Math.round(D.temperature_2m_max[i])+"°</div><div class="day-low">"+Math.round(D.temperature_2m_min[i])+"°</div></div>"}document.getElementById("humidity").textContent=c.relative_humidity_2m+"%";document.getElementById("wind").textContent=Math.round(c.wind_speed_10m)+"km/h";document.getElementById("uv").textContent=Math.round(D.uv_index_max[0]);document.getElementById("feels").textContent=Math.round(c.apparent_temperature)+"°";document.getElementById("vis").textContent=(c.visibility/1e3).toFixed(1)+"km";document.getElementById("pressure").textContent=Math.round(c.pressure_msl)+"hPa";document.getElementById("update").textContent=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});document.getElementById("loading").style.display="none";document.getElementById("weather").style.display="block"}
+        async function init(){document.getElementById("loading").style.display="block";document.getElementById("weather").style.display="none";let cn="Paris";try{let p=await gl();cn=await rg(p.lat,p.lon)}catch(e){console.log("geo fail",e.message)}let d=await fw(cr.lat,cr.lon);display(d,cn)}
+        function search(e){if(e.key==="Enter"){document.getElementById("loading").textContent="Recherche...";initByCity(e.target.value)}}
+        async function initByCity(city){document.getElementById("loading").style.display="block";document.getElementById("weather").style.display="none";let cn=await sc(city);let d=await fw(cr.lat,cr.lon);display(d,cn)}
+        init();
+// Auto-refresh every 10 minutes
+setInterval(()=>{
+    if(document.getElementById("weather").style.display==="block"){
+        fetchWeatherAndDisplay();
+    }
+}, 600000);
+
+async function fetchWeatherAndDisplay(){
+    try{
+        let d = await fw(cr.lat, cr.lon);
+        let cn = document.getElementById("city").textContent;
+        display(d, cn);
+    }catch(e){console.log("refresh fail",e)}
+}
+    </script>
+</body>
+</html>
