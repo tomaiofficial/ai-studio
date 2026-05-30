@@ -737,6 +737,11 @@ body::before{
     backdrop-filter: blur(10px);
 }
 
+.hourly-item.now {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .hourly-item:hover {
     background: rgba(255, 255, 255, 0.1);
     transform: scale(1.05);

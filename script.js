@@ -21,6 +21,22 @@ function normalizeCityKey(name) {
 
 function $(id) { return document.getElementById(id); }
 
+function getWindDirection(deg) {
+  if (deg == null) return '—';
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
+  return dirs[Math.round(deg / 22.5) % 16] || '—';
+}
+
+function formatTime(isoString) {
+  if (!isoString) return '--:--';
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  } catch (_) {
+    return '--:--';
+  }
+}
+
 // ---- LocalStorage ----
 function loadSavedCities() {
   try {
@@ -50,9 +66,9 @@ async function fetchWeather(lat, lon) {
   const params = new URLSearchParams({
     latitude: lat,
     longitude: lon,
-    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,pressure_msl,is_day,precipitation',
-    hourly: 'temperature_2m,weather_code,precipitation_probability',
-    daily: 'temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum',
+    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,is_day,precipitation,cloud_cover,visibility,dew_point_2m,uv_index',
+    hourly: 'temperature_2m,weather_code,precipitation_probability,wind_speed_10m,uv_index',
+    daily: 'temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max,sunrise,sunset',
     timezone: 'auto',
     forecast_days: 10
   });
@@ -159,16 +175,67 @@ function renderWeatherDetail(cityData, data) {
   }
 
   // --- Cartes détails ---
+  setInnerHTML('feels-like', `${Math.round(current.apparent_temperature)}°`);
+  setText('feels-like-desc', current.apparent_temperature > current.temperature_2m ? 'Plus chaud que l\'air' : 'Plus frais que l\'air');
+  
   setText('humidity', `${current.relative_humidity_2m}%`);
-  setInnerHTML('wind', `${Math.round(current.wind_speed_10m)} <span class="unit">km/h</span>`);
+  if (current.dew_point_2m != null) {
+    setText('dew-point', `Point de rosée: ${Math.round(current.dew_point_2m)}°`);
+  }
 
-  if (current.pressure_msl != null) {
-    setInnerHTML('pressure', `${Math.round(current.pressure_msl)} <span class="unit">hPa</span>`);
+  const windDir = getWindDirection(current.wind_direction_10m);
+  setInnerHTML('wind', `${Math.round(current.wind_speed_10m)} <span class="unit">km/h</span>`);
+  setText('wind-direction', windDir);
+
+  if (current.uv_index != null) {
+    const uv = current.uv_index;
+    setText('uv-index', uv.toFixed(1));
+    let uvDesc = 'Faible';
+    if (uv >= 3) uvDesc = 'Modéré';
+    if (uv >= 6) uvDesc = 'Élevé';
+    if (uv >= 8) uvDesc = 'Très élevé';
+    if (uv >= 11) uvDesc = 'Extrême';
+    setText('uv-desc', uvDesc);
   }
 
   // Précipitations : on prend la somme du jour ou la valeur instantanée
   const precipNow = current.precipitation != null ? current.precipitation : (daily ? daily.precipitation_sum[0] : 0);
   setInnerHTML('precipitation', `${precipNow} <span class="unit">mm</span>`);
+  setText('precip-desc', precipNow === 0 ? 'Aucune' : `${Math.round(daily.precipitation_sum[0])} mm aujourd'hui`);
+
+  if (current.visibility != null) {
+    const visKm = (current.visibility / 1000).toFixed(1);
+    setInnerHTML('visibility-value', `${visKm} <span class="unit">km</span>`);
+    let visDesc = 'Excellente';
+    if (visKm < 1) visDesc = 'Très faible';
+    else if (visKm < 4) visDesc = 'Faible';
+    else if (visKm < 10) visDesc = 'Modérée';
+    else if (visKm < 20) visDesc = 'Bonne';
+    setText('visibility-desc', visDesc);
+  }
+
+  if (current.pressure_msl != null) {
+    setInnerHTML('pressure', `${Math.round(current.pressure_msl)} <span class="unit">hPa</span>`);
+    setText('pressure-trend', current.pressure_msl > 1013 ? 'Haute' : 'Basse');
+  }
+
+  setInnerHTML('clouds', `${current.cloud_cover} <span class="unit">%</span>`);
+  let cloudDesc = 'Ciel dégagé';
+  if (current.cloud_cover > 25) cloudDesc = 'Peu nuageux';
+  if (current.cloud_cover > 50) cloudDesc = 'Nuageux';
+  if (current.cloud_cover > 75) cloudDesc = 'Très nuageux';
+  setText('cloud-desc', cloudDesc);
+
+  if (daily && daily.sunrise && daily.sunrise[0]) {
+    const sunriseTime = formatTime(daily.sunrise[0]);
+    setText('sunrise', sunriseTime);
+    setText('sunrise-desc', 'Aube');
+  }
+  if (daily && daily.sunset && daily.sunset[0]) {
+    const sunsetTime = formatTime(daily.sunset[0]);
+    setText('sunset', sunsetTime);
+    setText('sunset-desc', 'Crépuscule');
+  }
 
   // Qualité de l'air (placeholder)
   setText('air-quality', '—');
@@ -246,7 +313,8 @@ function renderHourly(hourly, utcOffsetSeconds) {
     const label = i === 0 ? 'Maintenant' : `${h}h`;
     const isDay = h >= 6 && h < 21;
     const icon = createWeatherIconSVG(codes[idx], isDay, 28);
-    html += `<div class="hourly-item">
+    const wind = hourly.wind_speed_10m ? Math.round(hourly.wind_speed_10m[idx]) : null;
+    html += `<div class="hourly-item${i === 0 ? ' now' : ''}">
         <div class="time">${label}</div>
         <div class="icon">${icon}</div>
         <div class="temp">${Math.round(temps[idx] || 0)}°</div>
