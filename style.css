@@ -679,7 +679,7 @@ body::before{
     border-radius: 22px;
     padding: 14px;
     border: 0.5px solid rgba(255, 255, 255, 0.15);
-    overflow: visible;
+    overflow: hidden;
     transition: all 0.3s ease;
 }
 
@@ -711,11 +711,11 @@ body::before{
     display: flex;
     gap: 12px;
     overflow-x: auto;
-    padding: 8px 0;
+    overflow-y: hidden;
+    padding: 8px 2px;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    padding-left: 4px;
-    padding-right: 4px;
+    -webkit-overflow-scrolling: touch;
 }
 
 .hourly-scroll::-webkit-scrollbar {
