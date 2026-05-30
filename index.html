@@ -2,349 +2,139 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    
-    <!-- Optimisations de performance -->
-    <meta http-equiv="Cache-Control" content="max-age=31536000, public">
-    <meta name="theme-color" content="#00BFFF">
-    <title>Météo - Prévisions en temps réel</title>
-    
-    <!-- Chargement critique CSS inline -->
-    <style>
-        /* CSS critique pour le premier affichage */
-        body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;background-size:cover;background-position:center;background-repeat:no-repeat;background-attachment:fixed;color:#fff;overflow-x:hidden}
-        .app{position:relative;min-height:100vh}
-        .hero{padding:20px;text-align:center}
-        .city{font-size:2.5rem;font-weight:300;margin-bottom:10px}
-        .big-temp{font-size:4rem;font-weight:200;margin-bottom:5px}
-        .condition{font-size:1.2rem;opacity:0.9}
-        .bg-layer{position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#00BFFF 0%,#87CEEB 50%,#FFD700 100%);transition:all 1s ease-in-out}
-        .loading{display:flex;justify-content:center;align-items:center;height:50vh}
-        .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top:3px solid #fff;border-radius:50%;animation:spin 1s linear infinite}
-        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-    
-.ui-icon-svg {
-    display: block;
-    fill: currentColor;
-    width: 100%;
-    height: 100%;
-}
-.cities-edit, .settings-btn, .cities-close, .back-btn, .search-clear, .close-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-</style>
-    
-    <!-- Chargement différé des styles -->
-    <link rel="preload" href="style.css?v=19" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="weather-icons.css?v=6" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <link rel="preload" href="apple-weather-atmosphere.css?v=3" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <!-- Apple-style Icons -->
-    <link rel="preload" href="apple-weather-icons.css?v=1" as="style" onload="this.onload=null;this.rel='stylesheet'">
-
-    
-    <script>
-        if('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js?v=33').then(() => {
-                console.log('Service Worker active - Mode ultra-rapide mobile');
-            }).catch(console.log);
-        }
-    </script>
+    <meta name="theme-color" content="#1a2a3a">
+    <title>Météo</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="weather-icons.css">
 </head>
 <body>
-<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
-  <symbol id="icon-settings" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.48.48 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.12.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.49.49 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.27.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.12-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-  </symbol>
-  <symbol id="icon-edit" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.41l-2.34-2.34a1.003 1.003 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-  </symbol>
-  <symbol id="icon-close" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-  </symbol>
-  <symbol id="icon-menu" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-  </symbol>
-  <symbol id="icon-search" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-  </symbol>
-  <symbol id="icon-location" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
-  </symbol>
-  <symbol id="icon-refresh" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-  </symbol>
-  <symbol id="icon-trash" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-  </symbol>
-  <symbol id="icon-warning" viewBox="0 0 24 24">
-    <path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-  </symbol>
-</svg>
-    <div class="app">
-        <div class="background">
-            <div class="bg-layer bg-default"></div>
-        </div>
-        
-        <!-- ===== iOS "Liste des villes" (comme sur l'image) ===== -->
-        <div id="cities-view" class="view cities-view hidden">
-            <div class="cities-scroll">
-                <div class="cities-header">
-                    <div class="cities-title">Météo</div>
-                    <div class="cities-actions">
-                        <button id="cities-edit" class="cities-edit" aria-label="Modifier" aria-pressed="false"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-edit"></use></svg></button>
-                        <button id="settings-btn" class="settings-btn" aria-label="Paramètres"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="22" height="22"><use href="apple-ui-icons.svg#icon-settings"></use></svg></button>
-                        <button id="cities-close" class="cities-close" aria-label="Fermer"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-close"></use></svg></button>
-                    </div>
+
+<div id="app">
+    <!-- ====== VUE DÉTAIL ====== -->
+    <div id="detail-view" class="view">
+        <div class="bg-layer" id="bg-layer"></div>
+
+        <div class="scroll-container">
+            <!-- Header -->
+            <header class="top-bar">
+                <button id="btn-menu" class="top-btn" aria-label="Menu">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <div class="search-wrap">
+                    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="search-input" placeholder="Rechercher une ville..." autocomplete="off">
                 </div>
-<div id="cities-list" class="cities-list"></div>
-            </div>
-        </div>
+                <button id="btn-location" class="top-btn" aria-label="Ma position">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                </button>
+                <div class="suggestions" id="suggestions"></div>
+            </header>
 
-        <!-- ===== Détail d'une ville ===== -->
-        <div id="detail-view" class="view detail-view">
-            <div class="scroll-container">
-                <div class="detail-layout">
-                    <!-- ===== “Milieu” (principal) ===== -->
-                    <section class="detail-main">
-                        <!-- Hero Section -->
-                        <div class="hero">
-                            <div class="nav nav-detail">
-                                <button id="back-to-cities" class="back-btn" aria-label="Menu"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="22" height="22"><use href="apple-ui-icons.svg#icon-menu"></use></svg></button>
-                                
-                                <button id="settings-btn-detail" class="settings-btn" aria-label="Paramètres"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="22" height="22"><use href="apple-ui-icons.svg#icon-settings"></use></svg></button>
-                            </div>
-                            
-                            
-                            <div class="search-container search-container-centered">
-                                <div class="search-box">
-                                    <span class="search-icon"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-search"></use></svg></span>
-                                    <input type="text" id="city-input" value="" placeholder="Rechercher une ville..." autocomplete="off">
-                                    <button class="search-clear" id="search-clear" style="display: none;"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-close"></use></svg></button>
-                                </div>
-                                <div class="search-suggestions" id="search-suggestions"></div>
-                            </div>
-                            
-                            <div class="weather-hero">
-                                <h1 class="city"></h1>
-                                <div class="big-temp" id="current-temp"></div>
-                                <div class="condition"></div>
-                                <div class="high-low">
-                                    <span></span>
-                                    <span></span>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Hero météo -->
+            <section class="hero">
+                <div class="hero-icon" id="hero-icon"></div>
+                <div class="hero-temp" id="hero-temp">--°</div>
+                <div class="hero-desc" id="hero-desc">Chargement...</div>
+                <div class="hero-hl" id="hero-hl">H:--° L:--°</div>
+            </section>
 
-                        <!-- Cards (milieu) -->
-                        <div class="cards cards-main">
-                            <!-- Alerte (au-dessus des prévisions horaires) -->
-                            <div class="card alert-card">
-                                <div class="card-label">
-                                    <span class="label-icon"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-warning"></use></svg>️</span>
-                                    <span>ALERTE MÉTÉO</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="alert-title" id="alert-title">Aucune alerte</div>
-                                <div class="alert-desc" id="alert-desc">—</div>
-                            </div>
-
-                            <!-- Hourly -->
-                            <div class="card">
-                                <div class="card-label" id="label-hourly">
-                                    <span class="label-icon"></span>
-                                    <span>PRÉVISIONS HORAIRES</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="hourly-scroll" id="hourly-list"></div>
-                            </div>
-
-                            <!-- Daily -->
-                            <div class="card">
-                                <div class="card-label" id="label-daily">
-                                    <span class="label-icon"></span>
-                                    <span>PRÉVISIONS SUR 10 JOURS</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="daily-list" id="daily-list"></div>
-                            </div>
-                        </div>
-                    </section>
-
-                    <!-- ===== “Tout à droite” (infos / widgets) ===== -->
-                    <aside class="detail-side">
-                        <div class="cards cards-side">
-                            <!-- Prochaine heure -->
-                            <div class="card rain-next-card">
-                                <div class="card-label">
-                                    <span class="label-icon">☔</span>
-                                    <span>PROCHAINE HEURE</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div class="next-hour-forecast">
-                                    <div class="rain-info">
-                                        <div class="rain-percentage" id="next-hour-rain-prob">--%</div>
-                                        <div class="rain-text" id="next-hour-rain-text">Chargement…</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Qualité de l'air (placeholder UI) -->
-                            <div class="card air-card">
-                                <div class="card-label">
-                                    <span class="label-icon">🌫</span>
-                                    <span>QUALITÉ DE L’AIR</span>
-                                </div>
-                                <div class="detail-big" id="air-quality">—</div>
-                                <div class="detail-small" id="air-quality-desc">Données bientôt</div>
-                            </div>
-
-                            <!-- IA Météo -->
-                            <div class="card ia-card">
-                                <div class="card-label ia-label">
-                                    <span class="ia-badge">IA</span>
-                                    <span>ANALYSE MÉTÉO INTELLIGENTE</span>
-                                </div>
-                                <div class="separator"></div>
-                                <div id="ia-meteo-content" class="ia-meteo-content"></div>
-                            </div>
-
-                            <!-- Details Grid -->
-                            <div class="grid-2">
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-dew">
-                                        <span class="label-icon">💧</span>
-                                        <span>RESSENTI</span>
-                                    </div>
-                                    <div class="detail-big" id="feels-like">--°</div>
-                                    <div class="detail-small" id="feels-like-desc">Température ressentie</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-humidity">
-                                        <span class="label-icon">💧</span>
-                                        <span>HUMIDITÉ</span>
-                                    </div>
-                                    <div class="detail-big" id="humidity">--%</div>
-                                    <div class="detail-small" id="dew-point">Point de rosée: --°</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-wind">
-                                        <span class="label-icon">🌬️</span>
-                                        <span>VENT</span>
-                                    </div>
-                                    <div class="detail-big" id="wind">-- <span class="unit">km/h</span></div>
-                                    <div class="detail-small" id="wind-direction">Direction</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-uv">
-                                        <span class="label-icon">☀️</span>
-                                        <span>UV</span>
-                                    </div>
-                                    <div class="detail-big" id="uv-index">--</div>
-                                    <div class="detail-small" id="uv-desc">Indice UV</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-precip">
-                                        <span class="label-icon">🌧️</span>
-                                        <span>PRÉCIP.</span>
-                                    </div>
-                                    <div class="detail-big" id="precipitation">-- <span class="unit">mm</span></div>
-                                    <div class="detail-small" id="precip-desc">Aujourd'hui</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-visibility">
-                                        <span class="label-icon">👁️</span>
-                                        <span>VISIBILITÉ</span>
-                                    </div>
-                                    <div class="detail-big" id="visibility-value">-- <span class="unit">km</span></div>
-                                    <div class="detail-small" id="visibility-desc">Distance</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-pressure">
-                                        <span class="label-icon">🌡️</span>
-                                        <span>PRESSION</span>
-                                    </div>
-                                    <div class="detail-big" id="pressure">-- <span class="unit">hPa</span></div>
-                                    <div class="detail-small" id="pressure-trend">--</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-cloud">
-                                        <span class="label-icon">☁️</span>
-                                        <span>NUAGES</span>
-                                    </div>
-                                    <div class="detail-big" id="clouds">-- <span class="unit">%</span></div>
-                                    <div class="detail-small" id="cloud-desc">Couverture</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-sunrise">
-                                        <span class="label-icon">🌅</span>
-                                        <span>LEVER</span>
-                                    </div>
-                                    <div class="detail-big" id="sunrise">--:--</div>
-                                    <div class="detail-small" id="sunrise-desc">Aube</div>
-                                </div>
-
-                                <div class="card detail-card">
-                                    <div class="card-label" id="label-sunset">
-                                        <span class="label-icon">🌇</span>
-                                        <span>COUCHER</span>
-                                    </div>
-                                    <div class="detail-big" id="sunset">--:--</div>
-                                    <div class="detail-small" id="sunset-desc">Crépuscule</div>
-                                </div>
-                            </div>
-                        </div>
-                    </aside>
+            <!-- Prévisions horaires -->
+            <section class="card">
+                <div class="card-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    PRÉVISIONS HORAIRES
                 </div>
-            </div>
+                <div class="hourly-scroll" id="hourly-scroll"></div>
+            </section>
+
+            <!-- Prévisions 10 jours -->
+            <section class="card">
+                <div class="card-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    10 JOURS
+                </div>
+                <div class="daily-list" id="daily-list"></div>
+            </section>
+
+            <!-- Grille de détails -->
+            <section class="grid-2" id="detail-grid">
+                <div class="card detail-card">
+                    <div class="dc-label">🌡️ RESSENTI</div>
+                    <div class="dc-value" id="d-feels">--°</div>
+                    <div class="dc-sub" id="d-feels-desc">—</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">💧 HUMIDITÉ</div>
+                    <div class="dc-value" id="d-humidity">--%</div>
+                    <div class="dc-sub" id="d-dew">Point de rosée: --°</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">🌬️ VENT</div>
+                    <div class="dc-value" id="d-wind">-- <span class="unit">km/h</span></div>
+                    <div class="dc-sub" id="d-wind-dir">—</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">☀️ UV</div>
+                    <div class="dc-value" id="d-uv">--</div>
+                    <div class="dc-sub" id="d-uv-desc">—</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">🌧️ PRÉCIP.</div>
+                    <div class="dc-value" id="d-precip">-- <span class="unit">mm</span></div>
+                    <div class="dc-sub" id="d-precip-desc">Aujourd'hui</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">👁️ VISIBILITÉ</div>
+                    <div class="dc-value" id="d-vis">-- <span class="unit">km</span></div>
+                    <div class="dc-sub" id="d-vis-desc">—</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">🌡️ PRESSION</div>
+                    <div class="dc-value" id="d-pressure">-- <span class="unit">hPa</span></div>
+                    <div class="dc-sub" id="d-pressure-trend">—</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">☁️ NUAGES</div>
+                    <div class="dc-value" id="d-clouds">-- <span class="unit">%</span></div>
+                    <div class="dc-sub" id="d-clouds-desc">—</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">🌅 LEVER</div>
+                    <div class="dc-value" id="d-sunrise">--:--</div>
+                    <div class="dc-sub" id="d-sunrise-desc">Aube</div>
+                </div>
+                <div class="card detail-card">
+                    <div class="dc-label">🌇 COUCHER</div>
+                    <div class="dc-value" id="d-sunset">--:--</div>
+                    <div class="dc-sub" id="d-sunset-desc">Crépuscule</div>
+                </div>
+            </section>
+
+            <div class="footer-info" id="footer-info"></div>
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Paramètres</h2>
-                <button id="close-settings" class="close-btn"><svg class="ui-icon-svg" viewBox="0 0 24 24" width="20" height="20"><use href="apple-ui-icons.svg#icon-close"></use></svg></button>
-            </div>
-            <div class="modal-body">
-                <div class="setting-item">
-                    <label>Température</label>
-                    <div class="setting-toggle">
-                        <span>°C</span>
-                        <button id="temp-unit-toggle" class="toggle-btn active">°F</button>
-                    </div>
-                </div>
-                <div class="setting-item">
-                    <label>Notifications</label>
-                    <button id="notifications-toggle" class="toggle-btn active">Activé</button>
-                </div>
-                <div class="setting-item">
-                    <label>Dernière mise à jour</label>
-                    <span id="last-update" class="setting-value">Il y a 2 min</span>
-                </div>
-                <div class="setting-item">
-                    <label>Version</label>
-                    <span class="setting-value">1.0.0</span>
-                </div>
-            </div>
+    <!-- ====== VUE LISTE VILLES ====== -->
+    <div id="cities-view" class="view hidden">
+        <div class="cities-header">
+            <h1 class="cities-title">Météo</h1>
+            <button id="btn-edit-cities" class="top-btn" aria-label="Modifier">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            </button>
+        </div>
+        <div class="cities-list" id="cities-list">
+            <div class="cities-empty">Ajoutez une ville avec la recherche</div>
         </div>
     </div>
+</div>
 
-    <script src="apple-weather-icons.js?v=9"></script>
-    <script src="weather-icons.js?v=17"></script>
-    <script src="script.js?v=107"></script>
+<!-- Suggestions dropdown -->
+<div class="suggestions-dropdown" id="suggestions-dropdown"></div>
+
+<script src="weather-icons.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
