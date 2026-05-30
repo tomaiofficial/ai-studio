@@ -1,20 +1,13 @@
 /* ============================================
-   Météo App — Clean Design
+   Météo App — Page d'arrêt
    ============================================ */
 
-/* Reset */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
     --bg: #1a2a3a;
-    --card-bg: rgba(255,255,255,0.08);
-    --card-border: rgba(255,255,255,0.1);
     --text: #fff;
-    --text-secondary: rgba(255,255,255,0.6);
-    --accent: #64d2ff;
-    --radius: 16px;
-    --radius-sm: 12px;
-    --shadow: 0 4px 20px rgba(0,0,0,0.2);
+    --text-secondary: rgba(255,255,255,0.5);
 }
 
 html, body {
@@ -23,358 +16,36 @@ html, body {
     background: var(--bg);
     color: var(--text);
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
-}
-
-#app {
-    height: 100%;
-    max-width: 430px;
-    margin: 0 auto;
-    position: relative;
-}
-
-/* ====== Vues ====== */
-.view {
-    position: absolute;
-    inset: 0;
-    transition: opacity 0.3s ease, transform 0.3s ease;
-}
-.view.hidden {
-    display: none;
-}
-
-/* ====== Fond météo ====== */
-.bg-layer {
-    position: fixed;
-    inset: 0;
-    transition: background 1.2s cubic-bezier(0.4,0,0.2,1);
-    z-index: 0;
-}
-.bg-sunny      { background: linear-gradient(180deg, #2980b9, #6dd5fa, #f7971e); }
-.bg-night      { background: linear-gradient(180deg, #0f2027, #203a43, #2c5364); }
-.bg-cloudy     { background: linear-gradient(180deg, #606c88, #3f4c6b, #2c3e50); }
-.bg-rain       { background: linear-gradient(180deg, #1e3c72, #2a5298, #0f3460); }
-.bg-storm      { background: linear-gradient(180deg, #0f0c29, #302b63, #24243e); }
-.bg-snow       { background: linear-gradient(180deg, #e6dada, #274046, #e6dada); }
-.bg-fog        { background: linear-gradient(180deg, #8a9ba8, #6b7b8b, #8a9ba8); }
-.bg-default    { background: linear-gradient(180deg, #1a2a3a, #2c3e50); }
-
-/* ====== Scroll Container ====== */
-.scroll-container {
-    position: relative;
-    z-index: 1;
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0 16px 30px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-}
-.scroll-container::-webkit-scrollbar { display: none; }
-
-/* ====== Top Bar ====== */
-.top-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 0 8px;
-    position: relative;
-}
-.top-btn {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text);
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background 0.2s;
 }
-.top-btn:active { background: rgba(255,255,255,0.15); }
 
-.search-wrap {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 20px;
-    padding: 8px 14px;
-    backdrop-filter: blur(10px);
+#app {
+    width: 100%;
+    max-width: 430px;
+    padding: 40px 24px;
 }
-.search-icon { flex-shrink: 0; opacity: 0.6; }
-#search-input {
-    flex: 1;
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 15px;
-    font-weight: 400;
-    outline: none;
-    font-family: inherit;
-}
-#search-input::placeholder { color: var(--text-secondary); }
 
-/* Suggestions dans la top bar */
-.suggestions {
-    position: absolute;
-    top: 100%;
-    left: 48px;
-    right: 48px;
-    background: rgba(0,0,0,0.95);
-    backdrop-filter: blur(20px);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--card-border);
-    z-index: 100;
-    max-height: 200px;
-    overflow-y: auto;
-    display: none;
-}
-.suggestions.active { display: block; }
-.suggestion-item {
-    padding: 12px 16px;
-    cursor: pointer;
-    font-size: 14px;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-    transition: background 0.2s;
-}
-.suggestion-item:last-child { border-bottom: none; }
-.suggestion-item:hover { background: rgba(255,255,255,0.1); }
-.suggestion-item .s-sub { font-size: 12px; color: var(--text-secondary); }
-
-/* ====== Hero ====== */
-.hero {
+.shutdown {
     text-align: center;
-    padding: 20px 0 18px;
 }
-.hero-icon { margin-bottom: 6px; }
-.hero-temp {
-    font-size: 84px;
-    font-weight: 200;
-    letter-spacing: -4px;
-    line-height: 1;
-    margin: 4px 0;
+
+.shutdown-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    opacity: 0.6;
 }
-.hero-desc {
-    font-size: 20px;
+
+.shutdown-title {
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -1px;
+}
+
+.shutdown-sub {
+    font-size: 18px;
+    color: var(--text-secondary);
     font-weight: 400;
-    opacity: 0.9;
-}
-.hero-hl {
-    font-size: 16px;
-    font-weight: 500;
-    opacity: 0.7;
-    margin-top: 4px;
-}
-
-/* ====== Cards ====== */
-.card {
-    background: var(--card-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: var(--radius);
-    padding: 16px;
-    border: 0.5px solid var(--card-border);
-    margin-bottom: 14px;
-    overflow: hidden;
-}
-.card-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.8px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    margin-bottom: 6px;
-}
-
-/* ====== Hourly ====== */
-.hourly-scroll {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 8px 0 4px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    -webkit-overflow-scrolling: touch;
-}
-.hourly-scroll::-webkit-scrollbar { display: none; }
-.hour-item {
-    min-width: 56px;
-    flex-shrink: 0;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 8px 4px;
-    border-radius: var(--radius-sm);
-    transition: background 0.2s;
-}
-.hour-item.now { background: rgba(255,255,255,0.1); }
-.hour-item .h-time { font-size: 12px; color: var(--text-secondary); }
-.hour-item .h-icon { display: flex; align-items: center; justify-content: center; height: 36px; }
-.hour-item .h-temp { font-size: 14px; font-weight: 500; }
-.hour-item .h-rain { font-size: 10px; color: var(--accent); }
-
-/* ====== Daily ====== */
-.daily-list { display: flex; flex-direction: column; }
-.daily-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 0;
-    border-bottom: 0.5px solid rgba(255,255,255,0.06);
-}
-.daily-item:last-child { border-bottom: none; }
-.daily-item .d-day {
-    min-width: 44px;
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--text-secondary);
-}
-.daily-item .d-icon { min-width: 36px; display: flex; justify-content: center; }
-.daily-item .d-name { flex: 1; font-size: 13px; color: var(--text-secondary); text-align: left; }
-.daily-item .d-precip { font-size: 11px; color: var(--accent); min-width: 32px; text-align: center; }
-.daily-item .d-temps {
-    display: flex;
-    gap: 10px;
-    min-width: 70px;
-    justify-content: flex-end;
-}
-.daily-item .d-high { font-size: 14px; font-weight: 500; min-width: 24px; text-align: right; }
-.daily-item .d-low { font-size: 14px; color: var(--text-secondary); min-width: 24px; text-align: left; }
-
-/* ====== Detail Grid ====== */
-.grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 14px;
-}
-.detail-card {
-    display: flex;
-    flex-direction: column;
-    min-height: 120px;
-}
-.dc-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-    margin-bottom: 4px;
-}
-.dc-value {
-    font-size: 26px;
-    font-weight: 400;
-    margin-top: auto;
-    line-height: 1.1;
-}
-.dc-value .unit { font-size: 16px; font-weight: 300; opacity: 0.6; }
-.dc-sub {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 2px;
-}
-
-/* ====== Footer ====== */
-.footer-info {
-    text-align: center;
-    font-size: 11px;
-    color: var(--text-secondary);
-    opacity: 0.4;
-    padding: 8px 0 20px;
-}
-
-/* ====== Vue Villes ====== */
-.cities-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 18px 16px 10px;
-}
-.cities-title { font-size: 30px; font-weight: 600; }
-.cities-list {
-    padding: 0 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.cities-empty {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-secondary);
-    font-size: 15px;
-}
-.city-card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--card-bg);
-    backdrop-filter: blur(20px);
-    border-radius: var(--radius);
-    padding: 16px 18px;
-    border: 0.5px solid var(--card-border);
-    cursor: pointer;
-    transition: background 0.2s;
-}
-.city-card:active { background: rgba(255,255,255,0.12); }
-.city-card-name { font-size: 17px; font-weight: 500; }
-.city-card-temp { font-size: 24px; font-weight: 300; letter-spacing: -1px; }
-.city-card-edit {
-    background: rgba(255,59,48,0.9);
-    border: none;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    color: #fff;
-    font-size: 14px;
-    cursor: pointer;
-    display: none;
-}
-.cities-edit-mode .city-card-edit { display: block; }
-
-/* ====== Suggestion Dropdown globale ====== */
-.suggestions-dropdown {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 200;
-    display: none;
-}
-.suggestions-dropdown.active { display: block; }
-.suggestions-dropdown .sd-inner {
-    position: absolute;
-    top: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(100% - 32px);
-    max-width: 400px;
-    background: rgba(20,30,45,0.98);
-    backdrop-filter: blur(20px);
-    border-radius: var(--radius);
-    border: 1px solid var(--card-border);
-    max-height: 50vh;
-    overflow-y: auto;
-}
-
-/* ====== Responsive ====== */
-@media (max-width: 374px) {
-    .hero-temp { font-size: 68px; }
-    .dc-value { font-size: 22px; }
-}
-@media (min-width: 431px) {
-    #app { max-width: 100%; }
-    .scroll-container { max-width: 430px; margin: 0 auto; }
 }
