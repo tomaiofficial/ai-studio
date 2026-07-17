@@ -5,12 +5,14 @@ Backend: Mistral Voxtral TTS + Pixtral Vision
 
 import os
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app)  # Accepte OPTIONS preflight pour tous les endpoints
 
 MISTRAL_API_KEY = os.environ.get('MISTRAL_API_KEY', '')
 MISTRAL_TTS_URL = 'https://api.mistral.ai/v1/audio/speech'
