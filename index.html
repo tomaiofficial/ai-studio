@@ -191,7 +191,7 @@ function startMic(){
 }
 function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 
-/* ---- Config Mistral (direct depuis le navigateur) ---- */
+/* ---- Config Mistral ---- */
 const API_KEY='hqC6t0vj7Mqkesum4ZhrVv6Qgxg3VZMy';
 const MISTRAL_CHAT='https://api.mistral.ai/v1/chat/completions';
 const MISTRAL_TTS='https://api.mistral.ai/v1/audio/speech';
@@ -199,6 +199,23 @@ const CHAT_MODEL='pixtral-large-latest';
 const TTS_MODEL='voxtral-mini-tts-2603';
 const VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
 const SYS_PROMPT="Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max sauf si on te demande des détails. Style conversationnel. Tu n'es jamais un robot.";
+
+/* Détection : localhost = backend, sinon CORS proxy */
+const IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+const PROXY=IS_LOCAL?'':'https://corsproxy.io/?';
+
+async function callMistralChat(messages){
+    const url=PROXY+MISTRAL_CHAT;
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},body:JSON.stringify({model:CHAT_MODEL,messages,max_tokens:250,temperature:0.7})});
+    if(!r.ok)throw new Error('Chat API '+r.status);
+    return(await r.json()).choices[0].message.content;
+}
+async function callMistralTTS(text){
+    const url=PROXY+MISTRAL_TTS;
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},body:JSON.stringify({model:TTS_MODEL,input:text,voice_id:VOICE_ID,response_format:'wav'})});
+    if(!r.ok)return'';
+    const d=await r.json();return d.audio_data||'';
+}
 
 /* ---- send to AI ---- */
 async function onUserText(text){
@@ -212,44 +229,27 @@ async function onUserText(text){
     stat('Réflexion...','on');
 
     try{
-        /* --- Chat (Mistral Vision) --- */
         const messages=[{role:'system',content:SYS_PROMPT},...history.slice(-20)];
         const userContent=[];
         if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
         userContent.push({type:'text',text:text});
         messages.push({role:'user',content:userContent});
 
-        const chatResp=await fetch(MISTRAL_CHAT,{
-            method:'POST',
-            headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-            body:JSON.stringify({model:CHAT_MODEL,messages,max_tokens:250,temperature:0.7})
-        });
-        if(!chatResp.ok)throw new Error('Chat API '+chatResp.status);
-        const chatData=await chatResp.json();
-        const aiText=chatData.choices[0].message.content;
-
+        const aiText=await callMistralChat(messages);
         await typeText(typing,aiText);
         history.push({role:'assistant',content:aiText});
 
-        /* --- TTS (Mistral Voxtral) --- */
         try{
-            const ttsResp=await fetch(MISTRAL_TTS,{
-                method:'POST',
-                headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-                body:JSON.stringify({model:TTS_MODEL,input:aiText,voice_id:VOICE_ID,response_format:'wav'})
-            });
-            if(ttsResp.ok){
-                const ttsData=await ttsResp.json();
-                if(ttsData.audio_data){
-                    stat('Parle...','talk');speaking=true;orb.className='speaking';
-                    const raw=atob(ttsData.audio_data);
-                    const u8=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
-                    const blob=new Blob([u8],{type:'audio/wav'});
-                    const url=URL.createObjectURL(blob);
-                    tts.src=url;await tts.play();
-                    await new Promise(res=>{tts.onended=()=>{URL.revokeObjectURL(url);res()}});
-                    speaking=false;orb.className='idle';
-                }
+            const audioB64=await callMistralTTS(aiText);
+            if(audioB64){
+                stat('Parle...','talk');speaking=true;orb.className='speaking';
+                const raw=atob(audioB64);
+                const u8=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
+                const blob=new Blob([u8],{type:'audio/wav'});
+                const url=URL.createObjectURL(blob);
+                tts.src=url;await tts.play();
+                await new Promise(res=>{tts.onended=()=>{URL.revokeObjectURL(url);res()}});
+                speaking=false;orb.className='idle';
             }
         }catch(e){console.warn('TTS error',e);speaking=false;orb.className='idle';}
 
