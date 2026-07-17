@@ -1,407 +1,530 @@
 /* ============================================
-   Météo App — Clean Script
+   Photomaton ID — Boîte à Photos d'Identité
+   Vocal: Mistral Voxtral TTS
    ============================================ */
 
-// ---- Constantes ----
-const SAVED_CITIES_KEY = 'meteo_cities';
-const GEO_API = 'https://geocoding-api.open-meteo.com/v1/search';
-const WX_API = 'https://api.open-meteo.com/v1/forecast';
-
-// ---- État ----
-let state = {
-    cities: [],
-    currentCity: 'Paris',
-    coords: { lat: 48.8566, lon: 2.3522 },
-    editMode: false,
-    reqSeq: 0,
-    isSearching: false
+// ---- State ----
+const state = {
+    soundEnabled: true,
+    photos: [],
+    maxPhotos: 4,
+    currentPhoto: 0,
+    stream: null,
+    speaking: false,
+    ttsQueue: [],
+    mistralAvailable: true,
+    audioCtx: null
 };
 
-// ---- Helpers ----
+// ---- Elements ----
 const $ = id => document.getElementById(id);
-const norm = s => (s || '').trim().toLowerCase();
 
-function getWindDir(deg) {
-    if (deg == null) return '—';
-    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
-    return dirs[Math.round(deg / 22.5) % 16] || '—';
+// ---- Screens ----
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    $(id).classList.add('active');
 }
 
-function fmtTime(iso) {
-    if (!iso) return '--:--';
-    try { return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); }
-    catch (_) { return '--:--'; }
+// ---- Audio Context (lazy init) ----
+function getAudioContext() {
+    if (!state.audioCtx) {
+        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return state.audioCtx;
 }
 
-function fmtDay(dateStr, i) {
-    const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-    if (i === 0) return "Aujourd'hui";
-    if (i === 1) return 'Demain';
-    const d = new Date(dateStr + 'T12:00:00');
-    return days[d.getDay()] || '';
-}
-
-// ---- LocalStorage ----
-function loadCities() {
+// ---- Mistral Voxtral TTS ----
+async function speakMistral(text) {
     try {
-        const raw = JSON.parse(localStorage.getItem(SAVED_CITIES_KEY));
-        if (Array.isArray(raw) && raw.length) return raw;
-    } catch (_) {}
-    return ['Paris', 'Lyon', 'Marseille'];
-}
-function saveCities() {
-    localStorage.setItem(SAVED_CITIES_KEY, JSON.stringify(state.cities));
-}
+        const resp = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
 
-// ---- API ----
-async function searchCity(query) {
-    const url = `${GEO_API}?name=${encodeURIComponent(query)}&count=5&language=fr&format=json`;
-    const res = await fetch(url);
-    const data = await res.json();
-    return data.results || [];
-}
-
-async function getCoords(query) {
-    const results = await searchCity(query);
-    if (!results.length) return null;
-    const r = results[0];
-    return { name: r.name, lat: r.latitude, lon: r.longitude, country: r.country, admin1: r.admin1 };
-}
-
-async function getWeather(lat, lon) {
-    const params = new URLSearchParams({
-        latitude: lat,
-        longitude: lon,
-        current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,pressure_msl,is_day,precipitation,cloud_cover,visibility,dew_point_2m,uv_index',
-        hourly: 'temperature_2m,weather_code,precipitation_probability,wind_speed_10m',
-        daily: 'temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max,sunrise,sunset',
-        timezone: 'auto',
-        forecast_days: 10
-    });
-    const res = await fetch(`${WX_API}?${params}`);
-    if (!res.ok) throw new Error('API error');
-    return res.json();
-}
-
-// ---- Descriptions WMO ----
-const WMO = {
-    0: 'Ciel dégagé', 1: 'Peu nuageux', 2: 'Partiellement nuageux',
-    3: 'Nuageux', 45: 'Brumeux', 48: 'Brouillard',
-    51: 'Bruine', 53: 'Bruine modérée', 55: 'Bruine dense',
-    56: 'Verglas', 57: 'Verglas dense',
-    61: 'Pluie légère', 63: 'Pluie', 65: 'Forte pluie',
-    66: 'Pluie verglaçante', 67: 'Forte pluie verglaçante',
-    71: 'Neige légère', 73: 'Neige', 75: 'Forte neige',
-    77: 'Grésil', 80: 'Averses', 81: 'Averses modérées',
-    82: 'Averses violentes', 85: 'Averses neige', 86: 'Fortes averses neige',
-    95: 'Orage', 96: 'Orage grêle', 99: 'Orage grêle fort'
-};
-const desc = c => WMO[c] || '—';
-
-// ---- Background ----
-function setBg(code, isDay) {
-    const el = $('bg-layer');
-    if (!el) return;
-    el.className = 'bg-layer';
-    let cls = 'bg-default';
-    if (code === 0 || code === 1) cls = isDay ? 'bg-sunny' : 'bg-night';
-    else if (code === 2 || code === 3) cls = isDay ? 'bg-cloudy' : 'bg-night';
-    else if (code >= 45 && code <= 48) cls = 'bg-fog';
-    else if ((code >= 51 && code <= 82) || (code >= 80 && code <= 82)) cls = 'bg-rain';
-    else if (code >= 71 && code <= 77) cls = 'bg-snow';
-    else if (code >= 95) cls = 'bg-storm';
-    el.classList.add(cls);
-}
-
-// ---- Navigation ----
-function showDetail() {
-    $('detail-view').classList.remove('hidden');
-    $('cities-view').classList.add('hidden');
-}
-function showCities() {
-    $('detail-view').classList.add('hidden');
-    $('cities-view').classList.remove('hidden');
-    renderCities();
-}
-
-// ---- Afficher météo ----
-function display(data, cityName) {
-    const c = data.current, d = data.daily, h = data.hourly;
-    if (!c) return;
-
-    state.currentCity = cityName;
-    state.coords = { lat: data.latitude, lon: data.longitude };
-
-    setBg(c.weather_code, c.is_day !== 0);
-
-    // Hero
-    $('hero-icon').innerHTML = createWeatherIconSVG(c.weather_code, c.is_day !== 0, 80);
-    $('hero-temp').textContent = `${Math.round(c.temperature_2m)}°`;
-    $('hero-desc').textContent = desc(c.weather_code);
-    if (d) {
-        $('hero-hl').textContent = `H:${Math.round(d.temperature_2m_max[0])}°  L:${Math.round(d.temperature_2m_min[0])}°`;
-    }
-
-    // Hourly
-    renderHourly(h);
-
-    // Daily
-    if (d) renderDaily(d);
-
-    // Details
-    setText('d-feels', `${Math.round(c.apparent_temperature)}°`);
-    setText('d-feels-desc', c.apparent_temperature > c.temperature_2m ? 'Plus chaud' : 'Plus frais');
-    setText('d-humidity', `${c.relative_humidity_2m}%`);
-    setText('d-dew', c.dew_point_2m != null ? `Rosée: ${Math.round(c.dew_point_2m)}°` : '—');
-    setInnerH('d-wind', `${Math.round(c.wind_speed_10m)} <span class="unit">km/h</span>`);
-    setText('d-wind-dir', getWindDir(c.wind_direction_10m));
-    if (c.uv_index != null) {
-        const uv = c.uv_index;
-        setText('d-uv', uv.toFixed(1));
-        setText('d-uv-desc', uv < 3 ? 'Faible' : uv < 6 ? 'Modéré' : uv < 8 ? 'Élevé' : uv < 11 ? 'Très élevé' : 'Extrême');
-    }
-    const precip = c.precipitation != null ? c.precipitation : (d ? d.precipitation_sum[0] : 0);
-    setInnerH('d-precip', `${precip} <span class="unit">mm</span>`);
-    setText('d-precip-desc', precip === 0 ? 'Aucune' : `${Math.round(precip)} mm aujourd'hui`);
-    if (c.visibility != null) {
-        const v = (c.visibility / 1000).toFixed(1);
-        setInnerH('d-vis', `${v} <span class="unit">km</span>`);
-        setText('d-vis-desc', v < 1 ? 'Très faible' : v < 4 ? 'Faible' : v < 10 ? 'Modérée' : v < 20 ? 'Bonne' : 'Excellente');
-    }
-    if (c.pressure_msl != null) {
-        setInnerH('d-pressure', `${Math.round(c.pressure_msl)} <span class="unit">hPa</span>`);
-        setText('d-pressure-trend', c.pressure_msl > 1013 ? 'Haute' : 'Basse');
-    }
-    setInnerH('d-clouds', `${c.cloud_cover} <span class="unit">%</span>`);
-    setText('d-clouds-desc', c.cloud_cover < 10 ? 'Ciel dégagé' : c.cloud_cover < 30 ? 'Peu nuageux' : c.cloud_cover < 60 ? 'Nuageux' : c.cloud_cover < 85 ? 'Très nuageux' : 'Couvert');
-    if (d && d.sunrise && d.sunrise[0]) {
-        setText('d-sunrise', fmtTime(d.sunrise[0]));
-        setText('d-sunrise-desc', 'Lever');
-    }
-    if (d && d.sunset && d.sunset[0]) {
-        setText('d-sunset', fmtTime(d.sunset[0]));
-        setText('d-sunset-desc', 'Coucher');
-    }
-
-    // Footer
-    const now = new Date();
-    $('footer-info').textContent = `Mis à jour ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} • ${cityName}`;
-}
-
-function setText(id, val) { const el = $(id); if (el) el.textContent = val; }
-function setInnerH(id, val) { const el = $(id); if (el) el.innerHTML = val; }
-
-// ---- Hourly ----
-function renderHourly(h) {
-    const container = $('hourly-scroll');
-    if (!container || !h || !h.time) return;
-    const times = h.time, temps = h.temperature_2m, codes = h.weather_code, probs = h.precipitation_probability || [];
-    const nowH = new Date().getHours();
-    const startIdx = Math.max(0, Math.min(times.length - 1, nowH));
-
-    let html = '';
-    for (let i = 0; i < Math.min(24, times.length - startIdx); i++) {
-        const idx = startIdx + i;
-        const hour = parseInt(times[idx].split('T')[1].split(':')[0]);
-        const label = i === 0 ? 'Maintenant' : `${hour}h`;
-        const isDay = hour >= 6 && hour < 21;
-        const icon = createWeatherIconSVG(codes[idx], isDay, 26);
-        html += `<div class="hour-item${i === 0 ? ' now' : ''}">
-            <div class="h-time">${label}</div>
-            <div class="h-icon">${icon}</div>
-            <div class="h-temp">${Math.round(temps[idx])}°</div>
-            ${probs[idx] != null ? `<div class="h-rain">${probs[idx]}%</div>` : ''}
-        </div>`;
-    }
-    container.innerHTML = html;
-}
-
-// ---- Daily ----
-function renderDaily(d) {
-    const container = $('daily-list');
-    if (!container || !d || !d.time) return;
-    let html = '';
-    for (let i = 0; i < d.time.length; i++) {
-        const icon = createWeatherIconSVG(d.weather_code[i], true, 24);
-        const precip = d.precipitation_sum ? Math.round(d.precipitation_sum[i]) : 0;
-        html += `<div class="daily-item">
-            <div class="d-day">${fmtDay(d.time[i], i)}</div>
-            <div class="d-icon">${icon}</div>
-            <div class="d-name">${desc(d.weather_code[i])}</div>
-            ${precip > 0 ? `<div class="d-precip">${precip}mm</div>` : '<div class="d-precip"></div>'}
-            <div class="d-temps">
-                <div class="d-high">${Math.round(d.temperature_2m_max[i])}°</div>
-                <div class="d-low">${Math.round(d.temperature_2m_min[i])}°</div>
-            </div>
-        </div>`;
-    }
-    container.innerHTML = html;
-}
-
-// ---- Charger une ville ----
-async function loadWeather(cityName) {
-    const seq = ++state.reqSeq;
-    const condEl = $('hero-desc');
-    if (condEl) condEl.textContent = 'Recherche...';
-
-    const cd = await getCoords(cityName);
-    if (seq !== state.reqSeq) return;
-    if (!cd) { if (condEl) condEl.textContent = 'Ville non trouvée'; return; }
-
-    state.coords = { lat: cd.lat, lon: cd.lon };
-    state.currentCity = cd.name;
-    if (condEl) condEl.textContent = 'Chargement...';
-
-    try {
-        const data = await getWeather(cd.lat, cd.lon);
-        if (seq !== state.reqSeq) return;
-        display(data, cd.name);
-        showDetail();
-
-        // Save city
-        if (!state.cities.some(c => norm(c) === norm(cd.name))) {
-            state.cities.push(cd.name);
-            saveCities();
+        if (!resp.ok) {
+            console.warn('Mistral TTS error, falling back to browser TTS');
+            return false;
         }
-    } catch (_) {
-        if (condEl) condEl.textContent = 'Erreur de connexion';
+
+        const data = await resp.json();
+        if (!data.audio_data) return false;
+
+        // Decode base64 MP3 and play
+        const audioBytes = Uint8Array.from(atob(data.audio_data), c => c.charCodeAt(0));
+        const blob = new Blob([audioBytes], { type: 'audio/mp3' });
+        const url = URL.createObjectURL(blob);
+
+        return new Promise((resolve) => {
+            const audio = new Audio(url);
+            audio.onended = () => {
+                URL.revokeObjectURL(url);
+                state.speaking = false;
+                setTimeout(() => updateVoiceBubble(''), 1500);
+                resolve(true);
+            };
+            audio.onerror = () => {
+                URL.revokeObjectURL(url);
+                resolve(false);
+            };
+            audio.play().catch(() => resolve(false));
+        });
+    } catch (err) {
+        console.warn('Mistral TTS fetch error:', err);
+        return false;
     }
 }
 
-// ---- Géolocalisation ----
-async function loadGeolocation() {
-    if (!navigator.geolocation) { loadWeather('Paris'); return; }
-    navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-            try {
-                const res = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=fr`,
-                    { headers: { 'User-Agent': 'MeteoApp/1.0' } }
-                );
-                const geo = await res.json();
-                const city = geo.address?.city || geo.address?.town || geo.address?.village || 'Ma position';
-                const data = await getWeather(pos.coords.latitude, pos.coords.longitude);
-                display(data, city);
-                showDetail();
-            } catch (_) { loadWeather('Paris'); }
-        },
-        () => loadWeather('Paris'),
-        { timeout: 8000, maximumAge: 300000 }
-    );
+// ---- Browser TTS Fallback ----
+function speakBrowser(text) {
+    return new Promise((resolve) => {
+        if (!window.speechSynthesis) { resolve(false); return; }
+
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'fr-FR';
+        utterance.rate = 0.9;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+
+        const voices = window.speechSynthesis.getVoices();
+        const frVoice = voices.find(v => v.lang.startsWith('fr'));
+        if (frVoice) utterance.voice = frVoice;
+
+        utterance.onend = () => {
+            state.speaking = false;
+            setTimeout(() => updateVoiceBubble(''), 1500);
+            resolve(true);
+        };
+        utterance.onerror = () => resolve(false);
+
+        window.speechSynthesis.speak(utterance);
+    });
 }
 
-// ---- Villes liste ----
-function renderCities() {
-    const container = $('cities-list');
-    if (!container) return;
-    if (!state.cities.length) {
-        container.innerHTML = '<div class="cities-empty">Ajoutez une ville avec la recherche</div>';
+// ---- Main speak function (Mistral TTS → fallback browser) ----
+async function speak(text, priority = false) {
+    if (!state.soundEnabled) return;
+    if (state.speaking && !priority) return;
+
+    state.speaking = true;
+    updateVoiceBubble(text);
+
+    // Try Mistral TTS first
+    if (state.mistralAvailable) {
+        const ok = await speakMistral(text);
+        if (ok) return;
+        // If failed, mark as unavailable and fall back
+        state.mistralAvailable = false;
+        console.warn('Mistral TTS unavailable, using browser fallback');
+    }
+
+    // Fallback to browser TTS
+    await speakBrowser(text);
+}
+
+function updateVoiceBubble(text) {
+    const el = $('voice-text');
+    if (el) el.textContent = text || 'En attente...';
+}
+
+// Preload browser voices for fallback
+if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = () => {};
+}
+
+// ---- Test Mistral connection on load ----
+async function testMistralConnection() {
+    try {
+        const resp = await fetch('/api/voices');
+        if (resp.ok) {
+            state.mistralAvailable = true;
+            console.log('Mistral Voxtral TTS connecté');
+        } else {
+            state.mistralAvailable = false;
+            console.warn('Mistral TTS non disponible, fallback navigateur');
+        }
+    } catch {
+        state.mistralAvailable = false;
+    }
+}
+
+// ---- Camera ----
+async function startCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: 'user',
+                width: { ideal: 1280 },
+                height: { ideal: 960 }
+            },
+            audio: false
+        });
+        state.stream = stream;
+        const video = $('camera');
+        video.srcObject = stream;
+        return true;
+    } catch (err) {
+        console.error('Camera error:', err);
+        alert('Impossible d\'accéder à la caméra.\n\nVeuillez autoriser l\'accès à la caméra dans les paramètres de votre navigateur.');
+        return false;
+    }
+}
+
+function stopCamera() {
+    if (state.stream) {
+        state.stream.getTracks().forEach(t => t.stop());
+        state.stream = null;
+    }
+}
+
+// ---- Photo Capture ----
+function capturePhoto() {
+    const video = $('camera');
+    const canvas = $('camera-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Set canvas size to video dimensions
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Mirror the image (front camera)
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // Crop to ID photo ratio (35mm x 45mm ≈ 7:9)
+    const idRatio = 7 / 9;
+    const srcRatio = canvas.width / canvas.height;
+
+    let sx, sy, sw, sh;
+    if (srcRatio > idRatio) {
+        sh = canvas.height;
+        sw = sh * idRatio;
+        sx = (canvas.width - sw) / 2;
+        sy = 0;
+    } else {
+        sw = canvas.width;
+        sh = sw / idRatio;
+        sx = 0;
+        sy = (canvas.height - sh) / 2;
+    }
+
+    // Create cropped canvas
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = 350;  // 35mm at 10dpi
+    cropCanvas.height = 450; // 45mm at 10dpi
+    const cropCtx = cropCanvas.getContext('2d');
+
+    // White background (ID requirement)
+    cropCtx.fillStyle = '#ffffff';
+    cropCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+
+    // Draw cropped photo
+    cropCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, cropCanvas.width, cropCanvas.height);
+
+    return cropCanvas.toDataURL('image/jpeg', 0.95);
+}
+
+// ---- Flash Effect ----
+function flashEffect() {
+    return new Promise(resolve => {
+        const flash = $('camera-flash');
+        const overlay = $('flash-overlay');
+
+        flash.classList.add('flash');
+        overlay.classList.add('flash');
+
+        setTimeout(() => {
+            flash.classList.remove('flash');
+            overlay.classList.remove('flash');
+            resolve();
+        }, 150);
+    });
+}
+
+// ---- Countdown ----
+function startCountdown() {
+    return new Promise(resolve => {
+        const container = $('countdown');
+        const numberEl = $('countdown-number');
+        container.classList.add('active');
+
+        let count = 3;
+        numberEl.textContent = count;
+        numberEl.style.animation = 'none';
+        void numberEl.offsetWidth;
+        numberEl.style.animation = '';
+
+        speak(getCountdownPhrase(count), true);
+
+        const interval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                numberEl.textContent = count;
+                numberEl.style.animation = 'none';
+                void numberEl.offsetWidth;
+                numberEl.style.animation = '';
+                speak(getCountdownPhrase(count), true);
+            } else {
+                clearInterval(interval);
+                numberEl.textContent = '📸';
+                numberEl.style.animation = 'none';
+                void numberEl.offsetWidth;
+                numberEl.style.animation = '';
+                setTimeout(() => {
+                    container.classList.remove('active');
+                    resolve();
+                }, 300);
+            }
+        }, 1000);
+    });
+}
+
+function getCountdownPhrase(n) {
+    const phrases = {
+        3: 'Trois...',
+        2: 'Deux...',
+        1: 'Un...'
+    };
+    return phrases[n] || '';
+}
+
+// ---- Pose Instructions ----
+const poseInstructions = [
+    { text: 'Regardez droit devant, expression neutre', voice: 'Regardez droit devant, gardez une expression neutre.' },
+    { text: 'Ne bougez pas, sourire léger', voice: 'Parfait ! Maintenant, un léger sourire, s\'il vous plaît.' },
+    { text: 'Tournez légèrement la tête à droite', voice: 'Tournez votre tête très légèrement vers la droite.' },
+    { text: 'Revenez face caméra, expression naturelle', voice: 'Revenez face à la caméra, expression naturelle.' }
+];
+
+const randomPoses = [
+    'Regardez droit devant, ne bougez plus !',
+    'Parfait, gardez cette position !',
+    'C\'est bien, restez immobile !',
+    'Excellent ! On continue !',
+    'Super ! Encore une photo !'
+];
+
+function getRandomPose() {
+    return randomPoses[Math.floor(Math.random() * randomPoses.length)];
+}
+
+// ---- Capture Flow ----
+async function captureNextPhoto() {
+    if (state.currentPhoto >= state.maxPhotos) {
+        finishCapture();
         return;
     }
-    container.innerHTML = state.cities.map(city =>
-        `<div class="city-card" data-city="${city.replace(/"/g, '&quot;')}">
-            ${state.editMode ? `<button class="city-card-edit" data-city="${city.replace(/"/g, '&quot;')}">✕</button>` : ''}
-            <div class="city-card-name">${city}</div>
-            <div class="city-card-temp">—°</div>
-        </div>`
+
+    state.currentPhoto++;
+    $('photo-count').textContent = state.currentPhoto;
+
+    // Update pose label
+    const poseIdx = Math.min(state.currentPhoto - 1, poseInstructions.length - 1);
+    const instruction = poseInstructions[poseIdx];
+    $('pose-label').textContent = instruction.text;
+    speak(instruction.voice, true);
+
+    // Wait for pose
+    await sleep(1500);
+
+    // Countdown
+    await startCountdown();
+
+    // Flash
+    await flashEffect();
+
+    // Capture
+    const photoData = capturePhoto();
+    state.photos.push(photoData);
+
+    // Shutter sound effect (visual)
+    const viewfinder = document.querySelector('.viewfinder');
+    viewfinder.style.border = '3px solid var(--yellow-accent)';
+    setTimeout(() => {
+        viewfinder.style.border = '3px solid var(--blue-primary)';
+    }, 300);
+
+    // Feedback
+    speak(getRandomPose(), true);
+
+    // Next photo or finish
+    setTimeout(() => captureNextPhoto(), 1200);
+}
+
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
+
+// ---- Finish & Preview ----
+function finishCapture() {
+    stopCamera();
+    showScreen('screen-preview');
+    renderPreview();
+    speak('Voilà ! Vos photos d\'identité sont prêtes. Vous pouvez les télécharger ou les reprendre.', true);
+}
+
+function renderPreview() {
+    // Photo strip
+    const strip = $('photo-strip');
+    strip.innerHTML = state.photos.map((p, i) =>
+        `<img src="${p}" alt="Photo ${i + 1}">`
     ).join('');
 
-    container.querySelectorAll('.city-card').forEach(card => {
-        card.addEventListener('click', e => {
-            if (e.target.classList.contains('city-card-edit')) return;
-            loadWeather(card.dataset.city);
-        });
-    });
-    container.querySelectorAll('.city-card-edit').forEach(btn => {
-        btn.addEventListener('click', e => {
-            e.stopPropagation();
-            state.cities = state.cities.filter(c => norm(c) !== norm(btn.dataset.city));
-            saveCities();
-            renderCities();
-        });
-    });
+    // ID card preview
+    const idCard = $('id-card-preview');
+    if (state.photos.length > 0) {
+        idCard.innerHTML = `
+            <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                <img src="${state.photos[0]}" alt="Photo d'identité" style="width:50px; height:65px;">
+                <div style="font-size:6px; color:#666;">PHOTO</div>
+            </div>
+            <div style="flex:1.5; display:flex; flex-direction:column; gap:4px; padding-top:16px;">
+                <div style="font-size:8px; color:#1a3a6a; font-weight:700;">NOM Prénom</div>
+                <div style="font-size:7px; color:#666;">Né(e) le : --/--/----</div>
+                <div style="font-size:7px; color:#666;">Lieu de naissance : -----</div>
+                <div style="font-size:7px; color:#666;">Nationalité : Française</div>
+            </div>
+        `;
+    }
 }
 
-// ---- Recherche ----
-let searchTimer;
-function setupSearch() {
-    const input = $('search-input');
-    if (!input) return;
+// ---- Download ----
+function downloadPhotos() {
+    if (state.photos.length === 0) return;
 
-    input.addEventListener('input', () => {
-        clearTimeout(searchTimer);
-        const q = input.value.trim();
-        if (q.length < 2) { hideSuggestions(); return; }
-        searchTimer = setTimeout(() => doSearch(q), 300);
-    });
+    // Create a printable sheet with 8 ID photos (standard sheet)
+    const canvas = document.createElement('canvas');
+    const cols = 2;
+    const rows = 4;
+    const photoW = 350;
+    const photoH = 450;
+    const gap = 20;
+    const padding = 40;
 
-    input.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-            clearTimeout(searchTimer);
-            const q = input.value.trim();
-            if (q) { hideSuggestions(); loadWeather(q); }
+    canvas.width = cols * photoW + (cols - 1) * gap + 2 * padding;
+    canvas.height = rows * photoH + (rows - 1) * gap + 2 * padding;
+
+    const ctx = canvas.getContext('2d');
+
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Place photos
+    const photo = new Image();
+    photo.onload = () => {
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const x = padding + col * (photoW + gap);
+                const y = padding + row * (photoH + gap);
+
+                // Cut lines (light gray)
+                ctx.strokeStyle = '#ddd';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(x - 2, y - 2, photoW + 4, photoH + 4);
+                ctx.setLineDash([]);
+
+                // Photo
+                ctx.drawImage(photo, x, y, photoW, photoH);
+            }
         }
-    });
+
+        // Download
+        const link = document.createElement('a');
+        link.download = `photomaton-id-${Date.now()}.jpg`;
+        link.href = canvas.toDataURL('image/jpeg', 0.95);
+        link.click();
+
+        speak('Feuille de photos téléchargée ! Imprimez-la en taille réelle.', true);
+    };
+    photo.src = state.photos[0];
 }
 
-async function doSearch(query) {
-    const results = await searchCity(query);
-    const container = $('suggestions');
-    if (!container) return;
-    if (!results.length) { container.classList.remove('active'); return; }
-
-    container.innerHTML = results.map(r => {
-        const label = `${r.name}${r.admin1 ? ', ' + r.admin1 : ''}${r.country ? ', ' + r.country : ''}`;
-        return `<div class="suggestion-item" data-name="${r.name.replace(/"/g, '&quot;')}" data-lat="${r.latitude}" data-lon="${r.longitude}">
-            ${label}
-        </div>`;
-    }).join('');
-    container.classList.add('active');
-
-    container.querySelectorAll('.suggestion-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const name = item.dataset.name;
-            hideSuggestions();
-            input.value = '';
-            loadWeather(name);
-        });
-    });
+// ---- Reset ----
+function resetSession() {
+    state.photos = [];
+    state.currentPhoto = 0;
+    $('photo-count').textContent = '0';
+    $('pose-label').textContent = poseInstructions[0].text;
+    showScreen('screen-welcome');
 }
 
-function hideSuggestions() {
-    const c = $('suggestions');
-    if (c) c.classList.remove('active');
-    const d = $('suggestions-dropdown');
-    if (d) d.classList.remove('active');
+// ---- Toggle Sound ----
+function toggleSound() {
+    state.soundEnabled = !state.soundEnabled;
+    $('sound-icon').textContent = state.soundEnabled ? '🔊' : '🔇';
+    if (state.soundEnabled) {
+        speak('Son activé !');
+    } else {
+        window.speechSynthesis.cancel();
+    }
 }
 
-// ---- Initialisation ----
+// ---- Event Listeners ----
 document.addEventListener('DOMContentLoaded', () => {
-    state.cities = loadCities();
-    showCities();
 
-    // Navigation
-    $('btn-menu')?.addEventListener('click', showCities);
-    $('btn-location')?.addEventListener('click', loadGeolocation);
-    $('btn-edit-cities')?.addEventListener('click', () => {
-        state.editMode = !state.editMode;
-        $('cities-list')?.classList.toggle('cities-edit-mode', state.editMode);
-        renderCities();
+    // Test Mistral TTS on load
+    testMistralConnection();
+
+    // Start button
+    $('btn-start').addEventListener('click', async () => {
+        showScreen('screen-camera');
+        const ok = await startCamera();
+        if (!ok) {
+            showScreen('screen-welcome');
+            return;
+        }
+
+        state.currentPhoto = 0;
+        state.photos = [];
+        $('photo-count').textContent = '0';
+        $('pose-label').textContent = poseInstructions[0].text;
+
+        speak('Bienvenue dans le Photomaton d\'identité ! Je vais vous guider pour prendre vos photos. Regardez droit devant vous.', true);
+
+        // Auto-start capture after welcome
+        setTimeout(() => captureNextPhoto(), 3000);
     });
 
-    setupSearch();
+    // Capture button (manual trigger)
+    $('btn-capture').addEventListener('click', () => {
+        if (state.currentPhoto >= state.maxPhotos) return;
+        // Stop auto flow, manual capture
+        captureNextPhoto();
+    });
 
-    // Charger Paris au démarrage
-    loadWeather('Paris');
+    // Cancel
+    $('btn-cancel').addEventListener('click', () => {
+        stopCamera();
+        resetSession();
+    });
 
-    // Geoloc silencieuse
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                localStorage.setItem('lastCoords', JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude, timestamp: Date.now() }));
-            },
-            () => {},
-            { timeout: 5000, maximumAge: 300000 }
-        );
+    // Retake
+    $('btn-retake').addEventListener('click', async () => {
+        resetSession();
+        showScreen('screen-camera');
+        await startCamera();
+        speak('On reprend les photos ! Regardez droit devant.', true);
+        setTimeout(() => captureNextPhoto(), 2000);
+    });
+
+    // Download
+    $('btn-download').addEventListener('click', downloadPhotos);
+
+    // Sound toggle
+    $('btn-sound').addEventListener('click', toggleSound);
+
+    // Machine light animation
+    const light = $('machine-light');
+    if (light) {
+        setInterval(() => {
+            light.style.background = light.style.background === 'rgb(0, 255, 136)'
+                ? '#ffcc00'
+                : '#00ff88';
+        }, 2000);
     }
 });
