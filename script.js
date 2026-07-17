@@ -45,14 +45,13 @@ function unlockAudio() {
     }
 }
 
-// Play MP3 via Web Audio API (avoids autoplay policy)
+// Play audio via Web Audio API (avoids autoplay policy)
 function playMP3(base64Data) {
     return new Promise((resolve) => {
         try {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            // Resume if suspended
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume().then(() => decodeAndPlay());
             } else {
@@ -65,6 +64,7 @@ function playMP3(base64Data) {
                 for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
 
                 audioCtx.decodeAudioData(bytes.buffer, (buffer) => {
+                    console.log('Audio decoded OK, duration:', buffer.duration.toFixed(1) + 's');
                     const source = audioCtx.createBufferSource();
                     source.buffer = buffer;
                     source.connect(audioCtx.destination);
@@ -72,7 +72,8 @@ function playMP3(base64Data) {
                     source.start(0);
                 }, (err) => {
                     console.warn('decodeAudioData failed:', err);
-                    resolve(false);
+                    // Fallback: try with Audio element + blob URL
+                    playWithAudioElement(base64Data, resolve);
                 });
             }
         } catch (e) {
@@ -82,9 +83,28 @@ function playMP3(base64Data) {
     });
 }
 
+// Fallback: play via Audio element (if Web Audio decode fails)
+function playWithAudioElement(base64Data, resolve) {
+    try {
+        const raw = atob(base64Data);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(true); };
+        audio.onerror = (e) => { console.warn('Audio element error:', e); URL.revokeObjectURL(url); resolve(false); };
+        audio.play().then(() => console.log('Audio element playing')).catch(e => { console.warn('audio.play() blocked:', e); resolve(false); });
+    } catch (e) {
+        console.warn('playWithAudioElement error:', e);
+        resolve(false);
+    }
+}
+
 // ---- Mistral Voxtral TTS ----
 async function speakMistral(text) {
     try {
+        console.log('[TTS] Requesting Mistral:', text.substring(0, 50));
         const resp = await fetch('/api/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -92,22 +112,28 @@ async function speakMistral(text) {
         });
 
         if (!resp.ok) {
-            console.warn('Mistral TTS error:', resp.status);
+            console.warn('[TTS] Mistral HTTP error:', resp.status);
             return false;
         }
 
         const data = await resp.json();
-        if (!data.audio_data) return false;
+        if (!data.audio_data) {
+            console.warn('[TTS] No audio_data in response');
+            return false;
+        }
+
+        console.log('[TTS] Got audio data, length:', data.audio_data.length);
 
         // Play via Web Audio API
         const ok = await playMP3(data.audio_data);
+        console.log('[TTS] Play result:', ok);
         if (ok) {
             state.speaking = false;
             setTimeout(() => updateVoiceBubble(''), 1500);
         }
         return ok;
     } catch (err) {
-        console.warn('Mistral TTS fetch error:', err);
+        console.warn('[TTS] Mistral fetch error:', err);
         return false;
     }
 }

@@ -43,7 +43,7 @@ def text_to_speech():
         'model': TTS_MODEL,
         'input': text,
         'voice_id': voice_id,
-        'response_format': 'mp3',
+        'response_format': 'wav',
     }
 
     try:
