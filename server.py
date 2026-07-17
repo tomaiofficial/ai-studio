@@ -106,99 +106,108 @@ def ia_page():
     return send_from_directory('.', 'ia.html')
 
 # ---- IA Assistant Endpoint ----
+MISTRAL_CHAT_URL = 'https://api.mistral.ai/v1/chat/completions'
+CHAT_MODELS = ['pixtral-large-latest', 'mistral-large-latest']  # fallback chain
+
+SYSTEM_PROMPT = (
+    "Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra "
+    "filme et tu écoutes l'utilisateur grâce au microphone. Ton objectif est de "
+    "discuter comme un humain, avec des réponses naturelles, courtes et fluides. "
+    "Tu décris uniquement ce que tu observes réellement, sans inventer. "
+    "Réponds comme dans une vraie conversation. Utilise un ton chaleureux, "
+    "naturel et dynamique. Si l'utilisateur montre un objet, identifie-le et "
+    "explique-le simplement. Si tu n'es pas certain de ce que montre la caméra, "
+    "indique ton niveau d'incertitude. Garde les réponses courtes (2-3 phrases "
+    "max), sauf si l'utilisateur demande des détails. Parle avec des contractions "
+    "et un style conversationnel. Tu ne dis jamais que tu es un robot. Tu te "
+    "comportes comme un véritable assistant intelligent capable de voir, écouter "
+    "et dialoguer naturellement."
+)
+
+
+def _call_chat(messages):
+    """Try chat models with fallback."""
+    for model in CHAT_MODELS:
+        try:
+            resp = requests.post(
+                MISTRAL_CHAT_URL,
+                headers={'Authorization': f'Bearer {MISTRAL_API_KEY}',
+                         'Content-Type': 'application/json'},
+                json={'model': model, 'messages': messages, 'max_tokens': 250,
+                      'temperature': 0.7},
+                timeout=25,
+            )
+            if resp.status_code == 200:
+                return resp.json()['choices'][0]['message']['content']
+            print(f"[IA] {model} returned {resp.status_code}: {resp.text[:200]}")
+        except Exception as e:
+            print(f"[IA] {model} failed: {e}")
+    return None
+
+
+def _call_tts(text):
+    """Call Mistral Voxtral TTS, return base64 audio or empty string."""
+    if not text:
+        return ''
+    try:
+        resp = requests.post(
+            MISTRAL_TTS_URL,
+            headers={'Authorization': f'Bearer {MISTRAL_API_KEY}',
+                     'Content-Type': 'application/json'},
+            json={'model': TTS_MODEL, 'input': text,
+                  'voice_id': DEFAULT_VOICE_ID, 'response_format': 'wav'},
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            return resp.json().get('audio_data', '')
+        print(f"[IA] TTS error {resp.status_code}")
+    except Exception as e:
+        print(f"[IA] TTS failed: {e}")
+    return ''
+
+
 @app.route('/api/ia', methods=['POST'])
 def ia_assistant():
-    """AI Vision + Chat + TTS endpoint using Mistral"""
+    """AI Vision + Chat + TTS endpoint using Mistral."""
     data = request.json
-    image_b64 = data.get('image')  # base64 JPEG frame from camera (can be None)
+    image_b64 = data.get('image')
     text = data.get('text', '')
-    history = data.get('history', [])  # conversation history array
+    history = data.get('history', [])
 
-    MISTRAL_CHAT_URL = 'https://api.mistral.ai/v1/chat/completions'
-    CHAT_MODEL = 'pixtral-large-latest'  # multimodal model with vision support
-
-    SYSTEM_PROMPT = """Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur grâce au microphone. Ton objectif est de discuter comme un humain, avec des réponses naturelles, courtes et fluides. Tu décris uniquement ce que tu observes réellement, sans inventer. Réponds comme dans une vraie conversation. Utilise un ton chaleureux, naturel et dynamique. Si l'utilisateur montre un objet, identifie-le et explique-le simplement. Si tu n'es pas certain de ce que montre la caméra, indique ton niveau d'incertitude. Garde les réponses courtes, sauf si l'utilisateur demande des détails. Parle avec des contractions et un style conversationnel. Tu ne dis jamais que tu es un robot. Tu te comportes comme un véritable assistant intelligent capable de voir, écouter et dialoguer naturellement."""
-
-    # Build messages
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-
-    # Add history (last 20 messages max)
     for msg in history[-20:]:
         messages.append(msg)
 
-    # Build user content
     user_content = []
     if image_b64:
-        user_content.append({
-            "type": "image_url",
-            "image_url": f"data:image/jpeg;base64,{image_b64}"
-        })
+        user_content.append({"type": "image_url",
+                             "image_url": f"data:image/jpeg;base64,{image_b64}"})
     if text:
-        user_content.append({
-            "type": "text",
-            "text": text
-        })
+        user_content.append({"type": "text", "text": text})
 
     if not user_content:
         return jsonify({'error': 'No text or image provided'}), 400
 
     messages.append({"role": "user", "content": user_content})
 
-    # Call Mistral Vision
     try:
-        resp = requests.post(
-            MISTRAL_CHAT_URL,
-            headers={
-                'Authorization': f'Bearer {MISTRAL_API_KEY}',
-                'Content-Type': 'application/json'
-            },
-            json={
-                "model": CHAT_MODEL,
-                "messages": messages,
-                "max_tokens": 300
-            },
-            timeout=30
-        )
+        response_text = _call_chat(messages)
+        if not response_text:
+            return jsonify({'error': 'All chat models failed'}), 502
 
-        if resp.status_code != 200:
-            return jsonify({'error': f'Mistral chat error: {resp.status_code}', 'detail': resp.text[:500]}), 502
+        audio_b64 = _call_tts(response_text)
 
-        response_text = resp.json()['choices'][0]['message']['content']
-
-        # TTS
-        tts_resp = requests.post(
-            MISTRAL_TTS_URL,
-            headers={
-                'Authorization': f'Bearer {MISTRAL_API_KEY}',
-                'Content-Type': 'application/json'
-            },
-            json={
-                'model': TTS_MODEL,
-                'input': response_text,
-                'voice_id': DEFAULT_VOICE_ID,
-                'response_format': 'wav',
-            },
-            timeout=30
-        )
-
-        audio_b64 = ''
-        if tts_resp.status_code == 200:
-            audio_b64 = tts_resp.json().get('audio_data', '')
-
-        return jsonify({
-            'text': response_text,
-            'audio_data': audio_b64,
-            'format': 'wav'
-        })
-
+        return jsonify({'text': response_text, 'audio_data': audio_b64,
+                        'format': 'wav'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
     print("\n" + "=" * 50)
-    print("  PHOTOMATON ID — Serveur Backend")
-    print("  Mistral Voxtral TTS active")
-    print("  http://localhost:8080")
+    print("  PHOTOMATON ID + ASSISTANT IA")
+    print("  Mistral Vision + Voxtral TTS")
+    print("  http://localhost:8080   (photomaton)")
+    print("  http://localhost:8080/ia  (assistant vocal)")
     print("=" * 50 + "\n")
     app.run(host='127.0.0.1', port=8080, debug=False)
