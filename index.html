@@ -11,11 +11,10 @@
         :root{--bg:#050a14;--card:rgba(12,18,32,0.85);--accent:#00bfff;--accent2:#00ffaa;--text:#d0daf0;--dim:#556688;--danger:#ff4466}
         body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100dvh;overflow:hidden;-webkit-user-select:none;user-select:none}
 
-        /* ---- Screens ---- */
         .page{display:none;position:fixed;inset:0;flex-direction:column;z-index:10}
         .page.on{display:flex}
 
-        /* ===== WELCOME ===== */
+        /* Welcome */
         #welcome{background:radial-gradient(ellipse at 50% 40%,#0d1a30 0%,#050a14 70%);align-items:center;justify-content:center;gap:20px}
         .w-orb{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#00ddff,#0066cc 55%,#001a33 80%,transparent);box-shadow:0 0 50px #00aaff44,0 0 100px #0066cc22;animation:breathe 3s ease-in-out infinite}
         @keyframes breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.08);filter:brightness(1.2)}}
@@ -23,26 +22,27 @@
         .w-sub{font-size:13px;color:var(--dim);text-align:center;line-height:1.6}
         .w-features{display:flex;gap:18px;font-size:11px;color:var(--dim);margin:12px 0 28px}
         .w-features span{display:flex;align-items:center;gap:4px}
-        .w-btn{padding:14px 52px;border:none;border-radius:14px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;font-size:17px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.3px}
+        .w-btn{padding:14px 52px;border:none;border-radius:14px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;font-size:17px;font-weight:600;cursor:pointer;transition:all .2s}
         .w-btn:active{transform:scale(.97);background:linear-gradient(135deg,#0077dd,#004499)}
 
-        /* ===== ACTIVE ===== */
+        /* Active */
         #active{background:#000}
-
-        /* Camera */
-        #cam{position:absolute;inset:0;object-fit:cover;width:100%;height:100%;opacity:.3;transform:scaleX(-1);z-index:1}
+        #cam{position:absolute;inset:0;object-fit:cover;width:100%;height:100%;opacity:.3;z-index:1}
+        #cam.mirror{transform:scaleX(-1)}
         .dim{position:absolute;inset:0;z-index:2;background:linear-gradient(180deg,rgba(5,10,20,.85) 0%,rgba(5,10,20,.2) 35%,rgba(5,10,20,.5) 100%)}
 
         /* Top */
         .top{position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
         .top-left{display:flex;align-items:center;gap:8px}
+        .top-right{display:flex;align-items:center;gap:6px}
         .dot{width:8px;height:8px;border-radius:50%;background:#333;transition:all .3s}
         .dot.on{background:#00ff88;box-shadow:0 0 6px #00ff88}
         .dot.rec{background:var(--danger);box-shadow:0 0 6px var(--danger);animation:blink 1s infinite}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
         .dot.talk{background:var(--accent2);box-shadow:0 0 6px var(--accent2)}
         .lbl{font-size:11px;color:var(--dim)}
-        .btn-x{background:none;border:none;color:var(--dim);font-size:22px;padding:2px 6px;line-height:1}
+        .btn-icon{background:none;border:none;color:var(--dim);font-size:20px;padding:4px 8px;line-height:1;cursor:pointer}
+        .btn-icon:active{opacity:.5}
 
         /* Chat */
         #chat{position:absolute;top:46px;bottom:130px;left:0;right:0;z-index:20;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
@@ -73,14 +73,13 @@
         #mic.on{border-color:var(--danger);background:rgba(255,50,50,.15);animation:blink 1.2s infinite}
         #mic:active{transform:scale(.93)}
 
-        /* Camera frame indicator */
         .frame-dot{position:absolute;top:10px;right:10px;z-index:25;width:6px;height:6px;border-radius:50%;background:var(--accent2);opacity:0;transition:opacity .15s}
         .frame-dot.flash{opacity:1}
     </style>
 </head>
 <body>
 
-<!-- ===== WELCOME ===== -->
+<!-- WELCOME -->
 <div id="welcome" class="page on">
     <div class="w-orb"></div>
     <div class="w-title">Assistant IA Vocal</div>
@@ -94,7 +93,7 @@
     <a href="photomaton.html" style="color:var(--dim);font-size:11px;margin-top:8px;text-decoration:none">→ Photomaton ID</a>
 </div>
 
-<!-- ===== ACTIVE ===== -->
+<!-- ACTIVE -->
 <div id="active" class="page">
     <video id="cam" autoplay playsinline muted></video>
     <div class="dim"></div>
@@ -105,7 +104,10 @@
             <div class="dot" id="dot"></div>
             <span class="lbl" id="lbl">En attente...</span>
         </div>
-        <button class="btn-x" id="quit">✕</button>
+        <div class="top-right">
+            <button class="btn-icon" id="switch-cam" title="Retourner la caméra">🔄</button>
+            <button class="btn-icon" id="quit">✕</button>
+        </div>
     </div>
 
     <div id="chat"></div>
@@ -129,12 +131,12 @@
 
 <script>
 (function(){
-/* ---- refs ---- */
 const $=id=>document.getElementById(id);
 const chat=$('chat'),cam=$('cam'),cv=$('cv'),ctx=cv.getContext('2d'),tts=$('tts');
 const dot=$('dot'),lbl=$('lbl'),orb=$('orb'),fdot=$('fdot');
 let stream=null,frameTimer=null,rec=null,audioUnlocked=false,active=false,speaking=false;
 let history=[],latestFrame=null,waitingAI=false;
+let facingMode='environment'; // rear by default
 
 /* ---- UI ---- */
 function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));$(id).classList.add('on')}
@@ -167,153 +169,197 @@ function typeText(el,text){
     });
 }
 
-/* ---- stop camera ---- */
+/* ---- camera ---- */
+function stopCam(){
     if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
     if(frameTimer){clearInterval(frameTimer);frameTimer=null}
 }
 
-/* ---- mic (Web Speech) ---- */
+function startCam(){
+    return navigator.mediaDevices.getUserMedia({
+        video:{facingMode:facingMode,width:{ideal:640},height:{ideal:480}},
+        audio:false
+    }).then(function(s){
+        stream=s;
+        cam.srcObject=s;
+        // Mirror only front camera
+        if(facingMode==='user') cam.classList.add('mirror');
+        else cam.classList.remove('mirror');
+        // Capture frames every 3s
+        frameTimer=setInterval(function(){
+            if(!cam.videoWidth)return;
+            cv.width=320;cv.height=240;
+            // Don't mirror the captured frame — always natural
+            ctx.save();
+            ctx.translate(cv.width,0);
+            ctx.scale(-1,1);
+            ctx.drawImage(cam,0,0,320,240);
+            ctx.restore();
+            latestFrame=cv.toDataURL('image/jpeg',0.5).split(',')[1];
+            fdot.classList.add('flash');setTimeout(function(){fdot.classList.remove('flash')},150);
+        },3000);
+        return true;
+    });
+}
+
+function switchCam(){
+    facingMode=facingMode==='environment'?'user':'environment';
+    stopCam();
+    startCam().catch(function(e){console.warn('Cam switch error',e)});
+}
+
+/* ---- mic ---- */
 function startMic(){
-    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){stat('Speech non supporté','');return}
     rec=new SR();rec.continuous=true;rec.interimResults=false;rec.lang='fr-FR';
-    rec.onresult=e=>{
-        for(let i=e.resultIndex;i<e.results.length;i++){
+    rec.onresult=function(e){
+        for(var i=e.resultIndex;i<e.results.length;i++){
             if(e.results[i].isFinal){
-                const t=e.results[i][0].transcript.trim();
+                var t=e.results[i][0].transcript.trim();
                 if(t)onUserText(t);
             }
         }
     };
-    rec.onend=()=>{if(active)try{rec.start()}catch(e){}};
-    rec.onerror=e=>{if(active&&e.error!=='no-speech'&&e.error!=='aborted')setTimeout(()=>{try{rec.start()}catch(e){}},800)};
+    rec.onend=function(){if(active)try{rec.start()}catch(e){}};
+    rec.onerror=function(e){if(active&&e.error!=='no-speech'&&e.error!=='aborted')setTimeout(function(){try{rec.start()}catch(e){}},800)};
     try{rec.start();stat('En écoute','rec');$('mic').classList.add('on')}catch(e){console.warn('Mic error',e)}
 }
 function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 
-/* ---- Config Mistral ---- */
-const API_KEY='hqC6t0vj7Mqkesum4ZhrVv6Qgxg3VZMy';
-const MISTRAL_CHAT='https://api.mistral.ai/v1/chat/completions';
-const MISTRAL_TTS='https://api.mistral.ai/v1/audio/speech';
-const CHAT_MODEL='pixtral-large-latest';
-const TTS_MODEL='voxtral-mini-tts-2603';
-const VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
-const SYS_PROMPT="Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max sauf si on te demande des détails. Style conversationnel. Tu n'es jamais un robot.";
+/* ---- Mistral ---- */
+var API_KEY='hqC6t0vj7Mqkesum4ZhrVv6Qgxg3VZMy';
+var MISTRAL_CHAT='https://api.mistral.ai/v1/chat/completions';
+var MISTRAL_TTS='https://api.mistral.ai/v1/audio/speech';
+var CHAT_MODEL='pixtral-large-latest';
+var TTS_MODEL='voxtral-mini-tts-2603';
+var VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
+var SYS_PROMPT="Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max sauf si on te demande des détails. Style conversationnel. Tu n'es jamais un robot.";
 
-/* Détection : localhost = backend, sinon CORS proxy */
-const IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-const PROXY=IS_LOCAL?'':'https://corsproxy.io/?';
+var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+var PROXY=IS_LOCAL?'':'https://corsproxy.io/?';
 
-async function callMistralChat(messages){
-    const url=PROXY+MISTRAL_CHAT;
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},body:JSON.stringify({model:CHAT_MODEL,messages,max_tokens:250,temperature:0.7})});
-    if(!r.ok)throw new Error('Chat API '+r.status);
-    return(await r.json()).choices[0].message.content;
-}
-async function callMistralTTS(text){
-    const url=PROXY+MISTRAL_TTS;
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},body:JSON.stringify({model:TTS_MODEL,input:text,voice_id:VOICE_ID,response_format:'wav'})});
-    if(!r.ok)return'';
-    const d=await r.json();return d.audio_data||'';
+function callChat(messages){
+    return fetch(PROXY+MISTRAL_CHAT,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+        body:JSON.stringify({model:CHAT_MODEL,messages:messages,max_tokens:250,temperature:0.7})
+    }).then(function(r){
+        if(!r.ok)throw new Error('Chat API '+r.status);
+        return r.json();
+    }).then(function(d){return d.choices[0].message.content});
 }
 
-/* ---- send to AI ---- */
-async function onUserText(text){
+function callTTS(text){
+    return fetch(PROXY+MISTRAL_TTS,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+        body:JSON.stringify({model:TTS_MODEL,input:text,voice_id:VOICE_ID,response_format:'wav'})
+    }).then(function(r){
+        if(!r.ok)return'';
+        return r.json();
+    }).then(function(d){return d.audio_data||''});
+}
+
+function playAudioB64(b64){
+    return new Promise(function(resolve){
+        var raw=atob(b64);
+        var u8=new Uint8Array(raw.length);
+        for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
+        var blob=new Blob([u8],{type:'audio/wav'});
+        var url=URL.createObjectURL(blob);
+        tts.src=url;
+        tts.play().then(function(){
+            tts.onended=function(){URL.revokeObjectURL(url);resolve()};
+        }).catch(function(e){
+            console.warn('Audio play failed:',e);
+            URL.revokeObjectURL(url);
+            resolve();
+        });
+    });
+}
+
+/* ---- AI ---- */
+function onUserText(text){
     if(!text||waitingAI)return;
     addMsg(text,'me');
     history.push({role:'user',content:text});
     if(history.length>30)history=history.slice(-20);
 
     waitingAI=true;
-    const typing=addTyping();
+    var typing=addTyping();
     stat('Réflexion...','on');
 
-    try{
-        const messages=[{role:'system',content:SYS_PROMPT},...history.slice(-20)];
-        const userContent=[];
-        if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
-        userContent.push({type:'text',text:text});
-        messages.push({role:'user',content:userContent});
+    var messages=[{role:'system',content:SYS_PROMPT}].concat(history.slice(-20));
+    var userContent=[];
+    if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
+    userContent.push({type:'text',text:text});
+    messages.push({role:'user',content:userContent});
 
-        const aiText=await callMistralChat(messages);
-        await typeText(typing,aiText);
-        history.push({role:'assistant',content:aiText});
-
-        try{
-            const audioB64=await callMistralTTS(aiText);
-            if(audioB64){
-                stat('Parle...','talk');speaking=true;orb.className='speaking';
-                const raw=atob(audioB64);
-                const u8=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
-                const blob=new Blob([u8],{type:'audio/wav'});
-                const url=URL.createObjectURL(blob);
-                tts.src=url;await tts.play();
-                await new Promise(res=>{tts.onended=()=>{URL.revokeObjectURL(url);res()}});
-                speaking=false;orb.className='idle';
-            }
-        }catch(e){console.warn('TTS error',e);speaking=false;orb.className='idle';}
-
+    callChat(messages).then(function(aiText){
+        return typeText(typing,aiText).then(function(){
+            history.push({role:'assistant',content:aiText});
+            return callTTS(aiText);
+        });
+    }).then(function(audioB64){
+        if(audioB64){
+            stat('Parle...','talk');speaking=true;orb.className='speaking';
+            return playAudioB64(audioB64);
+        }
+    }).then(function(){
+        speaking=false;orb.className='idle';
         stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
-    }catch(e){
+        waitingAI=false;
+    }).catch(function(e){
         console.error(e);
         typing.textContent='Erreur : '+e.message+'. Réessayez.';
+        speaking=false;orb.className='idle';
         stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
-    }
-    waitingAI=false;
+        waitingAI=false;
+    });
 }
 
 /* ---- lifecycle ---- */
 function start(){
-    /* TOUT doit être SYNCHROME dans le handler de clic pour mobile */
     show('active');
     stat('Caméra...','on');
     active=true;
 
-    /* Unlock audio immédiatement (synchronous call) */
-    tts.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-    tts.play().then(()=>{audioUnlocked=true}).catch(()=>{audioUnlocked=true});
+    // Unlock audio — fire and forget, don't block
+    try{
+        tts.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+        tts.play().then(function(){audioUnlocked=true}).catch(function(){audioUnlocked=true});
+    }catch(e){audioUnlocked=true}
 
-    /* Camera — getUserMedia dans le handler = OK sur mobile */
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}},audio:false})
-    .then(s=>{
-        stream=s;cam.srcObject=s;
-        frameTimer=setInterval(()=>{
-            if(!cam.videoWidth)return;
-            cv.width=320;cv.height=240;
-            ctx.drawImage(cam,0,0,320,240);
-            latestFrame=cv.toDataURL('image/jpeg',0.5).split(',')[1];
-            fdot.classList.add('flash');setTimeout(()=>fdot.classList.remove('flash'),150);
-        },3000);
+    startCam().then(function(){
         orb.className='idle';
         stat('Connecté','on');
-        /* Mic */
         startMic();
-        /* Greeting */
-        const g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
-        const t=addTyping();typeText(t,g);
+        var g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
+        var t=addTyping();typeText(t,g);
         history.push({role:'assistant',content:g});
-    })
-    .catch(e=>{
-        console.error('Caméra refusée:',e);
-        stat('Caméra refusée','on');
-        /* Même sans caméra, on lance le mic */
+    }).catch(function(e){
+        console.error('Cam error:',e);
+        stat('Caméra refusée — mode audio','on');
         startMic();
-        const g="Salut ! Je n'ai pas accès à la caméra, mais je peux quand même discuter avec toi !";
-        const t=addTyping();typeText(t,g);
+        var g="Salut ! Je n'ai pas accès à la caméra, mais je peux quand même discuter avec toi !";
+        var t=addTyping();typeText(t,g);
         history.push({role:'assistant',content:g});
     });
 }
+
 function quit(){
     active=false;stopMic();stopCam();chat.innerHTML='';history=[];latestFrame=null;
     orb.className='';show('welcome');stat('En attente...','');
 }
 
 /* ---- events ---- */
-$('go').onclick=start;
-$('quit').onclick=quit;
-$('mic').onclick=()=>{if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}};
-$('send').onclick=()=>{const t=$('inp').value.trim();if(t){$('inp').value='';onUserText(t)}};
-$('inp').onkeydown=e=>{if(e.key==='Enter'){$('send').click()}};
+$('go').addEventListener('click',start);
+$('quit').addEventListener('click',quit);
+$('switch-cam').addEventListener('click',switchCam);
+$('mic').addEventListener('click',function(){if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}});
+$('send').addEventListener('click',function(){var t=$('inp').value.trim();if(t){$('inp').value='';onUserText(t)}});
+$('inp').addEventListener('keydown',function(e){if(e.key==='Enter')$('send').click()});
 })();
 </script>
 </body>
