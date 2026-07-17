@@ -85,7 +85,11 @@
         <span>🧠 Mistral IA</span>
     </div>
     <button class="w-btn" id="go">▶ Parler</button>
-    <a href="photomaton.html" style="color:var(--dim);font-size:11px;margin-top:12px;text-decoration:none">→ Photomaton ID</a>
+    <div style="color:var(--dim);font-size:10px;margin-top:12px;text-align:center;line-height:1.5">
+        ⚠️ Nécessite le serveur local : <code style="background:#1a2233;padding:2px 6px;border-radius:4px">python server.py</code><br>
+        Puis ouvrir <code style="background:#1a2233;padding:2px 6px;border-radius:4px">http://localhost:8080</code>
+    </div>
+    <a href="photomaton.html" style="color:var(--dim);font-size:11px;margin-top:4px;text-decoration:none">→ Photomaton ID</a>
 </div>
 
 <div id="active" class="page">
@@ -222,25 +226,18 @@ function startMic(){
 function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 
 var API_KEY='hqC6t0vj7Mqkesum4ZhrVv6Qgxg3VZMy';
-var MISTRAL_CHAT='https://api.mistral.ai/v1/chat/completions';
-var MISTRAL_TTS='https://api.mistral.ai/v1/audio/speech';
-var CHAT_MODEL='pixtral-large-latest';
-var TTS_MODEL='voxtral-mini-tts-2603';
-var VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
-var SYS_PROMPT="Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max sauf si on te demande des détails. Style conversationnel. Tu n'es jamais un robot.";
+var backendOk=false;
 
-var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-var PROXY=IS_LOCAL?'':'https://corsproxy.io/?';
+/* Check si le backend tourne */
+fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'test'})})
+.then(function(){backendOk=true})
+.catch(function(){backendOk=false});
 
-function callChat(messages){
-    return fetch(PROXY+MISTRAL_CHAT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},body:JSON.stringify({model:CHAT_MODEL,messages:messages,max_tokens:250,temperature:0.7})})
-    .then(function(r){if(!r.ok)throw new Error('Chat API '+r.status);return r.json()})
-    .then(function(d){return d.choices[0].message.content});
-}
-function callTTS(text){
-    return fetch(PROXY+MISTRAL_TTS,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},body:JSON.stringify({model:TTS_MODEL,input:text,voice_id:VOICE_ID,response_format:'wav'})})
-    .then(function(r){if(!r.ok)return'';return r.json()})
-    .then(function(d){return d.audio_data||''});
+/* Appel unique au backend /api/ia (vision + chat + TTS) */
+function callAI(text,imageB64,historyArr){
+    return fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text:text,image:imageB64,history:historyArr})
+    }).then(function(r){if(!r.ok)throw new Error('Serveur '+r.status);return r.json()});
 }
 function playAudioB64(b64){
     return new Promise(function(resolve){
@@ -262,18 +259,16 @@ function onUserText(text){
     waitingAI=true;
     var typing=addTyping();
     stat('Réflexion...','on');
-    var messages=[{role:'system',content:SYS_PROMPT}].concat(history.slice(-20));
-    var userContent=[];
-    if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
-    userContent.push({type:'text',text:text});
-    messages.push({role:'user',content:userContent});
-    callChat(messages).then(function(aiText){
-        return typeText(typing,aiText).then(function(){
-            history.push({role:'assistant',content:aiText});
-            return callTTS(aiText);
+
+    callAI(text,latestFrame,history.slice(-20)).then(function(data){
+        if(data.error)throw new Error(data.error);
+        return typeText(typing,data.text).then(function(){
+            history.push({role:'assistant',content:data.text});
+            if(data.audio_data){
+                stat('Parle...','talk');speaking=true;orbEl.className='speaking';
+                return playAudioB64(data.audio_data);
+            }
         });
-    }).then(function(audioB64){
-        if(audioB64){stat('Parle...','talk');speaking=true;orbEl.className='speaking';return playAudioB64(audioB64)}
     }).then(function(){
         speaking=false;orbEl.className='idle';
         stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
@@ -287,7 +282,7 @@ function onUserText(text){
 }
 
 function start(){
-    console.log('[IA] START clicked');
+    console.log('[IA] START clicked, backend:',backendOk);
     show('active');
     stat('Caméra...','on');
     active=true;
@@ -297,12 +292,22 @@ function start(){
 
     startCam().then(function(){
         orbEl.className='idle';stat('Connecté','on');startMic();
-        var g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
-        typeText(addTyping(),g);history.push({role:'assistant',content:g});
+        if(!backendOk){
+            var g="Attention : le serveur local ne tourne pas. Lancez 'python server.py' puis rechargez la page.";
+            typeText(addTyping(),g);history.push({role:'assistant',content:g});
+        }else{
+            var g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
+            typeText(addTyping(),g);history.push({role:'assistant',content:g});
+        }
     }).catch(function(e){
         console.error('Cam error:',e);stat('Caméra refusée','on');startMic();
-        var g="Salut ! Pas de caméra mais on peut discuter !";
-        typeText(addTyping(),g);history.push({role:'assistant',content:g});
+        if(!backendOk){
+            var g="Pas de caméra et pas de serveur. Lancez 'python server.py' et autorisez la caméra.";
+            typeText(addTyping(),g);history.push({role:'assistant',content:g});
+        }else{
+            var g="Pas de caméra mais on peut discuter ! Parle-moi.";
+            typeText(addTyping(),g);history.push({role:'assistant',content:g});
+        }
     });
 }
 
