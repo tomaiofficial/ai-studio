@@ -336,6 +336,30 @@ function startMic(){
 function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 
 /* ============ AI ============ */
+var API_KEY='SPZpcRQzWUu8iEC1XrcNwEOOcLH45qis';
+var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+var SYS_PROMPT="Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max. Style conversationnel. Tu n'es jamais un robot.";
+
+function callMistralChat(messages){
+    var url=IS_LOCAL?'/api/ia':'https://api.mistral.ai/v1/chat/completions';
+    if(IS_LOCAL){
+        // Backend: on envoie tout en une fois
+        return Promise.resolve(null); // géré séparément
+    }
+    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+        body:JSON.stringify({model:'pixtral-large-latest',messages:messages,max_tokens:250,temperature:0.7})
+    }).then(function(r){if(!r.ok)throw new Error('Chat '+r.status);return r.json()})
+      .then(function(d){return d.choices[0].message.content});
+}
+
+function callMistralTTS(text){
+    if(IS_LOCAL)return Promise.resolve(null);
+    return fetch('https://api.mistral.ai/v1/audio/speech',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+        body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:'c69964a6-ab8b-4f8a-9465-ec0925096ec8',response_format:'wav'})
+    }).then(function(r){if(!r.ok)return'';return r.json()}).then(function(d){return d.audio_data||''});
+}
+
 function onUserText(text){
     if(!text||waitingAI)return;
     addMsg(text,'me');
@@ -345,27 +369,40 @@ function onUserText(text){
     var typing=addTyping();
     stat('Réflexion...','on');
 
-    fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({text:text,image:latestFrame,history:history.slice(-20)})
-    }).then(function(r){
-        if(!r.ok)throw new Error('Serveur '+r.status);
-        return r.json();
-    }).then(function(data){
-        if(data.error)throw new Error(data.error);
-        console.log('[IA] Response:',data.text.substring(0,60),'tts_ok:',data.tts_ok);
+    var promise;
 
-        // Remplace le typing par le vrai message + bouton replay
+    if(IS_LOCAL){
+        // ---- LOCALHOST: tout via le backend ----
+        promise=fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text:text,image:latestFrame,history:history.slice(-20)})
+        }).then(function(r){if(!r.ok)throw new Error('Serveur '+r.status);return r.json()})
+          .then(function(d){return{aiText:d.text,audioB64:d.audio_data||'',error:d.error}});
+    }else{
+        // ---- GITHUB PAGES: appels directs Mistral ----
+        var msgs=[{role:'system',content:SYS_PROMPT}].concat(history.slice(-20));
+        var userContent=[];
+        if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
+        userContent.push({type:'text',text:text});
+        msgs.push({role:'user',content:userContent});
+
+        promise=callMistralChat(msgs).then(function(aiText){
+            return callMistralTTS(aiText).then(function(audioB64){
+                return{aiText:aiText,audioB64:audioB64};
+            });
+        });
+    }
+
+    promise.then(function(result){
+        if(result.error)throw new Error(result.error);
+        console.log('[IA] OK:',result.aiText.substring(0,60),'audio:',result.audioB64?'YES':'NO');
         typing.remove();
-        addMsgWithReplay(data.text,data.audio_data||null);
-        history.push({role:'assistant',content:data.text});
-
-        if(data.audio_data){
+        addMsgWithReplay(result.aiText,result.audioB64||null);
+        history.push({role:'assistant',content:result.aiText});
+        if(result.audioB64){
             stat('Parle...','talk');speaking=true;orbEl.className='speaking';
-            return playAudioFromB64(data.audio_data);
+            return playAudioFromB64(result.audioB64);
         }else{
-            console.warn('[IA] No audio:',data.tts_error);
-            showAudioStatus('Pas de voix: '+(data.tts_error||'erreur'));
-            return false;
+            showAudioStatus('Pas de voix');return false;
         }
     }).then(function(){
         speaking=false;orbEl.className='idle';
