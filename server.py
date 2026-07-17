@@ -4,6 +4,7 @@ Backend: Mistral Voxtral TTS + Pixtral Vision
 """
 
 import os
+import time
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
@@ -12,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)  # Accepte OPTIONS preflight pour tous les endpoints
+CORS(app)
 
 MISTRAL_API_KEY = os.environ.get('MISTRAL_API_KEY', '')
 MISTRAL_TTS_URL = 'https://api.mistral.ai/v1/audio/speech'
@@ -29,13 +30,12 @@ SYSTEM_PROMPT = (
     "Tu décris uniquement ce que tu observes réellement, sans inventer. "
     "Réponds comme dans une vraie conversation. Utilise un ton chaleureux, "
     "naturel et dynamique. Si l'utilisateur montre un objet, identifie-le et "
-    "explique-le simplement. Si tu n'es pas certain de ce que montre la caméra, "
-    "indique ton niveau d'incertitude. Garde les réponses courtes (2-3 phrases "
-    "max), sauf si l'utilisateur demande des détails. Parle avec des contractions "
-    "et un style conversationnel. Tu ne dis jamais que tu es un robot."
+    "explique-le simplement. Garde les réponses courtes (2-3 phrases max). "
+    "Parle avec un style conversationnel. Tu ne dis jamais que tu es un robot."
 )
 
-# ============ EXPLICIT ROUTES (before catch-all!) ============
+
+# ============ ROUTES ============
 
 @app.route('/')
 def index():
@@ -45,7 +45,6 @@ def index():
 def ia_page():
     return send_from_directory('.', 'ia.html')
 
-# ============ API ROUTES ============
 
 @app.route('/api/tts', methods=['POST'])
 def text_to_speech():
@@ -62,10 +61,11 @@ def text_to_speech():
                   'voice_id': voice_id, 'response_format': 'wav'},
             timeout=30)
         if resp.status_code != 200:
-            return jsonify({'error': f'Mistral error: {resp.status_code}'}), 502
+            return jsonify({'error': f'Mistral error: {resp.status_code}', 'detail': resp.text[:300]}), 502
         return jsonify(resp.json())
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/voices', methods=['GET'])
 def list_voices():
@@ -76,13 +76,21 @@ def list_voices():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/ia', methods=['POST'])
+
+@app.route('/api/ia', methods=['POST', 'OPTIONS'])
 def ia_assistant():
+    if request.method == 'OPTIONS':
+        return '', 204
+
     data = request.json
     image_b64 = data.get('image')
     text = data.get('text', '')
     history = data.get('history', [])
 
+    t0 = time.time()
+    print(f"[IA] Request: text={text[:50]!r}, has_image={bool(image_b64)}, history_len={len(history)}")
+
+    # Build messages
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for msg in history[-20:]:
         messages.append(msg)
@@ -98,10 +106,12 @@ def ia_assistant():
 
     messages.append({"role": "user", "content": user_content})
 
-    # Chat with model fallback
+    # ---- Chat with model fallback ----
     response_text = None
+    chat_err = ''
     for model in CHAT_MODELS:
         try:
+            print(f"[IA] Trying chat model: {model}")
             resp = requests.post(MISTRAL_CHAT_URL,
                 headers={'Authorization': f'Bearer {MISTRAL_API_KEY}',
                          'Content-Type': 'application/json'},
@@ -110,18 +120,24 @@ def ia_assistant():
                 timeout=25)
             if resp.status_code == 200:
                 response_text = resp.json()['choices'][0]['message']['content']
-                print(f"[IA] Chat OK via {model}")
+                print(f"[IA] Chat OK via {model} in {time.time()-t0:.1f}s: {response_text[:80]!r}")
                 break
-            print(f"[IA] {model} -> {resp.status_code}")
+            chat_err = f'{model} -> {resp.status_code}: {resp.text[:200]}'
+            print(f"[IA] {chat_err}")
         except Exception as e:
-            print(f"[IA] {model} failed: {e}")
+            chat_err = f'{model} -> {e}'
+            print(f"[IA] {chat_err}")
 
     if not response_text:
-        return jsonify({'error': 'All chat models failed'}), 502
+        print(f"[IA] ALL CHAT MODELS FAILED: {chat_err}")
+        return jsonify({'error': 'All chat models failed', 'detail': chat_err}), 502
 
-    # TTS
+    # ---- TTS ----
     audio_b64 = ''
+    tts_err = ''
+    tts_start = time.time()
     try:
+        print(f"[IA] Calling TTS: {response_text[:60]!r}")
         tts_resp = requests.post(MISTRAL_TTS_URL,
             headers={'Authorization': f'Bearer {MISTRAL_API_KEY}',
                      'Content-Type': 'application/json'},
@@ -130,23 +146,39 @@ def ia_assistant():
             timeout=30)
         if tts_resp.status_code == 200:
             audio_b64 = tts_resp.json().get('audio_data', '')
-            print(f"[IA] TTS OK, {len(audio_b64)} chars")
+            print(f"[IA] TTS OK in {time.time()-tts_start:.1f}s, audio_len={len(audio_b64)} chars")
+        else:
+            tts_err = f'{tts_resp.status_code}: {tts_resp.text[:200]}'
+            print(f"[IA] TTS FAILED: {tts_err}")
     except Exception as e:
-        print(f"[IA] TTS failed: {e}")
+        tts_err = str(e)
+        print(f"[IA] TTS ERROR: {tts_err}")
 
-    return jsonify({'text': response_text, 'audio_data': audio_b64, 'format': 'wav'})
+    total = time.time() - t0
+    print(f"[IA] Total: {total:.1f}s, text={len(response_text)} chars, audio={'YES' if audio_b64 else 'NO'}")
 
-# ============ CATCH-ALL (last!) ============
+    return jsonify({
+        'text': response_text,
+        'audio_data': audio_b64,
+        'format': 'wav',
+        'tts_ok': bool(audio_b64),
+        'tts_error': tts_err if tts_err else None
+    })
+
+
+# ============ CATCH-ALL ============
 
 @app.route('/<path:path>')
 def static_files(path):
     return send_from_directory('.', path)
 
+
 if __name__ == '__main__':
     print("\n" + "=" * 50)
     print("  PHOTOMATON ID + ASSISTANT IA VOCAL")
     print("  Mistral Vision + Voxtral TTS")
+    print(f"  API Key: {MISTRAL_API_KEY[:8]}...{MISTRAL_API_KEY[-4:]}")
     print("  http://localhost:8080      (photomaton)")
     print("  http://localhost:8080/ia   (assistant vocal)")
     print("=" * 50 + "\n")
-    app.run(host='127.0.0.1', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=False)

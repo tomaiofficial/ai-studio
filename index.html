@@ -14,7 +14,6 @@
         .page{display:none;position:fixed;inset:0;flex-direction:column;z-index:10}
         .page.on{display:flex}
 
-        /* Welcome */
         #welcome{background:radial-gradient(ellipse at 50% 40%,#0d1a30 0%,#050a14 70%);align-items:center;justify-content:center;gap:20px;padding:20px}
         .w-orb{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#00ddff,#0066cc 55%,#001a33 80%,transparent);box-shadow:0 0 50px #00aaff44,0 0 100px #0066cc22;animation:breathe 3s ease-in-out infinite}
         @keyframes breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.08);filter:brightness(1.2)}}
@@ -23,9 +22,8 @@
         .w-features{display:flex;gap:18px;font-size:11px;color:var(--dim);margin:12px 0 28px}
         .w-features span{display:flex;align-items:center;gap:4px}
         .w-btn{padding:18px 64px;border:none;border-radius:14px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;font-size:19px;font-weight:600;cursor:pointer;transition:all .15s;touch-action:manipulation;min-width:200px;min-height:56px}
-        .w-btn:active{transform:scale(.95);background:linear-gradient(135deg,#0077dd,#004499)}
+        .w-btn:active{transform:scale(.95)}
 
-        /* Active */
         #active{background:#000}
         #cam{position:absolute;inset:0;object-fit:cover;width:100%;height:100%;opacity:.3;z-index:1}
         #cam.mirror{transform:scaleX(-1)}
@@ -50,6 +48,7 @@
         .msg.me{align-self:flex-end;background:#0060bb;color:#fff;border-bottom-right-radius:4px}
         .msg.ai{align-self:flex-start;background:var(--card);color:#ccd8ee;border-bottom-left-radius:4px;border:1px solid rgba(0,191,255,.1)}
         .msg.ai .cursor{display:inline-block;width:2px;height:13px;background:var(--accent);margin-left:2px;animation:blink .6s infinite;vertical-align:text-bottom}
+        .msg.ai .replay-btn{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:8px;background:rgba(0,191,255,.15);color:var(--accent);font-size:11px;cursor:pointer;border:none;touch-action:manipulation}
 
         #orb-wrap{position:absolute;bottom:145px;left:0;right:0;z-index:15;display:flex;justify-content:center;pointer-events:none}
         #orb{width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--accent),#005599 60%,transparent 72%);opacity:0;transition:all .4s}
@@ -63,14 +62,14 @@
         .input-row input:focus{border-color:var(--accent)}
         .input-row button{padding:10px 16px;border:none;border-radius:12px;background:#0066cc;color:#fff;font-size:13px;font-weight:600;cursor:pointer;touch-action:manipulation}
         .mic-area{display:flex;align-items:center;gap:14px}
-        .vol{width:36px;height:3px;background:#1a2233;border-radius:2px;overflow:hidden}
-        .vol i{display:block;height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .08s}
         #mic{width:56px;height:56px;border-radius:50%;border:2.5px solid var(--accent);background:rgba(0,136,255,.1);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;touch-action:manipulation}
         #mic.on{border-color:var(--danger);background:rgba(255,50,50,.15);animation:blink 1.2s infinite}
         #mic:active{transform:scale(.93)}
 
         .frame-dot{position:absolute;top:10px;right:10px;z-index:25;width:6px;height:6px;border-radius:50%;background:var(--accent2);opacity:0;transition:opacity .15s}
         .frame-dot.flash{opacity:1}
+
+        #audio-status{position:absolute;top:36px;right:14px;z-index:35;font-size:10px;color:var(--dim);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:8px;display:none}
     </style>
 </head>
 <body>
@@ -86,8 +85,7 @@
     </div>
     <button class="w-btn" id="go">▶ Parler</button>
     <div style="color:var(--dim);font-size:10px;margin-top:12px;text-align:center;line-height:1.5">
-        ⚠️ Nécessite le serveur local : <code style="background:#1a2233;padding:2px 6px;border-radius:4px">python server.py</code><br>
-        Puis ouvrir <code style="background:#1a2233;padding:2px 6px;border-radius:4px">http://localhost:8080</code>
+        Nécessite le serveur : <code style="background:#1a2233;padding:2px 6px;border-radius:4px">python server.py</code>
     </div>
     <a href="photomaton.html" style="color:var(--dim);font-size:11px;margin-top:4px;text-decoration:none">→ Photomaton ID</a>
 </div>
@@ -96,13 +94,14 @@
     <video id="cam" autoplay playsinline muted></video>
     <div class="dim"></div>
     <div class="frame-dot" id="fdot"></div>
+    <div id="audio-status"></div>
     <div class="top">
         <div class="top-left">
             <div class="dot" id="dot"></div>
             <span class="lbl" id="lbl">En attente...</span>
         </div>
         <div class="top-right">
-            <button class="btn-icon" id="switch-cam" title="Retourner la caméra">🔄</button>
+            <button class="btn-icon" id="switch-cam" title="Caméra">🔄</button>
             <button class="btn-icon" id="quit">✕</button>
         </div>
     </div>
@@ -114,33 +113,131 @@
             <button id="send">OK</button>
         </div>
         <div class="mic-area">
-            <div class="vol"><i id="v1"></i></div>
             <button id="mic">🎤</button>
-            <div class="vol"><i id="v2"></i></div>
         </div>
     </div>
 </div>
 
 <canvas id="cv" style="display:none"></canvas>
-<audio id="tts" style="display:none"></audio>
 
 <script>
 (function(){
 var $=function(id){return document.getElementById(id)};
-var chatEl=$('chat'),camEl=$('cam'),cv=$('cv'),ctx=cv.getContext('2d'),ttsEl=$('tts');
-var dotEl=$('dot'),lblEl=$('lbl'),orbEl=$('orb'),fdotEl=$('fdot');
-var stream=null,frameTimer=null,rec=null,audioUnlocked=false,active=false,speaking=false;
-var history=[],latestFrame=null,waitingAI=false;
-var facingMode='environment';
+var chatEl=$('chat'),camEl=$('cam'),cv=$('cv'),ctx=cv.getContext('2d');
+var dotEl=$('dot'),lblEl=$('lbl'),orbEl=$('orb'),fdotEl=$('fdot'),audioStatus=$('audio-status');
+var stream=null,frameTimer=null,rec=null,active=false,speaking=false;
+var history=[],latestFrame=null,waitingAI=false,facingMode='environment';
+var lastAudioB64=null; // stocke le dernier audio pour replay
 
+/* ============ AUDIO ENGINE ============ */
+var audioCtx=null;
+var audioEl=new Audio();
+audioEl.setAttribute('playsinline','');
+audioEl.setAttribute('preload','auto');
+
+function getAudioCtx(){
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    return audioCtx;
+}
+
+function unlockAudio(){
+    try{
+        var ctx=getAudioCtx();
+        // Joue un silence via Web Audio pour déverrouiller
+        var buf=ctx.createBuffer(1,1,22050);
+        var src=ctx.createBufferSource();
+        src.buffer=buf;src.connect(ctx.destination);src.start(0);
+        console.log('[Audio] Web Audio unlocked, state='+ctx.state);
+    }catch(e){console.warn('[Audio] Web Audio unlock failed',e)}
+
+    try{
+        audioEl.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+        audioEl.play().then(function(){console.log('[Audio] <audio> unlocked')}).catch(function(){});
+    }catch(e){}
+}
+
+function showAudioStatus(text){
+    audioStatus.textContent=text;audioStatus.style.display='block';
+    setTimeout(function(){audioStatus.style.display='none'},3000);
+}
+
+function playAudioFromB64(b64){
+    lastAudioB64=b64;
+    return new Promise(function(resolve){
+        try{
+            var raw=atob(b64);
+            var u8=new Uint8Array(raw.length);
+            for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
+            var blob=new Blob([u8],{type:'audio/wav'});
+            var url=URL.createObjectURL(blob);
+
+            // Méthode 1: <audio> element (fiable sur PC + mobile)
+            audioEl.src=url;
+            audioEl.onended=function(){
+                URL.revokeObjectURL(url);
+                console.log('[Audio] Play OK via <audio>');
+                resolve(true);
+            };
+            audioEl.onerror=function(e){
+                console.warn('[Audio] <audio> failed, trying Web Audio');
+                URL.revokeObjectURL(url);
+                // Méthode 2: Web Audio API
+                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
+            };
+            audioEl.play().then(function(){
+                console.log('[Audio] <audio>.play() started');
+            }).catch(function(e){
+                console.warn('[Audio] <audio>.play() blocked:',e.message);
+                URL.revokeObjectURL(url);
+                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
+            });
+        }catch(e){
+            console.error('[Audio] playAudioFromB64 error:',e);
+            resolve(false);
+        }
+    });
+}
+
+function playViaWebAudio(b64){
+    return new Promise(function(resolve,reject){
+        try{
+            var ctx=getAudioCtx();
+            var raw=atob(b64);
+            var u8=new Uint8Array(raw.length);
+            for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
+            ctx.decodeAudioData(u8.buffer).then(function(audioBuf){
+                var src=ctx.createBufferSource();
+                src.buffer=audioBuf;
+                src.connect(ctx.destination);
+                src.onended=function(){console.log('[Audio] Web Audio playback ended');resolve(true)};
+                src.start(0);
+                console.log('[Audio] Web Audio playback started');
+            }).catch(function(e){
+                console.warn('[Audio] decodeAudioData failed:',e);
+                reject(e);
+            });
+        }catch(e){reject(e)}
+    });
+}
+
+function replayLastAudio(){
+    if(!lastAudioB64){showAudioStatus('Pas de audio');return}
+    speaking=true;orbEl.className='speaking';
+    showAudioStatus('🔊 Relecture...');
+    playAudioFromB64(lastAudioB64).then(function(){
+        speaking=false;orbEl.className='idle';showAudioStatus('');
+    });
+}
+
+/* ============ UI ============ */
 function show(id){
     var pages=document.querySelectorAll('.page');
     for(var i=0;i<pages.length;i++)pages[i].classList.remove('on');
     $(id).classList.add('on');
 }
 function stat(t,m){
-    lblEl.textContent=t;
-    dotEl.className='dot';
+    lblEl.textContent=t;dotEl.className='dot';
     if(m==='on')dotEl.classList.add('on');
     else if(m==='rec')dotEl.classList.add('rec');
     else if(m==='talk')dotEl.classList.add('talk');
@@ -150,16 +247,36 @@ function addMsg(text,who){
     var d=document.createElement('div');
     d.className='msg '+(who==='me'?'me':'ai');
     d.textContent=text;
-    chatEl.appendChild(d);
-    chatEl.scrollTop=chatEl.scrollHeight;
+    chatEl.appendChild(d);chatEl.scrollTop=chatEl.scrollHeight;
     return d;
 }
-function addTyping(){
+
+function addMsgWithReplay(text,audioB64){
     var d=document.createElement('div');
     d.className='msg ai';
-    d.innerHTML='<span class="cursor"></span>';
-    chatEl.appendChild(d);
-    chatEl.scrollTop=chatEl.scrollHeight;
+    d.textContent=text;
+    if(audioB64){
+        var btn=document.createElement('button');
+        btn.className='replay-btn';btn.textContent='🔊';
+        btn.addEventListener('click',function(){
+            speaking=true;orbEl.className='speaking';
+            playAudioFromB64(audioB64).then(function(){
+                speaking=false;orbEl.className='idle';
+            });
+        });
+        btn.addEventListener('touchend',function(e){
+            e.preventDefault();btn.click();
+        });
+        d.appendChild(btn);
+    }
+    chatEl.appendChild(d);chatEl.scrollTop=chatEl.scrollHeight;
+    return d;
+}
+
+function addTyping(){
+    var d=document.createElement('div');
+    d.className='msg ai';d.innerHTML='<span class="cursor"></span>';
+    chatEl.appendChild(d);chatEl.scrollTop=chatEl.scrollHeight;
     return d;
 }
 function typeText(el,text){
@@ -172,41 +289,34 @@ function typeText(el,text){
     });
 }
 
+/* ============ CAMERA ============ */
 function stopCam(){
     if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
     if(frameTimer){clearInterval(frameTimer);frameTimer=null}
 }
-
 function startCam(){
     return navigator.mediaDevices.getUserMedia({
-        video:{facingMode:facingMode,width:{ideal:640},height:{ideal:480}},
-        audio:false
+        video:{facingMode:facingMode,width:{ideal:640},height:{ideal:480}},audio:false
     }).then(function(s){
-        stream=s;
-        camEl.srcObject=s;
-        if(facingMode==='user')camEl.classList.add('mirror');
-        else camEl.classList.remove('mirror');
+        stream=s;camEl.srcObject=s;
+        camEl.classList.toggle('mirror',facingMode==='user');
         frameTimer=setInterval(function(){
             if(!camEl.videoWidth)return;
             cv.width=320;cv.height=240;
-            ctx.save();
-            ctx.translate(cv.width,0);
-            ctx.scale(-1,1);
-            ctx.drawImage(camEl,0,0,320,240);
-            ctx.restore();
+            ctx.save();ctx.translate(cv.width,0);ctx.scale(-1,1);
+            ctx.drawImage(camEl,0,0,320,240);ctx.restore();
             latestFrame=cv.toDataURL('image/jpeg',0.5).split(',')[1];
             fdotEl.classList.add('flash');setTimeout(function(){fdotEl.classList.remove('flash')},150);
         },3000);
         return true;
     });
 }
-
 function switchCam(){
     facingMode=facingMode==='environment'?'user':'environment';
-    stopCam();
-    startCam().catch(function(e){console.warn('Cam switch error',e)});
+    stopCam();startCam().catch(function(e){console.warn(e)});
 }
 
+/* ============ MIC ============ */
 function startMic(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){stat('Speech non supporté','');return}
@@ -221,36 +331,11 @@ function startMic(){
     };
     rec.onend=function(){if(active)try{rec.start()}catch(e){}};
     rec.onerror=function(e){if(active&&e.error!=='no-speech'&&e.error!=='aborted')setTimeout(function(){try{rec.start()}catch(e){}},800)};
-    try{rec.start();stat('En écoute','rec');$('mic').classList.add('on')}catch(e){console.warn('Mic error',e)}
+    try{rec.start();stat('En écoute','rec');$('mic').classList.add('on')}catch(e){}
 }
 function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 
-var API_KEY='hqC6t0vj7Mqkesum4ZhrVv6Qgxg3VZMy';
-var backendOk=false;
-
-/* Check si le backend tourne */
-fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'test'})})
-.then(function(){backendOk=true})
-.catch(function(){backendOk=false});
-
-/* Appel unique au backend /api/ia (vision + chat + TTS) */
-function callAI(text,imageB64,historyArr){
-    return fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({text:text,image:imageB64,history:historyArr})
-    }).then(function(r){if(!r.ok)throw new Error('Serveur '+r.status);return r.json()});
-}
-function playAudioB64(b64){
-    return new Promise(function(resolve){
-        var raw=atob(b64);var u8=new Uint8Array(raw.length);
-        for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
-        var blob=new Blob([u8],{type:'audio/wav'});var url=URL.createObjectURL(blob);
-        ttsEl.src=url;
-        ttsEl.play().then(function(){
-            ttsEl.onended=function(){URL.revokeObjectURL(url);resolve()};
-        }).catch(function(){URL.revokeObjectURL(url);resolve()});
-    });
-}
-
+/* ============ AI ============ */
 function onUserText(text){
     if(!text||waitingAI)return;
     addMsg(text,'me');
@@ -260,74 +345,74 @@ function onUserText(text){
     var typing=addTyping();
     stat('Réflexion...','on');
 
-    callAI(text,latestFrame,history.slice(-20)).then(function(data){
+    fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({text:text,image:latestFrame,history:history.slice(-20)})
+    }).then(function(r){
+        if(!r.ok)throw new Error('Serveur '+r.status);
+        return r.json();
+    }).then(function(data){
         if(data.error)throw new Error(data.error);
-        return typeText(typing,data.text).then(function(){
-            history.push({role:'assistant',content:data.text});
-            if(data.audio_data){
-                stat('Parle...','talk');speaking=true;orbEl.className='speaking';
-                return playAudioB64(data.audio_data);
-            }
-        });
+        console.log('[IA] Response:',data.text.substring(0,60),'tts_ok:',data.tts_ok);
+
+        // Remplace le typing par le vrai message + bouton replay
+        typing.remove();
+        addMsgWithReplay(data.text,data.audio_data||null);
+        history.push({role:'assistant',content:data.text});
+
+        if(data.audio_data){
+            stat('Parle...','talk');speaking=true;orbEl.className='speaking';
+            return playAudioFromB64(data.audio_data);
+        }else{
+            console.warn('[IA] No audio:',data.tts_error);
+            showAudioStatus('Pas de voix: '+(data.tts_error||'erreur'));
+            return false;
+        }
     }).then(function(){
         speaking=false;orbEl.className='idle';
         stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
         waitingAI=false;
     }).catch(function(e){
-        console.error(e);typing.textContent='Erreur : '+e.message;
+        console.error('[IA] Error:',e);
+        typing.textContent='Erreur : '+e.message;
         speaking=false;orbEl.className='idle';
         stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
         waitingAI=false;
     });
 }
 
+/* ============ LIFECYCLE ============ */
 function start(){
-    console.log('[IA] START clicked, backend:',backendOk);
-    show('active');
-    stat('Caméra...','on');
-    active=true;
-
-    // Unlock audio
-    try{ttsEl.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';ttsEl.play().then(function(){audioUnlocked=true}).catch(function(){audioUnlocked=true})}catch(e){audioUnlocked=true}
+    console.log('[IA] START');
+    show('active');stat('Caméra...','on');active=true;
+    unlockAudio();
 
     startCam().then(function(){
         orbEl.className='idle';stat('Connecté','on');startMic();
-        if(!backendOk){
-            var g="Attention : le serveur local ne tourne pas. Lancez 'python server.py' puis rechargez la page.";
-            typeText(addTyping(),g);history.push({role:'assistant',content:g});
-        }else{
-            var g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
-            typeText(addTyping(),g);history.push({role:'assistant',content:g});
-        }
+        typeText(addTyping(),"Salut ! Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !").then(function(){});
+        history.push({role:'assistant',content:'Salut ! Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !'});
     }).catch(function(e){
-        console.error('Cam error:',e);stat('Caméra refusée','on');startMic();
-        if(!backendOk){
-            var g="Pas de caméra et pas de serveur. Lancez 'python server.py' et autorisez la caméra.";
-            typeText(addTyping(),g);history.push({role:'assistant',content:g});
-        }else{
-            var g="Pas de caméra mais on peut discuter ! Parle-moi.";
-            typeText(addTyping(),g);history.push({role:'assistant',content:g});
-        }
+        console.error('Cam error:',e);stat('Cam','on');startMic();
+        typeText(addTyping(),"Pas de caméra mais on peut discuter !").then(function(){});
     });
 }
 
 function quit(){
-    active=false;stopMic();stopCam();chatEl.innerHTML='';history=[];latestFrame=null;
+    active=false;stopMic();stopCam();chatEl.innerHTML='';history=[];latestFrame=null;lastAudioB64=null;
+    try{audioEl.pause();audioEl.src=''}catch(e){}
     orbEl.className='';show('welcome');stat('En attente...','');
 }
 
-/* ---- Events: click + touchend + pointerdown pour mobile ---- */
-function bindBtn(id,fn){
+/* ============ EVENTS ============ */
+function bind(id,fn){
     var el=$(id);if(!el)return;
     el.addEventListener('click',function(e){e.preventDefault();fn()});
     el.addEventListener('touchend',function(e){e.preventDefault();fn()});
 }
-bindBtn('go',start);
-bindBtn('quit',quit);
-bindBtn('switch-cam',switchCam);
-bindBtn('send',function(){var t=$('inp').value.trim();if(t){$('inp').value='';onUserText(t)}});
-$('mic').addEventListener('click',function(){if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}});
-$('mic').addEventListener('touchend',function(e){e.preventDefault();if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}});
+bind('go',start);
+bind('quit',quit);
+bind('switch-cam',switchCam);
+bind('send',function(){var t=$('inp').value.trim();if(t){$('inp').value='';onUserText(t)}});
+bind('mic',function(){if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}});
 $('inp').addEventListener('keydown',function(e){if(e.key==='Enter')$('send').click()});
 })();
 </script>
