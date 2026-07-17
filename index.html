@@ -136,13 +136,6 @@ const dot=$('dot'),lbl=$('lbl'),orb=$('orb'),fdot=$('fdot');
 let stream=null,frameTimer=null,rec=null,audioUnlocked=false,active=false,speaking=false;
 let history=[],latestFrame=null,waitingAI=false;
 
-/* ---- audio unlock ---- */
-async function unlock(){
-    if(audioUnlocked)return;
-    tts.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-    try{await tts.play();audioUnlocked=true}catch(e){audioUnlocked=true}
-}
-
 /* ---- UI ---- */
 function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));$(id).classList.add('on')}
 function stat(t,m){lbl.textContent=t;dot.className='dot';if(m==='on')dot.classList.add('on');else if(m==='rec')dot.classList.add('rec');else if(m==='talk')dot.classList.add('talk')}
@@ -174,25 +167,7 @@ function typeText(el,text){
     });
 }
 
-/* ---- camera ---- */
-async function startCam(){
-    try{
-        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}},audio:false});
-        cam.srcObject=stream;
-        // capture frame every 3s
-        frameTimer=setInterval(()=>{
-            if(!cam.videoWidth)return;
-            cv.width=320;cv.height=240;
-            ctx.drawImage(cam,0,0,320,240);
-            latestFrame=cv.toDataURL('image/jpeg',0.5).split(',')[1];
-            // flash indicator
-            fdot.classList.add('flash');
-            setTimeout(()=>fdot.classList.remove('flash'),150);
-        },3000);
-        return true;
-    }catch(e){console.error(e);return false}
-}
-function stopCam(){
+/* ---- stop camera ---- */
     if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
     if(frameTimer){clearInterval(frameTimer);frameTimer=null}
 }
@@ -212,7 +187,7 @@ function startMic(){
     };
     rec.onend=()=>{if(active)try{rec.start()}catch(e){}};
     rec.onerror=e=>{if(active&&e.error!=='no-speech'&&e.error!=='aborted')setTimeout(()=>{try{rec.start()}catch(e){}},800)};
-    try{rec.start();stat('En écoute','rec');$('mic').classList.add('on')}catch(e){}
+    try{rec.start();stat('En écoute','rec');$('mic').classList.add('on')}catch(e){console.warn('Mic error',e)}
 }
 function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 
@@ -288,20 +263,45 @@ async function onUserText(text){
 }
 
 /* ---- lifecycle ---- */
-async function start(){
-    await unlock();
+function start(){
+    /* TOUT doit être SYNCHROME dans le handler de clic pour mobile */
     show('active');
     stat('Caméra...','on');
-    const ok=await startCam();
-    if(!ok){alert('Caméra non disponible');show('welcome');return}
-    orb.className='idle';
     active=true;
-    startMic();
-    // greeting
-    const g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
-    const t=addTyping();await typeText(t,g);
-    history.push({role:'assistant',content:g});
-    stat('En écoute','rec');
+
+    /* Unlock audio immédiatement (synchronous call) */
+    tts.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    tts.play().then(()=>{audioUnlocked=true}).catch(()=>{audioUnlocked=true});
+
+    /* Camera — getUserMedia dans le handler = OK sur mobile */
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}},audio:false})
+    .then(s=>{
+        stream=s;cam.srcObject=s;
+        frameTimer=setInterval(()=>{
+            if(!cam.videoWidth)return;
+            cv.width=320;cv.height=240;
+            ctx.drawImage(cam,0,0,320,240);
+            latestFrame=cv.toDataURL('image/jpeg',0.5).split(',')[1];
+            fdot.classList.add('flash');setTimeout(()=>fdot.classList.remove('flash'),150);
+        },3000);
+        orb.className='idle';
+        stat('Connecté','on');
+        /* Mic */
+        startMic();
+        /* Greeting */
+        const g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
+        const t=addTyping();typeText(t,g);
+        history.push({role:'assistant',content:g});
+    })
+    .catch(e=>{
+        console.error('Caméra refusée:',e);
+        stat('Caméra refusée','on');
+        /* Même sans caméra, on lance le mic */
+        startMic();
+        const g="Salut ! Je n'ai pas accès à la caméra, mais je peux quand même discuter avec toi !";
+        const t=addTyping();typeText(t,g);
+        history.push({role:'assistant',content:g});
+    });
 }
 function quit(){
     active=false;stopMic();stopCam();chat.innerHTML='';history=[];latestFrame=null;
