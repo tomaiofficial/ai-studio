@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a1628">
+    <title>Photomaton ID — Boîte à Photos d'Identité</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="flash-overlay"></div>
+
+<div id="app">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-logo">
+            <div class="logo-icon">📸</div>
+            <div class="logo-text">
+                <span class="logo-title">PHOTOMATON</span>
+                <span class="logo-sub">Photos d'Identité</span>
+            </div>
+        </div>
+        <a href="index.html" style="color:#7799cc;font-size:11px;text-decoration:none;margin-right:8px">🤖 IA Vocal</a>
+        <button id="btn-sound" class="btn-icon" title="Active/Désactive le son">
+            <span id="sound-icon">🔊</span>
+        </button>
+    </header>
+
+    <!-- Écran d'accueil -->
+    <section id="screen-welcome" class="screen active">
+        <div class="welcome-machine">
+            <div class="machine-top">
+                <div class="machine-light" id="machine-light"></div>
+                <div class="machine-label">PHOTOMATON ID</div>
+            </div>
+            <div class="machine-body">
+                <div class="machine-screen-frame">
+                    <div class="screen-scanlines"></div>
+                    <div class="welcome-content">
+                        <div class="welcome-icon">🪪</div>
+                        <h1 class="welcome-title">Photos d'Identité</h1>
+                        <p class="welcome-desc">Format officiel carte d'identité<br>35mm × 45mm — Fond blanc</p>
+                        <div class="welcome-features">
+                            <div class="feature">📷 Caméra HD</div>
+                            <div class="feature">🗣️ Assistant vocal Mistral Voxtral</div>
+                            <div class="feature">🖨️ Impression instantanée</div>
+                        </div>
+                        <button id="btn-start" class="btn-primary pulse">
+                            <span>COMMENCER</span>
+                            <span class="btn-sub">Appuyez pour démarrer</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="machine-bottom">
+                <div class="machine-slot"></div>
+                <div class="machine-slot-label">Sortie photos</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Écran caméra -->
+    <section id="screen-camera" class="screen">
+        <div class="camera-container">
+            <div class="camera-header">
+                <div class="photo-counter">
+                    <span id="photo-count">0</span> / <span id="photo-total">4</span> photos
+                </div>
+                <div class="pose-label" id="pose-label">Regardez droit devant</div>
+            </div>
+            <div class="viewfinder-wrapper">
+                <div class="viewfinder">
+                    <video id="camera" autoplay playsinline></video>
+                    <canvas id="camera-canvas" style="display:none"></canvas>
+                    <!-- Guide overlay for ID photo -->
+                    <div class="guide-overlay" id="guide-overlay">
+                        <div class="guide-head"></div>
+                        <div class="guide-shoulders"></div>
+                        <div class="guide-label">Positionnez votre visage dans le cadre</div>
+                    </div>
+                    <!-- Countdown -->
+                    <div class="countdown" id="countdown">
+                        <div class="countdown-number" id="countdown-number">3</div>
+                    </div>
+                    <!-- Flash -->
+                    <div class="camera-flash" id="camera-flash"></div>
+                </div>
+            </div>
+            <div class="camera-controls">
+                <button id="btn-capture" class="btn-capture" title="Prendre la photo">
+                    <div class="capture-ring">
+                        <div class="capture-inner"></div>
+                    </div>
+                </button>
+            </div>
+            <div class="camera-footer">
+                <button id="btn-cancel" class="btn-secondary">Annuler</button>
+                <div class="camera-status" id="camera-status">
+                    <span id="camera-status-text">En attente...</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Écran preview -->
+    <section id="screen-preview" class="screen">
+        <div class="preview-container">
+            <h2 class="preview-title">Aperçu de vos photos</h2>
+            <div class="photo-strip" id="photo-strip"></div>
+            <div class="id-card-preview" id="id-card-preview"></div>
+            <div class="preview-actions">
+                <button id="btn-retake" class="btn-secondary">🔄 Reprendre</button>
+                <button id="btn-download" class="btn-primary">💾 Télécharger</button>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

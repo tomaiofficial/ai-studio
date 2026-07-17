@@ -2,122 +2,319 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#0a1628">
-    <title>Photomaton ID — Boîte à Photos d'Identité</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="theme-color" content="#050a14">
+    <title>IA Vocal — Vision + Voix</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{--bg:#050a14;--card:rgba(12,18,32,0.85);--accent:#00bfff;--accent2:#00ffaa;--text:#d0daf0;--dim:#556688;--danger:#ff4466}
+        body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100dvh;overflow:hidden;-webkit-user-select:none;user-select:none}
+
+        /* ---- Screens ---- */
+        .page{display:none;position:fixed;inset:0;flex-direction:column;z-index:10}
+        .page.on{display:flex}
+
+        /* ===== WELCOME ===== */
+        #welcome{background:radial-gradient(ellipse at 50% 40%,#0d1a30 0%,#050a14 70%);align-items:center;justify-content:center;gap:20px}
+        .w-orb{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#00ddff,#0066cc 55%,#001a33 80%,transparent);box-shadow:0 0 50px #00aaff44,0 0 100px #0066cc22;animation:breathe 3s ease-in-out infinite}
+        @keyframes breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.08);filter:brightness(1.2)}}
+        .w-title{font-size:26px;font-weight:700;letter-spacing:.5px;margin-top:8px}
+        .w-sub{font-size:13px;color:var(--dim);text-align:center;line-height:1.6}
+        .w-features{display:flex;gap:18px;font-size:11px;color:var(--dim);margin:12px 0 28px}
+        .w-features span{display:flex;align-items:center;gap:4px}
+        .w-btn{padding:14px 52px;border:none;border-radius:14px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;font-size:17px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.3px}
+        .w-btn:active{transform:scale(.97);background:linear-gradient(135deg,#0077dd,#004499)}
+
+        /* ===== ACTIVE ===== */
+        #active{background:#000}
+
+        /* Camera */
+        #cam{position:absolute;inset:0;object-fit:cover;width:100%;height:100%;opacity:.3;transform:scaleX(-1);z-index:1}
+        .dim{position:absolute;inset:0;z-index:2;background:linear-gradient(180deg,rgba(5,10,20,.85) 0%,rgba(5,10,20,.2) 35%,rgba(5,10,20,.5) 100%)}
+
+        /* Top */
+        .top{position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+        .top-left{display:flex;align-items:center;gap:8px}
+        .dot{width:8px;height:8px;border-radius:50%;background:#333;transition:all .3s}
+        .dot.on{background:#00ff88;box-shadow:0 0 6px #00ff88}
+        .dot.rec{background:var(--danger);box-shadow:0 0 6px var(--danger);animation:blink 1s infinite}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+        .dot.talk{background:var(--accent2);box-shadow:0 0 6px var(--accent2)}
+        .lbl{font-size:11px;color:var(--dim)}
+        .btn-x{background:none;border:none;color:var(--dim);font-size:22px;padding:2px 6px;line-height:1}
+
+        /* Chat */
+        #chat{position:absolute;top:46px;bottom:130px;left:0;right:0;z-index:20;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+        #chat::-webkit-scrollbar{width:0}
+        .msg{max-width:82%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.55;animation:pop .25s ease-out;word-wrap:break-word}
+        @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+        .msg.me{align-self:flex-end;background:#0060bb;color:#fff;border-bottom-right-radius:4px}
+        .msg.ai{align-self:flex-start;background:var(--card);color:#ccd8ee;border-bottom-left-radius:4px;border:1px solid rgba(0,191,255,.1)}
+        .msg.ai .cursor{display:inline-block;width:2px;height:13px;background:var(--accent);margin-left:2px;animation:blink .6s infinite;vertical-align:text-bottom}
+
+        /* Orb */
+        #orb-wrap{position:absolute;bottom:145px;left:0;right:0;z-index:15;display:flex;justify-content:center;pointer-events:none}
+        #orb{width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--accent),#005599 60%,transparent 72%);opacity:0;transition:all .4s}
+        #orb.idle{opacity:.6;animation:breathe 3s ease-in-out infinite}
+        #orb.speaking{opacity:1;animation:speak 1.2s ease-in-out infinite;background:radial-gradient(circle at 40% 35%,var(--accent2),#007755 60%,transparent 72%);box-shadow:0 0 30px #00ffaa33}
+        @keyframes speak{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+
+        /* Bottom */
+        .bottom{position:absolute;bottom:0;left:0;right:0;z-index:30;padding:10px 14px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;background:linear-gradient(180deg,transparent 0%,rgba(5,10,20,.9) 30%)}
+        .input-row{display:flex;width:100%;max-width:480px;gap:6px}
+        .input-row input{flex:1;padding:10px 14px;border-radius:12px;border:1px solid #223;background:rgba(10,15,25,.9);color:#fff;font-size:14px;outline:none}
+        .input-row input:focus{border-color:var(--accent)}
+        .input-row button{padding:10px 16px;border:none;border-radius:12px;background:#0066cc;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+        .mic-area{display:flex;align-items:center;gap:14px}
+        .vol{width:36px;height:3px;background:#1a2233;border-radius:2px;overflow:hidden}
+        .vol i{display:block;height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .08s}
+        #mic{width:52px;height:52px;border-radius:50%;border:2.5px solid var(--accent);background:rgba(0,136,255,.1);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+        #mic.on{border-color:var(--danger);background:rgba(255,50,50,.15);animation:blink 1.2s infinite}
+        #mic:active{transform:scale(.93)}
+
+        /* Camera frame indicator */
+        .frame-dot{position:absolute;top:10px;right:10px;z-index:25;width:6px;height:6px;border-radius:50%;background:var(--accent2);opacity:0;transition:opacity .15s}
+        .frame-dot.flash{opacity:1}
+    </style>
 </head>
 <body>
 
-<div id="flash-overlay"></div>
-
-<div id="app">
-    <!-- Header -->
-    <header class="header">
-        <div class="header-logo">
-            <div class="logo-icon">📸</div>
-            <div class="logo-text">
-                <span class="logo-title">PHOTOMATON</span>
-                <span class="logo-sub">Photos d'Identité</span>
-            </div>
-        </div>
-        <button id="btn-sound" class="btn-icon" title="Active/Désactive le son">
-            <span id="sound-icon">🔊</span>
-        </button>
-    </header>
-
-    <!-- Écran d'accueil -->
-    <section id="screen-welcome" class="screen active">
-        <div class="welcome-machine">
-            <div class="machine-top">
-                <div class="machine-light" id="machine-light"></div>
-                <div class="machine-label">PHOTOMATON ID</div>
-            </div>
-            <div class="machine-body">
-                <div class="machine-screen-frame">
-                    <div class="screen-scanlines"></div>
-                    <div class="welcome-content">
-                        <div class="welcome-icon">🪪</div>
-                        <h1 class="welcome-title">Photos d'Identité</h1>
-                        <p class="welcome-desc">Format officiel carte d'identité<br>35mm × 45mm — Fond blanc</p>
-                        <div class="welcome-features">
-                            <div class="feature">📷 Caméra HD</div>
-                            <div class="feature">🗣️ Assistant vocal Mistral Voxtral</div>
-                            <div class="feature">🖨️ Impression instantanée</div>
-                        </div>
-                        <button id="btn-start" class="btn-primary pulse">
-                            <span>COMMENCER</span>
-                            <span class="btn-sub">Appuyez pour démarrer</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="machine-bottom">
-                <div class="machine-slot"></div>
-                <div class="machine-slot-label">Sortie photos</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Écran caméra -->
-    <section id="screen-camera" class="screen">
-        <div class="camera-container">
-            <div class="camera-header">
-                <div class="photo-counter">
-                    <span id="photo-count">0</span> / <span id="photo-total">4</span> photos
-                </div>
-                <div class="pose-label" id="pose-label">Regardez droit devant</div>
-            </div>
-            <div class="viewfinder-wrapper">
-                <div class="viewfinder">
-                    <video id="camera" autoplay playsinline></video>
-                    <canvas id="camera-canvas" style="display:none"></canvas>
-                    <!-- Guide overlay for ID photo -->
-                    <div class="guide-overlay" id="guide-overlay">
-                        <div class="guide-head"></div>
-                        <div class="guide-shoulders"></div>
-                        <div class="guide-label">Positionnez votre visage dans le cadre</div>
-                    </div>
-                    <!-- Countdown -->
-                    <div class="countdown" id="countdown">
-                        <div class="countdown-number" id="countdown-number">3</div>
-                    </div>
-                    <!-- Flash -->
-                    <div class="camera-flash" id="camera-flash"></div>
-                </div>
-            </div>
-            <div class="camera-controls">
-                <button id="btn-capture" class="btn-capture" title="Prendre la photo">
-                    <div class="capture-ring">
-                        <div class="capture-inner"></div>
-                    </div>
-                </button>
-            </div>
-            <div class="camera-footer">
-                <button id="btn-cancel" class="btn-secondary">Annuler</button>
-                <div class="camera-status" id="camera-status">
-                    <span id="camera-status-text">En attente...</span>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Écran preview -->
-    <section id="screen-preview" class="screen">
-        <div class="preview-container">
-            <h2 class="preview-title">Aperçu de vos photos</h2>
-            <div class="photo-strip" id="photo-strip"></div>
-            <div class="id-card-preview" id="id-card-preview"></div>
-            <div class="preview-actions">
-                <button id="btn-retake" class="btn-secondary">🔄 Reprendre</button>
-                <button id="btn-download" class="btn-primary">💾 Télécharger</button>
-            </div>
-        </div>
-    </section>
+<!-- ===== WELCOME ===== -->
+<div id="welcome" class="page on">
+    <div class="w-orb"></div>
+    <div class="w-title">Assistant IA Vocal</div>
+    <div class="w-sub">Je vois à travers la caméra,<br>j'écoute et je te réponds avec une vraie voix.</div>
+    <div class="w-features">
+        <span>👁️ Vision temps réel</span>
+        <span>🗣️ Voix naturelle</span>
+        <span>🧠 Mistral IA</span>
+    </div>
+    <button class="w-btn" id="go">Parler</button>
+    <a href="photomaton.html" style="color:var(--dim);font-size:11px;margin-top:8px;text-decoration:none">→ Photomaton ID</a>
 </div>
 
-<script src="script.js"></script>
+<!-- ===== ACTIVE ===== -->
+<div id="active" class="page">
+    <video id="cam" autoplay playsinline muted></video>
+    <div class="dim"></div>
+    <div class="frame-dot" id="fdot"></div>
+
+    <div class="top">
+        <div class="top-left">
+            <div class="dot" id="dot"></div>
+            <span class="lbl" id="lbl">En attente...</span>
+        </div>
+        <button class="btn-x" id="quit">✕</button>
+    </div>
+
+    <div id="chat"></div>
+    <div id="orb-wrap"><div id="orb"></div></div>
+
+    <div class="bottom">
+        <div class="input-row">
+            <input id="inp" placeholder="Écris ou parle..." autocomplete="off"/>
+            <button id="send">OK</button>
+        </div>
+        <div class="mic-area">
+            <div class="vol"><i id="v1"></i></div>
+            <button id="mic">🎤</button>
+            <div class="vol"><i id="v2"></i></div>
+        </div>
+    </div>
+</div>
+
+<canvas id="cv" style="display:none"></canvas>
+<audio id="tts" style="display:none"></audio>
+
+<script>
+(function(){
+/* ---- refs ---- */
+const $=id=>document.getElementById(id);
+const chat=$('chat'),cam=$('cam'),cv=$('cv'),ctx=cv.getContext('2d'),tts=$('tts');
+const dot=$('dot'),lbl=$('lbl'),orb=$('orb'),fdot=$('fdot');
+let stream=null,frameTimer=null,rec=null,audioUnlocked=false,active=false,speaking=false;
+let history=[],latestFrame=null,waitingAI=false;
+
+/* ---- audio unlock ---- */
+async function unlock(){
+    if(audioUnlocked)return;
+    tts.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    try{await tts.play();audioUnlocked=true}catch(e){audioUnlocked=true}
+}
+
+/* ---- UI ---- */
+function show(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));$(id).classList.add('on')}
+function stat(t,m){lbl.textContent=t;dot.className='dot';if(m==='on')dot.classList.add('on');else if(m==='rec')dot.classList.add('rec');else if(m==='talk')dot.classList.add('talk')}
+
+/* ---- chat ---- */
+function addMsg(text,who){
+    const d=document.createElement('div');
+    d.className='msg '+(who==='me'?'me':'ai');
+    d.textContent=text;
+    chat.appendChild(d);
+    chat.scrollTop=chat.scrollHeight;
+    return d;
+}
+function addTyping(){
+    const d=document.createElement('div');
+    d.className='msg ai';
+    d.innerHTML='<span class="cursor"></span>';
+    chat.appendChild(d);
+    chat.scrollTop=chat.scrollHeight;
+    return d;
+}
+function typeText(el,text){
+    return new Promise(res=>{
+        let i=0;
+        const iv=setInterval(()=>{
+            if(i<text.length){el.textContent=text.slice(0,++i);chat.scrollTop=chat.scrollHeight}
+            else{clearInterval(iv);res()}
+        },18);
+    });
+}
+
+/* ---- camera ---- */
+async function startCam(){
+    try{
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}},audio:false});
+        cam.srcObject=stream;
+        // capture frame every 3s
+        frameTimer=setInterval(()=>{
+            if(!cam.videoWidth)return;
+            cv.width=320;cv.height=240;
+            ctx.drawImage(cam,0,0,320,240);
+            latestFrame=cv.toDataURL('image/jpeg',0.5).split(',')[1];
+            // flash indicator
+            fdot.classList.add('flash');
+            setTimeout(()=>fdot.classList.remove('flash'),150);
+        },3000);
+        return true;
+    }catch(e){console.error(e);return false}
+}
+function stopCam(){
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+    if(frameTimer){clearInterval(frameTimer);frameTimer=null}
+}
+
+/* ---- mic (Web Speech) ---- */
+function startMic(){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){stat('Speech non supporté','');return}
+    rec=new SR();rec.continuous=true;rec.interimResults=false;rec.lang='fr-FR';
+    rec.onresult=e=>{
+        for(let i=e.resultIndex;i<e.results.length;i++){
+            if(e.results[i].isFinal){
+                const t=e.results[i][0].transcript.trim();
+                if(t)onUserText(t);
+            }
+        }
+    };
+    rec.onend=()=>{if(active)try{rec.start()}catch(e){}};
+    rec.onerror=e=>{if(active&&e.error!=='no-speech'&&e.error!=='aborted')setTimeout(()=>{try{rec.start()}catch(e){}},800)};
+    try{rec.start();stat('En écoute','rec');$('mic').classList.add('on')}catch(e){}
+}
+function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
+
+/* ---- Config Mistral (direct depuis le navigateur) ---- */
+const API_KEY='hqC6t0vj7Mqkesum4ZhrVv6Qgxg3VZMy';
+const MISTRAL_CHAT='https://api.mistral.ai/v1/chat/completions';
+const MISTRAL_TTS='https://api.mistral.ai/v1/audio/speech';
+const CHAT_MODEL='pixtral-large-latest';
+const TTS_MODEL='voxtral-mini-tts-2603';
+const VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
+const SYS_PROMPT="Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max sauf si on te demande des détails. Style conversationnel. Tu n'es jamais un robot.";
+
+/* ---- send to AI ---- */
+async function onUserText(text){
+    if(!text||waitingAI)return;
+    addMsg(text,'me');
+    history.push({role:'user',content:text});
+    if(history.length>30)history=history.slice(-20);
+
+    waitingAI=true;
+    const typing=addTyping();
+    stat('Réflexion...','on');
+
+    try{
+        /* --- Chat (Mistral Vision) --- */
+        const messages=[{role:'system',content:SYS_PROMPT},...history.slice(-20)];
+        const userContent=[];
+        if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
+        userContent.push({type:'text',text:text});
+        messages.push({role:'user',content:userContent});
+
+        const chatResp=await fetch(MISTRAL_CHAT,{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+            body:JSON.stringify({model:CHAT_MODEL,messages,max_tokens:250,temperature:0.7})
+        });
+        if(!chatResp.ok)throw new Error('Chat API '+chatResp.status);
+        const chatData=await chatResp.json();
+        const aiText=chatData.choices[0].message.content;
+
+        await typeText(typing,aiText);
+        history.push({role:'assistant',content:aiText});
+
+        /* --- TTS (Mistral Voxtral) --- */
+        try{
+            const ttsResp=await fetch(MISTRAL_TTS,{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+                body:JSON.stringify({model:TTS_MODEL,input:aiText,voice_id:VOICE_ID,response_format:'wav'})
+            });
+            if(ttsResp.ok){
+                const ttsData=await ttsResp.json();
+                if(ttsData.audio_data){
+                    stat('Parle...','talk');speaking=true;orb.className='speaking';
+                    const raw=atob(ttsData.audio_data);
+                    const u8=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
+                    const blob=new Blob([u8],{type:'audio/wav'});
+                    const url=URL.createObjectURL(blob);
+                    tts.src=url;await tts.play();
+                    await new Promise(res=>{tts.onended=()=>{URL.revokeObjectURL(url);res()}});
+                    speaking=false;orb.className='idle';
+                }
+            }
+        }catch(e){console.warn('TTS error',e);speaking=false;orb.className='idle';}
+
+        stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
+    }catch(e){
+        console.error(e);
+        typing.textContent='Erreur : '+e.message+'. Réessayez.';
+        stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
+    }
+    waitingAI=false;
+}
+
+/* ---- lifecycle ---- */
+async function start(){
+    await unlock();
+    show('active');
+    stat('Caméra...','on');
+    const ok=await startCam();
+    if(!ok){alert('Caméra non disponible');show('welcome');return}
+    orb.className='idle';
+    active=true;
+    startMic();
+    // greeting
+    const g="Salut ! Je suis ton assistant vocal. Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !";
+    const t=addTyping();await typeText(t,g);
+    history.push({role:'assistant',content:g});
+    stat('En écoute','rec');
+}
+function quit(){
+    active=false;stopMic();stopCam();chat.innerHTML='';history=[];latestFrame=null;
+    orb.className='';show('welcome');stat('En attente...','');
+}
+
+/* ---- events ---- */
+$('go').onclick=start;
+$('quit').onclick=quit;
+$('mic').onclick=()=>{if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}};
+$('send').onclick=()=>{const t=$('inp').value.trim();if(t){$('inp').value='';onUserText(t)}};
+$('inp').onkeydown=e=>{if(e.key==='Enter'){$('send').click()}};
+})();
+</script>
 </body>
 </html>
