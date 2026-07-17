@@ -12,8 +12,7 @@ const state = {
     stream: null,
     speaking: false,
     ttsQueue: [],
-    mistralAvailable: true,
-    audioCtx: null
+    mistralAvailable: true
 };
 
 // ---- Elements ----
@@ -25,12 +24,62 @@ function showScreen(id) {
     $(id).classList.add('active');
 }
 
-// ---- Audio Context (lazy init) ----
-function getAudioContext() {
-    if (!state.audioCtx) {
-        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// ---- Audio Context (unlocked on first user click) ----
+let audioCtx = null;
+let audioUnlocked = false;
+
+function unlockAudio() {
+    if (audioUnlocked) return;
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // Play silent buffer to unlock
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(audioCtx.destination);
+        src.start(0);
+        audioUnlocked = true;
+        console.log('AudioContext unlocked');
+    } catch (e) {
+        console.warn('AudioContext unlock failed:', e);
     }
-    return state.audioCtx;
+}
+
+// Play MP3 via Web Audio API (avoids autoplay policy)
+function playMP3(base64Data) {
+    return new Promise((resolve) => {
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            // Resume if suspended
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => decodeAndPlay());
+            } else {
+                decodeAndPlay();
+            }
+
+            function decodeAndPlay() {
+                const raw = atob(base64Data);
+                const bytes = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+                audioCtx.decodeAudioData(bytes.buffer, (buffer) => {
+                    const source = audioCtx.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(audioCtx.destination);
+                    source.onended = () => resolve(true);
+                    source.start(0);
+                }, (err) => {
+                    console.warn('decodeAudioData failed:', err);
+                    resolve(false);
+                });
+            }
+        } catch (e) {
+            console.warn('playMP3 error:', e);
+            resolve(false);
+        }
+    });
 }
 
 // ---- Mistral Voxtral TTS ----
@@ -43,32 +92,20 @@ async function speakMistral(text) {
         });
 
         if (!resp.ok) {
-            console.warn('Mistral TTS error, falling back to browser TTS');
+            console.warn('Mistral TTS error:', resp.status);
             return false;
         }
 
         const data = await resp.json();
         if (!data.audio_data) return false;
 
-        // Decode base64 MP3 and play
-        const audioBytes = Uint8Array.from(atob(data.audio_data), c => c.charCodeAt(0));
-        const blob = new Blob([audioBytes], { type: 'audio/mp3' });
-        const url = URL.createObjectURL(blob);
-
-        return new Promise((resolve) => {
-            const audio = new Audio(url);
-            audio.onended = () => {
-                URL.revokeObjectURL(url);
-                state.speaking = false;
-                setTimeout(() => updateVoiceBubble(''), 1500);
-                resolve(true);
-            };
-            audio.onerror = () => {
-                URL.revokeObjectURL(url);
-                resolve(false);
-            };
-            audio.play().catch(() => resolve(false));
-        });
+        // Play via Web Audio API
+        const ok = await playMP3(data.audio_data);
+        if (ok) {
+            state.speaking = false;
+            setTimeout(() => updateVoiceBubble(''), 1500);
+        }
+        return ok;
     } catch (err) {
         console.warn('Mistral TTS fetch error:', err);
         return false;
@@ -472,6 +509,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start button
     $('btn-start').addEventListener('click', async () => {
+        // Unlock audio on first user gesture (required by browser autoplay policy)
+        unlockAudio();
+
         showScreen('screen-camera');
         const ok = await startCamera();
         if (!ok) {
@@ -516,7 +556,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btn-download').addEventListener('click', downloadPhotos);
 
     // Sound toggle
-    $('btn-sound').addEventListener('click', toggleSound);
+    $('btn-sound').addEventListener('click', () => {
+        unlockAudio();
+        toggleSound();
+    });
 
     // Machine light animation
     const light = $('machine-light');
