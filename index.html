@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#050a14">
-    <title>IA Vocal — Vision + Voix</title>
+    <title>IA Vocal — Assistant</title>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         :root{--bg:#050a14;--card:rgba(12,18,32,0.85);--accent:#00bfff;--accent2:#00ffaa;--text:#d0daf0;--dim:#556688;--danger:#ff4466}
@@ -16,7 +16,7 @@
 
         #welcome{background:radial-gradient(ellipse at 50% 40%,#0d1a30 0%,#050a14 70%);align-items:center;justify-content:center;gap:20px;padding:20px}
         .w-orb{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#00ddff,#0066cc 55%,#001a33 80%,transparent);box-shadow:0 0 50px #00aaff44,0 0 100px #0066cc22;animation:breathe 3s ease-in-out infinite}
-        @keyframes breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.08);filter:brightness(1.2)}}
+        @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
         .w-title{font-size:26px;font-weight:700;letter-spacing:.5px;margin-top:8px}
         .w-sub{font-size:13px;color:var(--dim);text-align:center;line-height:1.6}
         .w-features{display:flex;gap:18px;font-size:11px;color:var(--dim);margin:12px 0 28px}
@@ -27,6 +27,7 @@
         #active{background:#000}
         #cam{position:absolute;inset:0;object-fit:cover;width:100%;height:100%;opacity:.3;z-index:1}
         #cam.mirror{transform:scaleX(-1)}
+        #cam.off{opacity:0}
         .dim{position:absolute;inset:0;z-index:2;background:linear-gradient(180deg,rgba(5,10,20,.85) 0%,rgba(5,10,20,.2) 35%,rgba(5,10,20,.5) 100%)}
 
         .top{position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
@@ -41,35 +42,18 @@
         .btn-icon{background:none;border:none;color:var(--dim);font-size:22px;padding:6px 10px;line-height:1;cursor:pointer;touch-action:manipulation}
         .btn-icon:active{opacity:.5}
 
-        #chat{display:none}
-        #chat::-webkit-scrollbar{width:0}
-        .msg{max-width:82%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.55;animation:pop .25s ease-out;word-wrap:break-word}
-        @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-        .msg.me{align-self:flex-end;background:#0060bb;color:#fff;border-bottom-right-radius:4px}
-        .msg.ai{align-self:flex-start;background:var(--card);color:#ccd8ee;border-bottom-left-radius:4px;border:1px solid rgba(0,191,255,.1)}
-        .msg.ai .cursor{display:inline-block;width:2px;height:13px;background:var(--accent);margin-left:2px;animation:blink .6s infinite;vertical-align:text-bottom}
-        .msg.ai .replay-btn{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:8px;background:rgba(0,191,255,.15);color:var(--accent);font-size:11px;cursor:pointer;border:none;touch-action:manipulation}
-
-        #orb-wrap{position:absolute;bottom:145px;left:0;right:0;z-index:15;display:flex;justify-content:center;pointer-events:none}
-        #orb{width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--accent),#005599 60%,transparent 72%);opacity:0;transition:all .4s}
-        #orb.idle{opacity:.6;animation:breathe 3s ease-in-out infinite}
-        #orb.speaking{opacity:1;animation:speak 1.2s ease-in-out infinite;background:radial-gradient(circle at 40% 35%,var(--accent2),#007755 60%,transparent 72%);box-shadow:0 0 30px #00ffaa33}
-        @keyframes speak{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
-
-        .bottom{position:absolute;bottom:0;left:0;right:0;z-index:30;padding:10px 14px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;background:linear-gradient(180deg,transparent 0%,rgba(5,10,20,.9) 30%)}
-        .input-row{display:flex;width:100%;max-width:480px;gap:6px}
-        .input-row input{flex:1;padding:10px 14px;border-radius:12px;border:1px solid #223;background:rgba(10,15,25,.9);color:#fff;font-size:14px;outline:none}
-        .input-row input:focus{border-color:var(--accent)}
-        .input-row button{padding:10px 16px;border:none;border-radius:12px;background:#0066cc;color:#fff;font-size:13px;font-weight:600;cursor:pointer;touch-action:manipulation}
-        .mic-area{display:flex;align-items:center;gap:14px}
-        #mic{width:56px;height:56px;border-radius:50%;border:2.5px solid var(--accent);background:rgba(0,136,255,.1);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;touch-action:manipulation}
-        #mic.on{border-color:var(--danger);background:rgba(255,50,50,.15);animation:blink 1.2s infinite}
-        #mic:active{transform:scale(.93)}
-
         .frame-dot{position:absolute;top:10px;right:10px;z-index:25;width:6px;height:6px;border-radius:50%;background:var(--accent2);opacity:0;transition:opacity .15s}
         .frame-dot.flash{opacity:1}
 
         #audio-status{position:absolute;top:36px;right:14px;z-index:35;font-size:10px;color:var(--dim);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:8px;display:none}
+
+        #orb-wrap{position:absolute;top:0;left:0;right:0;bottom:0;z-index:15;display:flex;align-items:center;justify-content:center;pointer-events:none}
+        #orb{width:100px;height:100px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--accent2),#007755 55%,transparent 70%);opacity:0;transition:all .4s;cursor:pointer;pointer-events:auto;-webkit-tap-highlight-color:transparent}
+        #orb.idle{opacity:.7;animation:breathe 3s ease-in-out infinite}
+        #orb.rec{opacity:1;animation:rec 1.2s ease-in-out infinite;box-shadow:0 0 40px #00ffaa44}
+        @keyframes rec{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+        #orb.speaking{opacity:1;animation:speak 1.2s ease-in-out infinite;box-shadow:0 0 50px #00ffaa66}
+        @keyframes speak{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
     </style>
 </head>
 <body>
@@ -77,17 +61,14 @@
 <div id="welcome" class="page on">
     <div class="w-orb"></div>
     <div class="w-title">Assistant IA Vocal</div>
-    <div class="w-sub">Je vois à travers la caméra,<br>j'écoute et je te réponds avec une vraie voix.</div>
+    <div class="w-sub">Je te réponds avec une vraie voix.<br>Pose-moi des questions, parle-moi.</div>
     <div class="w-features">
-        <span>👁️ Vision temps réel</span>
         <span>🗣️ Voix naturelle</span>
         <span>🧠 Mistral IA</span>
+        <span>📷 Caméra optionnelle</span>
     </div>
     <button class="w-btn" id="go">▶ Parler</button>
-    <div style="color:var(--dim);font-size:10px;margin-top:12px;text-align:center;line-height:1.5">
-        Nécessite le serveur : <code style="background:#1a2233;padding:2px 6px;border-radius:4px">python server.py</code>
-    </div>
-    <a href="photomaton.html" style="color:var(--dim);font-size:11px;margin-top:4px;text-decoration:none">→ Photomaton ID</a>
+    <a href="photomaton.html" style="color:var(--dim);font-size:11px;margin-top:12px;text-decoration:none">→ Photomaton ID</a>
 </div>
 
 <div id="active" class="page">
@@ -101,21 +82,11 @@
             <span class="lbl" id="lbl">En attente...</span>
         </div>
         <div class="top-right">
-            <button class="btn-icon" id="switch-cam" title="Caméra">🔄</button>
+            <button class="btn-icon" id="btn-cam" title="Caméra">📷</button>
             <button class="btn-icon" id="quit">✕</button>
         </div>
     </div>
-    <div id="chat"></div>
     <div id="orb-wrap"><div id="orb"></div></div>
-    <div class="bottom">
-        <div class="input-row">
-            <input id="inp" placeholder="Écris ou parle..." autocomplete="off"/>
-            <button id="send">OK</button>
-        </div>
-        <div class="mic-area">
-            <button id="mic">🎤</button>
-        </div>
-    </div>
 </div>
 
 <canvas id="cv" style="display:none"></canvas>
@@ -123,11 +94,11 @@
 <script>
 (function(){
 var $=function(id){return document.getElementById(id)};
-var chatEl=$('chat'),camEl=$('cam'),cv=$('cv'),ctx=cv.getContext('2d');
+var camEl=$('cam'),cv=$('cv'),ctx=cv.getContext('2d');
 var dotEl=$('dot'),lblEl=$('lbl'),orbEl=$('orb'),fdotEl=$('fdot'),audioStatus=$('audio-status');
-var stream=null,frameTimer=null,rec=null,active=false,speaking=false;
+var stream=null,frameTimer=null,rec=null,active=false,speaking=false,cameraOn=true;
 var history=[],latestFrame=null,waitingAI=false,facingMode='environment';
-var lastAudioB64=null; // stocke le dernier audio pour replay
+var lastAudioB64=null;
 
 /* ============ AUDIO ENGINE ============ */
 var audioCtx=null;
@@ -161,11 +132,6 @@ function stopAudio(){
     }
 }
 
-function showAudioStatus(text){
-    audioStatus.textContent=text;audioStatus.style.display='block';
-    setTimeout(function(){audioStatus.style.display='none'},3000);
-}
-
 function audioBufferFromB64(b64){
     var raw=atob(b64);
     var u8=new Uint8Array(raw.length);
@@ -187,7 +153,6 @@ function playAudioFromB64(b64){
                 src.onended=function(){activeSource=null;resolve(true)};
                 src.start(0);
             }).catch(function(){
-                // Fallback <audio>
                 var blob=new Blob([new Uint8Array(audioBufferFromB64(b64))],{type:'audio/wav'});
                 var url=URL.createObjectURL(blob);
                 var el=new Audio(url);
@@ -199,15 +164,6 @@ function playAudioFromB64(b64){
         }catch(e){
             resolve(false);
         }
-    });
-}
-
-function replayLastAudio(){
-    if(!lastAudioB64){showAudioStatus('Pas de audio');return}
-    speaking=true;orbEl.className='speaking';
-    showAudioStatus('🔊 Relecture...');
-    playAudioFromB64(lastAudioB64).then(function(){
-        speaking=false;orbEl.className='idle';showAudioStatus('');
     });
 }
 
@@ -224,62 +180,18 @@ function stat(t,m){
     else if(m==='talk')dotEl.classList.add('talk');
 }
 
-function addMsg(text,who){
-    var d=document.createElement('div');
-    d.className='msg '+(who==='me'?'me':'ai');
-    d.textContent=text;
-    chatEl.appendChild(d);chatEl.scrollTop=chatEl.scrollHeight;
-    return d;
-}
-
-function addMsgWithReplay(text,audioB64){
-    var d=document.createElement('div');
-    d.className='msg ai';
-    d.textContent=text;
-    if(audioB64){
-        var btn=document.createElement('button');
-        btn.className='replay-btn';btn.textContent='🔊';
-        btn.addEventListener('click',function(){
-            speaking=true;orbEl.className='speaking';
-            playAudioFromB64(audioB64).then(function(){
-                speaking=false;orbEl.className='idle';
-            });
-        });
-        btn.addEventListener('touchend',function(e){
-            e.preventDefault();btn.click();
-        });
-        d.appendChild(btn);
-    }
-    chatEl.appendChild(d);chatEl.scrollTop=chatEl.scrollHeight;
-    return d;
-}
-
-function addTyping(){
-    var d=document.createElement('div');
-    d.className='msg ai';d.innerHTML='<span class="cursor"></span>';
-    chatEl.appendChild(d);chatEl.scrollTop=chatEl.scrollHeight;
-    return d;
-}
-function typeText(el,text){
-    return new Promise(function(res){
-        var i=0;
-        var iv=setInterval(function(){
-            if(i<text.length){el.textContent=text.slice(0,++i);chatEl.scrollTop=chatEl.scrollHeight}
-            else{clearInterval(iv);res()}
-        },18);
-    });
-}
-
 /* ============ CAMERA ============ */
 function stopCam(){
     if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
     if(frameTimer){clearInterval(frameTimer);frameTimer=null}
+    camEl.classList.add('off');
 }
 function startCam(){
+    if(!cameraOn)return Promise.resolve(false);
     return navigator.mediaDevices.getUserMedia({
         video:{facingMode:facingMode,width:{ideal:640},height:{ideal:480}},audio:false
     }).then(function(s){
-        stream=s;camEl.srcObject=s;
+        stream=s;camEl.srcObject=s;camEl.classList.remove('off');
         camEl.classList.toggle('mirror',facingMode==='user');
         frameTimer=setInterval(function(){
             if(!camEl.videoWidth)return;
@@ -290,17 +202,23 @@ function startCam(){
             fdotEl.classList.add('flash');setTimeout(function(){fdotEl.classList.remove('flash')},150);
         },3000);
         return true;
-    });
+    }).catch(function(){return false});
 }
-function switchCam(){
-    facingMode=facingMode==='environment'?'user':'environment';
-    stopCam();startCam().catch(function(e){console.warn(e)});
+function toggleCam(){
+    cameraOn=!cameraOn;
+    $('btn-cam').style.opacity=cameraOn?'1':'.4';
+    if(cameraOn){
+        startCam();
+    }else{
+        stopCam();
+        latestFrame=null;
+    }
 }
 
 /* ============ MIC ============ */
 function startMic(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){stat('Speech non supporté','');return}
+    if(!SR){stat('Non supporte','');return}
     rec=new SR();rec.continuous=true;rec.interimResults=false;rec.lang='fr-FR';
     rec.onresult=function(e){
         for(var i=e.resultIndex;i<e.results.length;i++){
@@ -312,23 +230,29 @@ function startMic(){
     };
     rec.onend=function(){if(active)try{rec.start()}catch(e){}};
     rec.onerror=function(e){if(active&&e.error!=='no-speech'&&e.error!=='aborted')setTimeout(function(){try{rec.start()}catch(e){}},800)};
-    try{rec.start();stat('En écoute','rec');$('mic').classList.add('on')}catch(e){}
+    try{rec.start();stat('En écoute','rec');orbEl.className='rec'}catch(e){}
 }
-function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
+function stopMic(){
+    if(rec){rec.abort();rec=null}
+    orbEl.className=active?'idle':'';
+    $('mic')&&$('mic').classList.remove('on');
+}
+function toggleMic(){
+    if(!active)return;
+    if(rec){stopMic();stat('Pause','on')}
+    else startMic();
+}
 
 /* ============ AI ============ */
 var API_KEY='RmZmxSfwoOIUdLCifXVLfbYhI0EO8j2U';
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-var API_HOST=IS_LOCAL?'':'https://api.mistral.ai'; // ← change ici pour ton Worker Cloudflare
-var SYS_PROMPT="Tu vois ce que filme la caméra. Regle ABSOLUE : ne decris que ce qui est 100% visible. Si l'image est floue, sombre ou peu claire, dis 'je vois pas bien'. Si tu vois du texte, lis-le a voix haute. Si tu vois un objet, decris-le sans ajouter de details. N'invente JAMAIS. Si t'es pas sur, dis-le.";
+var API_HOST=IS_LOCAL?'':'https://api.mistral.ai';
+var SYS_PROMPT="Tu es un assistant IA. Reponds a toutes les questions, aide sur tous les sujets. Si la camera est active et que tu vois quelque chose, decris-le ou lis le texte visible. Si la camera est inactive, reponds normalement. N'invente jamais.";
 function callMistralChat(messages){
     var url=IS_LOCAL?'/api/ia':API_HOST+'/v1/chat/completions';
-    if(IS_LOCAL){
-        // Backend: on envoie tout en une fois
-        return Promise.resolve(null); // géré séparément
-    }
+    if(IS_LOCAL)return Promise.resolve(null);
     return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'pixtral-12b-2409',messages:messages,max_tokens:300,temperature:0.1})
+        body:JSON.stringify({model:'pixtral-12b-2409',messages:messages,max_tokens:500,temperature:0.3})
     }).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error('Chat '+r.status+': '+(e.message||JSON.stringify(e)))});return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
@@ -347,21 +271,19 @@ function onUserText(text){
     if(history.length>30)history=history.slice(-20);
     waitingAI=true;
     stat('Réflexion...','on');
+    if(rec){stopMic()}
 
     var promise;
 
     if(IS_LOCAL){
-        // ---- LOCALHOST: tout via le backend ----
         promise=fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({text:text,image:latestFrame,history:history.slice(-20)})
+            body:JSON.stringify({text:text,image:cameraOn?latestFrame:null,history:history.slice(-20)})
         }).then(function(r){if(!r.ok)throw new Error('Serveur '+r.status);return r.json()})
           .then(function(d){return{aiText:d.text,audioB64:d.audio_data||'',error:d.error}});
     }else{
-        // ---- GITHUB PAGES: appels directs Mistral ----
         var msgs=[{role:'system',content:SYS_PROMPT}].concat(history.slice(-20));
-        var userContent=[];
-        if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
-        userContent.push({type:'text',text:text});
+        var userContent=[{type:'text',text:text}];
+        if(cameraOn&&latestFrame)userContent.unshift({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
         msgs.push({role:'user',content:userContent});
 
         promise=callMistralChat(msgs).then(function(aiText){
@@ -382,12 +304,12 @@ function onUserText(text){
         }
     }).then(function(){
         speaking=false;orbEl.className='idle';
-        stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
+        if(active){startMic()}else{stat('Connecte','on')}
         waitingAI=false;
     }).catch(function(e){
         console.error('[IA] Error:',e);
         lblEl.textContent='Erreur: '+e.message;
-        setTimeout(function(){stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on')},3000);
+        setTimeout(function(){if(active)startMic()},3000);
         speaking=false;orbEl.className='idle';
         waitingAI=false;
     });
@@ -395,20 +317,18 @@ function onUserText(text){
 
 /* ============ LIFECYCLE ============ */
 function start(){
-    console.log('[IA] START');
-    show('active');stat('Caméra...','on');active=true;
+    show('active');stat('Demarrage...','on');active=true;
     unlockAudio();
-
-    startCam().then(function(){
-        orbEl.className='idle';stat('Connecté','on');startMic();
-        history.push({role:'assistant',content:'Salut ! Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !'});
-    }).catch(function(e){
-        stat('Cam','on');startMic();
+    startCam().then(function(ok){
+        if(!ok)cameraOn=false;
+        orbEl.className='idle';stat('Connecte','on');startMic();
+    }).catch(function(){
+        orbEl.className='idle';stat('Connecte','on');startMic();
     });
 }
 
 function quit(){
-    active=false;stopMic();stopCam();chatEl.innerHTML='';history=[];latestFrame=null;lastAudioB64=null;
+    active=false;stopMic();stopCam();history=[];latestFrame=null;lastAudioB64=null;
     stopAudio();try{if(audioCtx)audioCtx.close();audioCtx=null;gainNode=null}catch(e){}
     orbEl.className='';show('welcome');stat('En attente...','');
 }
@@ -421,10 +341,9 @@ function bind(id,fn){
 }
 bind('go',start);
 bind('quit',quit);
-bind('switch-cam',switchCam);
-bind('send',function(){var t=$('inp').value.trim();if(t){$('inp').value='';onUserText(t)}});
-bind('mic',function(){if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}});
-$('inp').addEventListener('keydown',function(e){if(e.key==='Enter')$('send').click()});
+bind('btn-cam',toggleCam);
+orbEl.addEventListener('click',toggleMic);
+orbEl.addEventListener('touchend',function(e){e.preventDefault();toggleMic()});
 })();
 </script>
 </body>
