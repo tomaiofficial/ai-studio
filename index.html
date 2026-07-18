@@ -256,7 +256,7 @@ var API_HOST=IS_LOCAL?'':'https://ia-proxy.tom16112008.workers.dev';
 function getPrompt(){return PROMPTS[currentMode];}
 function callMistralChat(messages){
     if(IS_LOCAL)return Promise.resolve(null);
-    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+    return fetch(API_HOST+'/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'pixtral-12b-2409',messages:messages,max_tokens:500,temperature:0.3})
     }).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error('Chat '+r.status+': '+(e.message||JSON.stringify(e)))});return r.json()})
       .then(function(d){return d.choices[0].message.content});
