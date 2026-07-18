@@ -328,7 +328,7 @@ function callMistralChat(messages){
         return Promise.resolve(null); // géré séparément
     }
     return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'mistral-medium-latest',messages:messages,max_tokens:300,temperature:0.2})
+        body:JSON.stringify({model:'pixtral-large-latest',messages:messages,max_tokens:300,temperature:0.2})
     }).then(function(r){if(!r.ok)throw new Error('Chat '+r.status);return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
