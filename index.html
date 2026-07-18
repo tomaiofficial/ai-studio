@@ -172,19 +172,24 @@ function playAudioFromB64(b64){
             var blob=new Blob([u8],{type:'audio/wav'});
             var url=URL.createObjectURL(blob);
 
-            audioEl.src=url;
-            audioEl.volume=1.0;
-            audioEl.onended=function(){
-                URL.revokeObjectURL(url);
-                resolve(true);
-            };
-            audioEl.onerror=function(){
-                URL.revokeObjectURL(url);
-                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
-            };
-            audioEl.play().catch(function(){
-                URL.revokeObjectURL(url);
-                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
+            var ctx=getAudioCtx();
+            var raw2=atob(b64);
+            var u82=new Uint8Array(raw2.length);
+            for(var i=0;i<raw2.length;i++)u82[i]=raw2.charCodeAt(i);
+            ctx.decodeAudioData(u82.buffer).then(function(audioBuf){
+                var src=ctx.createBufferSource();
+                src.buffer=audioBuf;
+                var gain=ctx.createGain();
+                gain.gain.value=1.3;
+                src.connect(gain);
+                gain.connect(ctx.destination);
+                src.onended=function(){URL.revokeObjectURL(url);resolve(true)};
+                src.start(0);
+            }).catch(function(){
+                audioEl.src=url;
+                audioEl.volume=1.0;
+                audioEl.onended=function(){URL.revokeObjectURL(url);resolve(true)};
+                audioEl.play().catch(function(){URL.revokeObjectURL(url);resolve(false)});
             });
         }catch(e){
             resolve(false);
@@ -327,13 +332,13 @@ function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 /* ============ AI ============ */
 var API_KEY='SPZpcRQzWUu8iEC1XrcNwEOOcLH45qis';
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-var SYS_PROMPT="Tu es un assistant vocal amical et bavard. Tu vois ce que la caméra filme mais tu n'es pas obligé d'en parler à chaque fois. Réponds toujours de façon détaillée et complète, en au moins 3-4 phrases. Développe tes réponses, donne des explications. Sois chaleureux et naturel, comme ChatGPT Live.";
+var SYS_PROMPT="Tu es un assistant vocal amical et bavard. Tu vois ce que la caméra filme mais tu n'es pas obligé d'en parler à chaque fois. Réponds de façon complète mais pas trop longue, 2-3 phrases suffisent. Développe un peu, sois naturel et chaleureux, comme ChatGPT Live.";
 
 function callMistralChat(messages){
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch('https://api.mistral.ai/v1/chat/completions',{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'mistral-medium-3.5',messages:messages,max_tokens:500,temperature:0.5})
+        body:JSON.stringify({model:'mistral-medium-3.5',messages:messages,max_tokens:250,temperature:0.7})
     }).then(function(r){if(!r.ok)throw new Error('Chat '+r.status);return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
