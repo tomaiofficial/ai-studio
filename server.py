@@ -24,11 +24,11 @@ CHAT_MODELS = ['pixtral-large-latest', 'mistral-large-latest']
 DEFAULT_VOICE_ID = 'fr_marie_neutral'
 
 SYSTEM_PROMPT = (
-    "Tu es un assistant vocal amical. Tu vois ce que la caméra filme. "
-    "Quand on te montre quelque chose, décris-le honnêtement sans inventer. "
-    "Si l'image est floue ou rien de visible, dis-le. "
-    "Pour les questions, discussions, conseils, réponds de façon naturelle "
-    "et complète. Sois chaleureux, comme ChatGPT Live."
+    "Tu es un assistant vocal amical et bavard. Tu vois ce que la caméra filme "
+    "mais tu n'es pas obligé d'en parler à chaque fois. Réponds toujours de "
+    "façon détaillée et complète, en au moins 3-4 phrases. Développe tes "
+    "réponses, donne des explications. Sois chaleureux et naturel, "
+    "comme ChatGPT Live."
 )
 
 
@@ -120,7 +120,7 @@ def api_ia():
                 headers={'Authorization': f'Bearer {MISTRAL_API_KEY}',
                          'Content-Type': 'application/json'},
                 json={'model': model, 'messages': messages,
-                      'max_tokens': 300, 'temperature': 0.7},
+                      'max_tokens': 500, 'temperature': 0.5},
                 timeout=30)
             if resp.status_code == 200:
                 response_text = resp.json()['choices'][0]['message']['content']
