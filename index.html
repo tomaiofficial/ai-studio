@@ -357,7 +357,8 @@ function callMistralTTS(text){
     return fetch('https://api.mistral.ai/v1/audio/speech',{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
         body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:'c69964a6-ab8b-4f8a-9465-ec0925096ec8',response_format:'wav'})
-    }).then(function(r){if(!r.ok)return'';return r.json()}).then(function(d){return d.audio_data||''});
+    }).then(function(r){if(!r.ok)throw new Error('TTS '+r.status);return r.arrayBuffer()})
+      .then(function(buf){var u8=new Uint8Array(buf),b='';for(var i=0;i<u8.length;i++)b+=String.fromCharCode(u8[i]);return btoa(b)});
 }
 
 function onUserText(text){
