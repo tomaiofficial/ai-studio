@@ -15,7 +15,7 @@ const state = {
     audioUnlocked: false
 };
 
-const API_KEY = 'SPZpcRQzWUu8iEC1XrcNwEOOcLH45qis';
+var API_KEY='FNynEhIM3TpeO0ibei4dREFf1EdfqDiC';
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 // ---- Elements ----
@@ -385,6 +385,7 @@ async function captureNextPhoto() {
 
 // ---- Finish ----
 function finishCapture() {
+    stopVoiceAI();
     stopCamera();
     showScreen('screen-preview');
     renderPreview();
@@ -455,10 +456,127 @@ function toggleSound() {
     $('sound-icon').textContent = state.soundEnabled ? '🔊' : '🔇';
 }
 
+// ===== Voice AI (real-time conversation as in parler) =====
+const voiceState = {
+    history: [],
+    waiting: false,
+    listening: false,
+    recognition: null,
+    maxHistory: 30,
+    trimTo: 20
+};
+const SYS_PROMPT = "Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max. Style conversationnel. Tu n'es jamais un robot.";
+
+function setVoiceStatus(msg) {
+    const el = $('voice-status');
+    if (el) el.textContent = msg;
+}
+
+function callMistralChat(messages) {
+    if (IS_LOCAL) return Promise.resolve(null);
+    return fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        body: JSON.stringify({ model: 'mistral-medium-3.5', messages: messages, max_tokens: 250, temperature: 0.7 })
+    }).then(function(r) { if (!r.ok) throw new Error('Chat ' + r.status); return r.json() })
+     .then(function(d) { return d.choices[0].message.content });
+}
+
+function callMistralTTS(text) {
+    if (IS_LOCAL) return Promise.resolve('');
+    return fetch('https://api.mistral.ai/v1/audio/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        body: JSON.stringify({ model: 'voxtral-mini-tts-2603', input: text, voice_id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', response_format: 'wav' })
+    }).then(function(r) { if (!r.ok) return ''; return r.json() })
+     .then(function(d) { return d.audio_data || '' });
+}
+
+function onUserText(text) {
+    if (!text || voiceState.waiting) return;
+    voiceState.history.push({ role: 'user', content: text });
+    if (voiceState.history.length > voiceState.maxHistory) voiceState.history = voiceState.history.slice(-voiceState.trimTo);
+    voiceState.waiting = true;
+    setVoiceStatus('Réflexion...');
+
+    var msgs = [{ role: 'system', content: SYS_PROMPT }].concat(voiceState.history.slice(-20));
+    var userContent = [];
+    var frame = captureFrame();
+    if (frame) userContent.push({ type: 'image_url', image_url: 'data:image/jpeg;base64,' + frame });
+    userContent.push({ type: 'text', text: text });
+    msgs.push({ role: 'user', content: userContent });
+
+    callMistralChat(msgs).then(function(aiText) {
+        return callMistralTTS(aiText).then(function(audioB64) {
+            return { aiText: aiText, audioB64: audioB64 };
+        });
+    }).then(function(result) {
+        voiceState.history.push({ role: 'assistant', content: result.aiText });
+        if (result.audioB64) {
+            setVoiceStatus('Parle...');
+            state.speaking = true;
+            return playMistralAudio(result.audioB64, 'wav');
+        }
+        return false;
+    }).then(function() {
+        state.speaking = false;
+        setVoiceStatus(voiceState.listening ? 'En écoute' : '');
+        voiceState.waiting = false;
+    }).catch(function(e) {
+        console.error('[Voice AI] Error:', e);
+        state.speaking = false;
+        setVoiceStatus(voiceState.listening ? 'En écoute' : '');
+        voiceState.waiting = false;
+    });
+}
+
+function startVoiceAI() {
+    if (voiceState.listening) return;
+    // Speech recognition
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setVoiceStatus('Pas de reconnaissance'); return; }
+    var rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = 'fr-FR';
+    rec.onresult = function(e) {
+        for (var i = e.resultIndex; i < e.results.length; i++) {
+            if (e.results[i].isFinal) {
+                var t = e.results[i][0].transcript.trim();
+                if (t) onUserText(t);
+            }
+        }
+    };
+    rec.onend = function() {
+        if (voiceState.listening) try { rec.start(); } catch (e) {}
+    };
+    rec.onerror = function(e) {
+        if (voiceState.listening && e.error !== 'no-speech' && e.error !== 'aborted')
+            setTimeout(function() { try { rec.start(); } catch (e) {} }, 800);
+    };
+    try {
+        rec.start();
+        voiceState.recognition = rec;
+        voiceState.listening = true;
+        setVoiceStatus('En écoute');
+    } catch (e) {
+        setVoiceStatus('Erreur micro');
+    }
+}
+
+function stopVoiceAI() {
+    voiceState.listening = false;
+    if (voiceState.recognition) {
+        try { voiceState.recognition.abort(); } catch (e) {}
+        voiceState.recognition = null;
+    }
+    setVoiceStatus('');
+}
+
 // ---- Event Listeners ----
 document.addEventListener('DOMContentLoaded', () => {
 
-    // ---- COMMENCER: unlock audio + camera + introduction ----
+    // ---- COMMENCER: unlock audio + camera + voice AI ----
     $('btn-start').addEventListener('click', async () => {
         // 1) Unlock audio IMMEDIATELY in the click handler
         await unlockAudio();
@@ -471,7 +589,10 @@ document.addEventListener('DOMContentLoaded', () => {
         state.photos = [];
         $('photo-count').textContent = '0';
 
-        // 2) Longue introduction
+        // 2) Start voice AI (speech recognition + conversation)
+        startVoiceAI();
+
+        // 3) Longue introduction
         await speak(
             'Bienvenue au photomaton d\'identité ! ' +
             'Je vais prendre quatre photos de vous au format carte d\'identité française. ' +
@@ -493,7 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ---- Cancel ----
-    $('btn-cancel').addEventListener('click', () => { stopCamera(); resetSession(); });
+    $('btn-cancel').addEventListener('click', () => { stopVoiceAI(); stopCamera(); resetSession(); });
 
     // ---- Retake ----
     $('btn-retake').addEventListener('click', async () => {
@@ -501,6 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resetSession();
         showScreen('screen-camera');
         await startCamera();
+        startVoiceAI();
         await speak('On reprend tout ! Restez face à la caméra, on recommence.', true);
         await sleep(1000);
         captureNextPhoto();
