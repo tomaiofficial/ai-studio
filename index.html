@@ -131,9 +131,6 @@ var lastAudioB64=null; // stocke le dernier audio pour replay
 
 /* ============ AUDIO ENGINE ============ */
 var audioCtx=null;
-var audioEl=new Audio();
-audioEl.setAttribute('playsinline','');
-audioEl.setAttribute('preload','auto');
 
 function getAudioCtx(){
     if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
@@ -144,16 +141,9 @@ function getAudioCtx(){
 function unlockAudio(){
     try{
         var ctx=getAudioCtx();
-        // Joue un silence via Web Audio pour déverrouiller
         var buf=ctx.createBuffer(1,1,22050);
         var src=ctx.createBufferSource();
         src.buffer=buf;src.connect(ctx.destination);src.start(0);
-        console.log('[Audio] Web Audio unlocked, state='+ctx.state);
-    }catch(e){console.warn('[Audio] Web Audio unlock failed',e)}
-
-    try{
-        audioEl.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-        audioEl.play().then(function(){console.log('[Audio] <audio> unlocked')}).catch(function(){});
     }catch(e){}
 }
 
@@ -162,62 +152,37 @@ function showAudioStatus(text){
     setTimeout(function(){audioStatus.style.display='none'},3000);
 }
 
+function audioBufferFromB64(b64){
+    var raw=atob(b64);
+    var u8=new Uint8Array(raw.length);
+    for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
+    return u8.buffer;
+}
+
 function playAudioFromB64(b64){
     lastAudioB64=b64;
     return new Promise(function(resolve){
         try{
-            var raw=atob(b64);
-            var u8=new Uint8Array(raw.length);
-            for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
-            var blob=new Blob([u8],{type:'audio/wav'});
-            var url=URL.createObjectURL(blob);
-
-            // Méthode 1: <audio> element (fiable sur PC + mobile)
-            audioEl.src=url;
-            audioEl.onended=function(){
-                URL.revokeObjectURL(url);
-                console.log('[Audio] Play OK via <audio>');
-                resolve(true);
-            };
-            audioEl.onerror=function(e){
-                console.warn('[Audio] <audio> failed, trying Web Audio');
-                URL.revokeObjectURL(url);
-                // Méthode 2: Web Audio API
-                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
-            };
-            audioEl.play().then(function(){
-                console.log('[Audio] <audio>.play() started');
-            }).catch(function(e){
-                console.warn('[Audio] <audio>.play() blocked:',e.message);
-                URL.revokeObjectURL(url);
-                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
-            });
-        }catch(e){
-            console.error('[Audio] playAudioFromB64 error:',e);
-            resolve(false);
-        }
-    });
-}
-
-function playViaWebAudio(b64){
-    return new Promise(function(resolve,reject){
-        try{
             var ctx=getAudioCtx();
-            var raw=atob(b64);
-            var u8=new Uint8Array(raw.length);
-            for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);
-            ctx.decodeAudioData(u8.buffer).then(function(audioBuf){
+            ctx.decodeAudioData(audioBufferFromB64(b64)).then(function(audioBuf){
                 var src=ctx.createBufferSource();
                 src.buffer=audioBuf;
                 src.connect(ctx.destination);
-                src.onended=function(){console.log('[Audio] Web Audio playback ended');resolve(true)};
+                src.onended=function(){resolve(true)};
                 src.start(0);
-                console.log('[Audio] Web Audio playback started');
-            }).catch(function(e){
-                console.warn('[Audio] decodeAudioData failed:',e);
-                reject(e);
+            }).catch(function(){
+                // Fallback <audio>
+                var blob=new Blob([new Uint8Array(audioBufferFromB64(b64))],{type:'audio/wav'});
+                var url=URL.createObjectURL(blob);
+                var el=new Audio(url);
+                el.setAttribute('playsinline','');
+                el.onended=function(){URL.revokeObjectURL(url);resolve(true)};
+                el.onerror=function(){URL.revokeObjectURL(url);resolve(false)};
+                el.play().catch(function(){URL.revokeObjectURL(url);resolve(false)});
             });
-        }catch(e){reject(e)}
+        }catch(e){
+            resolve(false);
+        }
     });
 }
 
@@ -428,7 +393,7 @@ function start(){
 
 function quit(){
     active=false;stopMic();stopCam();chatEl.innerHTML='';history=[];latestFrame=null;lastAudioB64=null;
-    try{audioEl.pause();audioEl.src=''}catch(e){}
+    try{if(audioCtx)audioCtx.close();audioCtx=null}catch(e){}
     orbEl.className='';show('welcome');stat('En attente...','');
 }
 
