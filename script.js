@@ -235,7 +235,7 @@ async function speakMistralDirect(text) {
         const resp = await fetch('https://api.mistral.ai/v1/audio/speech', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
-            body: JSON.stringify({model: 'voxtral-mini-tts-2603', input: text, voice_id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', response_format: 'wav'})
+            body: JSON.stringify({model: 'voxtral-mini-tts-2603', input: text, response_format: 'wav'})
         });
         if (!resp.ok) return false;
         const data = await resp.json();
@@ -487,7 +487,7 @@ function callMistralTTS(text) {
     return fetch('https://api.mistral.ai/v1/audio/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-        body: JSON.stringify({ model: 'voxtral-mini-tts-2603', input: text, voice_id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', response_format: 'wav' })
+        body: JSON.stringify({ model: 'voxtral-mini-tts-2603', input: text, response_format: 'wav' })
     }).then(function(r) { if (!r.ok) return ''; return r.json() })
      .then(function(d) { return d.audio_data || '' });
 }
