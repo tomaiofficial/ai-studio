@@ -21,7 +21,7 @@ MISTRAL_VOICES_URL = 'https://api.mistral.ai/v1/audio/voices'
 MISTRAL_CHAT_URL = 'https://api.mistral.ai/v1/chat/completions'
 TTS_MODEL = 'voxtral-mini-tts-2603'
 CHAT_MODELS = ['pixtral-large-latest', 'mistral-large-latest']
-DEFAULT_VOICE_ID = 'fr_male'
+DEFAULT_VOICE_ID = 'fr_marie_neutral'
 
 SYSTEM_PROMPT = (
     "Tu vois ce que la caméra filme. N'invente RIEN. Si tu vois une personne, "

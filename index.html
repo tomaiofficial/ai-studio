@@ -41,7 +41,7 @@
         .btn-icon{background:none;border:none;color:var(--dim);font-size:22px;padding:6px 10px;line-height:1;cursor:pointer;touch-action:manipulation}
         .btn-icon:active{opacity:.5}
 
-        #chat{position:absolute;top:46px;bottom:130px;left:0;right:0;z-index:20;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+        #chat{display:none}
         #chat::-webkit-scrollbar{width:0}
         .msg{max-width:82%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.55;animation:pop .25s ease-out;word-wrap:break-word}
         @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
@@ -172,36 +172,27 @@ function playAudioFromB64(b64){
             var blob=new Blob([u8],{type:'audio/wav'});
             var url=URL.createObjectURL(blob);
 
-            // Méthode 1: Web Audio API avec gain boost (plus fort)
-            playViaWebAudio(b64,1.8).then(function(ok){
-                if(ok){URL.revokeObjectURL(url);resolve(true)}
-            }).catch(function(){
-                // Méthode 2: <audio> element
-                audioEl.src=url;
-                audioEl.volume=1.0;
-                audioEl.onended=function(){
-                    URL.revokeObjectURL(url);
-                    console.log('[Audio] Play OK via <audio>');
-                    resolve(true);
-                };
-                audioEl.onerror=function(e){
-                    console.warn('[Audio] <audio> failed');
-                    URL.revokeObjectURL(url);
-                    resolve(false);
-                };
-                audioEl.play().catch(function(){
-                    URL.revokeObjectURL(url);
-                    resolve(false);
-                });
+            audioEl.src=url;
+            audioEl.volume=1.0;
+            audioEl.onended=function(){
+                URL.revokeObjectURL(url);
+                resolve(true);
+            };
+            audioEl.onerror=function(){
+                URL.revokeObjectURL(url);
+                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
+            };
+            audioEl.play().catch(function(){
+                URL.revokeObjectURL(url);
+                playViaWebAudio(b64).then(resolve).catch(function(){resolve(false)});
             });
         }catch(e){
-            console.error('[Audio] playAudioFromB64 error:',e);
             resolve(false);
         }
     });
 }
 
-function playViaWebAudio(b64,gain){
+function playViaWebAudio(b64){
     return new Promise(function(resolve,reject){
         try{
             var ctx=getAudioCtx();
@@ -211,17 +202,11 @@ function playViaWebAudio(b64,gain){
             ctx.decodeAudioData(u8.buffer).then(function(audioBuf){
                 var src=ctx.createBufferSource();
                 src.buffer=audioBuf;
-                var g=gain?ctx.createGain():null;
-                if(g){g.gain.value=gain;src.connect(g);g.connect(ctx.destination)}
-                else src.connect(ctx.destination);
-                src.onended=function(){console.log('[Audio] Web Audio ended');resolve(true)};
+                src.connect(ctx.destination);
+                src.onended=function(){resolve(true)};
                 src.start(0);
-                console.log('[Audio] Web Audio playback started'+(gain?' gain='+gain:''));
-            }).catch(function(e){
-                console.warn('[Audio] decodeAudioData failed:',e);
-                reject(e);
-            });
-        }catch(e){reject(e)}
+            }).catch(function(){reject()});
+        }catch(e){reject()}
     });
 }
 
@@ -357,18 +342,16 @@ function callMistralTTS(text){
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch('https://api.mistral.ai/v1/audio/speech',{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:'fr_male',response_format:'wav'})
+        body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:'fr_marie_neutral',response_format:'wav'})
     }).then(function(r){if(!r.ok)throw new Error('TTS '+r.status);return r.json()})
       .then(function(d){return d.audio_data||''});
 }
 
 function onUserText(text){
     if(!text||waitingAI)return;
-    addMsg(text,'me');
     history.push({role:'user',content:text});
     if(history.length>30)history=history.slice(-20);
     waitingAI=true;
-    var typing=addTyping();
     stat('Réflexion...','on');
 
     var promise;
@@ -398,15 +381,12 @@ function onUserText(text){
 
     promise.then(function(result){
         if(result.error)throw new Error(result.error);
-        console.log('[IA] OK:',result.aiText.substring(0,60),'audio:',result.audioB64?'YES':'NO');
-        typing.remove();
-        addMsgWithReplay(result.aiText,result.audioB64||null);
         history.push({role:'assistant',content:result.aiText});
         if(result.audioB64){
             stat('Parle...','talk');speaking=true;orbEl.className='speaking';
             return playAudioFromB64(result.audioB64);
         }else{
-            showAudioStatus('Pas de voix');return false;
+            return false;
         }
     }).then(function(){
         speaking=false;orbEl.className='idle';
@@ -423,17 +403,14 @@ function onUserText(text){
 
 /* ============ LIFECYCLE ============ */
 function start(){
-    console.log('[IA] START');
     show('active');stat('Caméra...','on');active=true;
     unlockAudio();
 
     startCam().then(function(){
         orbEl.className='idle';stat('Connecté','on');startMic();
-        typeText(addTyping(),"Salut ! Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !").then(function(){});
         history.push({role:'assistant',content:'Salut ! Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !'});
     }).catch(function(e){
-        console.error('Cam error:',e);stat('Cam','on');startMic();
-        typeText(addTyping(),"Pas de caméra mais on peut discuter !").then(function(){});
+        stat('Cam','on');startMic();
     });
 }
 
