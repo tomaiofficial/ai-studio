@@ -354,8 +354,6 @@ function callMistralTTS(text){
 
 function onUserText(text){
     if(!text||waitingAI)return;
-    history.push({role:'user',content:text});
-    if(history.length>30)history=history.slice(-20);
     waitingAI=true;
     stat('Réflexion...','on');
 
@@ -366,18 +364,21 @@ function onUserText(text){
         promise=fetch('/api/ia',{method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({text:text,image:latestFrame,history:history.slice(-20)})
         }).then(function(r){if(!r.ok)throw new Error('Serveur '+r.status);return r.json()})
-          .then(function(d){return{aiText:d.text,audioB64:d.audio_data||'',error:d.error}});
+          .then(function(d){
+              history.push({role:'user',content:text});
+              return{aiText:d.text,audioB64:d.audio_data||'',error:d.error};
+          });
     }else{
         // ---- GITHUB PAGES: appels directs Mistral ----
         var msgs=[{role:'system',content:SYS_PROMPT}].concat(history.slice(-20));
         if(latestFrame){
-            var userContent=[{type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame},{type:'text',text:text}];
-            msgs.push({role:'user',content:userContent});
+            msgs.push({role:'user',content:[{type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame},{type:'text',text:text}]});
         }else{
             msgs.push({role:'user',content:text});
         }
 
         promise=callMistralChat(msgs).then(function(aiText){
+            history.push({role:'user',content:text});
             return callMistralTTS(aiText).then(function(audioB64){
                 return{aiText:aiText,audioB64:audioB64};
             });
@@ -387,6 +388,7 @@ function onUserText(text){
     promise.then(function(result){
         if(result.error)throw new Error(result.error);
         history.push({role:'assistant',content:result.aiText});
+        if(history.length>30)history=history.slice(-20);
         if(result.audioB64){
             stat('Parle...','talk');speaking=true;orbEl.className='speaking';
             return playAudioFromB64(result.audioB64);
