@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050a14">
+    <title>Assistant Mobile</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+        :root{--bg:#050a14;--accent:#00bfff;--accent2:#00ffaa;--text:#d0daf0;--dim:#556688;--danger:#ff4466}
+        body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100dvh;overflow:hidden;-webkit-user-select:none;user-select:none}
+        .page{display:none;position:fixed;inset:0;flex-direction:column;z-index:10}
+        .page.on{display:flex}
+        #welcome{background:radial-gradient(ellipse at 50% 40%,#0d1a30 0%,#050a14 70%);align-items:center;justify-content:center;gap:20px;padding:20px;text-align:center}
+        .w-orb{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#00ddff,#0066cc 55%,#001a33 80%,transparent);box-shadow:0 0 50px #00aaff44;animation:breathe 3s ease-in-out infinite}
+        @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+        .w-title{font-size:26px;font-weight:700;margin-top:8px}
+        .w-sub{font-size:13px;color:var(--dim);line-height:1.6;margin-top:12px}
+        .w-btn{padding:16px 48px;border:none;border-radius:14px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;font-size:18px;font-weight:600;cursor:pointer;transition:all .15s;touch-action:manipulation}
+        .w-btn:active{transform:scale(.95)}
+        .w-back{color:var(--dim);font-size:11px;margin-top:12px;text-decoration:none}
+        #active{background:#000}
+        .top{position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+        .top-left{display:flex;align-items:center;gap:8px}
+        .top-right{display:flex;align-items:center;gap:6px}
+        .dot{width:8px;height:8px;border-radius:50%;background:#333;transition:all .3s}
+        .dot.on{background:#00ff88;box-shadow:0 0 6px #00ff88}
+        .dot.rec{background:var(--danger);box-shadow:0 0 6px var(--danger);animation:blink 1s infinite}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+        .dot.talk{background:var(--accent2);box-shadow:0 0 6px var(--accent2)}
+        .lbl{font-size:11px;color:var(--dim)}
+        #audio-status{position:absolute;top:36px;right:14px;z-index:35;font-size:10px;color:var(--dim);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:8px;display:none}
+        #orb-wrap{position:absolute;top:0;left:0;right:0;bottom:0;z-index:15;display:flex;align-items:center;justify-content:center}
+        #orb{width:100px;height:100px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--accent2),#007755 55%,transparent 70%);opacity:0;transition:all .4s;cursor:pointer;pointer-events:auto}
+        #orb.idle{opacity:.7;animation:breathe 3s ease-in-out infinite}
+        #orb.rec{opacity:1;animation:rec 1.2s ease-in-out infinite;box-shadow:0 0 40px #00ffaa44}
+        #orb.speaking{opacity:1;animation:speak 1.2s ease-in-out infinite;box-shadow:0 0 50px #00ffaa66}
+        @keyframes speak{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+    </style>
+</head>
+<body>
+    <div id="welcome" class="page on">
+        <div class="w-orb"></div>
+        <div class="w-title">Assistant Mobile</div>
+        <div class="w-sub">Demande-moi comment utiliser ton téléphone.</div>
+        <button class="w-btn" id="go">▶ Parler</button>
+        <a href="index.html" class="w-back">← Assistant IA</a>
+    </div>
+    <div id="active" class="page">
+        <div id="audio-status"></div>
+        <div class="top">
+            <div class="top-left">
+                <div class="dot" id="dot"></div>
+                <span class="lbl" id="lbl">En attente...</span>
+            </div>
+            <div class="top-right">
+                <button class="btn-icon" id="quit" style="background:none;border:none;color:var(--dim);font-size:22px;cursor:pointer">✕</button>
+            </div>
+        </div>
+        <div id="orb-wrap"><div id="orb"></div></div>
+    </div>
+    <canvas id="cv" style="display:none"></canvas>
+    <script>
+    (function(){
+        var $=function(id){return document.getElementById(id)};
+        var dotEl=$('dot'),lblEl=$('lbl'),orbEl=$('orb'),audioStatus=$('audio-status');
+        var rec=null,active=false,speaking=false,waitingAI=false;
+        var API_HOST='https://ia-proxy.tom16112008.workers.dev';
+        var VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
+        var SYS_PROMPT="Tu es un expert mobile. Tu réponds aux questions sur l'utilisation des smartphones, tablettes et apps. Donne des instructions claires, étape par étape, en français. Si la question est sur une capture d'écran, décris ce que tu vois. Ne réponds que ce qui est demandé. Sois concis mais complet.";
+        function getAudioCtx(){
+            if(!window.AudioContext&&!window.webkitAudioContext)return null;
+            var ctx=new(window.AudioContext||window.webkitAudioContext)();
+            if(ctx.state==='suspended')ctx.resume();
+            return ctx;
+        }
+        function unlockAudio(){try{var ctx=getAudioCtx();if(!ctx)return;var buf=ctx.createBuffer(1,1,22050);var src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);src.start(0);}catch(e){}}
+        function audioBufferFromB64(b64){var raw=atob(b64);var u8=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);return u8.buffer;}
+        function playAudioFromB64(b64){
+            return new Promise(function(resolve){
+                try{var ctx=getAudioCtx();if(!ctx)return resolve(false);ctx.decodeAudioData(audioBufferFromB64(b64)).then(function(buf){var src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);src.onended=function(){resolve(true)};src.start(0);}).catch(function(){var blob=new Blob([new Uint8Array(audioBufferFromB64(b64))],{type:'audio/wav'});var url=URL.createObjectURL(blob);var el=new Audio(url);el.onended=function(){URL.revokeObjectURL(url);resolve(true)};el.play();});
+                }catch(e){resolve(false);}
+            });
+        }
+        function showAudioStatus(t){audioStatus.textContent=t;audioStatus.style.display='block';setTimeout(function(){audioStatus.style.display='none'},3000);}
+        function stat(t,m){lblEl.textContent=t;dotEl.className='dot';if(m==='on')dotEl.classList.add('on');else if(m==='rec')dotEl.classList.add('rec');else if(m==='talk')dotEl.classList.add('talk');}
+        function callChat(msgs){
+            return fetch(API_HOST+'/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'pixtral-12b-2409',messages:msgs,max_tokens:300,temperature:0.3})}).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error('Chat '+r.status+': '+(e.message||JSON.stringify(e)))});return r.json()}).then(function(d){return d.choices[0].message.content});
+        }
+        function callTTS(text){
+            return fetch(API_HOST+'/v1/audio/speech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:VOICE_ID,response_format:'wav'})}).then(function(r){if(!r.ok)return'';return r.json()}).then(function(d){return d.audio_data||''});
+        }
+        function onUserText(text){
+            if(!text||waitingAI)return;
+            waitingAI=true;stat('Réflexion...','on');if(rec)stopMic();
+            var msgs=[{role:'system',content:SYS_PROMPT},{role:'user',content:text}];
+            callChat(msgs).then(function(aiText){return callTTS(aiText).then(function(a){return{aiText:aiText,audio:a};});}).then(function(r){
+                if(r.audio){stat('Parle...','talk');speaking=true;orbEl.className='speaking';playAudioFromB64(r.audio).then(function(){speaking=false;orbEl.className='idle';if(active)startMic();waitingAI=false;});}
+            }).catch(function(e){console.error(e);lblEl.textContent='Erreur: '+e.message;setTimeout(function(){if(active)startMic()},3000);speaking=false;orbEl.className='idle';waitingAI=false;});
+        }
+        function start(){show('active');active=true;unlockAudio();orbEl.className='idle';stat('Connecté','on');startMic();}
+        function quit(){active=false;stopMic();waitingAI=false;speaking=false;try{if(rec)rec.abort();}catch(e){}orbEl.className='';show('welcome');stat('En attente...','');}
+        function toggleMic(){if(!active)return;if(rec){stopMic();stat('Pause','on');}else startMic();}
+        function startMic(){
+            var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+            if(!SR){stat('Non supporté','');return;}
+            rec=new SR();rec.continuous=true;rec.interimResults=false;rec.lang='fr-FR';
+            rec.onresult=function(e){for(var i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal){var t=e.results[i][0].transcript.trim();if(t)onUserText(t);}}};
+            rec.onend=function(){if(active)try{rec.start()}catch(e){}};
+            rec.onerror=function(e){if(active&&e.error!=='no-speech'&&e.error!=='aborted')setTimeout(function(){try{rec.start()}catch(e){}},800);};
+            try{rec.start();stat('Écoute','rec');orbEl.className='rec';}catch(e){}
+        }
+        function stopMic(){if(rec){rec.abort();rec=null;}orbEl.className=active?'idle':'';}
+        function bind(id,fn){var el=$(id);if(!el)return;el.addEventListener('click',function(e){e.preventDefault();fn();});el.addEventListener('touchend',function(e){e.preventDefault();fn();});}
+        bind('go',start);bind('quit',quit);orbEl.addEventListener('click',toggleMic);orbEl.addEventListener('touchend',function(e){e.preventDefault();toggleMic();});
+    })();
+    </script>
+</body>
+</html>
