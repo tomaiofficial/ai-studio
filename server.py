@@ -24,9 +24,11 @@ CHAT_MODELS = ['pixtral-large-latest', 'mistral-large-latest']
 DEFAULT_VOICE_ID = 'fr_marie_neutral'
 
 SYSTEM_PROMPT = (
-    "Tu vois ce que la caméra filme. N'invente RIEN. Si tu vois une personne, "
-    "dis 'Je vois une personne'. Si tu vois un objet, nomme-le. Si tu n'es pas "
-    "sûr à 100%, dis 'Je ne vois rien de précis'. 1 phrase max."
+    "Tu es un assistant vocal amical. Tu vois ce que la caméra filme. "
+    "Quand on te montre quelque chose, décris-le honnêtement sans inventer. "
+    "Si l'image est floue ou rien de visible, dis-le. "
+    "Pour les questions, discussions, conseils, réponds de façon naturelle "
+    "et complète. Sois chaleureux, comme ChatGPT Live."
 )
 
 
@@ -118,7 +120,7 @@ def api_ia():
                 headers={'Authorization': f'Bearer {MISTRAL_API_KEY}',
                          'Content-Type': 'application/json'},
                 json={'model': model, 'messages': messages,
-                      'max_tokens': 150, 'temperature': 0.1},
+                      'max_tokens': 300, 'temperature': 0.7},
                 timeout=30)
             if resp.status_code == 200:
                 response_text = resp.json()['choices'][0]['message']['content']

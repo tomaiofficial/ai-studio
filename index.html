@@ -327,13 +327,13 @@ function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 /* ============ AI ============ */
 var API_KEY='SPZpcRQzWUu8iEC1XrcNwEOOcLH45qis';
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-var SYS_PROMPT="Tu vois ce que la caméra filme. N'invente RIEN. Si tu vois une personne, dis 'Je vois une personne'. Si tu vois un objet, nomme-le. Si tu n'es pas sûr à 100%, dis 'Je ne vois rien de précis'. Ne décris jamais de couleur, forme, détail ou contexte que tu n'as pas vus clairement. 1 phrase max. Réponds uniquement en français.";
+var SYS_PROMPT="Tu es un assistant vocal amical. Tu vois ce que la caméra filme. Quand on te montre quelque chose, décris-le honnêtement sans inventer. Si l'image est floue ou rien de visible, dis-le. Pour les questions, discussions, conseils, réponds de façon naturelle et complète. Sois chaleureux, comme ChatGPT Live.";
 
 function callMistralChat(messages){
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch('https://api.mistral.ai/v1/chat/completions',{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'mistral-medium-3.5',messages:messages,max_tokens:150,temperature:0.1})
+        body:JSON.stringify({model:'mistral-medium-3.5',messages:messages,max_tokens:300,temperature:0.7})
     }).then(function(r){if(!r.ok)throw new Error('Chat '+r.status);return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
