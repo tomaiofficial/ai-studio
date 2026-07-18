@@ -275,6 +275,42 @@ function capturePhoto() {
 }
 
 // ---- Flash ----
+function playShutterSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') ctx.resume();
+
+        // Click court (bruit blanc filtré) - son de l'obturateur
+        const dur = 0.08;
+        const sr = ctx.sampleRate;
+        const len = sr * dur;
+        const buf = ctx.createBuffer(1, len, sr);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < len; i++) {
+            const env = 1 - i / len;
+            data[i] = (Math.random() * 2 - 1) * env * env;
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+
+        // Filtre passe-haut pour le clic
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 800;
+
+        // Enveloppe de gain
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.6, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        src.start(ctx.currentTime);
+        setTimeout(() => ctx.close(), 500);
+    } catch (e) { /* silencieux */ }
+}
+
 function flashEffect() {
     return new Promise(resolve => {
         const flash = $('camera-flash');
@@ -355,7 +391,8 @@ async function captureNextPhoto() {
     // Countdown
     await startCountdown();
 
-    // Flash
+    // Son obturateur + Flash
+    playShutterSound();
     await flashEffect();
 
     // Capture
