@@ -317,7 +317,7 @@ function startMic(){
 function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 
 /* ============ AI ============ */
-var API_KEY='FNynEhIM3TpeO0ibei4dREFf1EdfqDiC';
+var API_KEY='RmZmxSfwoOIUdLCifXVLfbYhI0EO8j2U';
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
 var API_HOST=IS_LOCAL?'':'https://api.mistral.ai'; // ← change ici pour ton Worker Cloudflare
 var SYS_PROMPT="Tu vois ce que filme la caméra. Regle ABSOLUE : ne decris que ce qui est 100% visible. Si l'image est floue, sombre ou peu claire, dis 'je vois pas bien'. Si tu vois quelque chose, decris-le sans ajouter de details. N'invente JAMAIS un objet, une couleur, un mouvement ou une personne. Si t'es pas sur, dis-le. Sois honnete.";

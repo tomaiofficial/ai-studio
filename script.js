@@ -15,7 +15,7 @@ const state = {
     audioUnlocked: false
 };
 
-var API_KEY='FNynEhIM3TpeO0ibei4dREFf1EdfqDiC';
+var API_KEY='RmZmxSfwoOIUdLCifXVLfbYhI0EO8j2U';
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 var API_HOST = IS_LOCAL ? '' : 'https://api.mistral.ai'; // ← change ici pour ton Worker Cloudflare
 
