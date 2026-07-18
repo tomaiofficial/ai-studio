@@ -41,7 +41,7 @@
         .btn-icon{background:none;border:none;color:var(--dim);font-size:22px;padding:6px 10px;line-height:1;cursor:pointer;touch-action:manipulation}
         .btn-icon:active{opacity:.5}
 
-        #chat{position:absolute;top:46px;bottom:130px;left:0;right:0;z-index:20;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+        #chat{display:none}
         #chat::-webkit-scrollbar{width:0}
         .msg{max-width:82%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.55;animation:pop .25s ease-out;word-wrap:break-word}
         @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
@@ -362,11 +362,9 @@ function callMistralTTS(text){
 
 function onUserText(text){
     if(!text||waitingAI)return;
-    addMsg(text,'me');
     history.push({role:'user',content:text});
     if(history.length>30)history=history.slice(-20);
     waitingAI=true;
-    var typing=addTyping();
     stat('Réflexion...','on');
 
     var promise;
@@ -394,15 +392,12 @@ function onUserText(text){
 
     promise.then(function(result){
         if(result.error)throw new Error(result.error);
-        console.log('[IA] OK:',result.aiText.substring(0,60),'audio:',result.audioB64?'YES':'NO');
-        typing.remove();
-        addMsgWithReplay(result.aiText,result.audioB64||null);
         history.push({role:'assistant',content:result.aiText});
         if(result.audioB64){
             stat('Parle...','talk');speaking=true;orbEl.className='speaking';
             return playAudioFromB64(result.audioB64);
         }else{
-            showAudioStatus('Pas de voix');return false;
+            return false;
         }
     }).then(function(){
         speaking=false;orbEl.className='idle';
@@ -425,11 +420,9 @@ function start(){
 
     startCam().then(function(){
         orbEl.className='idle';stat('Connecté','on');startMic();
-        typeText(addTyping(),"Salut ! Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !").then(function(){});
         history.push({role:'assistant',content:'Salut ! Je vois ce que filme ta caméra. Montre-moi quelque chose ou parle-moi !'});
     }).catch(function(e){
-        console.error('Cam error:',e);stat('Cam','on');startMic();
-        typeText(addTyping(),"Pas de caméra mais on peut discuter !").then(function(){});
+        stat('Cam','on');startMic();
     });
 }
 
