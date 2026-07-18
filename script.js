@@ -15,9 +15,8 @@ const state = {
     audioUnlocked: false
 };
 
-var API_KEY='RmZmxSfwoOIUdLCifXVLfbYhI0EO8j2U';
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-var API_HOST = IS_LOCAL ? '' : 'https://api.mistral.ai'; // ← change ici pour ton Worker Cloudflare
+var API_HOST = IS_LOCAL ? '' : 'https://ia-proxy.tom16112008.workers.dev';← change ici pour ton Worker Cloudflare
 
 // ---- Elements ----
 const $ = id => document.getElementById(id);
@@ -210,7 +209,7 @@ async function askMistralVision(imageB64, instruction) {
     try {
         const resp = await fetch(API_HOST + '/v1/chat/completions', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 model: 'pixtral-12b-2409',
                 messages: [
@@ -235,7 +234,7 @@ async function speakMistralDirect(text) {
     try {
         const resp = await fetch(API_HOST + '/v1/audio/speech', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({model: 'voxtral-mini-tts-2603', input: text, voice_id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', response_format: 'wav'})
         });
         if (!resp.ok) return false;
@@ -514,7 +513,7 @@ function callMistralChat(messages) {
     if (IS_LOCAL) return Promise.resolve(null);
     return fetch(API_HOST + '/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'pixtral-12b-2409', messages: messages, max_tokens: 300, temperature: 0.1 })
     }).then(function(r) { if (!r.ok) return r.json().then(function(e) { throw new Error('Chat ' + r.status + ': ' + (e.message || JSON.stringify(e))); }); return r.json() })
      .then(function(d) { return d.choices[0].message.content });
@@ -524,7 +523,7 @@ function callMistralTTS(text) {
     if (IS_LOCAL) return Promise.resolve('');
     return fetch(API_HOST + '/v1/audio/speech', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: 'voxtral-mini-tts-2603', input: text, voice_id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', response_format: 'wav' })
     }).then(function(r) { if (!r.ok) return ''; return r.json() })
      .then(function(d) { return d.audio_data || '' });
