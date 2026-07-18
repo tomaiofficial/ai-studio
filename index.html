@@ -252,13 +252,13 @@ function toggleMic(){
 
 /* ============ AI ============ */
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-var API_KEY='GCeKH5Vs88dZX5oEmQTOOhdsIgvlYxXp';
+var API_KEY='pFaCMuP9G2MBvXMie4QKnOvhZ5vMuVi5';
 var API_HOST=IS_LOCAL?'':'https://api.mistral.ai';
 function getPrompt(){return PROMPTS[currentMode];}
 function callMistralChat(messages){
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch(API_HOST+'/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'pixtral-12b-2409',messages:messages,max_tokens:500,temperature:0.3})
+        body:JSON.stringify({model:'mistral-small-latest',messages:messages,max_tokens:500,temperature:0.3})
     }).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error('Chat '+r.status+': '+(e.message||JSON.stringify(e)))});return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
@@ -267,7 +267,7 @@ function callMistralTTS(text){
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch(API_HOST+'/v1/audio/speech',{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:'c69964a6-ab8b-4f8a-9465-ec0925096ec8',response_format:'wav'})
+        body:JSON.stringify({model:'voxtral-mini-2502',input:text,voice_id:'c69964a6-ab8b-4f8a-9465-ec0925096ec8',response_format:'wav'})
     }).then(function(r){if(!r.ok)return'';return r.json()}).then(function(d){return d.audio_data||''});
 }
 
