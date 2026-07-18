@@ -258,7 +258,7 @@ function getPrompt(){return PROMPTS[currentMode];}
 function callMistralChat(messages){
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch(API_HOST+'/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'mistral-small-latest',messages:messages,max_tokens:500,temperature:0.3})
+        body:JSON.stringify({model:'mistral-small-2506',messages:messages,max_tokens:500,temperature:0.3})
     }).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error('Chat '+r.status+': '+(e.message||JSON.stringify(e)))});return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
