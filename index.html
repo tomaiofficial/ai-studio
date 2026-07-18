@@ -131,9 +131,16 @@ var lastAudioB64=null; // stocke le dernier audio pour replay
 
 /* ============ AUDIO ENGINE ============ */
 var audioCtx=null;
+var gainNode=null;
+var activeSource=null;
 
 function getAudioCtx(){
-    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(!audioCtx){
+        audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        gainNode=audioCtx.createGain();
+        gainNode.gain.value=1.2;
+        gainNode.connect(audioCtx.destination);
+    }
     if(audioCtx.state==='suspended')audioCtx.resume();
     return audioCtx;
 }
@@ -143,8 +150,15 @@ function unlockAudio(){
         var ctx=getAudioCtx();
         var buf=ctx.createBuffer(1,1,22050);
         var src=ctx.createBufferSource();
-        src.buffer=buf;src.connect(ctx.destination);src.start(0);
+        src.buffer=buf;src.connect(gainNode||ctx.destination);src.start(0);
     }catch(e){}
+}
+
+function stopAudio(){
+    if(activeSource){
+        try{activeSource.stop();activeSource.disconnect()}catch(e){}
+        activeSource=null;
+    }
 }
 
 function showAudioStatus(text){
@@ -161,14 +175,16 @@ function audioBufferFromB64(b64){
 
 function playAudioFromB64(b64){
     lastAudioB64=b64;
+    stopAudio();
     return new Promise(function(resolve){
         try{
             var ctx=getAudioCtx();
             ctx.decodeAudioData(audioBufferFromB64(b64)).then(function(audioBuf){
                 var src=ctx.createBufferSource();
                 src.buffer=audioBuf;
-                src.connect(ctx.destination);
-                src.onended=function(){resolve(true)};
+                src.connect(gainNode);
+                activeSource=src;
+                src.onended=function(){activeSource=null;resolve(true)};
                 src.start(0);
             }).catch(function(){
                 // Fallback <audio>
@@ -393,7 +409,7 @@ function start(){
 
 function quit(){
     active=false;stopMic();stopCam();chatEl.innerHTML='';history=[];latestFrame=null;lastAudioB64=null;
-    try{if(audioCtx)audioCtx.close();audioCtx=null}catch(e){}
+    stopAudio();try{if(audioCtx)audioCtx.close();audioCtx=null;gainNode=null}catch(e){}
     orbEl.className='';show('welcome');stat('En attente...','');
 }
 
