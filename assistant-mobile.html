@@ -68,14 +68,16 @@
         var rec=null,active=false,speaking=false,waitingAI=false;
         var API_HOST='https://ia-proxy.tom16112008.workers.dev';
         var VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
-        var SYS_PROMPT="Tu es un expert mobile. Tu réponds aux questions sur l'utilisation des smartphones, tablettes et apps. Donne des instructions claires, étape par étape, en français. Si la question est sur une capture d'écran, décris ce que tu vois. Ne réponds que ce qui est demandé. Sois concis mais complet.";
+        var SYS_PROMPT="Tu es un expert mobile. Tu réponds aux questions sur l'utilisation des smartphones, tablettes et applications. Donne des instructions claires, étape par étape, en français. Si la question porte sur une capture d'écran, décris ce que tu vois. Sois concis mais complet.";
         function getAudioCtx(){
             if(!window.AudioContext&&!window.webkitAudioContext)return null;
             var ctx=new(window.AudioContext||window.webkitAudioContext)();
             if(ctx.state==='suspended')ctx.resume();
             return ctx;
         }
-        function unlockAudio(){try{var ctx=getAudioCtx();if(!ctx)return;var buf=ctx.createBuffer(1,1,22050);var src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);src.start(0);}catch(e){}}
+        function unlockAudio(){
+            try{var ctx=getAudioCtx();if(!ctx)return;var buf=ctx.createBuffer(1,1,22050);var src=ctx.createBufferSource();src.buffer=buf;src.connect(ctx.destination);src.start(0);}catch(e){}
+        }
         function audioBufferFromB64(b64){var raw=atob(b64);var u8=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)u8[i]=raw.charCodeAt(i);return u8.buffer;}
         function playAudioFromB64(b64){
             return new Promise(function(resolve){
