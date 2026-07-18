@@ -276,7 +276,7 @@ function onUserText(text){
     if(history.length>30)history=history.slice(-20);
     waitingAI=true;
     stat('Réflexion...','on');
-    if(rec){stopMic()}
+    // Micro activé en continu - on ne l'arrête pas
 
     var promise;
 
@@ -309,14 +309,14 @@ function onUserText(text){
         }
     }).then(function(){
         speaking=false;orbEl.className='idle';
-        if(active){startMic()}else{stat('Connecte','on')}
+        // Micro déjà actif en continu - pas besoin de le redémarrer
+        stat('Connecté','on');
         waitingAI=false;
     }).catch(function(e){
         console.error('[IA] Error:',e);
         lblEl.textContent='Erreur: '+e.message;
-        setTimeout(function(){if(active)startMic()},3000);
+        setTimeout(function(){stat('Connecté','on');waitingAI=false;},3000);
         speaking=false;orbEl.className='idle';
-        waitingAI=false;
     });
 }
 
