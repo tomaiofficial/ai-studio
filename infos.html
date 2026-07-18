@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050a14">
+    <title>Infos App</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+        :root{--bg:#050a14;--accent:#00bfff;--text:#d0daf0;--dim:#556688}
+        body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);height:100dvh;overflow-y:auto}
+        #welcome{background:radial-gradient(ellipse at 50% 40%,#0d1a30 0%,#050a14 70%);padding:20px;text-align:center}
+        .w-title{font-size:26px;font-weight:700;margin-top:8px}
+        .w-sub{font-size:13px;color:var(--dim);line-height:1.6;margin-top:12px}
+        .w-back{color:var(--dim);font-size:11px;margin-top:12px;text-decoration:none}
+        .features{margin-top:24px;text-align:left}
+        .feature{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(10,15,25,.5);margin:8px;border-radius:12px}
+        .feature-icon{font-size:20px}
+        .feature-title{font-weight:600;color:var(--accent2)}
+        .feature-desc{font-size:12px;color:var(--dim);margin-top:4px}
+        .btn-btn{padding:12px 24px;border:none;border-radius:12px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;cursor:pointer;margin:8px;touch-action:manipulation}
+    </style>
+</head>
+<body>
+    <div id="welcome">
+        <div class="w-title">IA App</div>
+        <div class="w-sub">Assistant vocal IA avec caméra</div>
+        <button class="w-btn" id="go" onclick="location.href='index.html'">▶ Parler</button>
+        <a href="index.html" class="w-back">← Retour</a>
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">🗣️</div>
+                <div>
+                    <div class="feature-title">Assistant vocal</div>
+                    <div class="feature-desc">Parle avec l'IA, réponses naturelles</div>
+                </div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">👁️</div>
+                <div>
+                    <div class="feature-title">Vision en temps réel</div>
+                    <div class="feature-desc">L'IA voit ce que filme ta caméra</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
