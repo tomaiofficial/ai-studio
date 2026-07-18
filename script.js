@@ -17,6 +17,7 @@ const state = {
 
 var API_KEY='FNynEhIM3TpeO0ibei4dREFf1EdfqDiC';
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+var API_HOST = IS_LOCAL ? '' : 'https://api.mistral.ai'; // ← change ici pour ton Worker Cloudflare
 
 // ---- Elements ----
 const $ = id => document.getElementById(id);
@@ -207,7 +208,7 @@ function captureFrame() {
 async function askMistralVision(imageB64, instruction) {
     if (IS_LOCAL) return null;
     try {
-        const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        const resp = await fetch(API_HOST + '/v1/chat/completions', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
             body: JSON.stringify({
@@ -232,7 +233,7 @@ async function askMistralVision(imageB64, instruction) {
 async function speakMistralDirect(text) {
     if (IS_LOCAL) return false;
     try {
-        const resp = await fetch('https://api.mistral.ai/v1/audio/speech', {
+        const resp = await fetch(API_HOST + '/v1/audio/speech', {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
             body: JSON.stringify({model: 'voxtral-mini-tts-2603', input: text, response_format: 'wav'})
@@ -474,17 +475,17 @@ function setVoiceStatus(msg) {
 
 function callMistralChat(messages) {
     if (IS_LOCAL) return Promise.resolve(null);
-    return fetch('https://api.mistral.ai/v1/chat/completions', {
+    return fetch(API_HOST + '/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-        body: JSON.stringify({ model: 'mistral-medium-3.5', messages: messages, max_tokens: 250, temperature: 0.7 })
+        body: JSON.stringify({ model: 'mistral-medium-3.5', messages: messages, max_tokens: 300, temperature: 0.2 })
     }).then(function(r) { if (!r.ok) throw new Error('Chat ' + r.status); return r.json() })
      .then(function(d) { return d.choices[0].message.content });
 }
 
 function callMistralTTS(text) {
     if (IS_LOCAL) return Promise.resolve('');
-    return fetch('https://api.mistral.ai/v1/audio/speech', {
+    return fetch(API_HOST + '/v1/audio/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
         body: JSON.stringify({ model: 'voxtral-mini-tts-2603', input: text, response_format: 'wav' })
