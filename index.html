@@ -340,14 +340,12 @@ var API_KEY='SPZpcRQzWUu8iEC1XrcNwEOOcLH45qis';
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
 var SYS_PROMPT="Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max. Style conversationnel. Tu n'es jamais un robot.";
 
-function callMistralChat(messages){
-    var url=IS_LOCAL?'/api/ia':'https://api.mistral.ai/v1/chat/completions';
-    if(IS_LOCAL){
-        // Backend: on envoie tout en une fois
-        return Promise.resolve(null); // géré séparément
-    }
-    return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'pixtral-large-latest',messages:messages,max_tokens:250,temperature:0.7})
+function callMistralChat(messages,model){
+    if(IS_LOCAL)return Promise.resolve(null);
+    model=model||'pixtral-large-latest';
+    return fetch('https://api.mistral.ai/v1/chat/completions',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+        body:JSON.stringify({model:model,messages:messages,max_tokens:250,temperature:0.7})
     }).then(function(r){if(!r.ok)throw new Error('Chat '+r.status);return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
@@ -381,14 +379,22 @@ function onUserText(text){
     }else{
         // ---- GITHUB PAGES: appels directs Mistral ----
         var msgs=[{role:'system',content:SYS_PROMPT}].concat(history.slice(-20));
-        var userContent=[];
-        if(latestFrame)userContent.push({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
-        userContent.push({type:'text',text:text});
-        msgs.push({role:'user',content:userContent});
+        if(latestFrame){
+            var userContent=[{type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame},{type:'text',text:text}];
+            msgs.push({role:'user',content:userContent});
+        }else{
+            msgs.push({role:'user',content:text});
+        }
 
         promise=callMistralChat(msgs).then(function(aiText){
             return callMistralTTS(aiText).then(function(audioB64){
                 return{aiText:aiText,audioB64:audioB64};
+            });
+        }).catch(function(){
+            return callMistralChat(msgs,'mistral-large-latest').then(function(aiText){
+                return callMistralTTS(aiText).then(function(audioB64){
+                    return{aiText:aiText,audioB64:audioB64};
+                });
             });
         });
     }
