@@ -24,11 +24,9 @@ CHAT_MODELS = ['pixtral-large-latest', 'mistral-large-latest']
 DEFAULT_VOICE_ID = 'fr_male'
 
 SYSTEM_PROMPT = (
-    "Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra "
-    "filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses "
-    "courtes et naturelles. Décris ce que tu observes, sans inventer. "
-    "Ton chaleureux et dynamique. 2-3 phrases max. Style conversationnel. "
-    "Tu n'es jamais un robot."
+    "Tu vois ce que la caméra filme. N'invente RIEN. Si tu vois une personne, "
+    "dis 'Je vois une personne'. Si tu vois un objet, nomme-le. Si tu n'es pas "
+    "sûr à 100%, dis 'Je ne vois rien de précis'. 1 phrase max."
 )
 
 
@@ -120,7 +118,7 @@ def api_ia():
                 headers={'Authorization': f'Bearer {MISTRAL_API_KEY}',
                          'Content-Type': 'application/json'},
                 json={'model': model, 'messages': messages,
-                      'max_tokens': 250, 'temperature': 0.7},
+                      'max_tokens': 150, 'temperature': 0.1},
                 timeout=30)
             if resp.status_code == 200:
                 response_text = resp.json()['choices'][0]['message']['content']
