@@ -213,7 +213,7 @@ async function askMistralVision(imageB64, instruction) {
             body: JSON.stringify({
                 model: 'mistral-medium-3.5',
                 messages: [
-                    {role: 'system', content: 'Tu es un photomaton IA. Tu vois la personne via la caméra. Réponds en 1-2 phrases, donne des instructions précises et naturelles.'},
+                    {role: 'system', content: 'Tu es un photomaton. Tu regardes la photo de la personne et vérifies sa position : tête droite, épaules alignées, expression neutre, visage bien centré. 1 phrase précise.'},
                     {role: 'user', content: [{type: 'image_url', image_url: 'data:image/jpeg;base64,' + imageB64}, {type: 'text', text: instruction}]}
                 ],
                 max_tokens: 100,
@@ -338,9 +338,9 @@ async function captureNextPhoto() {
     let poseText = poses[Math.min(state.currentPhoto - 1, poses.length - 1)];
     if (frame && !IS_LOCAL) {
         const aiInstruction = await askMistralVision(frame,
-            'Photo ' + state.currentPhoto + ' sur 4 pour une carte d\'identité. ' +
-            'Analyse la position de la personne et donne une instruction précise (regard, tête, épaules, expression). ' +
-            'Sois naturel et encourageant.'
+            'Photo ' + state.currentPhoto + ' sur 4. ' +
+            'Regarde bien la position : tête droite ? épaules alignées ? expression neutre ? visage centré ? ' +
+            'Dis exactement ce qui va ou ce qui doit changer.'
         );
         if (aiInstruction) poseText = aiInstruction;
     }
@@ -370,9 +370,9 @@ async function captureNextPhoto() {
     let feedbackText = randomFeedback[Math.floor(Math.random() * randomFeedback.length)];
     if (photoB64 && !IS_LOCAL) {
         const aiFeedback = await askMistralVision(photoB64,
-            'Cette photo vient d\'être prise pour une carte d\'identité. ' +
-            'Donne un retour court et encourageant en 1 phrase. ' +
-            (state.currentPhoto < state.maxPhotos ? 'Dis à la personne de se préparer pour la photo suivante.' : '')
+            'Vérifie si cette photo est valable pour une carte d\'identité. ' +
+            'Dis si la personne est bien placée, si la tête est droite, le regard correct. ' +
+            '1 phrase.'
         );
         if (aiFeedback) feedbackText = aiFeedback;
     }
@@ -465,7 +465,7 @@ const voiceState = {
     maxHistory: 30,
     trimTo: 20
 };
-const SYS_PROMPT = "Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra filme et tu écoutes l'utilisateur. Tu discutes comme un humain, réponses courtes et naturelles. Décris ce que tu observes, sans inventer. Ton chaleureux et dynamique. 2-3 phrases max. Style conversationnel. Tu n'es jamais un robot.";
+const SYS_PROMPT = "Tu es un assistant pour photomaton d'identité. Tu vois en direct la personne via la caméra. Tu regardes si elle est bien placée : tête droite, épaules alignées, expression neutre. Tu parles naturellement, 1-2 phrases. Tu donnes des instructions précises pour corriger la position si nécessaire.";
 
 function setVoiceStatus(msg) {
     const el = $('voice-status');
