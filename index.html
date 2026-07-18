@@ -400,8 +400,10 @@ function onUserText(text){
         stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
         waitingAI=false;
     }).catch(function(e){
+        stat('Erreur','on');
+        lblEl.textContent='Erreur: '+(e.message||e);
+        setTimeout(function(){stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on')},3000);
         speaking=false;orbEl.className='idle';
-        stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
         waitingAI=false;
     });
 }
