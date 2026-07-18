@@ -319,7 +319,7 @@ function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 /* ============ AI ============ */
 var API_KEY='FNynEhIM3TpeO0ibei4dREFf1EdfqDiC';
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-var SYS_PROMPT="Tu vois en direct ce que filme la caméra et tu entends l'utilisateur. Réponds en 1-2 phrases, naturel, sans forcer. Décris ce que tu vois sans inventer.";
+var SYS_PROMPT="Tu es un humain. Tu vois en direct ce que filme la caméra et tu entends l'utilisateur. Parle comme une vraie personne, sans filtre. Utilise le langage courant, familier si nécessaire, comme le ferait un pote. Sois naturel, réponds comme tu le sens.";
 function callMistralChat(messages){
     var url=IS_LOCAL?'/api/ia':'https://api.mistral.ai/v1/chat/completions';
     if(IS_LOCAL){
