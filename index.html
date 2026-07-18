@@ -82,6 +82,7 @@
             <span class="lbl" id="lbl">En attente...</span>
         </div>
         <div class="top-right">
+            <button class="btn-icon" id="btn-mode" title="Mode">🧑‍🏫</button>
             <button class="btn-icon" id="btn-cam" title="Caméra">📷</button>
             <button class="btn-icon" id="quit">✕</button>
         </div>
@@ -99,6 +100,13 @@ var dotEl=$('dot'),lblEl=$('lbl'),orbEl=$('orb'),fdotEl=$('fdot'),audioStatus=$(
 var stream=null,frameTimer=null,rec=null,active=false,speaking=false,cameraOn=true;
 var history=[],latestFrame=null,waitingAI=false,facingMode='environment';
 var lastAudioB64=null;
+var currentMode=0; // 0=Assistant, 1=Professeur
+var PROMPTS=[
+    "Tu es un assistant IA. Reponds a toutes les questions, aide sur tous les sujets. Si la camera est active et que tu vois quelque chose, decris-le ou lis le texte visible. Si la camera est inactive, reponds normalement. N'invente jamais.",
+    "Tu es un professeur particulier. Quand on te montre un exercice via la camera, regarde-le attentivement et explique-le etape par etape. Guide l'eleve sans donner la reponse directement. Si pas d'exercice visible, aide sur les devoirs en general. Sois patient et pedagogique."
+];
+var MODE_NAMES=['Assistant','Professeur'];
+function getPrompt(){return PROMPTS[currentMode];}
 
 /* ============ AUDIO ENGINE ============ */
 var audioCtx=null;
@@ -246,9 +254,8 @@ function toggleMic(){
 /* ============ AI ============ */
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
 var API_HOST=IS_LOCAL?'':'https://ia-proxy.tom16112008.workers.dev';
-var SYS_PROMPT="Tu es un assistant IA. Reponds a toutes les questions, aide sur tous les sujets. Si la camera est active et que tu vois quelque chose, decris-le ou lis le texte visible. Si la camera est inactive, reponds normalement. N'invente jamais.";
+function getPrompt(){return PROMPTS[currentMode];}
 function callMistralChat(messages){
-    var url=IS_LOCAL?'/api/ia':API_HOST+'/v1/chat/completions';
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'pixtral-12b-2409',messages:messages,max_tokens:500,temperature:0.3})
@@ -280,7 +287,7 @@ function onUserText(text){
         }).then(function(r){if(!r.ok)throw new Error('Serveur '+r.status);return r.json()})
           .then(function(d){return{aiText:d.text,audioB64:d.audio_data||'',error:d.error}});
     }else{
-        var msgs=[{role:'system',content:SYS_PROMPT}].concat(history.slice(-20));
+        var msgs=[{role:'system',content:getPrompt()}].concat(history.slice(-20));
         var userContent=[{type:'text',text:text}];
         if(cameraOn&&latestFrame)userContent.unshift({type:'image_url',image_url:'data:image/jpeg;base64,'+latestFrame});
         msgs.push({role:'user',content:userContent});
@@ -332,6 +339,13 @@ function quit(){
     orbEl.className='';show('welcome');stat('En attente...','');
 }
 
+function toggleMode(){
+    currentMode=(currentMode+1)%PROMPTS.length;
+    history=[];
+    $('btn-mode').textContent=currentMode===0?'🧑‍🏫':'📚';
+    showAudioStatus('Mode: '+MODE_NAMES[currentMode]);
+}
+
 /* ============ EVENTS ============ */
 function bind(id,fn){
     var el=$(id);if(!el)return;
@@ -341,6 +355,7 @@ function bind(id,fn){
 bind('go',start);
 bind('quit',quit);
 bind('btn-cam',toggleCam);
+bind('btn-mode',toggleMode);
 orbEl.addEventListener('click',toggleMic);
 orbEl.addEventListener('touchend',function(e){e.preventDefault();toggleMic()});
 })();
