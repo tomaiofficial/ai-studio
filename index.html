@@ -101,7 +101,6 @@
             <span class="lbl" id="lbl">En attente...</span>
         </div>
         <div class="top-right">
-            <button class="btn-icon" id="btn-screen" title="Partage écran">🖥️</button>
             <button class="btn-icon" id="switch-cam" title="Caméra">🔄</button>
             <button class="btn-icon" id="quit">✕</button>
         </div>
@@ -126,7 +125,7 @@
 var $=function(id){return document.getElementById(id)};
 var chatEl=$('chat'),camEl=$('cam'),cv=$('cv'),ctx=cv.getContext('2d');
 var dotEl=$('dot'),lblEl=$('lbl'),orbEl=$('orb'),fdotEl=$('fdot'),audioStatus=$('audio-status');
-var stream=null,screenStream=null,frameTimer=null,rec=null,active=false,speaking=false,screenActive=false;
+var stream=null,frameTimer=null,rec=null,active=false,speaking=false;
 var history=[],latestFrame=null,waitingAI=false,facingMode='environment';
 var lastAudioB64=null; // stocke le dernier audio pour replay
 
@@ -274,7 +273,6 @@ function typeText(el,text){
 /* ============ CAMERA ============ */
 function stopCam(){
     if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
-    if(screenStream){screenStream.getTracks().forEach(function(t){t.stop()});screenStream=null;screenActive=false}
     if(frameTimer){clearInterval(frameTimer);frameTimer=null}
 }
 function startCam(){
@@ -297,29 +295,6 @@ function startCam(){
 function switchCam(){
     facingMode=facingMode==='environment'?'user':'environment';
     stopCam();startCam().catch(function(e){console.warn(e)});
-}
-function stopScreen(){
-    if(screenStream){screenStream.getTracks().forEach(function(t){t.stop()});screenStream=null}
-    screenActive=false;
-}
-function startScreen(){
-    if(screenActive)return;
-    if(!navigator.mediaDevices.getDisplayMedia){lblEl.textContent='Pas de partage ecran';return}
-    stopCam();
-    navigator.mediaDevices.getDisplayMedia({video:true,audio:false}).then(function(s){
-        screenStream=s;screenActive=true;camEl.srcObject=s;
-        camEl.classList.remove('mirror');
-        if(!frameTimer){
-            frameTimer=setInterval(function(){
-                if(!camEl.videoWidth)return;
-                cv.width=320;cv.height=240;
-                ctx.drawImage(camEl,0,0,320,240);
-                latestFrame=cv.toDataURL('image/jpeg',0.5).split(',')[1];
-                fdotEl.classList.add('flash');setTimeout(function(){fdotEl.classList.remove('flash')},150);
-            },3000);
-        }
-        s.getVideoTracks()[0].onended=function(){stopScreen();startCam().catch(function(){})};
-    }).catch(function(e){lblEl.textContent='Partage annule'});
 }
 
 /* ============ MIC ============ */
@@ -345,7 +320,7 @@ function stopMic(){if(rec){rec.abort();rec=null}$('mic').classList.remove('on')}
 var API_KEY='RmZmxSfwoOIUdLCifXVLfbYhI0EO8j2U';
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
 var API_HOST=IS_LOCAL?'':'https://api.mistral.ai'; // ← change ici pour ton Worker Cloudflare
-var SYS_PROMPT="Tu vois ce que filme la caméra. Regle ABSOLUE : ne decris que ce qui est 100% visible. Si l'image est floue, sombre ou peu claire, dis 'je vois pas bien'. Si tu vois quelque chose, decris-le sans ajouter de details. N'invente JAMAIS un objet, une couleur, un mouvement ou une personne. Si t'es pas sur, dis-le. Sois honnete.";
+var SYS_PROMPT="Tu vois ce que filme la caméra. Regle ABSOLUE : ne decris que ce qui est 100% visible. Si l'image est floue, sombre ou peu claire, dis 'je vois pas bien'. Si tu vois du texte, lis-le a voix haute. Si tu vois un objet, decris-le sans ajouter de details. N'invente JAMAIS. Si t'es pas sur, dis-le.";
 function callMistralChat(messages){
     var url=IS_LOCAL?'/api/ia':API_HOST+'/v1/chat/completions';
     if(IS_LOCAL){
@@ -447,7 +422,6 @@ function bind(id,fn){
 bind('go',start);
 bind('quit',quit);
 bind('switch-cam',switchCam);
-bind('btn-screen',function(){if(active){if(screenActive){stopScreen();startCam().catch(function(){})}else{startScreen()}}});
 bind('send',function(){var t=$('inp').value.trim();if(t){$('inp').value='';onUserText(t)}});
 bind('mic',function(){if(active){if(rec){stopMic();stat('Pause','on')}else startMic()}});
 $('inp').addEventListener('keydown',function(e){if(e.key==='Enter')$('send').click()});
