@@ -21,7 +21,7 @@ MISTRAL_VOICES_URL = 'https://api.mistral.ai/v1/audio/voices'
 MISTRAL_CHAT_URL = 'https://api.mistral.ai/v1/chat/completions'
 TTS_MODEL = 'voxtral-mini-tts-2603'
 CHAT_MODELS = ['pixtral-large-latest', 'mistral-large-latest']
-DEFAULT_VOICE_ID = 'c69964a6-ab8b-4f8a-9465-ec0925096ec8'
+DEFAULT_VOICE_ID = 'fr_male'
 
 SYSTEM_PROMPT = (
     "Tu es un assistant IA vocal avancé. Tu vois en temps réel ce que la caméra "

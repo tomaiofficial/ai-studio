@@ -357,7 +357,7 @@ function callMistralTTS(text){
     if(IS_LOCAL)return Promise.resolve(null);
     return fetch('https://api.mistral.ai/v1/audio/speech',{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:'c69964a6-ab8b-4f8a-9465-ec0925096ec8',response_format:'wav'})
+        body:JSON.stringify({model:'voxtral-mini-tts-2603',input:text,voice_id:'fr_male',response_format:'wav'})
     }).then(function(r){if(!r.ok)throw new Error('TTS '+r.status);return r.json()})
       .then(function(d){return d.audio_data||''});
 }
