@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ia-app-proxy
+    runtime: python3
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    envVars:
+      - key: MISTRAL_API_KEY
+        value: pFaCMuP9G2MBvXMie4QKnOvhZ5vMuVi5
