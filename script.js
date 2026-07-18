@@ -212,7 +212,7 @@ async function askMistralVision(imageB64, instruction) {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
             body: JSON.stringify({
-                model: 'mistral-medium-3.5',
+                model: 'mistral-medium-latest',
                 messages: [
                     {role: 'system', content: 'Tu es un photomaton. Tu regardes la photo de la personne et vérifies sa position : tête droite, épaules alignées, expression neutre, visage bien centré. 1 phrase précise.'},
                     {role: 'user', content: [{type: 'image_url', image_url: 'data:image/jpeg;base64,' + imageB64}, {type: 'text', text: instruction}]}
@@ -515,7 +515,7 @@ function callMistralChat(messages) {
     return fetch(API_HOST + '/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-        body: JSON.stringify({ model: 'mistral-medium-3.5', messages: messages, max_tokens: 300, temperature: 0.2 })
+        body: JSON.stringify({ model: 'mistral-medium-latest', messages: messages, max_tokens: 300, temperature: 0.2 })
     }).then(function(r) { if (!r.ok) throw new Error('Chat ' + r.status); return r.json() })
      .then(function(d) { return d.choices[0].message.content });
 }

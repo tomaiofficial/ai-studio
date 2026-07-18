@@ -328,7 +328,7 @@ function callMistralChat(messages){
         return Promise.resolve(null); // géré séparément
     }
     return fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
-        body:JSON.stringify({model:'mistral-medium-3.5',messages:messages,max_tokens:300,temperature:0.2})
+        body:JSON.stringify({model:'mistral-medium-latest',messages:messages,max_tokens:300,temperature:0.2})
     }).then(function(r){if(!r.ok)throw new Error('Chat '+r.status);return r.json()})
       .then(function(d){return d.choices[0].message.content});
 }
@@ -386,9 +386,9 @@ function onUserText(text){
         waitingAI=false;
     }).catch(function(e){
         console.error('[IA] Error:',e);
-        typing.textContent='Erreur : '+e.message;
+        lblEl.textContent='Erreur: '+e.message;
+        setTimeout(function(){stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on')},3000);
         speaking=false;orbEl.className='idle';
-        stat(active&&rec?'En écoute':'Connecté',active&&rec?'rec':'on');
         waitingAI=false;
     });
 }
