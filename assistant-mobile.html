@@ -32,7 +32,7 @@
     <div id="welcome" class="page on">
         <div class="w-orb"></div>
         <div class="w-title">Assistant Mobile</div>
-        <div class="w-sub">Demande-moi comment utiliser ton telephone ou aide-toi aux devoirs.</div>
+        <div class="w-sub">Demande-moi comment utiliser ton téléphone.</div>
         <button class="w-btn" id="go" onclick="start()">▶ Parler</button>
         <a href="index.html" class="w-back">← Assistant IA</a>
     </div>
@@ -46,7 +46,7 @@
     <script>
         var API_HOST='https://ia-proxy.tom16112008.workers.dev';
         var VOICE_ID='c69964a6-ab8b-4f8a-9465-ec0925096ec8';
-        var SYS_PROMPT="Tu es un expert mobile. Aide aux devoirs, explique les apps. Réponds en français. Sois concis.";
+        var SYS_PROMPT="Tu es un expert mobile. Réponds aux questions sur les smartphones, apps, captures d'écran. Donne des instructions claires, étape par étape, en français. Sois concis.";
         var rec,active=false,speaking=false,waitingAI=false;
         var $ = function(id){return document.getElementById(id)};
         function stat(t,m){var d=$('dot'),l=$('lbl');d.className='dot';if(m==='on')d.classList.add('on');else if(m==='rec')d.classList.add('rec');else if(m==='talk')d.classList.add('talk');l.textContent=t;}
