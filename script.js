@@ -1,6 +1,6 @@
 /* ============================================
    Photomaton ID — Boîte à Photos d'Identité
-   Vocal: Mistral Voxtral TTS
+   Vocal: Mistral Voxtral TTS + Pixtral Vision
    ============================================ */
 
 // ---- State ----
@@ -14,6 +14,9 @@ const state = {
     mistralAvailable: true,
     audioUnlocked: false
 };
+
+const API_KEY = 'SPZpcRQzWUu8iEC1XrcNwEOOcLH45qis';
+const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 // ---- Elements ----
 const $ = id => document.getElementById(id);
@@ -143,21 +146,25 @@ function speakBrowser(text) {
     });
 }
 
-// ---- Main speak: Mistral first, browser fallback ----
+// ---- Main speak: direct Mistral TTS (GitHub Pages), puis serveur, puis browser ----
 async function speak(text, priority = false) {
     if (!state.soundEnabled) return;
     if (state.speaking && !priority) return;
 
     state.speaking = true;
 
-    if (state.mistralAvailable) {
-        const ok = await speakMistral(text);
-        if (ok) {
-            state.speaking = false;
-            return;
-        }
+    // GitHub Pages → direct Mistral API
+    if (!IS_LOCAL && state.mistralAvailable) {
+        const ok = await speakMistralDirect(text);
+        if (ok) { state.speaking = false; return; }
         state.mistralAvailable = false;
-        console.warn('[TTS] Mistral failed → browser fallback');
+    }
+
+    // Localhost → serveur endpoint
+    if (IS_LOCAL && state.mistralAvailable) {
+        const ok = await speakMistral(text);
+        if (ok) { state.speaking = false; return; }
+        state.mistralAvailable = false;
     }
 
     await speakBrowser(text);
@@ -185,6 +192,58 @@ async function startCamera() {
 
 function stopCamera() {
     if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; }
+}
+
+function captureFrame() {
+    const video = $('camera');
+    if (!video || !video.videoWidth) return null;
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = 240;
+    c.getContext('2d').drawImage(video, 0, 0, 320, 240);
+    return c.toDataURL('image/jpeg', 0.5).split(',')[1];
+}
+
+// ---- Mistral Vision direct (GitHub Pages) ----
+async function askMistralVision(imageB64, instruction) {
+    if (IS_LOCAL) return null;
+    try {
+        const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
+            body: JSON.stringify({
+                model: 'mistral-medium-3.5',
+                messages: [
+                    {role: 'system', content: 'Tu es un photomaton IA. Tu vois la personne via la caméra. Réponds en 1-2 phrases, donne des instructions précises et naturelles.'},
+                    {role: 'user', content: [{type: 'image_url', image_url: 'data:image/jpeg;base64,' + imageB64}, {type: 'text', text: instruction}]}
+                ],
+                max_tokens: 100,
+                temperature: 0.3
+            })
+        });
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data.choices[0].message.content;
+    } catch (e) {
+        return null;
+    }
+}
+
+// ---- Direct Mistral TTS (GitHub Pages) ----
+async function speakMistralDirect(text) {
+    if (IS_LOCAL) return false;
+    try {
+        const resp = await fetch('https://api.mistral.ai/v1/audio/speech', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY},
+            body: JSON.stringify({model: 'voxtral-mini-tts-2603', input: text, voice_id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', response_format: 'wav'})
+        });
+        if (!resp.ok) return false;
+        const data = await resp.json();
+        if (!data.audio_data) return false;
+        return await playMistralAudio(data.audio_data, 'wav');
+    } catch (e) {
+        return false;
+    }
 }
 
 // ---- Photo Capture ----
@@ -272,9 +331,19 @@ async function captureNextPhoto() {
 
     state.currentPhoto++;
     $('photo-count').textContent = state.currentPhoto;
-
-    const poseText = poses[Math.min(state.currentPhoto - 1, poses.length - 1)];
     $('pose-label').textContent = 'Photo ' + state.currentPhoto + ' / ' + state.maxPhotos;
+
+    // Capture un frame et demande à l'IA de donner une instruction
+    const frame = captureFrame();
+    let poseText = poses[Math.min(state.currentPhoto - 1, poses.length - 1)];
+    if (frame && !IS_LOCAL) {
+        const aiInstruction = await askMistralVision(frame,
+            'Photo ' + state.currentPhoto + ' sur 4 pour une carte d\'identité. ' +
+            'Analyse la position de la personne et donne une instruction précise (regard, tête, épaules, expression). ' +
+            'Sois naturel et encourageant.'
+        );
+        if (aiInstruction) poseText = aiInstruction;
+    }
 
     // Parle l'instruction
     await speak(poseText, true);
@@ -296,8 +365,18 @@ async function captureNextPhoto() {
     vf.style.border = '3px solid var(--yellow-accent)';
     setTimeout(() => { vf.style.border = '3px solid var(--blue-primary)'; }, 300);
 
-    // Feedback vocal
-    await speak(randomFeedback[Math.floor(Math.random() * randomFeedback.length)], true);
+    // Feedback vocal via IA
+    const photoB64 = state.photos[state.photos.length - 1].split(',')[1];
+    let feedbackText = randomFeedback[Math.floor(Math.random() * randomFeedback.length)];
+    if (photoB64 && !IS_LOCAL) {
+        const aiFeedback = await askMistralVision(photoB64,
+            'Cette photo vient d\'être prise pour une carte d\'identité. ' +
+            'Donne un retour court et encourageant en 1 phrase. ' +
+            (state.currentPhoto < state.maxPhotos ? 'Dis à la personne de se préparer pour la photo suivante.' : '')
+        );
+        if (aiFeedback) feedbackText = aiFeedback;
+    }
+    await speak(feedbackText, true);
     await sleep(1000);
 
     // Photo suivante
