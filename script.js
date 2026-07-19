@@ -16,7 +16,7 @@ const state = {
 };
 
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-var API_HOST = IS_LOCAL ? '' : 'https://ia-app-proxy.onrender.com';
+var API_HOST = IS_LOCAL ? '' : 'https://ia-app-2.onrender.com';
 
 // ---- Elements ----
 const $ = id => document.getElementById(id);
