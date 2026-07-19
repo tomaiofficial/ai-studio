@@ -33,6 +33,8 @@ def chat():
         resp = requests.post(f"{MISTRAL_BASE}/v1/chat/completions",
                              headers=headers, json=data, timeout=60)
         return Response(resp.content, resp.status_code, dict(resp.headers))
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Mistral API timeout"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
@@ -49,7 +51,7 @@ def tts():
         resp = requests.post(f"{MISTRAL_BASE}/v1/audio/speech",
                              headers=headers, json=data, timeout=60)
         if resp.status_code != 200:
-            return jsonify({"error": f"Mistral TTS returned {resp.status_code}"}), resp.status_code
+            return Response(resp.content, resp.status_code, {"Content-Type": "application/json"})
         audio_b64 = base64.b64encode(resp.content).decode("utf-8")
         return jsonify({"audio_data": audio_b64})
     except Exception as e:
