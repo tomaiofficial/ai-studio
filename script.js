@@ -16,7 +16,7 @@ const state = {
 };
 
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-var API_HOST = IS_LOCAL ? '' : 'https://ia-proxy.tom16112008.workers.dev';← change ici pour ton Worker Cloudflare
+var API_HOST = IS_LOCAL ? '' : 'https://ia-app-proxy.onrender.com';
 
 // ---- Elements ----
 const $ = id => document.getElementById(id);

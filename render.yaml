@@ -7,4 +7,4 @@ services:
     startCommand: gunicorn server:app
     envVars:
       - key: MISTRAL_API_KEY
-        value: pFaCMuP9G2MBvXMie4QKnOvhZ5vMuVi5
+        sync: false
