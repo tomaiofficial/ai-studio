@@ -15,12 +15,14 @@ def chat():
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type"
         })
+    # Force JSON parsing even if Content-Type header is missing
+    data = request.get_json(force=True, silent=True) or {}
     headers = {
         "Authorization": f"Bearer {os.environ.get('MISTRAL_API_KEY')}",
         "Content-Type": "application/json"
     }
     resp = requests.post(f"{MISTRAL_BASE}/v1/chat/completions",
-                         headers=headers, json=request.get_json(), timeout=60)
+                         headers=headers, json=data, timeout=60)
     return Response(resp.content, resp.status_code, resp.headers.items())
 
 @app.route("/v1/audio/speech", methods=["POST", "OPTIONS"])
@@ -31,12 +33,13 @@ def tts():
             "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type"
         })
+    data = request.get_json(force=True, silent=True) or {}
     headers = {
         "Authorization": f"Bearer {os.environ.get('MISTRAL_API_KEY')}",
         "Content-Type": "application/json"
     }
     resp = requests.post(f"{MISTRAL_BASE}/v1/audio/speech",
-                         headers=headers, json=request.get_json(), timeout=60)
+                         headers=headers, json=data, timeout=60)
     return Response(resp.content, resp.status_code, resp.headers.items())
 
 if __name__ == "__main__":
