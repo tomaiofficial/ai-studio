@@ -1,7 +1,7 @@
 // Configuration TechHelp — Supabase
-// Remplace uniquement les deux valeurs ci-dessous par celles de TON projet Supabase.
-// Ne mets JAMAIS une clé service_role ici. La clé anon/publishable est prévue pour le navigateur.
+// Cette clé est une clé publishable/anon : elle peut être utilisée côté navigateur.
+// Ne mets JAMAIS une clé service_role dans ce fichier.
 window.TECHHELP_SUPABASE = {
-  url: '',
-  anonKey: ''
+  url: 'https://bjmfoxwlplxknezrojes.supabase.co',
+  anonKey: 'sb_publishable_v3neE9jNXUH5plNgYSscA_klJXGoVH'
 };
