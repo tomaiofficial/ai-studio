@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Studio — apprendre l'informatique et la cybersécurité avec un parcours personnalisé.">
+  <title>AI Studio — Informatique & Cybersécurité</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">AI</span><div><strong>AI Studio</strong><small>Informatique & Cyber</small></div></div>
+    <div class="top-actions"><button class="icon-btn" id="themeBtn" title="Changer le thème">☀️</button><button class="avatar" id="profileBtn">T</button></div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <button class="nav active" data-section="dashboard">🏠 <span>Accueil</span></button>
+      <button class="nav" data-section="courses">📚 <span>Cours</span></button>
+      <button class="nav" data-section="cyber">🔐 <span>Cybersécurité</span></button>
+      <button class="nav" data-section="quiz">🧠 <span>Quiz</span></button>
+      <button class="nav" data-section="assistant">🤖 <span>Tuteur IA</span></button>
+      <button class="nav" data-section="progress">📊 <span>Progression</span></button>
+      <div class="side-bottom"><button class="nav" data-section="settings">⚙️ <span>Paramètres</span></button><p>Version 1.0 · données locales</p></div>
+    </aside>
+
+    <section class="content">
+      <div id="dashboard" class="section active-section">
+        <div class="hero"><div><span class="eyebrow">TON ESPACE D'APPRENTISSAGE</span><h1>Apprends l'informatique.<br><span>Comprends la cybersécurité.</span></h1><p>Des cours simples, des exercices et un parcours qui s'adapte à ton niveau.</p></div><div class="hero-orb">🤖</div></div>
+        <div class="grid stats"><article class="card stat"><span>Progression générale</span><strong id="overallProgress">0%</strong><div class="progress"><i id="overallBar"></i></div></article><article class="card stat"><span>XP gagnés</span><strong id="xp">0 XP</strong><small>Continue pour progresser 🚀</small></article><article class="card stat"><span>Cours terminés</span><strong id="completed">0</strong><small>sur ton parcours</small></article></div>
+        <div class="grid two"><article class="card"><div class="card-head"><div><span class="eyebrow">RECOMMANDÉ</span><h2>Ton prochain cours</h2></div><span class="pill" id="nextLevel">Débutant</span></div><h3 id="nextCourse">Les bases d'un ordinateur</h3><p id="nextDesc">Découvre le rôle du processeur, de la RAM, du stockage et des périphériques.</p><button class="primary" id="startNext">Commencer →</button></article><article class="card"><div class="card-head"><div><span class="eyebrow">ACTIVITÉ</span><h2>Dernières activités</h2></div></div><div id="activityList" class="activity-empty">Aucune activité pour le moment.<br>Ton historique apparaîtra ici.</div></article></div>
+      </div>
+
+      <div id="courses" class="section"><div class="page-title"><div><span class="eyebrow">APPRENDRE</span><h1>Cours informatiques</h1><p>Progresse de manière structurée, à ton rythme.</p></div></div><div id="courseGrid" class="course-grid"></div></div>
+      <div id="cyber" class="section"><div class="page-title"><div><span class="eyebrow">SÉCURITÉ</span><h1>Cybersécurité</h1><p>Apprends à reconnaître les risques et à protéger tes appareils.</p></div></div><div id="cyberGrid" class="course-grid"></div></div>
+      <div id="quiz" class="section"><div class="page-title"><div><span class="eyebrow">ENTRAÎNEMENT</span><h1>Quiz</h1><p>Teste tes connaissances et gagne de l'XP.</p></div></div><div class="quiz-box card" id="quizBox"></div></div>
+      <div id="assistant" class="section"><div class="page-title"><div><span class="eyebrow">TUTEUR</span><h1>Assistant informatique</h1><p>Pose une question et obtiens une explication simple.</p></div></div><div class="card assistant-box"><div id="chat" class="chat"><div class="bubble bot">Salut 👋 Je peux t'expliquer l'informatique et la cybersécurité simplement. Essaie : « C'est quoi une adresse IP ? »</div></div><form id="chatForm" class="chat-form"><input id="chatInput" autocomplete="off" placeholder="Pose ta question…"><button class="primary">Envoyer</button></form></div></div>
+      <div id="progress" class="section"><div class="page-title"><div><span class="eyebrow">TON PARCOURS</span><h1>Progression</h1><p>Ton profil d'apprentissage est enregistré sur cet appareil.</p></div></div><div class="card"><div id="progressDetails"></div></div></div>
+      <div id="settings" class="section"><div class="page-title"><div><span class="eyebrow">CONFIGURATION</span><h1>Paramètres</h1></div></div><div class="card settings-card"><h3>Profil</h3><label>Nom affiché<input id="nameInput" maxlength="30" placeholder="Ton prénom"></label><button class="primary" id="saveName">Enregistrer</button><hr><h3>Données</h3><p>Les données de progression sont conservées uniquement dans ton navigateur avec localStorage.</p><button class="danger" id="resetData">Réinitialiser ma progression</button></div></div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
