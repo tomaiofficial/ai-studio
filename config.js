@@ -28,7 +28,7 @@ window.IADERAPE_CONFIG = {
    *  Sans clé : le formulaire fonctionne quand même,
    *  mais tu ne reçois pas de mail de notification.
    * ---------------------------------------------------------- */
-  alertKey: '',   // ← colle ta clé Web3Forms ici
+  alertKey: 'd302ec7c-5930-48c5-873c-8047067fb3b0',
 
   /* ----------------------------------------------------------
    *  4. SUPABASE (ne pas modifier si déjà configuré)
