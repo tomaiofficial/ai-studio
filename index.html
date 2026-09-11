@@ -63,6 +63,23 @@
 
   <div id="feed" class="feed-grid"></div>
 
+  <!-- NEWSLETTER -->
+  <section class="newsletter" id="newsletter">
+    <div class="nl-inner">
+      <div class="nl-text">
+        <span class="eyebrow">📬 ALERTE ACTU IA</span>
+        <h2>Reçois les dérapages de l'IA<br>directement par email.</h2>
+        <p>Une nouvelle actu publiée ? Tu reçois un mail. Pas de spam, désinscription en 1 clic.</p>
+      </div>
+      <form class="nl-form" id="nlForm">
+        <input id="nlEmail" type="email" required placeholder="ton@email.com" autocomplete="email">
+        <button class="primary" type="submit" id="nlBtn">🔔 M'abonner</button>
+        <small class="nl-note" id="nlNote">Rejoins les lecteurs qui ne ratent plus rien.</small>
+      </form>
+    </div>
+    <div class="nl-count"><b id="nlCount">0</b> <span>abonnés</span></div>
+  </section>
+
   <!-- DÉRAPAGES -->
   <section id="derapeSection" class="hot-section">
     <div class="section-head">
@@ -93,6 +110,8 @@
 </div>
 
 <div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
+<script src="newsletter.js"></script>
 </body>
 </html>
