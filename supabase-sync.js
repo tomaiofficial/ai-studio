@@ -2,62 +2,13 @@
 (function(){
   const cfg=window.TECHHELP_SUPABASE;
   if(!cfg?.url||!cfg?.anonKey||!window.supabase)return;
-  const db=window.supabase.createClient(cfg.url,cfg.anonKey);
-  const KEY='techhelpState';
-  const $=id=>document.getElementById(id);
+  const db=window.supabase.createClient(cfg.url,cfg.anonKey),KEY='techhelpState', $=id=>document.getElementById(id);
   let busy=false;
-  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   function local(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch{return null}}
-  function notice(t){
-    let n=$('cloudNotice');
-    if(!n){n=document.createElement('div');n.id='cloudNotice';n.style='position:fixed;right:18px;bottom:18px;z-index:9999;padding:12px 16px;border-radius:14px;background:#111827;color:white;font:600 13px system-ui;box-shadow:0 10px 30px #0004;max-width:360px';document.body.appendChild(n)}
-    n.textContent=t;n.style.display='block';clearTimeout(window.__cloudNotice);window.__cloudNotice=setTimeout(()=>n.style.display='none',3500);
-  }
-  function authBox(){
-    if($('cloudAuth'))return;
-    const d=document.createElement('div');d.id='cloudAuth';d.style='position:fixed;inset:0;z-index:10000;display:none;place-items:center;background:#020617aa;backdrop-filter:blur(10px);padding:20px';
-    d.innerHTML='<div style="width:min(430px,100%);background:#fff;color:#0f172a;border-radius:24px;padding:26px;box-shadow:0 25px 80px #0006;font-family:system-ui"><div style="font-size:12px;font-weight:800;letter-spacing:.12em;color:#2563eb">TECHHELP CLOUD</div><h2 style="margin:8px 0">Ta mémoire, partout.</h2><p style="color:#64748b">Connecte un compte pour conserver ton profil, tes publications, tes appareils et ta mémoire sur tous tes appareils.</p><input id="cloudEmail" type="email" placeholder="Ton adresse e-mail" style="width:100%;box-sizing:border-box;padding:13px;border:1px solid #cbd5e1;border-radius:12px;margin:8px 0 12px"><button id="cloudSend" style="width:100%;padding:13px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer">Recevoir le lien de connexion</button><button id="cloudClose" style="width:100%;padding:11px;border:0;background:transparent;color:#64748b;margin-top:5px;cursor:pointer">Plus tard</button><small id="cloudMsg" style="display:block;margin-top:10px;color:#64748b"></small></div>';
-    document.body.appendChild(d);$('cloudClose').onclick=()=>d.style.display='none';$('cloudSend').onclick=async()=>{const email=$('cloudEmail').value.trim();if(!email)return $('cloudMsg').textContent='Entre une adresse e-mail.';$('cloudMsg').textContent='Envoi du lien…';const {error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:location.href}});$('cloudMsg').textContent=error?error.message:'Lien envoyé. Ouvre le lien reçu par e-mail.'};
-  }
-  async function push(){
-    if(busy)return;const {data:{user}}=await db.auth.getUser();if(!user)return;const s=local();if(!s)return;busy=true;
-    try{
-      await db.from('profiles').upsert({id:user.id,name:s.name||'Utilisateur',bio:s.bio||'',avatar_url:s.avatar||null,updated_at:new Date().toISOString()});
-      const devices=(s.devices||[]).map(d=>({user_id:user.id,name:d.name||'Appareil',info:d.info||''}));
-      await db.from('devices').delete().eq('user_id',user.id);if(devices.length)await db.from('devices').insert(devices);
-      const memory=(s.memory||[]).map(m=>({user_id:user.id,content:String(m.text||''),created_at:m.date||new Date().toISOString()})).filter(x=>x.content);
-      await db.from('memory').delete().eq('user_id',user.id);if(memory.length)await db.from('memory').insert(memory);
-      await db.from('posts').delete().eq('user_id',user.id);
-      const posts=(s.posts||[]).map(p=>({id:p.id?.startsWith('u')?undefined:p.id,user_id:user.id,title:p.title||'Publication',body:p.body||'',category:p.cat||'other',image_url:p.image||null,likes:Number(p.likes||0),solved:!!p.solved,created_at:p.createdAt||new Date().toISOString()}));
-      for(const p of posts){if(p.id)await db.from('posts').upsert(p);else {delete p.id;await db.from('posts').insert(p)}}
-      localStorage.setItem('techhelpCloudUser',user.id);notice('☁️ Mémoire synchronisée');
-    }finally{busy=false}
-  }
-  async function pull(user){
-    const [{data:profile},{data:devices},{data:memory},{data:posts}]=await Promise.all([
-      db.from('profiles').select('*').eq('id',user.id).maybeSingle(),
-      db.from('devices').select('*').eq('user_id',user.id).order('created_at'),
-      db.from('memory').select('*').eq('user_id',user.id).order('created_at',{ascending:false}),
-      db.from('posts').select('*').eq('user_id',user.id).order('created_at',{ascending:false})
-    ]);
-    const old=local()||{name:'Utilisateur',bio:'Membre TechHelp',avatar:null,posts:[],devices:[],memory:[],reputation:0,theme:'dark'};
-    const next={...old,name:profile?.name||old.name,bio:profile?.bio||old.bio,avatar:profile?.avatar_url||old.avatar,devices:(devices||[]).map(d=>({name:d.name,info:d.info})),memory:(memory||[]).map(m=>({id:'cloud'+m.id,date:m.created_at,text:m.content})),posts:(posts||[]).map(p=>({id:p.id,user:profile?.name||old.name,avatar:profile?.avatar_url||null,cat:p.category,title:p.title,body:p.body,likes:p.likes,solved:p.solved,comments:[],image:p.image_url,createdAt:p.created_at}))};
-    localStorage.setItem(KEY,JSON.stringify(next));
-    localStorage.setItem('techhelpCloudUser',user.id);
-    location.reload();
-  }
-  async function start(){
-    authBox();
-    const {data:{session}}=await db.auth.getSession();
-    if(!session){notice('☁️ TechHelp Cloud est prêt. Connecte-toi pour sauvegarder partout.');return}
-    const last=localStorage.getItem('techhelpCloudUser');
-    if(last!==session.user.id){await pull(session.user)}
-    else{await push()}
-    db.channel('techhelp-cloud').on('postgres_changes',{event:'*',schema:'public',table:'posts'},()=>{if(!busy)pull(session.user)}).subscribe();
-  }
-  const oldSet=Storage.prototype.setItem;
-  Storage.prototype.setItem=function(k,v){const r=oldSet.call(this,k,v);if(k===KEY&&window.__techhelpCloudReady)push();return r};
-  window.__techhelpCloudReady=true;
-  window.techhelpCloud={db,login:()=>{authBox();$('cloudAuth').style.display='grid'},sync:push};
-  setTimeout(start,500);
+  function notice(t){let n=$('cloudNotice');if(!n){n=document.createElement('div');n.id='cloudNotice';n.style='position:fixed;right:18px;bottom:18px;z-index:9999;padding:12px 16px;border-radius:14px;background:#111827;color:white;font:600 13px system-ui;box-shadow:0 10px 30px #0004;max-width:360px';document.body.appendChild(n)}n.textContent=t;n.style.display='block';clearTimeout(window.__cloudNotice);window.__cloudNotice=setTimeout(()=>n.style.display='none',3500)}
+  function authBox(){if($('cloudAuth'))return;const d=document.createElement('div');d.id='cloudAuth';d.style='position:fixed;inset:0;z-index:10000;display:none;place-items:center;background:#020617aa;backdrop-filter:blur(10px);padding:20px';d.innerHTML='<div style="width:min(430px,100%);background:#fff;color:#0f172a;border-radius:24px;padding:26px;box-shadow:0 25px 80px #0006;font-family:system-ui"><div style="font-size:12px;font-weight:800;letter-spacing:.12em;color:#2563eb">TECHHELP CLOUD</div><h2 style="margin:8px 0">Ta mémoire, partout.</h2><p style="color:#64748b">Connecte ton compte pour retrouver tes données sur tes autres appareils.</p><input id="cloudEmail" type="email" placeholder="Adresse e-mail" style="width:100%;box-sizing:border-box;padding:13px;border:1px solid #cbd5e1;border-radius:12px;margin:8px 0 12px"><button id="cloudSend" style="width:100%;padding:13px;border:0;border-radius:12px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer">Recevoir le lien de connexion</button><button id="cloudClose" style="width:100%;padding:11px;border:0;background:transparent;color:#64748b;margin-top:5px;cursor:pointer">Plus tard</button><small id="cloudMsg" style="display:block;margin-top:10px;color:#64748b"></small></div>';document.body.appendChild(d);$('cloudClose').onclick=()=>d.style.display='none';$('cloudSend').onclick=async()=>{const email=$('cloudEmail').value.trim();if(!email)return $('cloudMsg').textContent='Entre une adresse e-mail.';$('cloudMsg').textContent='Envoi du lien…';const {error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:location.href}});$('cloudMsg').textContent=error?error.message:'Lien envoyé. Ouvre le lien reçu par e-mail.'}}
+  async function push(){if(busy)return;const {data:{user}}=await db.auth.getUser();if(!user)return;const s=local();if(!s)return;busy=true;try{const r1=await db.from('profiles').upsert({id:user.id,name:s.name||'Utilisateur',bio:s.bio||'',avatar_url:s.avatar||null,updated_at:new Date().toISOString()});if(r1.error)throw r1.error;const devices=(s.devices||[]).map(d=>({user_id:user.id,name:d.name||'Appareil',info:d.info||''}));await db.from('devices').delete().eq('user_id',user.id);if(devices.length)await db.from('devices').insert(devices);const memory=(s.memory||[]).map(m=>({user_id:user.id,content:String(m.text||''),created_at:m.date||new Date().toISOString()})).filter(x=>x.content);await db.from('memory').delete().eq('user_id',user.id);if(memory.length)await db.from('memory').insert(memory);const old=await db.from('posts').select('id').eq('user_id',user.id);const posts=(s.posts||[]).map(p=>({id:(p.id&&!String(p.id).startsWith('u'))?p.id:undefined,user_id:user.id,title:p.title||'Publication',body:p.body||'',category:p.cat||'other',image_url:p.image||null,likes:Number(p.likes||0),solved:!!p.solved,created_at:p.createdAt||new Date().toISOString()}));for(const p of posts){if(p.id)await db.from('posts').upsert(p);else{delete p.id;await db.from('posts').insert(p)}}localStorage.setItem('techhelpCloudUser',user.id);notice('☁️ Données synchronisées dans le cloud')}catch(e){console.error(e);notice('⚠️ Synchronisation cloud impossible pour le moment')}finally{busy=false}}
+  async function pull(user){const [{data:profile},{data:devices},{data:memory},{data:posts}]=await Promise.all([db.from('profiles').select('*').eq('id',user.id).maybeSingle(),db.from('devices').select('*').eq('user_id',user.id).order('created_at'),db.from('memory').select('*').eq('user_id',user.id).order('created_at',{ascending:false}),db.from('posts').select('*').eq('user_id',user.id).order('created_at',{ascending:false})]);const old=local()||{name:'Utilisateur',bio:'Membre TechHelp',avatar:null,posts:[],devices:[],memory:[],reputation:0,theme:'dark'};localStorage.setItem(KEY,JSON.stringify({...old,name:profile?.name||old.name,bio:profile?.bio||old.bio,avatar:profile?.avatar_url||old.avatar,devices:(devices||[]).map(d=>({name:d.name,info:d.info})),memory:(memory||[]).map(m=>({id:'cloud'+m.id,date:m.created_at,text:m.content})),posts:(posts||[]).map(p=>({id:p.id,user:profile?.name||old.name,avatar:profile?.avatar_url||null,cat:p.category,title:p.title,body:p.body,likes:p.likes,solved:p.solved,comments:[],image:p.image_url,createdAt:p.created_at}))}));localStorage.setItem('techhelpCloudUser',user.id);location.reload()}
+  async function start(){authBox();$('cloudLogin')?.addEventListener('click',()=>{authBox();$('cloudAuth').style.display='grid'});const {data:{session}}=await db.auth.getSession();if(!session){notice('☁️ Connecte ton compte pour activer la mémoire permanente');return}const last=localStorage.getItem('techhelpCloudUser');if(last!==session.user.id)await pull(session.user);else await push();db.channel('techhelp-cloud').on('postgres_changes',{event:'*',schema:'public',table:'posts'},()=>{if(!busy)pull(session.user)}).subscribe()}
+  const oldSet=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){const r=oldSet.call(this,k,v);if(k===KEY&&window.__techhelpCloudReady)push();return r};window.__techhelpCloudReady=true;window.techhelpCloud={db,login:()=>{authBox();$('cloudAuth').style.display='grid'},sync:push};setTimeout(start,500);
 })();
