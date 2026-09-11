@@ -259,3 +259,14 @@ footer{border-top:1px solid var(--line);background:var(--bg2);margin-top:30px}
 .nl-count b{font-size:1.3rem;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 
 @media(max-width:860px){.nl-inner{grid-template-columns:1fr;padding:26px}}
+
+/* Compteur d'abonnés — animation */
+.nl-count b.bump{
+  animation:countBump .6s cubic-bezier(.34,1.56,.64,1);
+  display:inline-block;
+}
+@keyframes countBump{
+  0%{transform:scale(1)}
+  35%{transform:scale(1.35)}
+  100%{transform:scale(1)}
+}

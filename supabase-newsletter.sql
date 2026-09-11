@@ -1,8 +1,9 @@
 -- ============================================================
 -- IA DÉRAPE — Newsletter
--- À exécuter dans Supabase → SQL Editor
+-- À exécuter dans Supabase → SQL Editor (bouton RUN)
 -- ============================================================
 
+-- 1. La table des abonnés -------------------------------------
 create table if not exists public.newsletter (
   id          uuid primary key default gen_random_uuid(),
   email       text not null unique,
@@ -13,13 +14,9 @@ create table if not exists public.newsletter (
 
 create index if not exists newsletter_email_idx on public.newsletter (lower(email));
 
--- ------------------------------------------------------------
--- Sécurité (RLS) : le site peut SEULEMENT insérer son email.
--- Personne ne peut lire la liste depuis le navigateur.
--- ------------------------------------------------------------
+-- RLS : le site peut SEULEMENT insérer son email.
 alter table public.newsletter enable row level security;
 
--- Autorise l'inscription publique (insertion seule)
 drop policy if exists "newsletter_public_insert" on public.newsletter;
 create policy "newsletter_public_insert"
   on public.newsletter
@@ -27,12 +24,10 @@ create policy "newsletter_public_insert"
   to anon, authenticated
   with check (true);
 
--- Aucune policy SELECT → la liste n'est pas exposée au public.
--- Toi, tu la vois depuis le dashboard Supabase (rôle service_role).
+-- Aucune policy SELECT → la liste des emails n'est PAS exposée au public.
 
--- ------------------------------------------------------------
--- Suivi des envois : savoir quelle actu a déjà été notifiée
--- ------------------------------------------------------------
+
+-- 2. Suivi des envois -----------------------------------------
 create table if not exists public.newsletter_sent (
   news_id     text primary key,
   sent_at     timestamptz not null default now(),
@@ -40,14 +35,20 @@ create table if not exists public.newsletter_sent (
 );
 
 alter table public.newsletter_sent enable row level security;
--- Pas de policy → accessible uniquement via service_role (GitHub Action).
 
--- ------------------------------------------------------------
--- Vue pratique (optionnel) : compter les abonnés
--- ------------------------------------------------------------
-create or replace view public.newsletter_stats as
+
+-- 3. Vue publique : le NOMBRE d'abonnés uniquement -------------
+-- Expose juste des compteurs, jamais les adresses email.
+-- SECURITY DEFINER = contourne le RLS pour compter, mais ne
+-- renvoie que des chiffres : aucune donnée personnelle ne fuit.
+create or replace view public.newsletter_stats
+with (security_invoker = off)
+as
 select
-  count(*)                                              as total,
+  count(*)                                                        as total,
   count(*) filter (where created_at > now() - interval '7 days')  as cette_semaine,
   count(*) filter (where created_at > now() - interval '1 day')   as aujourdhui
 from public.newsletter;
+
+-- Le rôle anonyme (le site) peut lire cette vue.
+grant select on public.newsletter_stats to anon, authenticated;
