@@ -1,28 +1,157 @@
-const KEY='techhelpState';
-let S=JSON.parse(localStorage.getItem(KEY)||'null')||{name:'Utilisateur',bio:'Membre TechHelp',avatar:null,posts:[],devices:[],memory:[],reputation:0,theme:'dark'};
-if(!('avatar' in S))S.avatar=null;
-const $=id=>document.getElementById(id),save=()=>localStorage.setItem(KEY,JSON.stringify(S));const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));function toast(t){const x=$('toast');x.textContent=t;x.classList.add('show');clearTimeout(window._t);window._t=setTimeout(()=>x.classList.remove('show'),2300)}function catName(c){return({windows:'Windows',network:'Réseau / Wi‑Fi',hardware:'Hardware',software:'Logiciel',cyber:'Cybersécurité',ai:'IA',other:'Autre'})[c]||c}function allPosts(){return S.posts}
-function avatarHTML(user,avatar,cls='mini-avatar'){return avatar?`<img class="${cls} avatar-photo" src="${avatar}" alt="Photo de profil de ${esc(user)}">`:`<div class="${cls}">${esc((user||'U')[0].toUpperCase())}</div>`}
-function postCard(p){return `<article class="card post reel-post"><div class="post-head">${avatarHTML(p.user,p.avatar)}<div><b>${esc(p.user)}</b><small>Publication communautaire · maintenant</small></div><span class="category">${esc(catName(p.cat))}</span></div><h2>${esc(p.title)}</h2><p class="post-body">${esc(p.body)}</p>${p.image?`<img class="post-image" src="${p.image}" alt="Photo du problème">`:''}<div class="post-actions"><button onclick="likePost('${p.id}')">👍 ${p.likes||0}</button><button onclick="focusComments('${p.id}')">💬 ${(p.comments||[]).length}</button>${p.solved?'<span class="category">✓ SOLUTION</span>':''}</div><div class="comments">${(p.comments||[]).map(c=>`<div class="comment">${avatarHTML(c[0],c[2],'comment-avatar')} <span><b>${esc(c[0])}</b> · ${esc(c[1])}</span></div>`).join('')}<div><input class="wide-input" placeholder="Répondre à ce problème…" onkeydown="comment(event,'${p.id}')"></div></div></article>`}
-function emptyFeed(){return '<div class="empty-feed"><div class="empty-icon">📸</div><h2>Aucun problème publié</h2><p>Le fil est vide pour le moment. Les publications seront créées uniquement par les vrais utilisateurs de TechHelp.</p><button class="primary" onclick="nav(\'create\')">＋ Publier le premier problème</button></div>'}
-function renderFeed(target='feedList',list=allPosts()){const box=$(target);if(box)box.innerHTML=list.length?list.map(postCard).join(''):emptyFeed()}
-function render(){const posts=allPosts();$('postCount').textContent=posts.length;$('solutionCount').textContent=posts.filter(p=>p.solved).length;$('myPostCount').textContent=S.posts.length;$('reputation').textContent=S.reputation;$('profileName').textContent=S.name;$('profileBio').textContent=S.bio||'Membre TechHelp';$('profilePosts').textContent=S.posts.length;$('profileSolutions').textContent=S.posts.filter(p=>p.solved).length;$('profileRep').textContent=S.reputation;$('bigAvatar').innerHTML=S.avatar?`<img class="profile-avatar-img" src="${S.avatar}" alt="Ma photo de profil">`:(esc((S.name||'U')[0].toUpperCase()));$('nameInput').value=S.name;$('bioInput').value=S.bio||'';renderProfilePreview();renderFeed('feedList');renderFeed('homeFeedList',posts.slice(0,4));renderDevices();renderMemory();document.body.classList.toggle('light',S.theme==='light');$('profile').innerHTML=S.avatar?`<img class="top-avatar-img" src="${S.avatar}" alt="Profil">`:(esc((S.name||'U')[0].toUpperCase()))}
-function nav(page){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n.dataset.page===page));if(page==='support')support();if(page==='cyber')cyber();window.scrollTo({top:0,behavior:'smooth'})}
-function likePost(id){const p=S.posts.find(x=>x.id===id);if(!p)return;p.likes=(p.likes||0)+1;S.reputation++;save();render();toast('👍 Réaction enregistrée')}
-function focusComments(id){const el=document.querySelector(`[onclick*="${id}"]`);el?.closest('.post')?.querySelector('input')?.focus()}
-function comment(e,id){if(e.key!=='Enter')return;const v=e.target.value.trim();if(!v)return;const p=S.posts.find(x=>x.id===id);if(!p)return;p.comments=p.comments||[];p.comments.push([S.name,v,S.avatar]);S.reputation+=2;remember(`Réponse ajoutée sur « ${p.title} »`);save();render();toast('Réponse publiée · +2 réputation')}
-function previewImage(e){const f=e.target.files[0],box=$('imagePreview');if(!f)return;if(f.size>5*1024*1024){e.target.value='';toast('Image trop lourde : 5 Mo maximum');return}const r=new FileReader();r.onload=()=>{window._img=r.result;box.innerHTML=`<img src="${r.result}" alt="Aperçu de la photo">`;box.classList.remove('hidden')};r.readAsDataURL(f)}
-function createPost(e){e.preventDefault();const title=$('postTitle').value.trim(),body=$('postBody').value.trim();if(!title||!body)return;const p={id:'u'+Date.now(),user:S.name,avatar:S.avatar,cat:$('postCategory').value,title,body,likes:0,solved:false,comments:[],image:window._img||null,createdAt:new Date().toISOString()};S.posts.unshift(p);remember(`Publication créée : « ${title} »`);S.reputation+=5;save();e.target.reset();$('imagePreview').classList.add('hidden');window._img=null;render();nav('feed');toast('Publication créée · +5 réputation')}
-function renderDevices(){$('devices').innerHTML=S.devices.length?S.devices.map((d,i)=>`<div class="device"><b>🖥️ ${esc(d.name)}</b><small>${esc(d.info||'Appareil personnel')}</small><br><button class="danger" onclick="removeDevice(${i})">Supprimer</button></div>`).join(''):'<p class="muted">Aucun appareil enregistré.</p>'}function addDevice(){const name=prompt('Nom de l’appareil');if(!name)return;const info=prompt('Infos utiles : Windows, RAM, GPU, modèle…')||'';S.devices.push({name,info});remember(`Appareil ajouté : ${name}`);save();render();toast('Appareil mémorisé 💾')}function removeDevice(i){S.devices.splice(i,1);save();render()}
-function remember(text){S.memory.unshift({id:'m'+Date.now()+Math.random(),date:new Date().toISOString(),text});if(S.memory.length>1000)S.memory=S.memory.slice(0,1000)}
-function renderMemory(){const q=($('memorySearch')?.value||'').toLowerCase();const arr=S.memory.filter(x=>x.text.toLowerCase().includes(q));$('memoryList').innerHTML=arr.slice(0,50).map(x=>`<div class="memory-item">🧠 ${esc(x.text)}<br><small>${esc(new Date(x.date).toLocaleString('fr-FR'))}</small></div>`).join('')||'<p class="muted">La mémoire se remplira avec tes actions.</p>';$('memoryResults').innerHTML=arr.slice(0,50).map(x=>`<div class="memory-item">${esc(x.text)} <small>${esc(new Date(x.date).toLocaleString('fr-FR'))}</small></div>`).join('')||'<p class="muted">Aucun résultat.</p>'}
-function renderProfilePreview(){const box=$('profileImagePreview');if(!box)return;box.innerHTML=S.avatar?`<img class="profile-preview-img" src="${S.avatar}" alt="Aperçu de ma photo"><p class="muted">Photo enregistrée localement dans ce navigateur.</p>`:'<div class="profile-placeholder">Aucune photo de profil</div>'}
-function profileImageChange(e){const f=e.target.files[0];if(!f)return;if(!f.type.startsWith('image/'))return;if(f.size>8*1024*1024){e.target.value='';toast('Photo trop lourde : 8 Mo maximum');return}const r=new FileReader();r.onload=()=>{S.avatar=r.result;S.posts.forEach(p=>p.avatar=S.avatar);remember('Photo de profil mise à jour');save();render();toast('Photo de profil enregistrée 💾')};r.readAsDataURL(f)}
-function removeProfileImage(){S.avatar=null;S.posts.forEach(p=>p.avatar=null);remember('Photo de profil supprimée');save();render();toast('Photo supprimée')}
-function saveProfile(){S.name=$('nameInput').value.trim()||'Utilisateur';S.bio=$('bioInput').value.trim()||'Membre TechHelp';S.posts.forEach(p=>{p.user=S.name;p.avatar=S.avatar});remember('Profil mis à jour');save();render();toast('Profil mémorisé 💾')}
-function support(){const data=[['🛠️','PC lent','Identifier les causes et suivre un diagnostic dans le bon ordre.'],['🌐','Connexion Internet','Appareil → Wi‑Fi → routeur → IP → DNS.'],['🖨️','Imprimante','Alimentation, connexion, file puis test.'],['🪟','Windows','Mises à jour, pilotes et erreurs courantes.'],['🎧','Son absent','Sortie audio, périphérique et configuration.'],['📧','E-mail','Connexion, stockage, filtres et authentification.']];$('supportGrid').innerHTML=data.map(x=>`<article class="card course"><div class="icon">${x[0]}</div><h2>${x[1]}</h2><p>${x[2]}</p><button class="primary" onclick="startScenario('${x[1]}')">S’entraîner</button></article>`).join('')}
-function cyber(){const data=[['🎣','Phishing','Identifier les signaux d’un message suspect.'],['🔐','Compte compromis','Réagir proprement et sécuriser un compte.'],['🚨','Incident SOC','Analyser des alertes fictives et prioriser.'],['🛡️','Poste sécurisé','Réduire les risques sur un poste.'],['🌐','Réseau','Comprendre les protections réseau.'],['🧠','Quiz cyber','Questions progressives avec score.']];$('cyberGrid').innerHTML=data.map((x,i)=>`<article class="card course"><div class="icon">${x[0]}</div><h2>${x[1]}</h2><p>${x[2]}</p><button class="primary" onclick="${i===5?'quizCyber()':'startScenario(\''+x[1]+'\')'}">Lancer</button></article>`).join('')}
-function startScenario(name){nav(['Phishing','Compte compromis','Incident SOC','Poste sécurisé','Réseau'].includes(name)?'cyber':'support');toast(`Mission « ${name} » lancée`);const box=document.querySelector('.page.active');box.insertAdjacentHTML('beforeend',`<div class="card scenario"><span class="eyebrow">MISSION ACTIVE</span><h2>${esc(name)}</h2><p>Analyse les symptômes, formule une hypothèse et choisis une vérification sûre. Environnement pédagogique : aucun système réel n’est touché.</p><button class="primary" onclick="finishScenario()">Valider mon diagnostic</button></div>`)}function finishScenario(){S.reputation+=5;remember('Mission de diagnostic terminée');save();render();toast('Diagnostic validé · +5 réputation')}
-const cyberQ=[['Un message demande un code MFA reçu sur ton téléphone.','Donner le code','Ne jamais partager le code et vérifier l’origine',1],['Avant d’ouvrir une pièce jointe inattendue, que faire ?','L’ouvrir immédiatement','Vérifier le contexte et l’expéditeur',1],['Quel est le meilleur réflexe face à un lien suspect ?','Cliquer pour voir','Vérifier l’adresse sans l’ouvrir',1],['Un compte présente une connexion inconnue.','Ignorer','Sécuriser le compte et vérifier les sessions',1]];let qi=0,score=0;function quizCyber(){nav('cyber');const q=cyberQ[qi%cyberQ.length];$('cyberGrid').innerHTML=`<article class="card quiz"><span class="eyebrow">QUIZ CYBER · ${qi%cyberQ.length+1}/${cyberQ.length}</span><h2>${q[0]}</h2><div class="answers"><button class="answer" onclick="answerCyber(0)">${esc(q[1])}</button><button class="answer" onclick="answerCyber(1)">${esc(q[2])}</button></div><span class="tag">Score : ${score}</span></article>`}function answerCyber(i){const q=cyberQ[qi%cyberQ.length];if(i===q[3]){score++;S.reputation+=3;toast('Bonne réponse · +3 réputation')}else toast('À revoir : analyse le risque');qi++;remember(`Quiz cyber : ${i===q[3]?'bonne':'mauvaise'} réponse`);save();render();quizCyber()}
-function search(){const q=$('search').value.trim().toLowerCase();nav('feed');renderFeed('feedList',q?allPosts().filter(p=>(p.title+' '+p.body+' '+p.cat+' '+p.user).toLowerCase().includes(q)):allPosts())}
-$('postForm').addEventListener('submit',createPost);$('postImage').addEventListener('change',previewImage);$('profileImage').addEventListener('change',profileImageChange);$('removeProfileImage').addEventListener('click',removeProfileImage);$('memorySearch').addEventListener('input',renderMemory);$('addDevice').addEventListener('click',addDevice);$('saveProfile').addEventListener('click',saveProfile);$('homeCreate').onclick=()=>nav('create');$('homeFeed').onclick=()=>nav('feed');$('seeAll').onclick=()=>nav('feed');$('profile').onclick=()=>nav('profilePage');$('theme').onclick=()=>{S.theme=S.theme==='dark'?'light':'dark';save();render()};$('search').addEventListener('input',()=>{clearTimeout(window.st);window.st=setTimeout(search,200)});document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>nav(n.dataset.page));document.querySelectorAll('.filter').forEach(f=>f.onclick=()=>{document.querySelectorAll('.filter').forEach(x=>x.classList.remove('active'));f.classList.add('active');const k=f.dataset.filter;renderFeed('feedList',k==='all'?allPosts():allPosts().filter(p=>p.cat===k))});render();
+/* IA DÉRAPE — app.js */
+let NEWS = [];
+let CURRENT = 'all';
+
+const CATS = {
+  derape:     '🔥 Dérapage',
+  claude:     'Claude',
+  chatgpt:    'ChatGPT',
+  securite:   'Sécurité',
+  regulation: 'Régulation'
+};
+
+const $  = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c]));
+
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._tt);
+  window._tt = setTimeout(() => t.classList.remove('show'), 2300);
+}
+
+function frDate(iso){
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+}
+
+/* ---------- RENDU ---------- */
+function cardHTML(n){
+  return `<article class="card" onclick="openArticle('${n.id}')">
+    <div class="card-top">
+      <span class="tag ${n.cat}">${esc(CATS[n.cat] || n.cat)}</span>
+      ${n.hot ? '<span class="hot">🔥 Chaud</span>' : ''}
+    </div>
+    <h3>${esc(n.title)}</h3>
+    <p>${esc(n.excerpt)}</p>
+    <div class="card-foot">
+      <span>${esc(n.source)}</span>
+      <span>${frDate(n.date)}</span>
+    </div>
+  </article>`;
+}
+
+function renderFeed(){
+  const q = ($('search').value || '').trim().toLowerCase();
+  let list = NEWS.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  if (CURRENT !== 'all') list = list.filter(n => n.cat === CURRENT);
+  if (q) list = list.filter(n =>
+    (n.title + ' ' + n.excerpt + ' ' + n.body + ' ' + n.source).toLowerCase().includes(q)
+  );
+
+  const box = $('feed');
+  box.innerHTML = list.length
+    ? list.map(cardHTML).join('')
+    : `<div class="empty"><div class="big">🔍</div>
+       <h3>Aucune actu trouvée</h3>
+       <p class="muted">Essaie un autre mot-clé ou change de rubrique.</p></div>`;
+
+  $('resultCount').textContent = list.length + ' actu' + (list.length > 1 ? 's' : '');
+  $('feedEyebrow').textContent = CURRENT === 'all' ? 'TOUT' : (CATS[CURRENT] || '').replace(/^\S+\s/, '');
+  $('feedTitle').textContent = CURRENT === 'all'
+    ? "Le fil de l'actu IA"
+    : (CATS[CURRENT] || '');
+}
+
+function renderHot(){
+  const hot = NEWS.filter(n => n.hot)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .slice(0, 4);
+  $('hotGrid').innerHTML = hot.map((n, i) => `
+    <div class="hot-card" onclick="openArticle('${n.id}')">
+      <div class="num">#${i + 1} · ${esc(CATS[n.cat])}</div>
+      <h4>${esc(n.title)}</h4>
+      <small>${esc(n.source)} · ${frDate(n.date)}</small>
+    </div>`).join('');
+}
+
+function renderTicker(){
+  const items = NEWS.slice(0, 8)
+    .map(n => `<span><b>${esc(CATS[n.cat])}</b> · ${esc(n.title)}</span>`)
+    .join('');
+  $('ticker').innerHTML = items + items;
+}
+
+function renderAll(){
+  $('heroCount').textContent = NEWS.length;
+  renderFeed();
+  renderHot();
+  renderTicker();
+}
+
+/* ---------- ARTICLE ---------- */
+function openArticle(id){
+  const n = NEWS.find(x => x.id === id);
+  if (!n) return;
+  $('mCat').textContent = CATS[n.cat] || n.cat;
+  $('mTitle').textContent = n.title;
+  $('mMeta').innerHTML = `<span>📰 ${esc(n.source)}</span><span>📅 ${frDate(n.date)}</span>`;
+  $('mBody').innerHTML = String(n.body || '').split('\n\n').map(p => `<p>${esc(p)}</p>`).join('');
+  $('mSource').href = n.url;
+  $('modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(){
+  $('modal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+/* ---------- NAV ---------- */
+function go(cat){
+  CURRENT = cat;
+  document.querySelectorAll('.mainnav .nav').forEach(b =>
+    b.classList.toggle('active', b.dataset.cat === cat));
+  renderFeed();
+  const target = (cat === 'derape') ? 'derapeSection' : 'feed';
+  $(target).scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function scrollToFeed(){
+  $('feed').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+/* ---------- INIT ---------- */
+document.querySelectorAll('.mainnav .nav').forEach(b => {
+  b.onclick = () => go(b.dataset.cat);
+});
+
+$('search').addEventListener('input', () => {
+  clearTimeout(window._st);
+  window._st = setTimeout(renderFeed, 180);
+});
+
+$('theme').onclick = () => {
+  document.body.classList.toggle('light');
+  localStorage.setItem('iaderape_theme', document.body.classList.contains('light') ? 'light' : 'dark');
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+if (localStorage.getItem('iaderape_theme') === 'light') {
+  document.body.classList.add('light');
+}
+
+fetch('news.json')
+  .then(r => r.json())
+  .then(data => { NEWS = data; renderAll(); })
+  .catch(() => {
+    $('feed').innerHTML = `<div class="empty"><div class="big">⚠️</div>
+      <h3>Impossible de charger les actus</h3>
+      <p class="muted">Vérifie que news.json est bien accessible.</p></div>`;
+  });

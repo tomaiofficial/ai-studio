@@ -1,23 +1,98 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#07111f"><meta name="description" content="TechHelp — communauté d'entraide informatique et cybersécurité">
-<title>TechHelp — Entraide informatique</title><link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0a12">
+<meta name="description" content="IA DÉRAPE — L'actu IA sans filtre : Claude, ChatGPT, et tous les ratés de l'intelligence artificielle.">
+<title>IA DÉRAPE — L'actu IA sans filtre</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top"><div class="brand"><div class="logo">TH</div><div><b>TechHelp</b><small>Entraide IT · Cyber · IA</small></div></div><div class="search">⌕ <input id="search" placeholder="Rechercher un problème, Windows, Wi‑Fi…"></div><button id="theme" class="icon">◐</button><button id="profile" class="avatar">T</button></header>
-<div class="layout"><aside><div class="navtitle">COMMUNAUTÉ</div><button class="nav active" data-page="home">⌂ Accueil</button><button class="nav" data-page="feed">🌐 Fil</button><button class="nav" data-page="create">＋ Publier un problème</button><button class="nav" data-page="support">🛠 Support</button><button class="nav" data-page="cyber">🔐 Cyber</button><button class="nav" data-page="memory">🧠 Ma mémoire</button><button class="nav" data-page="profilePage">👤 Mon profil</button><div class="side-note">🛡️ Sécurité communautaire<br><small>Ne publie jamais de mot de passe, clé, adresse ou donnée personnelle.</small></div></aside>
+
+<header class="top">
+  <div class="brand" onclick="go('home')">
+    <div class="logo">IA</div>
+    <div>
+      <b>IA DÉRAPE</b>
+      <small>L'actu IA sans filtre</small>
+    </div>
+  </div>
+  <nav class="mainnav">
+    <button class="nav active" data-cat="all">Tout</button>
+    <button class="nav" data-cat="derape">🔥 Dérapages</button>
+    <button class="nav" data-cat="claude">Claude</button>
+    <button class="nav" data-cat="chatgpt">ChatGPT</button>
+    <button class="nav" data-cat="securite">Sécurité</button>
+    <button class="nav" data-cat="regulation">Régulation</button>
+  </nav>
+  <div class="search">⌕ <input id="search" placeholder="Rechercher une actu…"></div>
+  <button id="theme" class="icon" title="Thème">◐</button>
+</header>
+
 <main>
-<section id="home" class="page active"><div class="hero"><div><span class="eyebrow">COMMUNAUTÉ TECH</span><h1>Un problème informatique ?<br>Montre-le. Résous-le.</h1><p>Publie une photo ou capture, explique ton problème et reçois de l'aide de la communauté en temps réel.</p><div class="actions"><button class="primary" id="homeCreate">📸 Publier un problème</button><button class="secondary" id="homeFeed">Voir les problèmes</button></div></div><div class="hero-card"><strong>● Communauté active</strong><small>Entraide informatique et cyber défensive</small><div class="live">LIVE</div></div></div>
-<div class="stats"><div class="stat"><span>Publications</span><b id="postCount">0</b><small>dans ton fil</small></div><div class="stat"><span>Solutions</span><b id="solutionCount">0</b><small>validées</small></div><div class="stat"><span>Mes problèmes</span><b id="myPostCount">0</b><small>historique</small></div><div class="stat"><span>Réputation</span><b id="reputation">0</b><small>points d'aide</small></div></div>
-<div class="section-head"><div><span class="eyebrow">EN DIRECT</span><h2>Derniers problèmes</h2></div><button class="secondary" id="seeAll">Tout voir</button></div><div id="homeFeedList" class="feed-list"></div></section>
-<section id="feed" class="page"><div class="title"><span class="eyebrow">COMMUNAUTÉ</span><h1>Fil d'entraide</h1><p>Les problèmes informatiques publiés par la communauté.</p></div><div class="filters"><button class="filter active" data-filter="all">Tous</button><button class="filter" data-filter="windows">Windows</button><button class="filter" data-filter="network">Réseau</button><button class="filter" data-filter="hardware">Hardware</button><button class="filter" data-filter="cyber">Cyber</button><button class="filter" data-filter="ai">IA</button></div><div id="feedList" class="feed-list"></div></section>
-<section id="create" class="page"><div class="title"><span class="eyebrow">NOUVELLE PUBLICATION</span><h1>Publier un problème</h1><p>Ajoute une photo/capture et donne assez de contexte pour recevoir une bonne réponse.</p></div><form id="postForm" class="card form"><label>Titre du problème<input id="postTitle" maxlength="100" required placeholder="Ex : Mon PC redémarre quand je lance un jeu"></label><label>Catégorie<select id="postCategory"><option value="windows">Windows</option><option value="network">Réseau / Wi‑Fi</option><option value="hardware">Hardware</option><option value="software">Logiciel</option><option value="cyber">Cybersécurité</option><option value="ai">IA</option><option value="other">Autre</option></select></label><label>Description<textarea id="postBody" maxlength="1000" required placeholder="Explique ce qui se passe, depuis quand, ce que tu as déjà essayé…"></textarea></label><label>Photo ou capture<input id="postImage" type="file" accept="image/*"></label><div id="imagePreview" class="preview hidden"></div><div class="safety"><b>🔒 Avant de publier</b><br>Masque les mots de passe, tokens, adresses e-mail privées, clés API, numéros et autres données sensibles.</div><button class="primary" type="submit">Publier dans la communauté</button></form></section>
-<section id="support" class="page"><div class="title"><span class="eyebrow">IT SERVICE DESK</span><h1>Support informatique</h1><p>Des tickets d'entraînement inspirés de problèmes réels.</p></div><div id="supportGrid" class="cards"></div></section>
-<section id="cyber" class="page"><div class="title"><span class="eyebrow">DÉFENSE</span><h1>Cyber & sécurité</h1><p>Entraîne-toi à reconnaître et gérer des situations de sécurité.</p></div><div class="notice">🛡️ Les exercices sont pédagogiques et défensifs. Ils utilisent des environnements fictifs.</div><div id="cyberGrid" class="cards"></div></section>
-<section id="memory" class="page"><div class="title"><span class="eyebrow">MÉMOIRE PERSONNELLE</span><h1>Ma mémoire TechHelp</h1><p>Ton historique, tes appareils, tes problèmes et les solutions qui ont fonctionné.</p></div><div class="memory-grid"><div class="card"><h2>🖥️ Mes appareils</h2><div id="devices"></div><button class="secondary" id="addDevice">＋ Ajouter un appareil</button></div><div class="card"><h2>🧠 Historique utile</h2><div id="memoryList"></div></div></div><div class="card"><h2>🔎 Recherche dans ma mémoire</h2><input id="memorySearch" class="wide-input" placeholder="Ex : Wi‑Fi, écran, Windows…"><div id="memoryResults"></div></div></section>
-<section id="profilePage" class="page"><div class="title"><span class="eyebrow">IDENTITÉ COMMUNAUTAIRE</span><h1>Mon profil</h1></div><div class="profile-card card"><div class="big-avatar" id="bigAvatar">T</div><div><h2 id="profileName">Utilisateur</h2><p id="profileBio">Membre TechHelp</p><div class="profile-stats"><span><b id="profilePosts">0</b> publications</span><span><b id="profileSolutions">0</b> solutions</span><span><b id="profileRep">0</b> réputation</span></div></div></div><div class="card form"><label>Photo de profil<input id="profileImage" type="file" accept="image/*"></label><div id="profileImagePreview" class="profile-preview"></div><button class="secondary" id="removeProfileImage" type="button">Supprimer la photo</button><label>Nom affiché<input id="nameInput" maxlength="30"></label><label>Bio<input id="bioInput" maxlength="120" placeholder="Ex : passionné informatique et IA"></label><button class="primary" id="saveProfile" type="button">Enregistrer mon profil</button></div></section>
-</main></div><div id="toast" class="toast"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js"></script><script src="app.js"></script><script src="cloud-sync.js"></script>
-</body></html>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-text">
+      <span class="eyebrow">ACTU IA · SANS FILTRE</span>
+      <h1>Ces machines<br>nous <em>dérapent</em> dessus.</h1>
+      <p>Claude, ChatGPT, Grok, Gemini… Toute l'actualité de l'IA — et surtout ses ratés, ses pannes, ses promesses non tenues et ses dérapages.</p>
+      <div class="actions">
+        <button class="primary" onclick="scrollToFeed()">📰 Voir les actus</button>
+        <button class="secondary" onclick="go('derape')">🔥 Les pires dérapages</button>
+      </div>
+    </div>
+    <div class="hero-side">
+      <div class="hero-card">
+        <span class="live-dot"></span> <b>En continu</b>
+        <small>Veille IA mondiale</small>
+        <div class="hero-count"><b id="heroCount">0</b><small>actus en ligne</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TICKER -->
+  <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
+
+  <!-- FEED -->
+  <section class="section-head">
+    <div><span class="eyebrow" id="feedEyebrow">TOUT</span>
+    <h2 id="feedTitle">Le fil de l'actu IA</h2></div>
+    <span class="muted" id="resultCount"></span>
+  </section>
+
+  <div id="feed" class="feed-grid"></div>
+
+  <!-- DÉRAPAGES -->
+  <section id="derapeSection" class="hot-section">
+    <div class="section-head">
+      <div><span class="eyebrow">🔥 CHRONIQUE</span><h2>Les pires dérapages de l'IA</h2></div>
+    </div>
+    <div class="hot-grid" id="hotGrid"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="foot">
+    <div><b>IA DÉRAPE</b> — L'actu IA sans filtre.</div>
+    <div class="muted">Sources citées · Contenu informatif. Vérifiez toujours l'information à la source.</div>
+  </div>
+</footer>
+
+<!-- MODAL -->
+<div id="modal" class="modal hidden">
+  <div class="modal-bg" onclick="closeModal()"></div>
+  <article class="modal-card">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <span class="eyebrow" id="mCat"></span>
+    <h1 id="mTitle"></h1>
+    <div class="meta" id="mMeta"></div>
+    <div class="modal-body" id="mBody"></div>
+    <a class="primary link" id="mSource" target="_blank" rel="noopener">Lire la source ↗</a>
+  </article>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
