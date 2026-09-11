@@ -1,22 +1,27 @@
-/* IA DÉRAPE — Newsletter (Supabase) */
-// Inscription des emails + compteur d'abonnés en temps réel.
-
-window.IADERAPE_SUPABASE = {
-  url: 'https://bjmfoxwlplxknezrojes.supabase.co',
-  anonKey: 'sb_publishable_v3neE9jNXUHn5plNgYSscA_klJXGoVH'
-};
+/* ============================================================
+ *  IA DÉRAPE — Newsletter
+ * ============================================================
+ *  Stockage    : Supabase (table "newsletter")
+ *  Notification: Web3Forms (alerte mail quand un abonné arrive)
+ *
+ *  ⚠️ Ne modifie PAS ce fichier.
+ *     Toute la configuration est dans config.js
+ * ============================================================ */
 
 (function () {
-  const cfg = window.IADERAPE_SUPABASE;
+  const CFG = window.IADERAPE_CONFIG || {};
+  const SB  = CFG.supabase || {};
+  const ALERT_KEY = CFG.alertKey || '';
+  const REFRESH   = (CFG.autoRefreshSeconds || 30) * 1000;
+
   const $ = id => document.getElementById(id);
-
-  const client = (window.supabase && cfg.url)
-    ? window.supabase.createClient(cfg.url, cfg.anonKey)
-    : null;
-
   const note = () => $('nlNote');
   const btn  = () => $('nlBtn');
   const cnt  = () => $('nlCount');
+
+  const client = (window.supabase && SB.url)
+    ? window.supabase.createClient(SB.url, SB.anonKey)
+    : null;
 
   function setNote(msg, type) {
     const n = note();
@@ -27,52 +32,48 @@ window.IADERAPE_SUPABASE = {
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-  /* ---------- Compteur ---------- */
-  // On lit la VUE newsletter_stats : elle n'expose que des nombres,
-  // jamais les adresses email. Aucune fuite de données.
+  /* ---------- Compteur temps réel ---------- */
   let lastCount = null;
 
   async function countSubscribers(bump = false) {
     const el = cnt();
-    if (!el || !client) return;
+    if (!el) return;
 
-    try {
-      const { data, error } = await client
-        .from('newsletter_stats')
-        .select('total')
-        .maybeSingle();
+    // 1) Vue Supabase (nombre d'abonnés uniquement)
+    if (client) {
+      try {
+        const { data, error } = await client
+          .from('newsletter_stats')
+          .select('total')
+          .maybeSingle();
 
-      if (error) throw error;
-
-      let total = (data && Number(data.total)) || 0;
-
-      // Optimistic UI : si on vient de s'inscrire, on incrémente direct
-      // (le temps que la vue se mette à jour côté Supabase).
-      if (bump && lastCount !== null) total = Math.max(total, lastCount + 1);
-
-      if (total !== lastCount) {
-        lastCount = total;
-        animateCount(el, total);
-      }
-    } catch (_) {
-      // Vue absente ou RLS : on laisse la valeur actuelle, pas d'erreur visible.
+        if (!error && data) {
+          let total = Number(data.total) || 0;
+          if (bump && lastCount !== null) total = Math.max(total, lastCount + 1);
+          if (total !== lastCount) { lastCount = total; animateCount(el, total); }
+          return;
+        }
+      } catch (_) { /* fallback ci-dessous */ }
     }
+
+    // 2) Fallback local : le compteur bouge au moins sur ce navigateur
+    let local = parseInt(localStorage.getItem('iaderape_nl_local') || '0', 10) || 0;
+    if (bump) {
+      local++;
+      localStorage.setItem('iaderape_nl_local', local);
+    }
+    if (local !== lastCount) { lastCount = local; animateCount(el, local); }
   }
 
-  // Petite animation quand le chiffre grimpe
   function animateCount(el, target) {
     const start = parseInt(el.textContent, 10) || 0;
     if (start === target) { el.textContent = target; return; }
 
-    const step = target > start ? 1 : -1;
     const frames = Math.min(Math.abs(target - start), 12);
     let i = 0;
-
-    el.textContent = start + step * 0; // point de départ
     const timer = setInterval(() => {
       i++;
-      const val = start + Math.round((target - start) * (i / frames));
-      el.textContent = val;
+      el.textContent = Math.round(start + (target - start) * (i / frames));
       if (i >= frames) {
         clearInterval(timer);
         el.textContent = target;
@@ -82,10 +83,9 @@ window.IADERAPE_SUPABASE = {
     }, 40);
   }
 
-  /* ---------- Inscription ---------- */
-  async function subscribe(email) {
-    if (!client) throw new Error('Service indisponible. Réessaie plus tard.');
-
+  /* ---------- Stockage Supabase ---------- */
+  async function saveToSupabase(email) {
+    if (!client) return 'nodb';
     const { error } = await client
       .from('newsletter')
       .insert({ email: email.toLowerCase(), source: 'site' });
@@ -94,9 +94,28 @@ window.IADERAPE_SUPABASE = {
       if (error.code === '23505' || /duplicate|unique/i.test(error.message || '')) {
         return 'already';
       }
-      throw new Error(error.message || 'Erreur inconnue');
+      throw new Error(error.message || 'Erreur base de données');
     }
     return 'ok';
+  }
+
+  /* ---------- Alerte mail au propriétaire ---------- */
+  async function notifyOwner(email) {
+    if (!ALERT_KEY || CFG.notifyOnNewSubscriber === false) return false;
+    try {
+      const r = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          access_key: ALERT_KEY,
+          subject: `📬 Nouvel abonné — ${CFG.siteName || 'Newsletter'}`,
+          from_name: CFG.siteName || 'Newsletter',
+          email: email,
+          message: `Nouvel abonné : ${email}`,
+        }),
+      });
+      return r.ok;
+    } catch (_) { return false; }
   }
 
   /* ---------- Binding ---------- */
@@ -106,7 +125,7 @@ window.IADERAPE_SUPABASE = {
 
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      const email = ($('nlEmail').value || '').trim();
+      const email = ($('nlEmail').value || '').trim().toLowerCase();
 
       if (!EMAIL_RE.test(email)) {
         setNote('⚠️ Adresse email invalide.', 'err');
@@ -119,7 +138,10 @@ window.IADERAPE_SUPABASE = {
       setNote('Enregistrement en cours…');
 
       try {
-        const res = await subscribe(email);
+        let res = 'ok';
+        try { res = await saveToSupabase(email); } catch (_) { res = 'nodb'; }
+
+        if (res === 'ok') notifyOwner(email);   // alerte mail (non bloquant)
 
         if (res === 'already') {
           setNote('✅ Tu es déjà abonné — rien à faire !', 'ok');
@@ -128,10 +150,10 @@ window.IADERAPE_SUPABASE = {
           form.reset();
           countSubscribers(true);   // ⚡ incrément immédiat
         }
-        localStorage.setItem('iaderape_sub', email);
 
-        // Re-vérifie un peu plus tard pour être sûr d'avoir la vraie valeur
+        localStorage.setItem('iaderape_sub', email);
         if (res !== 'already') setTimeout(() => countSubscribers(), 1500);
+
       } catch (err) {
         setNote('❌ ' + (err.message || 'Erreur, réessaie.'), 'err');
       } finally {
@@ -143,11 +165,8 @@ window.IADERAPE_SUPABASE = {
     const saved = localStorage.getItem('iaderape_sub');
     if (saved && $('nlEmail')) $('nlEmail').value = saved;
 
-    // Valeur initiale
     countSubscribers();
-
-    // Rafraîchit régulièrement (30 s) + quand on revient sur l'onglet
-    setInterval(countSubscribers, 30000);
+    setInterval(countSubscribers, REFRESH);
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) countSubscribers();
     });
