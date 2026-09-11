@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a0a12">
+<meta name="description" content="IA DÉRAPE — L'actu IA sans filtre : Claude, ChatGPT, et tous les ratés de l'intelligence artificielle.">
+<title>IA DÉRAPE — L'actu IA sans filtre</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand" onclick="go('home')">
+    <div class="logo">IA</div>
+    <div>
+      <b>IA DÉRAPE</b>
+      <small>L'actu IA sans filtre</small>
+    </div>
+  </div>
+  <nav class="mainnav">
+    <button class="nav active" data-cat="all">Tout</button>
+    <button class="nav" data-cat="derape">🔥 Dérapages</button>
+    <button class="nav" data-cat="claude">Claude</button>
+    <button class="nav" data-cat="chatgpt">ChatGPT</button>
+    <button class="nav" data-cat="securite">Sécurité</button>
+    <button class="nav" data-cat="regulation">Régulation</button>
+  </nav>
+  <div class="search">⌕ <input id="search" placeholder="Rechercher une actu…"></div>
+  <button id="theme" class="icon" title="Thème">◐</button>
+</header>
+
+<main>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-text">
+      <span class="eyebrow">ACTU IA · SANS FILTRE</span>
+      <h1>Ces machines<br>nous <em>dérapent</em> dessus.</h1>
+      <p>Claude, ChatGPT, Grok, Gemini… Toute l'actualité de l'IA — et surtout ses ratés, ses pannes, ses promesses non tenues et ses dérapages.</p>
+      <div class="actions">
+        <button class="primary" onclick="scrollToFeed()">📰 Voir les actus</button>
+        <button class="secondary" onclick="go('derape')">🔥 Les pires dérapages</button>
+      </div>
+    </div>
+    <div class="hero-side">
+      <div class="hero-card">
+        <span class="live-dot"></span> <b>En continu</b>
+        <small>Veille IA mondiale</small>
+        <div class="hero-count"><b id="heroCount">0</b><small>actus en ligne</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TICKER -->
+  <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
+
+  <!-- FEED -->
+  <section class="section-head">
+    <div><span class="eyebrow" id="feedEyebrow">TOUT</span>
+    <h2 id="feedTitle">Le fil de l'actu IA</h2></div>
+    <span class="muted" id="resultCount"></span>
+  </section>
+
+  <div id="feed" class="feed-grid"></div>
+
+  <!-- DÉRAPAGES -->
+  <section id="derapeSection" class="hot-section">
+    <div class="section-head">
+      <div><span class="eyebrow">🔥 CHRONIQUE</span><h2>Les pires dérapages de l'IA</h2></div>
+    </div>
+    <div class="hot-grid" id="hotGrid"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="foot">
+    <div><b>IA DÉRAPE</b> — L'actu IA sans filtre.</div>
+    <div class="muted">Sources citées · Contenu informatif. Vérifiez toujours l'information à la source.</div>
+  </div>
+</footer>
+
+<!-- MODAL -->
+<div id="modal" class="modal hidden">
+  <div class="modal-bg" onclick="closeModal()"></div>
+  <article class="modal-card">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <span class="eyebrow" id="mCat"></span>
+    <h1 id="mTitle"></h1>
+    <div class="meta" id="mMeta"></div>
+    <div class="modal-body" id="mBody"></div>
+    <a class="primary link" id="mSource" target="_blank" rel="noopener">Lire la source ↗</a>
+  </article>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
