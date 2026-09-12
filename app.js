@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.6';
+const APP_VERSION = '4.7';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -195,8 +195,25 @@ function speakGoogle(text){
       const a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=' + encodeURIComponent(chunks[i]));
       i++;
       a.onended = playNext;
+      a.onerror = () => { if (i === 1) speakResponsive(text); else playNext(); };
+      playAudio(a);
+    };
+    playNext();
+  } catch { speakResponsive(text); }
+}
+
+/* Secours vocal n°2 : ResponsiveVoice (MP3, fiable sur mobile) */
+function speakResponsive(text){
+  try {
+    const chunks = splitText(text);
+    let i = 0;
+    const playNext = () => {
+      if (i >= chunks.length) return;
+      const a = new Audio('https://texttospeech.responsivevoice.org/v1/text:synthesize?text=' + encodeURIComponent(chunks[i]) + '&lang=fr&engine=g1&name=&voice=French%20Female&format=mp3');
+      i++;
+      a.onended = playNext;
       a.onerror = () => { if (i === 1) speakLocal(text); else playNext(); };
-      playAudio(a, () => { if (i === 1) speakLocal(text); });
+      playAudio(a);
     };
     playNext();
   } catch { speakLocal(text); }
@@ -262,8 +279,9 @@ function unlockAudio(){
 );
 
 /* Joue un audio ; si le navigateur bloque (autoplay mobile), on relance
-   automatiquement au prochain toucher d'écran. */
-function playAudio(a, onFail){
+   automatiquement au prochain toucher d'écran. PAS de secours ici :
+   sinon la voix se répète deux fois. */
+function playAudio(a){
   unlockAudio();
   a.play().catch(() => {
     const retry = () => {
@@ -273,7 +291,6 @@ function playAudio(a, onFail){
     };
     document.addEventListener('touchend', retry);
     document.addEventListener('click', retry);
-    if (onFail) onFail();
   });
 }
 
@@ -297,7 +314,7 @@ function speakCloud(text){
       const a = audios[i++];
       a.onended = playNext;
       a.onerror = () => { if (i === 1) speakGoogle(text); else playNext(); };
-      playAudio(a, () => { if (i === 1) speakGoogle(text); });
+      playAudio(a);
     };
     playNext();
   } catch { speakGoogle(text); }
