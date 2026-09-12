@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '5.3';
+const APP_VERSION = '5.4';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -136,23 +136,6 @@ function splitText(text){
   }
   if (cur.trim()) chunks.push(cur.trim());
   return chunks;
-}
-
-/* Secours vocal : ResponsiveVoice (MP3, fiable sur mobile) */
-function speakResponsive(text){
-  try {
-    const chunks = splitText(text);
-    let i = 0;
-    const playNext = () => {
-      if (i >= chunks.length) return;
-      const a = new Audio('https://texttospeech.responsivevoice.org/v1/text:synthesize?text=' + encodeURIComponent(chunks[i]) + '&lang=fr&engine=g1&name=&voice=French%20Female&format=mp3');
-      i++;
-      a.onended = playNext;
-      a.onerror = playNext;
-      playAudio(a);
-    };
-    playNext();
-  } catch {}
 }
 
 /* Convertit du PCM brut (audio/L16) en WAV lisible par le navigateur */
@@ -354,14 +337,22 @@ async function speak(text){
 }
 
 /* Voix gratuite : cyzon WAV (voix neuronale Google, réaliste) avec retry sur
-   plusieurs voix, puis ResponsiveVoice en dernier recours. PAS de voix robotique. */
+   plusieurs voix. AUCUNE voix robotique : si tout échoue, message clair. */
 const FREE_VOICES = ['fr-FR-Wavenet-A', 'fr-FR-Neural2-A', 'fr-FR-Chirp3-HD-Aoede'];
+let voiceFailShown = false;
 function speakCloud(text){
   try {
     const chunks = splitText(text);
     let vi = 0;
     const tryVoice = () => {
-      if (vi >= FREE_VOICES.length){ speakResponsive(text); return; }
+      if (vi >= FREE_VOICES.length){
+        if (!voiceFailShown){
+          voiceFailShown = true;
+          toast('🔇 Voix indisponible sur ce réseau — ajoute une clé Mistral dans ⚙️ pour la voix IA');
+          setTimeout(() => { voiceFailShown = false; }, 15000);
+        }
+        return;
+      }
       const voice = FREE_VOICES[vi++];
       const audios = chunks.map(c => {
         const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
@@ -379,7 +370,13 @@ function speakCloud(text){
       playNext();
     };
     tryVoice();
-  } catch { speakResponsive(text); }
+  } catch {
+    if (!voiceFailShown){
+      voiceFailShown = true;
+      toast('🔇 Voix indisponible — ajoute une clé Mistral dans ⚙️ pour la voix IA');
+      setTimeout(() => { voiceFailShown = false; }, 15000);
+    }
+  }
 }
 
 function htmlToText(html){
