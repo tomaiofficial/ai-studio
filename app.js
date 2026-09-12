@@ -227,12 +227,9 @@ function startListening(){
     listening = true;
     $('orb').classList.add('listening');
     setStatus('🎧 Je t\'écoute…');
-    $('heard').hidden = true;
   };
   rec.onresult = e => {
     const text = e.results[0][0].transcript.trim();
-    $('heard').textContent = '🗣️ « ' + text + ' »';
-    $('heard').hidden = false;
     handleCommand(text);
   };
   rec.onerror = e => {
@@ -858,7 +855,6 @@ function handleLocal(raw){
 
 /* ============ POINT D'ENTRÉE ============ */
 function handleCommand(raw){
-  $('heard').hidden = true; /* la transcription passe dans le chat, on masque le doublon */
   if (hasAI()){
     chatWithAI(raw);
   } else {
@@ -1028,8 +1024,6 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 document.querySelectorAll('.quick button').forEach(b => {
   b.addEventListener('click', () => {
-    $('heard').textContent = '🗣️ « ' + b.dataset.cmd + ' »';
-    $('heard').hidden = false;
     handleCommand(b.dataset.cmd);
   });
 });
