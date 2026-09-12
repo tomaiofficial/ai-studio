@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '5.2';
+const APP_VERSION = '5.3';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -268,7 +268,7 @@ async function loadMistralVoices(key){
     });
     if (!res.ok) return null;
     const j = await res.json();
-    return j.data || j.voices || null;
+    return j.items || j.data || j.voices || null;
   } catch { return null; }
 }
 
