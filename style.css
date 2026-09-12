@@ -73,15 +73,6 @@ main{padding:0 0 calc(84px + var(--safe-b));max-width:640px;margin:0 auto}
 .orb.listening ~ .orb-ring{animation:ring 1.4s ease-out infinite}
 @keyframes ring{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.9);opacity:0}}
 
-/* RESPONSE */
-.response{
-  text-align:center;margin:14px auto 0;max-width:480px;min-height:64px;
-  font-size:1rem;
-}
-.response .ok{color:#4ade80}
-.response .err{color:#f87171}
-.response .info{color:var(--acc)}
-
 /* CHAT */
 .chat-log{
   display:grid;gap:8px;margin:14px auto 0;max-width:480px;

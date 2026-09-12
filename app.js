@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '3.5';
+const APP_VERSION = '3.6';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -190,8 +190,14 @@ function speak(text){
   else speakLocal(text);
 }
 
+function htmlToText(html){
+  const div = document.createElement('div');
+  div.innerHTML = String(html).replace(/<br\s*\/?>/gi, '\n');
+  return div.textContent;
+}
+
 function respond(html, cls = ''){
-  $('response').innerHTML = `<p class="${cls}">${html}</p>`;
+  addChatBubble('ai', htmlToText(html));
 }
 
 /* ============ CHAT (bulles) ============ */
@@ -597,7 +603,6 @@ async function chatWithAI(userText){
     chatHistory.push({ role:'user', content: userText }, { role:'assistant', content: reply });
     save(LS.chat, chatHistory.slice(-40));
     addChatBubble('ai', reply);
-    respond(esc(reply), 'ok');
     speak(reply);
   } catch (err){
     respond('❌ ' + esc(err.message || 'Erreur IA') + '<br><span class="muted">Vérifie ta clé dans les réglages ⚙️ (ou choisis un fournisseur gratuit : Groq, Gemini, OpenRouter).</span>', 'err');
