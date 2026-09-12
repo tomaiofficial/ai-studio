@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '3.4';
+const APP_VERSION = '3.5';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -1135,3 +1135,16 @@ reminders.filter(r => !r.done && r.ts > Date.now()).forEach(scheduleReminder);
 if ('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+
+/* ============ VÉRIFICATION DE MISE À JOUR ============ */
+/* Si le serveur a une version plus récente, affiche un bandeau pour recharger.
+   (Le service worker peut garder une vieille version en cache sur le téléphone.) */
+fetch('version.json?v=' + Date.now()).then(r => r.json()).then(j => {
+  if (j.version && j.version !== APP_VERSION){
+    const b = $('updateBanner');
+    if (b){
+      b.classList.add('show');
+      b.addEventListener('click', () => location.reload());
+    }
+  }
+}).catch(()=>{});

@@ -199,6 +199,15 @@ body.light .tabbar{background:rgba(245,246,250,.96)}
 .secondary.full{width:100%;flex:none;margin-top:10px}
 .settings-version{margin-top:16px;text-align:center;font-size:.72rem}
 
+/* BANDEAU MISE À JOUR */
+.update-banner{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;
+  text-align:center;padding:12px 16px;font-weight:600;font-size:.9rem;
+  cursor:pointer;display:none;box-shadow:0 2px 12px rgba(0,0,0,.35);
+}
+.update-banner.show{display:block;animation:fade .3s ease}
+
 /* TOAST */
 .toast{
   position:fixed;bottom:calc(96px + var(--safe-b));left:50%;
