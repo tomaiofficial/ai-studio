@@ -109,6 +109,21 @@ main{padding:0 0 calc(84px + var(--safe-b));max-width:640px;margin:0 auto}
 }
 .quick button:hover{border-color:var(--acc);color:var(--acc)}
 
+/* CHAMP DE TEXTE (secours si le micro ne marche pas) */
+.text-input-row{
+  display:flex;gap:8px;margin-top:14px;max-width:480px;width:100%;
+  margin-left:auto;margin-right:auto;
+}
+.text-input-row input{
+  flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line);color:var(--txt);
+  border-radius:22px;padding:12px 18px;font-size:16px;font-family:inherit;
+}
+.text-input-row input:focus{outline:none;border-color:var(--acc)}
+.text-input-row button{
+  width:46px;height:46px;border-radius:50%;background:var(--grad);color:#fff;
+  font-size:1.1rem;flex-shrink:0;display:grid;place-items:center;
+}
+
 /* VIEW HEAD + LIST */
 .view-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .view-head h2{font-size:1.35rem;font-weight:800}

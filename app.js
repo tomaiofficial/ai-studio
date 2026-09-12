@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '3.9';
+const APP_VERSION = '4.0';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -268,9 +268,11 @@ function startListening(){
   };
   rec.onerror = e => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed'){
-      respond('🔇 Micro bloqué. Autorise le micro dans les réglages du navigateur.', 'err');
+      respond('🔇 Micro bloqué. Autorise le micro dans les réglages du navigateur, puis réessaie. Tu peux aussi écrire ta demande ci-dessous.', 'err');
+    } else if (e.error === 'audio-capture'){
+      respond('🎤 Micro inaccessible (audio-capture). Vérifie que le micro est autorisé pour ce site, ferme les autres apps qui utilisent le micro, puis réessaie. Tu peux aussi écrire ta demande ci-dessous.', 'err');
     } else if (e.error !== 'aborted' && e.error !== 'no-speech'){
-      respond('⚠️ Erreur de reconnaissance : ' + esc(e.error), 'err');
+      respond('⚠️ Erreur de reconnaissance : ' + esc(e.error) + '. Tu peux aussi écrire ta demande ci-dessous.', 'err');
     }
   };
   rec.onend = () => {
@@ -282,6 +284,19 @@ function startListening(){
 }
 
 $('orb').addEventListener('click', startListening);
+
+/* ============ CHAMP DE TEXTE (secours) ============ */
+function sendTextCommand(){
+  const inp = $('textInput');
+  const t = inp.value.trim();
+  if (!t) return;
+  inp.value = '';
+  handleCommand(t);
+}
+$('sendText').addEventListener('click', sendTextCommand);
+$('textInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendTextCommand();
+});
 
 /* ============ PARSEUR DE TEMPS (français) ============ */
 const JOURS = { lundi:1, mardi:2, mercredi:3, jeudi:4, vendredi:5, samedi:6, dimanche:0 };
