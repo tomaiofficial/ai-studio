@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.3';
+const APP_VERSION = '4.4';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -179,29 +179,6 @@ function splitText(text){
   return chunks;
 }
 
-/* Voix locale (navigateur) — utilisée avec Groq/Gemini/OpenRouter et sans clé */
-function speakLocal(text){
-  if (!('speechSynthesis' in window)){ speakGoogle(text); return; }
-  speechSynthesis.cancel();
-  const chunks = splitText(text);
-  let started = false;
-  /* Si speechSynthesis ne produit rien en 2,5s → secours Google */
-  const fallback = setTimeout(() => { if (!started) speakGoogle(text); }, 2500);
-  setTimeout(() => {
-    speechSynthesis.resume();
-    chunks.forEach(chunk => {
-      const u = new SpeechSynthesisUtterance(chunk);
-      u.lang = 'fr-FR';
-      const v = getVoice();
-      if (v) u.voice = v;
-      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
-      u.onstart = () => { started = true; clearTimeout(fallback); };
-      u.onerror = () => { if (!started){ clearTimeout(fallback); speakGoogle(text); } };
-      speechSynthesis.speak(u);
-    });
-  }, 80);
-}
-
 /* Secours vocal n°1 : Google Translate TTS (gratuit, marche partout) */
 function speakGoogle(text){
   try {
@@ -266,7 +243,47 @@ async function speakAI(text){
 
 function speak(text){
   if (hasAI() && getProvider().tts) speakAI(text);
-  else speakLocal(text);
+  else speakCloud(text);
+}
+
+/* Voix cloud : Google TTS — la MÊME voix sur PC et mobile */
+function speakCloud(text){
+  try {
+    const chunks = splitText(text);
+    let i = 0;
+    const playNext = () => {
+      if (i >= chunks.length) return;
+      const a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=' + encodeURIComponent(chunks[i]));
+      i++;
+      a.onended = playNext;
+      a.onerror = () => { if (i === 1) speakLocal(text); else playNext(); };
+      a.play().catch(() => { if (i === 1) speakLocal(text); else playNext(); });
+    };
+    playNext();
+  } catch { speakLocal(text); }
+}
+
+/* Voix locale (secours hors-ligne) — utilisée si Google TTS est indisponible */
+function speakLocal(text){
+  if (!('speechSynthesis' in window)){ speakCyber(text); return; }
+  speechSynthesis.cancel();
+  const chunks = splitText(text);
+  let started = false;
+  /* Si speechSynthesis ne produit rien en 2,5s → secours cyzon */
+  const fallback = setTimeout(() => { if (!started) speakCyber(text); }, 2500);
+  setTimeout(() => {
+    speechSynthesis.resume();
+    chunks.forEach(chunk => {
+      const u = new SpeechSynthesisUtterance(chunk);
+      u.lang = 'fr-FR';
+      const v = getVoice();
+      if (v) u.voice = v;
+      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+      u.onstart = () => { started = true; clearTimeout(fallback); };
+      u.onerror = () => { if (!started){ clearTimeout(fallback); speakCyber(text); } };
+      speechSynthesis.speak(u);
+    });
+  }, 80);
 }
 
 function htmlToText(html){
@@ -1279,8 +1296,7 @@ $('aiModel').addEventListener('change', e => {
   toast('Modèle IA : ' + e.target.value);
 });
 $('testVoice').addEventListener('click', () => {
-  if (hasAI() && getProvider().tts) speakAI('Bonjour ! Voici ma voix. Est-ce que ça te plaît ?');
-  else speakLocal('Bonjour ! Voici ma voix. Est-ce que ça te plaît ?');
+  speak('Bonjour ! Voici ma voix. Est-ce que ça te plaît ?');
 });
 $('clearChat').addEventListener('click', () => {
   chatHistory = [];
