@@ -7,7 +7,9 @@
 ## ✨ Fonctionnalités
 
 - 🎙️ **Reconnaissance vocale** en français (gratuite, via le navigateur — Chrome Android recommandé)
-- 🤖 **Mode IA (ChatGPT)** : discussion libre et naturelle, l'IA comprend le contexte et agit (rappels, calendrier, météo, position…) via des outils automatiques
+- 🤖 **Mode IA (ChatGPT)** : discussion libre et naturelle — **répond à tout** comme Claude AI (connaissances, explications, conseils, rédaction, actualité…) et agit (rappels, calendrier, météo, position…) via des outils automatiques
+- 🔎 **Recherche web intégrée** : l'IA cherche sur le web pour répondre aux questions d'actualité et aux faits récents
+- 🧠 **Choix du modèle IA** : GPT-4o mini (rapide), GPT-4o (recommandé), GPT-4.1 (dernier)
 - 🗣️ **Vraie voix** : synthèse vocale OpenAI (gpt-4o-mini-tts) — voix naturelles au choix (nova, alloy, echo, fable, onyx, shimmer)
 - ⏰ **Rappels** avec notifications + voix (« rappelle-moi de X dans 2 heures »)
 - 📅 **Calendrier** (« ajoute un événement réunion demain à 10h »)
@@ -28,9 +30,9 @@ Sans configuration, l'assistant fonctionne en **mode local** (commandes vocales)
 
 1. Ouvre les **réglages ⚙️** dans l'app
 2. Colle ta **clé API OpenAI** (https://platform.openai.com/api-keys) — elle reste **uniquement sur ton appareil**, jamais envoyée sur le site
-3. Choisis ta **voix IA** préférée et teste-la 🔊
+3. Choisis ton **modèle IA** (GPT-4o recommandé) et ta **voix IA** préférée, puis teste-la 🔊
 
-En mode IA, tu peux dire n'importe quoi : « rappelle-moi de prendre mes médicaments demain à 8h », « quel temps fait-il ce week-end ? », « ajoute un rendez-vous chez le dentiste vendredi à 15h », « raconte-moi une histoire », « quels sont mes rappels ? »… L'IA utilise automatiquement les bons outils.
+En mode IA, tu peux dire n'importe quoi : « rappelle-moi de prendre mes médicaments demain à 8h », « quel temps fait-il ce week-end ? », « explique-moi la photosynthèse », « écris un poème sur la mer », « qui a gagné la coupe du monde 2026 ? » (recherche web automatique), « ajoute un rendez-vous chez le dentiste vendredi à 15h », « quels sont mes rappels ? »… L'IA répond à tout et utilise automatiquement les bons outils.
 
 > 💡 Sans clé API, l'app reste 100 % fonctionnelle en mode local (gratuit, sans compte).
 

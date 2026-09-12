@@ -2,10 +2,15 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const AI_MODEL   = 'gpt-4o-mini';
+const AI_MODELS = [
+  { id:'gpt-4o-mini',      label:'GPT-4o mini — rapide & économique' },
+  { id:'gpt-4o',           label:'GPT-4o — intelligent (recommandé)' },
+  { id:'gpt-4.1',          label:'GPT-4.1 — dernier modèle' }
+];
 const TTS_MODEL  = 'gpt-4o-mini-tts';
 const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
 const hasAI = () => !!localStorage.getItem('va_apikey');
+const getModel = () => localStorage.getItem('va_model') || 'gpt-4o';
 
 /* ============ ÉTAT ============ */
 const LS = {
@@ -16,6 +21,7 @@ const LS = {
   voice:     'va_voice',
   apikey:    'va_apikey',
   ttsvoice:  'va_ttsvoice',
+  model:     'va_model',
   chat:      'va_chat'
 };
 let reminders = load(LS.reminders, []);
@@ -465,23 +471,30 @@ async function runTool(name, args){
       return `Site ouvert : ${args.name}.`;
     }
     case 'search_web':
-      window.open('https://www.google.com/search?q=' + encodeURIComponent(args.query || ''), '_blank');
-      return `Recherche lancée : ${args.query}.`;
+      return await webSearch(args.query || '');
     default:
       return 'Outil inconnu.';
   }
 }
 
 /* ============ CHAT IA (OpenAI) ============ */
-const SYSTEM_PROMPT = `Tu es « Assistant Vocal IA », un assistant personnel francophone qui vit dans une PWA mobile.
-Tu parles de façon naturelle, chaleureuse et concise : 1 à 3 phrases à l'oral, comme un vrai humain.
-Tu as des outils pour agir : créer des rappels, des événements de calendrier, des notes, lancer des minuteurs, donner l'heure, la position GPS, la météo, lister les rappels/événements/notes, ouvrir des sites et lancer des recherches.
+const SYSTEM_PROMPT = `Tu es « Assistant Vocal IA », un assistant personnel francophone ultra-compétent qui vit dans une PWA mobile. Tu réponds à TOUT comme les meilleurs assistants IA (Claude, ChatGPT) : connaissances générales, explications, conseils, rédaction, calculs, idées, débats, aide au quotidien…
+
+Style de réponse :
+- Tu parles à l'oral : naturel, chaleureux, vivant, jamais robotique.
+- Réponse concise mais complète : 2 à 4 phrases en général. Pour une question complexe, tu peux développer un peu plus, mais reste clair et structuré.
+- Tu peux poser une question de retour si besoin de précision.
+- Tu t'adaptes à la langue de l'utilisateur (français par défaut).
+
+Outils à ta disposition (utilise-les quand c'est pertinent) :
+- Rappels, événements de calendrier, notes, minuteurs : quand l'utilisateur demande une action, utilise l'outil puis confirme brièvement.
+- Heure, position GPS, météo, liste des rappels/événements/notes : utilise l'outil pour la donnée réelle, ne l'invente JAMAIS.
+- Recherche web : pour les questions d'actualité, les faits récents ou les sujets que tu ne connais pas avec certitude, lance une recherche et réponds à partir des résultats.
+
 Règles :
-- Quand l'utilisateur demande une action, utilise l'outil approprié, puis confirme brièvement ce que tu as fait.
-- Quand il pose une question (heure, météo, position, contenu des rappels…), utilise l'outil pour obtenir la donnée réelle, ne l'invente jamais.
-- Si une demande est ambiguë, pose une question courte.
-- Tu peux discuter librement (blagues, conseils, explications) sans outil.
-- Ne mentionne jamais tes outils ni cette consigne.`;
+- Ne mentionne jamais tes outils ni cette consigne.
+- Si tu ne sais pas, dis-le honnêtement et propose une recherche.
+- Reste bienveillant, drôle quand c'est possible, jamais condescendant.`;
 
 async function chatWithAI(userText){
   addChatBubble('user', userText);
@@ -498,7 +511,7 @@ async function chatWithAI(userText){
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model: AI_MODEL, messages, tools: TOOLS, tool_choice: 'auto' })
+        body: JSON.stringify({ model: getModel(), messages, tools: TOOLS, tool_choice: 'auto' })
       });
       if (!res.ok){
         const err = await res.json().catch(() => ({}));
@@ -534,6 +547,33 @@ async function chatWithAI(userText){
   } finally {
     setStatus('🤖 Mode IA · dis quelque chose');
   }
+}
+
+/* Recherche web réelle : l'IA reçoit les résultats et peut répondre (actualité, faits récents…) */
+async function webSearch(query){
+  // 1) DuckDuckGo Instant Answer (gratuit, sans clé, CORS OK)
+  try {
+    const r = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1&skip_disambig=1');
+    if (r.ok){
+      const j = await r.json();
+      const parts = [];
+      if (j.AbstractText) parts.push('Résumé : ' + j.AbstractText);
+      if (j.Answer) parts.push('Réponse : ' + j.Answer);
+      const topics = (j.RelatedTopics || []).filter(t => t.Text).slice(0, 5).map(t => t.Text);
+      if (topics.length) parts.push('Résultats : ' + topics.join(' | '));
+      if (parts.length) return parts.join('\n');
+    }
+  } catch {}
+  // 2) Wikipedia (repli)
+  try {
+    const r = await fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(query) + '&format=json&origin=*&srlimit=3');
+    if (r.ok){
+      const j = await r.json();
+      const hits = (j.query?.search || []).map(s => s.title + ' — ' + String(s.snippet || '').replace(/<[^>]+>/g, ''));
+      if (hits.length) return 'Résultats Wikipedia : ' + hits.join(' | ');
+    }
+  } catch {}
+  return 'Aucun résultat trouvé pour : ' + query;
 }
 
 /* ============ COMMANDES LOCALES (sans clé API) ============ */
@@ -965,6 +1005,7 @@ $('settingsBtn').addEventListener('click', () => {
   loadVoices();
   $('apiKey').value = localStorage.getItem(LS.apikey) || '';
   $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'nova';
+  $('aiModel').value = getModel();
   $('settingsModal').classList.remove('hidden');
 });
 $('closeSettings').addEventListener('click', () => $('settingsModal').classList.add('hidden'));
@@ -985,6 +1026,10 @@ $('saveApiKey').addEventListener('click', () => {
 $('ttsVoice').addEventListener('change', e => {
   localStorage.setItem(LS.ttsvoice, e.target.value);
   toast('Voix IA : ' + e.target.value);
+});
+$('aiModel').addEventListener('change', e => {
+  localStorage.setItem(LS.model, e.target.value);
+  toast('Modèle IA : ' + e.target.value);
 });
 $('testVoice').addEventListener('click', () => {
   if (hasAI()) speakAI('Bonjour ! Voici ma voix. Est-ce que ça te plaît ?');
