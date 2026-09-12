@@ -5,10 +5,10 @@
 const APP_VERSION = '3.1';
 const PROVIDERS = {
   openai: {
-    label: 'OpenAI — GPT-4o (qualité max)',
-    short: 'GPT-4o',
+    label: 'OpenAI — GPT (qualité max)',
+    short: 'GPT',
     base: 'https://api.openai.com/v1',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1'],
+    models: ['gpt-5-mini', 'gpt-4o', 'gpt-4.1'],
     tts: true,
     keyUrl: 'https://platform.openai.com/api-keys'
   },
@@ -16,7 +16,7 @@ const PROVIDERS = {
     label: 'Groq — gratuit & ultra rapide',
     short: 'Groq',
     base: 'https://api.groq.com/openai/v1',
-    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+    models: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
     tts: false,
     keyUrl: 'https://console.groq.com/keys'
   },
@@ -24,7 +24,7 @@ const PROVIDERS = {
     label: 'Google Gemini — gratuit',
     short: 'Gemini',
     base: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    models: ['gemini-2.0-flash', 'gemini-2.5-flash'],
+    models: ['gemini-3-flash', 'gemini-2.5-flash', 'gemini-3.5-flash'],
     tts: false,
     keyUrl: 'https://aistudio.google.com/apikey'
   },
@@ -32,7 +32,7 @@ const PROVIDERS = {
     label: 'OpenRouter — modèles gratuits',
     short: 'OpenRouter',
     base: 'https://openrouter.ai/api/v1',
-    models: ['meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat-v3-0324:free'],
+    models: ['nex-agi/nex-n2.5-pro:free', 'inclusionai/ling-3.0-flash-vl:free', 'nvidia/nemotron-3.5-lightning:free'],
     tts: false,
     keyUrl: 'https://openrouter.ai/keys'
   }
