@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.1';
+const APP_VERSION = '4.2';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -192,7 +192,7 @@ function speakLocal(text){
   }, 80);
 }
 
-/* Secours vocal : Google Translate TTS (gratuit, marche partout, même sans voix installée) */
+/* Secours vocal n°1 : Google Translate TTS (gratuit, marche partout) */
 function speakGoogle(text){
   try {
     const chunks = splitText(text);
@@ -200,6 +200,23 @@ function speakGoogle(text){
     const playNext = () => {
       if (i >= chunks.length) return;
       const a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=' + encodeURIComponent(chunks[i]));
+      i++;
+      a.onended = playNext;
+      a.onerror = () => { if (i === 1) speakCyber(text); else playNext(); };
+      a.play().catch(() => { if (i === 1) speakCyber(text); else playNext(); });
+    };
+    playNext();
+  } catch { speakCyber(text); }
+}
+
+/* Secours vocal n°2 : cyzon.us (voix Google Wavenet, gratuit) */
+function speakCyber(text){
+  try {
+    const chunks = splitText(text);
+    let i = 0;
+    const playNext = () => {
+      if (i >= chunks.length) return;
+      const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(chunks[i]) + '&voice=fr-FR-Wavenet-A');
       i++;
       a.onended = playNext;
       a.onerror = playNext;
@@ -255,11 +272,34 @@ function respond(html, cls = ''){
 /* ============ CHAT (bulles) ============ */
 function addChatBubble(role, text){
   const log = $('chatLog');
+  const row = document.createElement('div');
+  row.className = 'row ' + role;
+  const av = document.createElement('div');
+  av.className = 'av';
+  av.textContent = role === 'user' ? '🙂' : '🤖';
   const div = document.createElement('div');
   div.className = 'bubble ' + role;
   div.textContent = text;
-  log.appendChild(div);
+  row.appendChild(av);
+  row.appendChild(div);
+  log.appendChild(row);
   log.scrollTop = log.scrollHeight;
+}
+function showTyping(){
+  const log = $('chatLog');
+  const row = document.createElement('div');
+  row.className = 'row ai';
+  const av = document.createElement('div');
+  av.className = 'av';
+  av.textContent = '🤖';
+  const div = document.createElement('div');
+  div.className = 'bubble ai typing';
+  div.innerHTML = '<span></span><span></span><span></span>';
+  row.appendChild(av);
+  row.appendChild(div);
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+  return row;
 }
 function renderChatHistory(){
   const log = $('chatLog');
@@ -607,6 +647,8 @@ const SYSTEM_PROMPT = `Tu es « Assistant Vocal IA », un assistant personnel fr
 Style de réponse (IMPORTANT) :
 - Tutoiement systématique : dis « tu », « toi », « ton ». JAMAIS de « vous ».
 - JAMAIS de markdown ni de mise en forme : pas d'astérisques (**), pas de #, pas de tirets, pas de puces. Réponds en texte simple et naturel.
+- Tu écris comme Claude : des phrases naturelles, vivantes et bien tournées, jamais robotiques ni plaquées. Tu penses à voix haute, tu expliques ton raisonnement simplement, avec des mots de tous les jours.
+- Tu es franc : tu dis ce que tu penses sans détour, sans langue de bois. Si quelque chose est nul, compliqué ou absurde, tu le dis clairement. Tu ne fais pas de circonlocutions ni de fausses politesses.
 - Réponse concise mais complète : 2 à 4 phrases en général. Pour une question complexe, tu peux développer un peu plus, mais reste clair.
 - Ne termine JAMAIS par une question de relance du type « as-tu besoin d'autre chose ? », « puis-je t'aider ? », « autre chose ? », « veux-tu que je… ? ». Réponds à la question et arrête-toi.
 - Tu peux poser une question de retour uniquement si la demande est vraiment ambiguë.
@@ -632,6 +674,7 @@ Règles :
 async function chatWithAI(userText){
   addChatBubble('user', userText);
   setStatus('🤔 Je réfléchis…');
+  const typing = showTyping();
   try {
     const key = localStorage.getItem(LS.apikey);
     const messages = [
@@ -672,9 +715,11 @@ async function chatWithAI(userText){
     const reply = cleanReply(msg.content || 'Voilà, c\'est fait !');
     chatHistory.push({ role:'user', content: userText }, { role:'assistant', content: reply });
     save(LS.chat, chatHistory.slice(-40));
+    if (typing && typing.parentNode) typing.remove();
     addChatBubble('ai', reply);
     speak(reply);
   } catch (err){
+    if (typing && typing.parentNode) typing.remove();
     respond('❌ ' + esc(err.message || 'Erreur IA') + '<br><span class="muted">Vérifie ta clé dans les réglages ⚙️ (ou choisis un fournisseur gratuit : Groq, Gemini, OpenRouter).</span>', 'err');
     handleLocal(userText);
   } finally {
