@@ -14,166 +14,17 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<header class="top">
-  <div class="brand">
-    <div class="logo">VA</div>
-    <div class="brand-txt">
-      <b>Assistant Vocal</b>
-      <small id="status">Prêt · dis quelque chose</small>
-    </div>
-  </div>
-  <div class="top-actions">
-    <button id="settingsBtn" class="icon" title="Réglages">⚙️</button>
-    <button id="themeBtn" class="icon" title="Thème">◐</button>
-  </div>
-</header>
-
+<header class="top"><div class="brand"><div class="logo">VA</div><div class="brand-txt"><b>Assistant Vocal</b><small id="status">Prêt · dis quelque chose</small></div></div><div class="top-actions"><button id="settingsBtn" class="icon" title="Réglages">⚙️</button><button id="themeBtn" class="icon" title="Thème">◐</button></div></header>
 <main>
-  <!-- ASSISTANT -->
-  <section id="view-assistant" class="view active">
-    <div class="orb-wrap">
-      <div class="orb" id="orb">
-        <span class="orb-icon">🎙️</span>
-      </div>
-      <div class="orb-ring" id="orbRing"></div>
-    </div>
-
-    <div class="chat-log" id="chatLog"></div>
-
-    <div class="quick">
-      <button data-cmd="rappelle-moi de boire de l'eau dans 1 heure">💧 Rappel eau</button>
-      <button data-cmd="ajoute un événement réunion demain à 10h">📅 Réunion demain</button>
-      <button data-cmd="quel temps fait-il">🌤️ Météo</button>
-      <button data-cmd="où suis-je">📍 Où suis-je ?</button>
-      <button data-cmd="minuteur de 5 minutes">⏱️ Minuteur 5 min</button>
-      <button data-cmd="combien font 15 + 27">🧮 Calcul</button>
-      <button data-cmd="note que je dois acheter du pain">📝 Note</button>
-      <button data-cmd="raconte une blague">😂 Blague</button>
-      <button data-cmd="quelle heure est-il">🕐 L'heure</button>
-      <button data-cmd="aide">❓ Aide</button>
-    </div>
-
-    <div class="text-input-row">
-      <input type="text" id="textInput" placeholder="Écris ta demande… (si le micro ne marche pas)" autocomplete="off" enterkeyhint="send">
-      <button id="sendText" title="Envoyer">➤</button>
-    </div>
-  </section>
-
-  <!-- RAPPELS -->
-  <section id="view-reminders" class="view">
-    <div class="view-head">
-      <h2>⏰ Rappels</h2>
-      <span class="muted" id="reminderCount"></span>
-    </div>
-    <div id="reminderList" class="list"></div>
-  </section>
-
-  <!-- CALENDRIER -->
-  <section id="view-calendar" class="view">
-    <div class="view-head">
-      <h2>📅 Calendrier</h2>
-      <span class="muted" id="eventCount"></span>
-    </div>
-    <div id="eventList" class="list"></div>
-  </section>
-
-  <!-- NOTES -->
-  <section id="view-notes" class="view">
-    <div class="view-head">
-      <h2>📝 Notes</h2>
-      <span class="muted" id="noteCount"></span>
-    </div>
-    <div id="noteList" class="list"></div>
-  </section>
+<section id="view-assistant" class="view active"><div class="orb-wrap"><div class="orb" id="orb"><span class="orb-icon">🎙️</span></div><div class="orb-ring" id="orbRing"></div></div><div class="chat-log" id="chatLog"></div><div class="quick"><button data-cmd="rappelle-moi de boire de l'eau dans 1 heure">💧 Rappel eau</button><button data-cmd="ajoute un événement réunion demain à 10h">📅 Réunion demain</button><button data-cmd="quel temps fait-il">🌤️ Météo</button><button data-cmd="où suis-je">📍 Où suis-je ?</button><button data-cmd="minuteur de 5 minutes">⏱️ Minuteur 5 min</button><button data-cmd="combien font 15 + 27">🧮 Calcul</button><button data-cmd="note que je dois acheter du pain">📝 Note</button><button data-cmd="raconte une blague">😂 Blague</button><button data-cmd="quelle heure est-il">🕐 L'heure</button><button data-cmd="aide">❓ Aide</button></div><div class="text-input-row"><input type="text" id="textInput" placeholder="Écris ta demande… (si le micro ne marche pas)" autocomplete="off" enterkeyhint="send"><button id="sendText" title="Envoyer">➤</button></div></section>
+<section id="view-reminders" class="view"><div class="view-head"><h2>⏰ Rappels</h2><span class="muted" id="reminderCount"></span></div><div id="reminderList" class="list"></div></section>
+<section id="view-calendar" class="view"><div class="view-head"><h2>📅 Calendrier</h2><span class="muted" id="eventCount"></span></div><div id="eventList" class="list"></div></section>
+<section id="view-notes" class="view"><div class="view-head"><h2>📝 Notes</h2><span class="muted" id="noteCount"></span></div><div id="noteList" class="list"></div></section>
+<section id="view-profile" class="view"><div class="view-head"><h2>👤 Profil & mémoire</h2><span class="muted" id="cloudStatus">☁️ Synchronisation</span></div><div class="card" style="padding:20px"><label>Nom affiché</label><input id="profileName" class="wide-input" maxlength="40" placeholder="Ton nom"><label style="display:block;margin-top:14px">Photo de profil</label><input id="profileAvatar" type="file" accept="image/*"><div id="profileAvatarPreview" style="margin-top:12px"></div><button id="saveProfile" class="primary full" style="margin-top:14px">💾 Enregistrer dans le cloud</button><p class="muted" style="margin-top:12px">Tes rappels, événements, notes et conversations sont synchronisés avec ton compte.</p></div></section>
 </main>
-
-<!-- NAV BAR -->
-<nav class="tabbar">
-  <button class="tab active" data-view="assistant"><span>🎙️</span>Assistant</button>
-  <button class="tab" data-view="reminders"><span>⏰</span>Rappels</button>
-  <button class="tab" data-view="calendar"><span>📅</span>Agenda</button>
-  <button class="tab" data-view="notes"><span>📝</span>Notes</button>
-</nav>
-
-<!-- MODAL CARTE -->
-<div id="mapModal" class="modal hidden">
-  <div class="modal-bg" onclick="closeMap()"></div>
-  <div class="modal-card">
-    <button class="modal-close" onclick="closeMap()">✕</button>
-    <h3>📍 Ta position</h3>
-    <p class="muted" id="mapCoords"></p>
-    <div class="map-frame" id="mapFrame"></div>
-    <div class="map-actions">
-      <button class="primary" id="shareLoc">📤 Partager</button>
-      <a class="secondary" id="openMaps" target="_blank" rel="noopener">🗺️ Ouvrir dans Maps</a>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL RÉGLAGES -->
-<div id="settingsModal" class="modal hidden">
-  <div class="modal-bg" id="settingsBg"></div>
-  <div class="modal-card">
-    <button class="modal-close" id="closeSettings">✕</button>
-    <h3>⚙️ Réglages</h3>
-
-    <h4 class="settings-title">🤖 Mode IA (ChatGPT)</h4>
-    <p class="muted">Choisis un fournisseur et colle ta clé. <b>Groq, Gemini et OpenRouter sont gratuits</b> (sans carte bancaire). La clé reste <b>uniquement sur ton appareil</b>.</p>
-    <select id="aiProvider" class="wide-input"></select>
-    <input type="password" id="apiKey" class="wide-input" placeholder="Colle ta clé ici…" autocomplete="off">
-    <div class="map-actions">
-      <button class="primary" id="saveApiKey">💾 Enregistrer</button>
-      <a class="secondary" id="keyLink" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obtenir une clé</a>
-    </div>
-
-    <h4 class="settings-title">🧠 Modèle IA</h4>
-    <select id="aiModel" class="wide-input"></select>
-
-    <h4 class="settings-title">🗣️ Voix IA réaliste</h4>
-    <p class="muted">Groq, Gemini et OpenRouter n'ont <b>pas de voix</b> (texte seulement). Pour une <b>vraie voix IA réaliste</b> partout : colle une clé <b>Mistral</b>, <b>Google AI Studio</b> (AIza…, gratuite) ou <b>OpenAI</b> (sk-…). Sans clé → voix neuronale Google gratuite.</p>
-    <a class="primary full" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Clé Mistral (console.mistral.ai)</a>
-    <a class="secondary full" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">🔑 Clé Google AI Studio gratuite (2 min)</a>
-    <input type="password" id="ttsKey" class="wide-input" placeholder="Colle ta clé ici (Mistral, AIza… ou sk-…)" autocomplete="off">
-    <select id="ttsVoice" class="wide-input">
-      <optgroup label="Voix Mistral (clé Mistral)">
-        <option value="mistral">Mistral (femme)</option>
-        <option value="jean">Jean (homme)</option>
-        <option value="leo">Léo (homme)</option>
-        <option value="mona">Mona (femme)</option>
-      </optgroup>
-      <optgroup label="Voix Gemini (clé AIza…, gratuite)">
-        <option value="Kore">Kore (femme, chaleureuse)</option>
-        <option value="Puck">Puck (femme, douce)</option>
-        <option value="Charon">Charon (homme, grave)</option>
-        <option value="Fenrir">Fenrir (homme, profond)</option>
-        <option value="Aoede">Aoede (femme, expressive)</option>
-        <option value="Leda">Leda (femme, claire)</option>
-        <option value="Orus">Orus (homme, neutre)</option>
-        <option value="Zephyr">Zephyr (homme, jeune)</option>
-      </optgroup>
-      <optgroup label="Voix OpenAI (clé sk-…)">
-        <option value="nova">Nova (femme, chaleureuse)</option>
-        <option value="alloy">Alloy (neutre)</option>
-        <option value="echo">Echo (homme)</option>
-        <option value="fable">Fable (britannique)</option>
-        <option value="onyx">Onyx (homme grave)</option>
-        <option value="shimmer">Shimmer (femme, douce)</option>
-      </optgroup>
-    </select>
-    <button class="primary full" id="testVoice">🔊 Tester la voix</button>
-
-    <h4 class="settings-title">💬 Conversation</h4>
-    <button class="secondary full" id="clearChat">🗑️ Effacer la conversation</button>
-
-    <p class="muted settings-version" id="appVersion"></p>
-  </div>
-</div>
-
-<div id="toast" class="toast"></div>
-
-<div id="updateBanner" class="update-banner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
-
-<script src="app.js"></script>
-</body>
-</html>
+<nav class="tabbar"><button class="tab active" data-view="assistant"><span>🎙️</span>Assistant</button><button class="tab" data-view="reminders"><span>⏰</span>Rappels</button><button class="tab" data-view="calendar"><span>📅</span>Agenda</button><button class="tab" data-view="notes"><span>📝</span>Notes</button><button class="tab" data-view="profile"><span>👤</span>Profil</button></nav>
+<div id="mapModal" class="modal hidden"><div class="modal-bg" onclick="closeMap()"></div><div class="modal-card"><button class="modal-close" onclick="closeMap()">✕</button><h3>📍 Ta position</h3><p class="muted" id="mapCoords"></p><div class="map-frame" id="mapFrame"></div><div class="map-actions"><button class="primary" id="shareLoc">📤 Partager</button><a class="secondary" id="openMaps" target="_blank" rel="noopener">🗺️ Ouvrir dans Maps</a></div></div></div>
+<div id="settingsModal" class="modal hidden"><div class="modal-bg" id="settingsBg"></div><div class="modal-card"><button class="modal-close" id="closeSettings">✕</button><h3>⚙️ Réglages</h3><h4 class="settings-title">🤖 Mode IA (ChatGPT)</h4><p class="muted">Choisis un fournisseur et colle ta clé. La clé reste uniquement sur ton appareil.</p><select id="aiProvider" class="wide-input"></select><input type="password" id="apiKey" class="wide-input" placeholder="Colle ta clé ici…" autocomplete="off"><div class="map-actions"><button class="primary" id="saveApiKey">💾 Enregistrer</button><a class="secondary" id="keyLink" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obtenir une clé</a></div><h4 class="settings-title">🧠 Modèle IA</h4><select id="aiModel" class="wide-input"></select><h4 class="settings-title">🗣️ Voix IA réaliste</h4><p class="muted">Pour une voix réaliste, utilise une clé Mistral, Google AI Studio ou OpenAI.</p><a class="primary full" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Clé Mistral</a><a class="secondary full" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">🔑 Clé Google AI Studio</a><input type="password" id="ttsKey" class="wide-input" placeholder="Clé TTS…" autocomplete="off"><select id="ttsVoice" class="wide-input"><option value="mistral">Mistral</option><option value="Kore">Kore</option><option value="Puck">Puck</option><option value="Charon">Charon</option><option value="nova">Nova</option><option value="shimmer">Shimmer</option></select><button class="primary full" id="testVoice">🔊 Tester la voix</button><h4 class="settings-title">💬 Conversation</h4><button class="secondary full" id="clearChat">🗑️ Effacer la conversation</button><p class="muted settings-version" id="appVersion"></p></div></div>
+<div id="toast" class="toast"></div><div id="updateBanner" class="update-banner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js"></script><script src="cloud-memory.js"></script><script src="app.js"></script>
+</body></html>
