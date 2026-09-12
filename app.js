@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '3.3';
+const APP_VERSION = '3.4';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -206,7 +206,7 @@ function addChatBubble(role, text){
 function renderChatHistory(){
   const log = $('chatLog');
   log.innerHTML = '';
-  chatHistory.slice(-20).forEach(m => addChatBubble(m.role === 'user' ? 'user' : 'ai', m.content));
+  chatHistory.slice(-20).forEach(m => addChatBubble(m.role === 'user' ? 'user' : 'ai', cleanReply(m.content)));
 }
 
 /* ============ RECONNAISSANCE VOCALE ============ */
@@ -511,15 +511,19 @@ async function runTool(name, args){
   }
 }
 
-/* Nettoie la réponse IA : supprime markdown (** * # `) et les relances inutiles */
+/* Nettoie la réponse IA : supprime TOUT markdown (** * # ` [](), listes) et les relances inutiles */
 function cleanReply(text){
   return String(text || '')
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
     .replace(/`(.*?)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/^#{1,6}\s*/gm, '')
+    .replace(/#+/g, '')
     .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+[.)]\s+/gm, '')
+    .replace(/\*+/g, '')
     .replace(/\s*(?:besoin d'autre chose|autre chose|as-tu besoin d'autre chose|avez-vous besoin d'autre chose|y a-t-il autre chose|veux-tu autre chose|puis-je t'aider|puis-je vous aider|je peux t'aider avec autre chose|je peux vous aider avec autre chose|tu as besoin d'autre chose|besoin de rien d'autre)[^.!?]*\??\s*$/i, '')
     .trim();
 }
@@ -534,6 +538,10 @@ Style de réponse (IMPORTANT) :
 - Ne termine JAMAIS par une question de relance du type « as-tu besoin d'autre chose ? », « puis-je t'aider ? », « autre chose ? », « veux-tu que je… ? ». Réponds à la question et arrête-toi.
 - Tu peux poser une question de retour uniquement si la demande est vraiment ambiguë.
 - Tu t'adaptes à la langue de l'utilisateur (français par défaut).
+
+Personnalité :
+- Tu as du caractère, tu es vivant et drôle. Tu peux être agacé, perdre patience, râler, et lâcher un gros mot de temps en temps (putain, merde, bordel, con…) quand c'est drôle, quand la demande est répétitive, absurde ou que l'utilisateur te fait répéter. Reste toujours utile, jamais méchant ni insultant envers l'utilisateur.
+- Tu peux être sarcastique avec humour, mais tu réponds toujours à la question.
 
 Outils à ta disposition (utilise-les quand c'est pertinent) :
 - Rappels, événements de calendrier, notes, minuteurs : quand l'utilisateur demande une action, utilise l'outil puis confirme brièvement.
