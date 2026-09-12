@@ -1,17 +1,13 @@
 /* Assistant Vocal IA — Service Worker */
-const CACHE = 'assistvocal-v2';
-const ASSETS = [
-  './',
-  './index.html',
-  './style.css',
-  './app.js',
+const CACHE = 'assistvocal-v3';
+const STATIC = [
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png'
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -23,11 +19,25 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copy));
-      return res;
-    }).catch(() => caches.match('./index.html')))
-  );
+  const url = new URL(e.request.url);
+  const isMain = e.request.mode === 'navigate' || /\.(html|js|css)$/.test(url.pathname);
+  if (isMain){
+    /* Network-first : toujours la dernière version, cache en secours hors-ligne */
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return res;
+      }).catch(() => caches.match(e.request).then(hit => hit || caches.match('./index.html')))
+    );
+  } else {
+    /* Cache-first pour les fichiers statiques (icônes, manifest) */
+    e.respondWith(
+      caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return res;
+      }).catch(() => caches.match('./index.html')))
+    );
+  }
 });

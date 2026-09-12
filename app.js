@@ -2,6 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
+const APP_VERSION = '3.1';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT-4o (qualité max)',
@@ -1057,6 +1058,8 @@ $('settingsBtn').addEventListener('click', () => {
   $('apiKey').value = localStorage.getItem(LS.apikey) || '';
   $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'nova';
   $('keyLink').href = getProvider().keyUrl;
+  const v = $('appVersion');
+  if (v) v.textContent = 'Version ' + APP_VERSION + (hasAI() ? ' · IA active (' + getProvider().short + ')' : ' · mode local');
   $('settingsModal').classList.remove('hidden');
 });
 $('closeSettings').addEventListener('click', () => $('settingsModal').classList.add('hidden'));
