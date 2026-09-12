@@ -12,8 +12,11 @@ const state = {
     stream: null,
     speaking: false,
     mistralAvailable: true,
-    audioUnlocked: false
+    audioUnlocked: false,
+    ttsEngine: 'mistral'
 };
+
+let currentGeminiStyle = 'natural';
 
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 var API_HOST = IS_LOCAL ? '' : 'https://ia-app-2.onrender.com';
@@ -146,12 +149,97 @@ function speakBrowser(text) {
     });
 }
 
-// ---- Main speak: direct Mistral TTS (GitHub Pages), puis serveur, puis browser ----
+// ---- Google Gemini TTS (voix réalistes avec styles) ----
+function speakGemini(text, style = 'natural') {
+    return new Promise((resolve) => {
+        // Vérifier si une clé API Gemini est configurée
+        const apiKey = localStorage.getItem('gemini_tts_key');
+        if (!apiKey) {
+            console.warn('[Gemini TTS] No API key found, falling back to browser TTS');
+            resolve(speakBrowser(text));
+            return;
+        }
+
+        const model = style === 'calm' ? 'gemini-2.5-flash-preview-tts' : 
+                     style === 'dynamic' ? 'gemini-2.5-flash-preview-tts' :
+                     'gemini-2.5-flash-preview-tts';
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:speech?key=${apiKey}`;
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                input: text,
+                voice: style === 'narrator' ? 'OSTEEMICA' : (style === 'calm' ? 'PREMIUM' : 'AURA'),
+                audioConfig: {
+                    audioEncoding: 'WAV',
+                    speakingRate: 0.9,
+                    pitch: 0.0,
+                    volumeGainDb: 0.0
+                }
+            })
+        }).then(async (resp) => {
+            if (!resp.ok) {
+                const errData = await resp.text().catch(() => 'Unknown error');
+                console.warn('[Gemini TTS] HTTP error:', resp.status, errData);
+                resolve(false);
+                return;
+            }
+            const data = await resp.json();
+            if (!data.audio) {
+                console.warn('[Gemini TTS] No audio data');
+                resolve(false);
+                return;
+            }
+            // Convertir base64 en blob et jouer
+            const base64Audio = data.audio.replace('data:audio/wav;base64,', '');
+            const byteCharacters = atob(base64Audio);
+            const byteNumbers = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const audioBlob = new Blob([byteNumbers], { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+
+            ttsAudio.src = audioUrl;
+            ttsAudio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+                resolve(true);
+            };
+            ttsAudio.onerror = (e) => {
+                URL.revokeObjectURL(audioUrl);
+                console.warn('[Gemini TTS] Playback error:', e);
+                resolve(false);
+            };
+            ttsAudio.play().then(() => {
+                console.log('[Gemini TTS] Playing audio');
+            }).catch((e) => {
+                URL.revokeObjectURL(audioUrl);
+                console.warn('[Gemini TTS] play() blocked:', e);
+                resolve(false);
+            });
+        }).catch((err) => {
+            console.warn('[Gemini TTS] Error:', err);
+            resolve(false);
+        });
+    });
+}
+
+// ---- Main speak: Gemini TTS d'abord, puis Mistral, puis browser ----
 async function speak(text, priority = false) {
     if (!state.soundEnabled) return;
     if (state.speaking && !priority) return;
 
     state.speaking = true;
+
+    // Essayer Google Gemini TTS d'abord (voix réaliste pour tout le monde)
+    if (localStorage.getItem('gemini_tts_key')) {
+        const ok = await speakGemini(text, currentGeminiStyle || 'natural');
+        if (ok) { state.speaking = false; return; }
+    }
 
     // GitHub Pages → direct Mistral API
     if (!IS_LOCAL && state.mistralAvailable) {
@@ -492,6 +580,60 @@ function toggleSound() {
     state.soundEnabled = !state.soundEnabled;
     $('sound-icon').textContent = state.soundEnabled ? '🔊' : '🔇';
 }
+
+// ---- Gemini API Key Management ----
+function saveGeminiKey() {
+    const key = $('gemini-key').value.trim();
+    if (key) {
+        localStorage.setItem('gemini_tts_key', key);
+        $('gemini-settings').style.display = 'none';
+        $('voice-styles').style.display = 'flex';
+        setVoiceStatus('Voix Gemini activée');
+        console.log('[Gemini] Key saved');
+    }
+}
+
+function setVoiceStyle(style) {
+    currentGeminiStyle = style;
+    const buttons = $('voice-styles').querySelectorAll('button');
+    buttons.forEach(b => b.style.background = b.dataset.style === style ? 'rgba(0,170,255,0.3)' : 'rgba(0,170,255,0.1)');
+    setVoiceStatus(`Style: ${style}`);
+}
+
+function showGeminiSettings() {
+    $('gemini-settings').style.display = 'block';
+    $('gemini-key').value = localStorage.getItem('gemini_tts_key') || '';
+}
+
+// Add voice style buttons to the DOM load listener
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing code
+    
+    // Handle Gemini key setup
+    $('set-gemini-key').addEventListener('click', saveGeminiKey);
+    $('skip-gemini').addEventListener('click', () => {
+        localStorage.removeItem('gemini_tts_key');
+        $('gemini-settings').style.display = 'none';
+        $('voice-styles').style.display = 'none';
+        setVoiceStatus('Voix par défaut');
+    });
+    
+    // Voice style buttons
+    const styleBtns = $('voice-styles')?.querySelectorAll('button');
+    if (styleBtns) {
+        styleBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const style = btn.dataset.style;
+                setVoiceStyle(style);
+            });
+        });
+    }
+    
+    // Auto-show Gemini settings on first load if no key
+    if (!localStorage.getItem('gemini_tts_key')) {
+        setTimeout(showGeminiSettings, 500);
+    }
+});
 
 // ===== Voice AI (real-time conversation as in parler) =====
 const voiceState = {

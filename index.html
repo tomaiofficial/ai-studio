@@ -41,11 +41,32 @@
         .lbl{font-size:11px;color:var(--dim)}
         .btn-icon{background:none;border:none;color:var(--dim);font-size:22px;padding:6px 10px;line-height:1;cursor:pointer;touch-action:manipulation}
         .btn-icon:active{opacity:.5}
+        .btn-icon.on{color:var(--accent2)}
 
         .frame-dot{position:absolute;top:10px;right:10px;z-index:25;width:6px;height:6px;border-radius:50%;background:var(--accent2);opacity:0;transition:opacity .15s}
         .frame-dot.flash{opacity:1}
 
         #audio-status{position:absolute;top:36px;right:14px;z-index:35;font-size:10px;color:var(--dim);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:8px;display:none}
+
+        /* LTX Video Generation */
+        #ltx-panel{position:fixed;bottom:0;left:0;right:0;z-index:40;background:linear-gradient(180deg,transparent,rgba(5,10,20,.98) 15%);padding:16px 14px 24px;transform:translateY(100%);transition:transform .3s ease;pointer-events:none}
+        #ltx-panel.open{transform:translateY(0);pointer-events:auto}
+        .ltx-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+        .ltx-title{font-size:14px;font-weight:600;color:var(--accent2)}
+        .ltx-close{background:none;border:none;color:var(--dim);font-size:20px;line-height:1;cursor:pointer;padding:4px}
+        .ltx-input-wrap{display:flex;gap:8px;margin-bottom:12px}
+        .ltx-input{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;outline:none}
+        .ltx-input:focus{border-color:var(--accent2)}
+        .ltx-btn{width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;font-size:16px;font-weight:600;cursor:pointer;touch-action:manipulation;transition:opacity .15s}
+        .ltx-btn:active{opacity:.8}
+        .ltx-btn:disabled{opacity:.5;cursor:not-allowed}
+        .ltx-progress{display:none;margin-top:10px;font-size:12px;color:var(--dim)}
+        .ltx-progress.active{display:block}
+        .ltx-bar{height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:8px;overflow:hidden}
+        .ltx-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .3s}
+        .ltx-result{display:none;margin-top:12px}
+        .ltx-result video{width:100%;border-radius:8px;background:#000}
+        .ltx-download{display:inline-block;margin-top:8px;padding:10px 16px;background:rgba(0,255,170,.1);border:1px solid var(--accent2);border-radius:8px;color:var(--accent2);text-decoration:none;font-size:13px;font-weight:500}
 
         #orb-wrap{position:absolute;top:0;left:0;right:0;bottom:0;z-index:15;display:flex;align-items:center;justify-content:center;pointer-events:none}
         #orb{width:100px;height:100px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--accent2),#007755 55%,transparent 70%);opacity:0;transition:all .4s;cursor:pointer;pointer-events:auto;-webkit-tap-highlight-color:transparent}
@@ -67,6 +88,25 @@
         <span>🧠 Mistral IA</span>
         <span>📷 Caméra optionnelle</span>
     </div>
+    <div id="gemini-settings" style="margin-top:20px;padding:16px;background:rgba(0,0,0,.3);border-radius:10px;display:none">
+        <div style="font-size:12px;color:var(--dim);margin-bottom:8px">Clé API Google AI Studio pour voix réaliste :</div>
+        <input type="text" id="gemini-key" style="width:100%;padding:8px;margin-bottom:8px;border:none;border-radius:6px;background:rgba(255,255,255,.1);color:#fff;font-size:13px" placeholder="Entrez votre clé API...">
+        <div style="display:flex;gap:8px">
+            <button class="w-btn" style="min-width:auto;padding:6px 12px;font-size:12px" id="set-gemini-key">Sauvegarder</button>
+            <button class="w-btn" style="min-width:auto;padding:6px 12px;font-size:12px;background:rgba(255,255,255,.1)" id="skip-gemini">Passer</button>
+        </div>
+        <p style="font-size:10px;color:var(--dim);margin-top:10px">💡 Gratuit, pas de carte bancaire requise</p>
+    </div>
+
+    <div id="voice-styles" style="margin-top:12px">
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px">Style de voix :</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-icon" style="padding:4px 8px;font-size:10px;background:rgba(0,170,255,0.1);color:#00aaff;border-radius:12px" data-style="natural">Naturel</button>
+            <button class="btn-icon" style="padding:4px 8px;font-size:10px;background:rgba(0,170,255,0.1);color:#00aaff;border-radius:12px" data-style="calm">Calme</button>
+            <button class="btn-icon" style="padding:4px 8px;font-size:10px;background:rgba(0,170,255,0.1);color:#00aaff;border-radius:12px" data-style="dynamic">Dynamique</button>
+            <button class="btn-icon" style="padding:4px 8px;font-size:10px;background:rgba(0,170,255,0.1);color:#00aaff;border-radius:12px" data-style="narrator">Narrateur</button>
+        </div>
+    </div>
     <button class="w-btn" id="go">▶ Parler</button>
     <a href="infos.html" class="w-back">→ Infos App</a>
 </div>
@@ -82,11 +122,31 @@
             <span class="lbl" id="lbl">En attente...</span>
         </div>
         <div class="top-right">
+            <button class="btn-icon" id="btn-ltx" title="Moteur LTX-2.3" style="display:none">⚡</button>
             <button class="btn-icon" id="btn-cam" title="Caméra">📷</button>
             <button class="btn-icon" id="quit">✕</button>
         </div>
     </div>
     <div id="orb-wrap"><div id="orb"></div></div>
+</div>
+
+<div id="ltx-panel">
+    <div class="ltx-header">
+        <span class="ltx-title">⚡ LTX-2.3 Vidéo</span>
+        <button class="ltx-close" id="ltx-close">✕</button>
+    </div>
+    <div class="ltx-input-wrap">
+        <input type="text" class="ltx-input" id="ltx-prompt" placeholder="Décris la vidéo (ex: Un chat mignon qui joue)">
+    </div>
+    <button class="ltx-btn" id="ltx-generate">Générer la vidéo</button>
+    <div class="ltx-progress" id="ltx-progress">
+        <div>Génération en cours...</div>
+        <div class="ltx-bar"><div class="ltx-fill" id="ltx-fill"></div></div>
+    </div>
+    <div class="ltx-result" id="ltx-result">
+        <video id="ltx-video" controls playsinline></video>
+        <a class="ltx-download" id="ltx-download" href="#" download="ltx-video.mp4">📥 Télécharger MP4</a>
+    </div>
 </div>
 
 <canvas id="cv" style="display:none"></canvas>
@@ -105,6 +165,7 @@ var PROMPTS=[
     "Tu es un professeur particulier. Quand on te montre un exercice via la camera, regarde-le attentivement et explique-le etape par etape. Guide l'eleve sans donner la reponse directement. Si pas d'exercice visible, aide sur les devoirs en general. Sois patient et pedagogique."
 ];
 var MODE_NAMES=['Assistant','Professeur'];
+var ltxEnabled=false;
 function getPrompt(){return PROMPTS[currentMode];}
 
 /* ============ AUDIO ENGINE ============ */
@@ -252,7 +313,7 @@ function toggleMic(){
 
 /* ============ AI ============ */
 var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
-var API_HOST=IS_LOCAL?'':'https://ia-app-2.onrender.com';
+var API_HOST=IS_LOCAL?'':location.origin;
 function getPrompt(){return PROMPTS[currentMode];}
 function callMistralChat(messages){
     if(IS_LOCAL)return Promise.resolve(null);
@@ -320,10 +381,82 @@ function onUserText(text){
     });
 }
 
+/* ============ LTX VIDEO ============ */
+async function checkLtxConfig(){
+    try{
+        var r=await fetch(API_HOST+'/api/config');
+        var d=await r.json();
+        ltxEnabled=d.ltx_enabled;
+        $('btn-ltx').style.display=ltxEnabled?'flex':'none';
+    }catch(e){console.error('[LTX] Config check failed:',e)}
+}
+
+function openLtxPanel(){
+    $('ltx-panel').classList.add('open');
+    $('ltx-prompt').focus();
+}
+function closeLtxPanel(){
+    $('ltx-panel').classList.remove('open');
+}
+function resetLtxUI(){
+    $('ltx-prompt').value='';
+    $('ltx-progress').classList.remove('active');
+    $('ltx-fill').style.width='0%';
+    $('ltx-result').style.display='none';
+    $('ltx-generate').disabled=false;
+    $('ltx-generate').textContent='Générer la vidéo';
+}
+
+async function generateLtxVideo(){
+    var prompt=$('ltx-prompt').value.trim();
+    if(!prompt){return}
+    $('ltx-generate').disabled=true;
+    $('ltx-generate').textContent='Génération...';
+    $('ltx-progress').classList.add('active');
+    $('ltx-result').style.display='none';
+    $('ltx-fill').style.width='10%';
+
+    try{
+        var r=await fetch(API_HOST+'/api/ltx/generate',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({prompt:prompt})
+        });
+        var d=await r.json();
+        if(!r.ok)throw new Error(d.error||'Erreur génération');
+
+        // Poll for completion via video_url
+        var videoUrl=d.video_url;
+        if(!videoUrl)throw new Error('Pas de vidéo retournée');
+
+        $('ltx-fill').style.width='100%';
+        var videoEl=$('ltx-video');
+        videoEl.src=videoUrl;
+        videoEl.onloadeddata=function(){
+            $('ltx-result').style.display='block';
+            $('ltx-download').href=videoUrl;
+            $('ltx-progress').classList.remove('active');
+            $('ltx-generate').disabled=false;
+            $('ltx-generate').textContent='Générer une autre';
+        };
+        videoEl.onerror=function(){
+            throw new Error('Erreur chargement vidéo');
+        };
+    }catch(e){
+        console.error('[LTX] Error:',e);
+        alert('Erreur: '+e.message);
+        $('ltx-generate').disabled=false;
+        $('ltx-generate').textContent='Générer la vidéo';
+        $('ltx-progress').classList.remove('active');
+        $('ltx-fill').style.width='0%';
+    }
+}
+
 /* ============ LIFECYCLE ============ */
 function start(){
     show('active');stat('Demarrage...','on');active=true;
     unlockAudio();
+    checkLtxConfig();
     startCam().then(function(ok){
         if(!ok)cameraOn=false;
         orbEl.className='idle';stat('Connecte','on');startMic();
@@ -355,6 +488,9 @@ bind('go',start);
 bind('quit',quit);
 bind('btn-cam',toggleCam);
 bind('btn-mode',toggleMode);
+bind('btn-ltx',openLtxPanel);
+bind('ltx-close',closeLtxPanel);
+bind('ltx-generate',generateLtxVideo);
 orbEl.addEventListener('click',toggleMic);
 orbEl.addEventListener('touchend',function(e){e.preventDefault();toggleMic()});
 })();
