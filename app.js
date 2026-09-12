@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.5';
+const APP_VERSION = '4.6';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -42,7 +42,13 @@ const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
 const hasAI = () => !!localStorage.getItem('va_apikey');
 const getProviderId = () => localStorage.getItem('va_provider') || 'openai';
 const getProvider = () => PROVIDERS[getProviderId()] || PROVIDERS.openai;
-const getModel = () => localStorage.getItem('va_model') || getProvider().models[0];
+const getModel = () => {
+  const saved = localStorage.getItem('va_model');
+  const models = getProvider().models;
+  /* Si le modèle sauvegardé n'existe plus (ex: ancien llama-3.3 supprimé),
+     on reprend le premier modèle valide du fournisseur. */
+  return (saved && models.includes(saved)) ? saved : models[0];
+};
 
 /* Détecte le fournisseur d'après le format de la clé */
 function detectProvider(key){
@@ -179,7 +185,7 @@ function splitText(text){
   return chunks;
 }
 
-/* Secours vocal n°1 : Google Translate TTS (gratuit, marche partout) */
+/* Secours vocal n°1 : Google Translate TTS (MP3) */
 function speakGoogle(text){
   try {
     const chunks = splitText(text);
@@ -189,14 +195,14 @@ function speakGoogle(text){
       const a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=' + encodeURIComponent(chunks[i]));
       i++;
       a.onended = playNext;
-      a.onerror = () => { if (i === 1) speakCyber(text); else playNext(); };
-      playAudio(a, () => { if (i === 1) speakCyber(text); });
+      a.onerror = () => { if (i === 1) speakLocal(text); else playNext(); };
+      playAudio(a, () => { if (i === 1) speakLocal(text); });
     };
     playNext();
-  } catch { speakCyber(text); }
+  } catch { speakLocal(text); }
 }
 
-/* Secours vocal n°2 : cyzon.us (voix Google Wavenet, gratuit) */
+/* Secours vocal n°2 : synthèse du téléphone (hors-ligne) */
 function speakCyber(text){
   try {
     const chunks = splitText(text);
@@ -276,21 +282,25 @@ function speak(text){
   else speakCloud(text);
 }
 
-/* Voix cloud : Google TTS — la MÊME voix sur PC et mobile */
+/* Voix cloud : cyzon WAV haute qualité (primaire) → Google MP3 (secours) */
 function speakCloud(text){
   try {
     const chunks = splitText(text);
+    const audios = chunks.map(c => {
+      const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=fr-FR-Wavenet-A');
+      a.preload = 'auto';
+      return a;
+    });
     let i = 0;
     const playNext = () => {
-      if (i >= chunks.length) return;
-      const a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=' + encodeURIComponent(chunks[i]));
-      i++;
+      if (i >= audios.length) return;
+      const a = audios[i++];
       a.onended = playNext;
-      a.onerror = () => { if (i === 1) speakLocal(text); else playNext(); };
-      playAudio(a, () => { if (i === 1) speakLocal(text); });
+      a.onerror = () => { if (i === 1) speakGoogle(text); else playNext(); };
+      playAudio(a, () => { if (i === 1) speakGoogle(text); });
     };
     playNext();
-  } catch { speakLocal(text); }
+  } catch { speakGoogle(text); }
 }
 
 /* Voix locale (secours hors-ligne) — utilisée si Google TTS est indisponible */
