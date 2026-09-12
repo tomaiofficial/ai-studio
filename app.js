@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.8';
+const APP_VERSION = '4.9';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -189,10 +189,64 @@ function speakCyber(text){
   } catch {}
 }
 
-/* Voix IA réaliste (OpenAI TTS) — utilisée si une clé TTS est fournie */
+/* Convertit du PCM brut (audio/L16) en WAV lisible par le navigateur */
+function l16ToWav(base64){
+  const bin = atob(base64);
+  const pcm = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) pcm[i] = bin.charCodeAt(i);
+  const sampleRate = 24000, numChannels = 1, bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+  const blockAlign = numChannels * bitsPerSample / 8;
+  const dataSize = pcm.length;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const ws = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); ws(8, 'WAVE');
+  ws(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true); ws(36, 'data');
+  view.setUint32(40, dataSize, true);
+  new Uint8Array(buffer, 44).set(pcm);
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+
+/* Voix IA réaliste (Gemini TTS) — GRATUITE avec une clé Google AI Studio.
+   Retourne true si la voix a été jouée, false sinon. */
+async function speakGemini(text){
+  const key = localStorage.getItem(LS.ttskey);
+  if (!key) return false;
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=' + encodeURIComponent(key), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: String(text).slice(0, 4000) }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: localStorage.getItem(LS.ttsvoice) || 'Kore' } } }
+        }
+      })
+    });
+    if (!res.ok) return false;
+    const j = await res.json();
+    const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    if (!part || !part.data) return false;
+    const url = part.mimeType === 'audio/L16'
+      ? l16ToWav(part.data)
+      : 'data:' + (part.mimeType || 'audio/mpeg') + ';base64,' + part.data;
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    playAudio(audio);
+    return true;
+  } catch { return false; }
+}
+
+/* Voix IA réaliste (OpenAI TTS) — avec une clé OpenAI.
+   Retourne true si la voix a été jouée, false sinon. */
 async function speakAI(text){
   const key = localStorage.getItem(LS.ttskey);
-  if (!key) return;
+  if (!key) return false;
   try {
     const res = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
@@ -204,13 +258,14 @@ async function speakAI(text){
         instructions: 'Parle de façon naturelle, chaleureuse et expressive, comme un vrai humain. Pas de robot.'
       })
     });
-    if (!res.ok) throw new Error('TTS ' + res.status);
+    if (!res.ok) return false;
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.volume = 1.0;
     playAudio(audio);
-  } catch {}
+    return true;
+  } catch { return false; }
 }
 
 /* ============ DÉBLOCAGE AUDIO MOBILE ============ */
@@ -251,10 +306,17 @@ function flushPending(){
   document.addEventListener(ev, flushPending, { passive: true })
 );
 
-function speak(text){
-  /* Clé TTS fournie → vraie voix IA réaliste (OpenAI). Sinon → voix gratuite. */
-  if (localStorage.getItem(LS.ttskey)) speakAI(text);
-  else speakCloud(text);
+async function speak(text){
+  /* Clé TTS fournie → vraie voix IA réaliste (Gemini si AIza…, OpenAI si sk-…).
+     Si elle échoue → voix gratuite (Wavenet). */
+  const ttsKey = localStorage.getItem(LS.ttskey);
+  if (ttsKey){
+    const ok = ttsKey.startsWith('AIza')
+      ? await speakGemini(text)
+      : await speakAI(text);
+    if (ok) return;
+  }
+  speakCloud(text);
 }
 
 /* Voix cloud : cyzon WAV haute qualité (primaire) → Google MP3 (secours) */
@@ -1287,7 +1349,9 @@ $('ttsKey').addEventListener('change', e => {
   const k = e.target.value.trim();
   if (k){
     localStorage.setItem(LS.ttskey, k);
-    toast('✅ Voix IA réaliste activée !');
+    toast(k.startsWith('AIza')
+      ? '✅ Voix IA réaliste (Gemini) activée !'
+      : '✅ Voix IA réaliste (OpenAI) activée !');
   } else {
     localStorage.removeItem(LS.ttskey);
     toast('Voix gratuite (Wavenet)');

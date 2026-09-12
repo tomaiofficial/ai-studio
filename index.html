@@ -131,15 +131,27 @@
     <select id="aiModel" class="wide-input"></select>
 
     <h4 class="settings-title">🗣️ Voix IA réaliste</h4>
-    <p class="muted">Groq, Gemini et OpenRouter n'ont <b>pas de voix</b> (texte seulement). Pour une <b>vraie voix IA réaliste</b> partout, colle une clé OpenAI ici (voix gpt-4o-mini-tts). Sans clé, l'app utilise la voix Google Wavenet gratuite.</p>
-    <input type="password" id="ttsKey" class="wide-input" placeholder="Clé OpenAI pour la voix (optionnel)…" autocomplete="off">
+    <p class="muted">Groq, Gemini et OpenRouter n'ont <b>pas de voix</b> (texte seulement). Pour une <b>vraie voix IA réaliste</b> partout : colle une clé <b>Google AI Studio</b> (AIza…, <b>gratuite</b>) ou une clé <b>OpenAI</b> (sk-…). Sans clé → voix Google Wavenet gratuite.</p>
+    <input type="password" id="ttsKey" class="wide-input" placeholder="Clé AI Studio (AIza…) ou OpenAI (sk-…) pour la voix…" autocomplete="off">
     <select id="ttsVoice" class="wide-input">
-      <option value="nova">Nova (femme, chaleureuse)</option>
-      <option value="alloy">Alloy (neutre)</option>
-      <option value="echo">Echo (homme)</option>
-      <option value="fable">Fable (britannique)</option>
-      <option value="onyx">Onyx (homme grave)</option>
-      <option value="shimmer">Shimmer (femme, douce)</option>
+      <optgroup label="Voix Gemini (clé AIza…, gratuite)">
+        <option value="Kore">Kore (femme, chaleureuse)</option>
+        <option value="Puck">Puck (femme, douce)</option>
+        <option value="Charon">Charon (homme, grave)</option>
+        <option value="Fenrir">Fenrir (homme, profond)</option>
+        <option value="Aoede">Aoede (femme, expressive)</option>
+        <option value="Leda">Leda (femme, claire)</option>
+        <option value="Orus">Orus (homme, neutre)</option>
+        <option value="Zephyr">Zephyr (homme, jeune)</option>
+      </optgroup>
+      <optgroup label="Voix OpenAI (clé sk-…)">
+        <option value="nova">Nova (femme, chaleureuse)</option>
+        <option value="alloy">Alloy (neutre)</option>
+        <option value="echo">Echo (homme)</option>
+        <option value="fable">Fable (britannique)</option>
+        <option value="onyx">Onyx (homme grave)</option>
+        <option value="shimmer">Shimmer (femme, douce)</option>
+      </optgroup>
     </select>
     <button class="primary full" id="testVoice">🔊 Tester la voix</button>
 
