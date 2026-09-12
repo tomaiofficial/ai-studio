@@ -1,18 +1,16 @@
-"""core.audio.tts — TTS 统一接口：EdgeTTSEngine + SilentTTSEngine + GeminiTTSEngine
+"""core.audio.tts — TTS 统一接口：EdgeTTSEngine + SilentTTSEngine
 
-基于 edge_tts（免费 Azure Edge TTS）和静音占位两种实现。
-也支持 Google Gemini TTS（免费，voix très réaliste）。
+基于 edge_tts（免费 Azure Edge TTS，pas de clé API requise） et
+silence占位两种实现. TTS entièrement local, pas de clé API nécessaire.
 """
 
 import asyncio
 import logging
 import os
-import base64
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 
 import edge_tts
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -29,34 +27,48 @@ class TTSEngine(ABC):
 
 
 class EdgeTTSEngine(TTSEngine):
-    """基于 edge_tts 的免费 TTS 引擎。
+    """基于 edge_tts 的免费 TTS 引擎 - **pas de clé API requise**.
+
+    edge_tts utilise les services gratuits d'Azure AI Speech,
+    aucune clé API n'est requise pour une utilisation de base.
 
     generate() 返回 (audio_path, sub_maker)，其中 sub_maker 是 edge_tts.SubMaker 实例，
-    包含逐词时间戳 cues，可用于生成 SRT 字幕。
+    包含逐词时间戳 cues，可用于生成 SRT 字幕.
+
+    Voix françaises recommandées :
+    - zh-CN-XiaoxiaoNeural (Chinese, sounds natural)
+    - fr-FR-HenriettaNeural (French, haute qualité)
+    - fr-FR-JacquelineNeural (French, classique)
+
+    Usage::
+        engine = EdgeTTSEngine()
+        await engine.generate("Bonjour le monde", "output.mp3")
     """
 
     async def generate(
-        self, text: str, output_path: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"
+        self, text: str, output_path: str, voice: str = "fr-FR-HenriettaNeural", rate: str = "+0%"
     ) -> Tuple[str, "edge_tts.SubMaker"]:
-        """生成 TTS 音频 + SubMaker（含 cues 时间戳）。
+        """Générer TTS audio via edge_tts (pas de clé API requise).
 
         Args:
-            text: 要朗读的文本
-            output_path: 输出音频文件路径（.mp3）
-            voice: edge_tts 语音角色
-            rate: 语速调节（如 "+0%", "+20%", "-10%"）
+            text: Texte à convertir en audio
+            output_path: Chemin de sortie audio (.mp3)
+            voice: Voix edge_tts (par défaut: fr-FR-HenriettaNeural)
+            rate: Vitesse de parole ( "+0%", "+20%", "-10%" etc.)
 
         Returns:
-            (audio_path, sub_maker) 元组
+            (audio_path, sub_maker) tuple containing:
+            - audio_path: Chemin du fichier audio généré
+            - sub_maker: edge_tts.SubMaker instance avec cues de mots pour sous-titres
 
         Raises:
-            RuntimeError: TTS 生成失败时抛出，调用方应降级到 SilentTTSEngine。
+            RuntimeError: Si la génération échoue après les tentatives de retry.
         """
-        logger.info(f"[TTS] Generating audio: voice={voice}, rate={rate}, text={len(text)} chars...")
+        logger.info(f"[TTS] Génération audio edge_tts: voice={voice}, text={len(text)} chars...")
 
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-        max_attempts = 2
+        max_attempts = 3
         for attempt in range(max_attempts):
             try:
                 communicate = edge_tts.Communicate(text, voice=voice, rate=rate)
@@ -75,7 +87,7 @@ class EdgeTTSEngine(TTSEngine):
                 logger.info(f"[TTS] Audio saved: {output_path}")
                 return output_path, sub_maker
             except Exception as e:
-                # 清理半成品文件
+                # Nettoyer les fichiers partiels
                 for p in (tmp_path, output_path):
                     if os.path.exists(p):
                         try:
@@ -83,37 +95,34 @@ class EdgeTTSEngine(TTSEngine):
                         except OSError:
                             pass
                 if attempt < max_attempts - 1:
-                    logger.warning(f"[TTS] edge_tts attempt {attempt + 1}/{max_attempts} failed: {e}, retrying...")
+                    logger.warning(f"[TTS] edge_tts tentative {attempt + 1}/{max_attempts} échouée: {e}, nouvelle tentative...")
                     await asyncio.sleep(3)
                     continue
-                logger.error(f"[TTS] edge_tts failed after {max_attempts} attempts: {e}")
-                raise RuntimeError(f"EdgeTTS generation failed: {e}") from e
+                logger.error(f"[TTS] edge_tts échoué après {max_attempts} tentatives: {e}")
+                raise RuntimeError(f"EdgeTTS génération échouée: {e}") from e
 
     async def harvest_cues(
-        self, text: str, voice: str = "zh-CN-XiaoxiaoNeural", rate: str = "+0%"
+        self, text: str, voice: str = "fr-FR-HenriettaNeural", rate: str = "+0%"
     ) -> "edge_tts.SubMaker":
-        """仅采集逐词时间戳，不生成/不落盘音频字节（路径 B：音频关、字幕开）。
+        """Collecter les cues de mots sans générer d'audio (chemin B: audio désactivé, sous-titres activé).
 
-        edge_tts 的 WordBoundary 与音频数据交织于同一 stream，需消费完整 stream
-        才能收齐全部 cues；本方法只把 WordBoundary/SentenceBoundary 喂给 SubMaker，
-        音频数据直接丢弃。返回含 .cues 的 sub_maker，供 generate_cue_aware_srt 使用.
-
-        字幕只需时间线真值，不需音频字节——这正是「cues 采集」与「音频输出」解耦的核心.
+        edge_tts de WordBoundary et audio data sont entrelacés dans le même stream,
+        il faut consommer le stream complet pour récupérer tous les cues;
+        cette méthode ne garde que les WordBoundary/SentenceBoundary,
+        les données audio sont ignorées. Retourne sub_maker pour generate_cue_aware_srt.
 
         Args:
-            text: 要朗读的文本
-            voice: edge_tts 语音角色
-            rate: 语速调节
+            text: Texte à extraire les cues
+            voice: Voix edge_tts
+            rate: Vitesse de parole
 
         Returns:
-            含逐词 cues 的 edge_tts.SubMaker 实例
+            edge_tts.SubMaker avec les cues collectées
 
         Raises:
-            RuntimeError: 采集失败时抛出，调用方应降级到 SilentTTSEngine（字幕回退 legacy）。
+            RuntimeError: Si l'extraction des cues échoue.
         """
-        logger.info(
-            f"[TTS] Harvesting cues only: voice={voice}, rate={rate}, text={len(text)} chars..."
-        )
+        logger.info(f"[TTS] Extraction cues uniquement: voice={voice}, text={len(text)} chars...")
 
         max_attempts = 2
         for attempt in range(max_attempts):
@@ -124,116 +133,27 @@ class EdgeTTSEngine(TTSEngine):
                     if chunk["type"] in ("WordBoundary", "SentenceBoundary"):
                         sub_maker.feed(chunk)
                 cue_count = len(getattr(sub_maker, "cues", []) or [])
-                logger.info(f"[TTS] Cues harvested: {cue_count} cues")
+                logger.info(f"[TTS] Cues collectées: {cue_count} cues")
                 return sub_maker
             except Exception as e:
                 if attempt < max_attempts - 1:
                     logger.warning(
-                        f"[TTS] harvest_cues attempt {attempt + 1}/{max_attempts} "
-                        f"failed: {e}, retrying..."
+                        f"[TTS] extraction cues tentative {attempt + 1}/{max_attempts} échouée: {e}, nouvelle tentative..."
                     )
                     await asyncio.sleep(3)
                     continue
-                logger.error(f"[TTS] harvest_cues failed after {max_attempts} attempts: {e}")
-                raise RuntimeError(f"EdgeTTS cue harvest failed: {e}") from e
-
-
-class GeminiTTSEngine:
-    """Google Gemini TTS引擎 - voix très réaliste et naturelle.
-
-    Utilise l'API Gemini TTS (gemini-2.5-flash-preview-tts) avec des voix
-    naturelles supportant les styles : naturel, calme, dynamique, narrateur.
-
-    Clé API gratuite : https://aistudio.google.com/apikey
-    """
-
-    def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.environ.get("GEMINI_TTS_KEY", "")
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:speech"
-        self.style_map = {
-            "natural": {"voice": "AURA"},
-            "calm": {"voice": "PREMIUM"},
-            "dynamic": {"voice": "AURA"},
-            "narrator": {"voice": "OSTEEMICA"},
-        }
-
-    async def generate(
-        self, text: str, output_path: str, voice_style: str = "natural", rate: float = 0.9
-    ) -> Tuple[str, dict]:
-        """Générer audio via Google Gemini TTS.
-
-        Args:
-            text: Texte à convertir
-            output_path: Chemin de sortie audio (.wav)
-            voice_style: Style de voix (natural, calm, dynamic, narrator)
-            rate: Taux de parole (0.9 par défaut)
-
-        Returns:
-            (audio_path, metadata) tuple
-
-        Raises:
-            RuntimeError: Clé API non configurée ou erreur API.
-        """
-        if not self.api_key:
-            raise RuntimeError("Google Gemini API key not configured. Set GEMINI_TTS_KEY env var or pass api_key.")
-
-        style = self.style_map.get(voice_style, self.style_map["natural"])
-        url = f"{self.base_url}?key={self.api_key}"
-
-        payload = {
-            "input": text,
-            "voice": style["voice"],
-            "audioConfig": {
-                "audioEncoding": "WAV",
-                "speakingRate": rate,
-                "pitch": 0.0,
-                "volumeGainDb": 0.0,
-            },
-        }
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(url, json=payload)
-            if response.status_code != 200:
-                raise RuntimeError(f"Gemini TTS HTTP {response.status_code}: {response.text}")
-
-            data = response.json()
-            if not data.get("audio"):
-                raise RuntimeError("Gemini TTS: no audio data returned")
-
-            # Convertir base64 vers fichier WAV
-            base64_audio = data["audio"].replace("data:audio/wav;base64,", "")
-            byte_chars = base64.b64decode(base64_audio)
-            byte_numbers = bytearray(byte_chars)
-
-            with open(output_path, "wb") as f:
-                f.write(byte_numbers)
-
-            metadata = {
-                "voice_style": voice_style,
-                "duration_estimate": len(text) / 150.0,  # estimation rough
-                "api": "gemini",
-            }
-            return output_path, metadata
-
-    async def harvest_cues(self, text: str, voice_style: str = "natural") -> dict:
-        """Collecter les cues de temps sans générer d'audio.
-
-        Pour Gemini TTS, on retourne des estimates de durée basées sur le texte.
-        Les cues réelles viendraient de l'API de synthesis avec time_stamps.
-        Pour l'instant, on estime basément sur le nombre de caractères.
-        """
-        estimated_duration = max(len(text) / 150.0, 1.0)
-        return {
-            "voice_style": voice_style,
-            "estimated_duration": estimated_duration,
-            "cues": [],  # Gemini ne fournit pas de cues word-level gratuites
-        }
+                logger.error(f"[TTS] extraction cues échouée après {max_attempts} tentatives: {e}")
+                raise RuntimeError(f"EdgeTTS cue extraction failed: {e}") from e
 
 
 class SilentTTSEngine(TTSEngine):
     """静音占位 TTS 引擎.
 
-    生成指定时长的静音音频，返回空 cues。用于用户关闭旁白时仍需要字幕时间轴的场景.
+    Génère un audio muet de durée spécifiée, utilisé lorsque l'utilisateur
+    a désactivé la voix mais que les sous-temps sont toujours nécessaires.
+
+    Returns:
+        (audio_path, None) - audio path with None cues
     """
 
     async def generate(
@@ -244,27 +164,27 @@ class SilentTTSEngine(TTSEngine):
         rate: str = "+0%",
         duration_sec: Optional[float] = None,
     ) -> Tuple[str, dict]:
-        """生成静音音频.
+        """Générer audio muet de durée spécifiée.
 
         Args:
-            text: 文本（用于估算时长，如果 duration_sec 未提供）
-            output_path: 输出音频文件路径
-            voice: 忽略（静音模式）
-            rate: 忽略（静音模式）
-            duration_sec: 指定静音时长（秒），如果不提供则按文本长度估算
+            text: Texte (utilisé pour estimation de durée si duration_sec non fourni)
+            output_path: Chemin de sortie audio
+            voice: Ignoré en mode muet
+            rate: Ignoré en mode muet
+            duration_sec: Durée en secondes. Si non fourni, estimé à partir de la longueur du texte.
 
         Returns:
-            (audio_path, empty_cues_dict) 元组
+            (audio_path, empty_cues_dict) tuple
         """
         if duration_sec is None:
-            # 估算时长：中文 4 字/秒
+            # Estimation: chinois 4 caractères/seconde, fallback 1 seconde minimum
             duration_sec = max(len(text) / 4.0, 1.0)
 
-        logger.info(f"[TTS] Generating silent audio: {duration_sec:.1f}s → {output_path}")
+        logger.info(f"[TTS] Génération audio muet: {duration_sec:.1f}s → {output_path}")
 
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-        # 使用 ffmpeg 生成静音音频
+        # Utiliser ffmpeg pour générer de l'audio muet
         proc = await asyncio.create_subprocess_exec(
             "ffmpeg", "-y",
             "-f", "lavfi",
@@ -278,12 +198,12 @@ class SilentTTSEngine(TTSEngine):
         )
         _, stderr = await proc.communicate()
 
-        # P9: 检查 ffmpeg 返回码，失败时抛出异常而非静默返回
+        # Vérifier le code de retour ffmpeg
         if proc.returncode != 0:
             err_msg = stderr.decode(errors="replace")[:500] if stderr else ""
             raise RuntimeError(
-                f"[TTS] ffmpeg silent generation failed (code {proc.returncode}): {err_msg}"
+                f"[TTS] ffmpeg muet génération échouée (code {proc.returncode}): {err_msg}"
             )
 
-        # 返回空 cues（用 None 而非 {}，让下游正确识别为无 SubMaker 可用）
+        # Retourner None pour cues (indique pas de SubMaker disponible)
         return output_path, None
