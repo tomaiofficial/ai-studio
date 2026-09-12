@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.4';
+const APP_VERSION = '4.5';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -190,7 +190,7 @@ function speakGoogle(text){
       i++;
       a.onended = playNext;
       a.onerror = () => { if (i === 1) speakCyber(text); else playNext(); };
-      a.play().catch(() => { if (i === 1) speakCyber(text); else playNext(); });
+      playAudio(a, () => { if (i === 1) speakCyber(text); });
     };
     playNext();
   } catch { speakCyber(text); }
@@ -207,7 +207,7 @@ function speakCyber(text){
       i++;
       a.onended = playNext;
       a.onerror = playNext;
-      a.play().catch(playNext);
+      playAudio(a);
     };
     playNext();
   } catch {}
@@ -233,12 +233,42 @@ async function speakAI(text){
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.volume = 1.0;
-    audio.play().catch(() => {
-      /* Autoplay bloqué sur mobile : on relance après un geste utilisateur */
-      const retry = () => { audio.play().catch(()=>{}); document.removeEventListener('touchend', retry); };
-      document.addEventListener('touchend', retry);
-    });
+    playAudio(audio);
   } catch {}
+}
+
+/* ============ DÉBLOCAGE AUDIO MOBILE ============ */
+/* Sur mobile, la lecture audio est bloquée tant que l'utilisateur n'a pas
+   interagi avec la page. On débloque le système audio au premier toucher. */
+let audioCtx = null;
+function unlockAudio(){
+  try {
+    if (!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  } catch {}
+  try { if ('speechSynthesis' in window) speechSynthesis.resume(); } catch {}
+}
+['touchstart', 'touchend', 'click', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, unlockAudio, { passive: true })
+);
+
+/* Joue un audio ; si le navigateur bloque (autoplay mobile), on relance
+   automatiquement au prochain toucher d'écran. */
+function playAudio(a, onFail){
+  unlockAudio();
+  a.play().catch(() => {
+    const retry = () => {
+      a.play().catch(() => {});
+      document.removeEventListener('touchend', retry);
+      document.removeEventListener('click', retry);
+    };
+    document.addEventListener('touchend', retry);
+    document.addEventListener('click', retry);
+    if (onFail) onFail();
+  });
 }
 
 function speak(text){
@@ -257,7 +287,7 @@ function speakCloud(text){
       i++;
       a.onended = playNext;
       a.onerror = () => { if (i === 1) speakLocal(text); else playNext(); };
-      a.play().catch(() => { if (i === 1) speakLocal(text); else playNext(); });
+      playAudio(a, () => { if (i === 1) speakLocal(text); });
     };
     playNext();
   } catch { speakLocal(text); }
@@ -266,6 +296,7 @@ function speakCloud(text){
 /* Voix locale (secours hors-ligne) — utilisée si Google TTS est indisponible */
 function speakLocal(text){
   if (!('speechSynthesis' in window)){ speakCyber(text); return; }
+  unlockAudio();
   speechSynthesis.cancel();
   const chunks = splitText(text);
   let started = false;
