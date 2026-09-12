@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '3.8';
+const APP_VERSION = '3.9';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -110,6 +110,7 @@ async function notify(title, body){
 function setStatus(txt){ $('status').textContent = txt; }
 
 /* ============ SYNTHÈSE VOCALE ============ */
+let voiceRetries = 0;
 function loadVoices(){
   if (!('speechSynthesis' in window)) return;
   voices = speechSynthesis.getVoices();
@@ -132,6 +133,11 @@ function loadVoices(){
       });
     });
   }
+  /* Android : la liste des voix arrive parfois en retard → on réessaie */
+  if (!voices.length && voiceRetries < 6){
+    voiceRetries++;
+    setTimeout(loadVoices, 500);
+  }
 }
 if ('speechSynthesis' in window){
   loadVoices();
@@ -148,18 +154,40 @@ function getVoice(){
   return fr.find(v => /google|neural|premium|enhanced|natural/i.test(v.name)) || fr[0] || null;
 }
 
-/* Voix locale (navigateur) */
+/* Découpe un long texte en phrases (Android coupe la voix sinon) */
+function splitText(text){
+  const max = 180;
+  if (text.length <= max) return [text];
+  const sentences = text.match(/[^.!?…]+[.!?…]*\s*/g) || [text];
+  const chunks = [];
+  let cur = '';
+  for (const s of sentences){
+    if ((cur + s).length > max && cur){ chunks.push(cur.trim()); cur = s; }
+    else cur += s;
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks;
+}
+
+/* Voix locale (navigateur) — utilisée avec Groq/Gemini/OpenRouter et sans clé */
 function speakLocal(text){
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'fr-FR';
-  const v = getVoice();
-  if (v) u.voice = v;
-  u.rate = 1.0;
-  u.pitch = 1.0;
-  u.volume = 1.0;
-  speechSynthesis.speak(u);
+  const chunks = splitText(text);
+  /* Petit délai après cancel() : sans ça, Android n'émet aucun son */
+  setTimeout(() => {
+    speechSynthesis.resume();
+    chunks.forEach(chunk => {
+      const u = new SpeechSynthesisUtterance(chunk);
+      u.lang = 'fr-FR';
+      const v = getVoice();
+      if (v) u.voice = v;
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      u.volume = 1.0;
+      speechSynthesis.speak(u);
+    });
+  }, 80);
 }
 
 /* Voix IA (OpenAI TTS) — très réaliste */

@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0a0a12">
 <meta name="description" content="Assistant Vocal IA — parle naturellement avec une vraie voix : rappels, calendrier, météo, localisation, minuteur, calculs, notes.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -126,6 +126,7 @@
     <select id="aiModel" class="wide-input"></select>
 
     <h4 class="settings-title">🗣️ Voix IA (OpenAI)</h4>
+    <p class="muted">Utilisée uniquement avec le fournisseur <b>OpenAI</b> (voix très réaliste).</p>
     <select id="ttsVoice" class="wide-input">
       <option value="nova">Nova (femme, chaleureuse)</option>
       <option value="alloy">Alloy (neutre)</option>
@@ -136,8 +137,8 @@
     </select>
     <button class="primary full" id="testVoice">🔊 Tester la voix</button>
 
-    <h4 class="settings-title">🗣️ Voix locale (sans IA)</h4>
-    <p class="muted">Utilisée quand aucune clé API n'est configurée.</p>
+    <h4 class="settings-title">🗣️ Voix du téléphone</h4>
+    <p class="muted">Utilisée avec <b>Groq, Gemini, OpenRouter</b> (ils n'ont pas de voix IA) et sans clé API. Choisis la voix française que tu préfères :</p>
     <div class="voice-picker" id="voicePicker"></div>
 
     <h4 class="settings-title">💬 Conversation</h4>
