@@ -130,8 +130,9 @@
     <h4 class="settings-title">🧠 Modèle IA</h4>
     <select id="aiModel" class="wide-input"></select>
 
-    <h4 class="settings-title">🗣️ Voix IA (OpenAI)</h4>
-    <p class="muted">Utilisée uniquement avec le fournisseur <b>OpenAI</b> (voix très réaliste).</p>
+    <h4 class="settings-title">🗣️ Voix IA réaliste</h4>
+    <p class="muted">Groq, Gemini et OpenRouter n'ont <b>pas de voix</b> (texte seulement). Pour une <b>vraie voix IA réaliste</b> partout, colle une clé OpenAI ici (voix gpt-4o-mini-tts). Sans clé, l'app utilise la voix Google Wavenet gratuite.</p>
+    <input type="password" id="ttsKey" class="wide-input" placeholder="Clé OpenAI pour la voix (optionnel)…" autocomplete="off">
     <select id="ttsVoice" class="wide-input">
       <option value="nova">Nova (femme, chaleureuse)</option>
       <option value="alloy">Alloy (neutre)</option>
@@ -141,10 +142,6 @@
       <option value="shimmer">Shimmer (femme, douce)</option>
     </select>
     <button class="primary full" id="testVoice">🔊 Tester la voix</button>
-
-    <h4 class="settings-title">🗣️ Voix du téléphone</h4>
-    <p class="muted">Utilisée avec <b>Groq, Gemini, OpenRouter</b> (ils n'ont pas de voix IA) et sans clé API. Choisis la voix française que tu préfères :</p>
-    <div class="voice-picker" id="voicePicker"></div>
 
     <h4 class="settings-title">💬 Conversation</h4>
     <button class="secondary full" id="clearChat">🗑️ Effacer la conversation</button>

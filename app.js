@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.7';
+const APP_VERSION = '4.8';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -69,12 +69,11 @@ const LS = {
   events:    'va_events',
   notes:     'va_notes',
   theme:     'va_theme',
-  voice:     'va_voice',
   apikey:    'va_apikey',
   provider:  'va_provider',
   model:     'va_model',
   ttsvoice:  'va_ttsvoice',
-  model:     'va_model',
+  ttskey:    'va_ttskey',
   chat:      'va_chat'
 };
 let reminders = load(LS.reminders, []);
@@ -82,7 +81,6 @@ let events    = load(LS.events, []);
 let notes     = load(LS.notes, []);
 let timers    = [];
 let listening = false;
-let voices    = [];
 let chatHistory = load(LS.chat, []);
 
 /* ============ UTILITAIRES ============ */
@@ -124,51 +122,6 @@ async function notify(title, body){
 }
 
 function setStatus(txt){ $('status').textContent = txt; }
-
-/* ============ SYNTHÈSE VOCALE ============ */
-let voiceRetries = 0;
-function loadVoices(){
-  if (!('speechSynthesis' in window)) return;
-  voices = speechSynthesis.getVoices();
-  const fr = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('fr'));
-  const picker = $('voicePicker');
-  if (picker){
-    const saved = localStorage.getItem(LS.voice);
-    picker.innerHTML = fr.length
-      ? fr.map(v => `
-        <label class="voice-opt">
-          <input type="radio" name="voice" value="${esc(v.name)}" ${v.name === saved ? 'checked' : ''}>
-          <span>${esc(v.name)}</span>
-          <small>${esc(v.lang)}</small>
-        </label>`).join('')
-      : '<p class="muted">Aucune voix française détectée.</p>';
-    picker.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('change', () => {
-        localStorage.setItem(LS.voice, inp.value);
-        toast('Voix enregistrée : ' + inp.value);
-      });
-    });
-  }
-  /* Android : la liste des voix arrive parfois en retard → on réessaie */
-  if (!voices.length && voiceRetries < 6){
-    voiceRetries++;
-    setTimeout(loadVoices, 500);
-  }
-}
-if ('speechSynthesis' in window){
-  loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
-}
-
-function getVoice(){
-  const saved = localStorage.getItem(LS.voice);
-  if (saved){
-    const v = voices.find(x => x.name === saved);
-    if (v) return v;
-  }
-  const fr = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('fr'));
-  return fr.find(v => /google|neural|premium|enhanced|natural/i.test(v.name)) || fr[0] || null;
-}
 
 /* Découpe un long texte en phrases (Android coupe la voix sinon) */
 function splitText(text){
@@ -212,14 +165,14 @@ function speakResponsive(text){
       const a = new Audio('https://texttospeech.responsivevoice.org/v1/text:synthesize?text=' + encodeURIComponent(chunks[i]) + '&lang=fr&engine=g1&name=&voice=French%20Female&format=mp3');
       i++;
       a.onended = playNext;
-      a.onerror = () => { if (i === 1) speakLocal(text); else playNext(); };
+      a.onerror = playNext;
       playAudio(a);
     };
     playNext();
-  } catch { speakLocal(text); }
+  } catch {}
 }
 
-/* Secours vocal n°2 : synthèse du téléphone (hors-ligne) */
+/* Dernier secours : cyzon WAV (même voix naturelle que la principale) */
 function speakCyber(text){
   try {
     const chunks = splitText(text);
@@ -236,9 +189,9 @@ function speakCyber(text){
   } catch {}
 }
 
-/* Voix IA (OpenAI TTS) — très réaliste */
+/* Voix IA réaliste (OpenAI TTS) — utilisée si une clé TTS est fournie */
 async function speakAI(text){
-  const key = localStorage.getItem(LS.apikey);
+  const key = localStorage.getItem(LS.ttskey);
   if (!key) return;
   try {
     const res = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -272,7 +225,6 @@ function unlockAudio(){
     }
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   } catch {}
-  try { if ('speechSynthesis' in window) speechSynthesis.resume(); } catch {}
 }
 ['touchstart', 'touchend', 'click', 'keydown'].forEach(ev =>
   document.addEventListener(ev, unlockAudio, { passive: true })
@@ -281,21 +233,27 @@ function unlockAudio(){
 /* Joue un audio ; si le navigateur bloque (autoplay mobile), on relance
    automatiquement au prochain toucher d'écran. PAS de secours ici :
    sinon la voix se répète deux fois. */
+const pendingAudios = [];
 function playAudio(a){
   unlockAudio();
   a.play().catch(() => {
-    const retry = () => {
-      a.play().catch(() => {});
-      document.removeEventListener('touchend', retry);
-      document.removeEventListener('click', retry);
-    };
-    document.addEventListener('touchend', retry);
-    document.addEventListener('click', retry);
+    pendingAudios.push(a);
   });
 }
+/* Un seul écouteur global : au prochain toucher, on joue tout ce qui attend.
+   (Évite les doubles lectures si plusieurs audios sont en attente.) */
+function flushPending(){
+  if (!pendingAudios.length) return;
+  const batch = pendingAudios.splice(0);
+  batch.forEach(a => a.play().catch(() => {}));
+}
+['touchend', 'click'].forEach(ev =>
+  document.addEventListener(ev, flushPending, { passive: true })
+);
 
 function speak(text){
-  if (hasAI() && getProvider().tts) speakAI(text);
+  /* Clé TTS fournie → vraie voix IA réaliste (OpenAI). Sinon → voix gratuite. */
+  if (localStorage.getItem(LS.ttskey)) speakAI(text);
   else speakCloud(text);
 }
 
@@ -318,30 +276,6 @@ function speakCloud(text){
     };
     playNext();
   } catch { speakGoogle(text); }
-}
-
-/* Voix locale (secours hors-ligne) — utilisée si Google TTS est indisponible */
-function speakLocal(text){
-  if (!('speechSynthesis' in window)){ speakCyber(text); return; }
-  unlockAudio();
-  speechSynthesis.cancel();
-  const chunks = splitText(text);
-  let started = false;
-  /* Si speechSynthesis ne produit rien en 2,5s → secours cyzon */
-  const fallback = setTimeout(() => { if (!started) speakCyber(text); }, 2500);
-  setTimeout(() => {
-    speechSynthesis.resume();
-    chunks.forEach(chunk => {
-      const u = new SpeechSynthesisUtterance(chunk);
-      u.lang = 'fr-FR';
-      const v = getVoice();
-      if (v) u.voice = v;
-      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
-      u.onstart = () => { started = true; clearTimeout(fallback); };
-      u.onerror = () => { if (!started){ clearTimeout(fallback); speakCyber(text); } };
-      speechSynthesis.speak(u);
-    });
-  }, 80);
 }
 
 function htmlToText(html){
@@ -1275,10 +1209,10 @@ function fillModels(){
   sel.value = getModel();
 }
 $('settingsBtn').addEventListener('click', () => {
-  loadVoices();
   fillProviders();
   fillModels();
   $('apiKey').value = localStorage.getItem(LS.apikey) || '';
+  $('ttsKey').value = localStorage.getItem(LS.ttskey) || '';
   $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'nova';
   $('keyLink').href = getProvider().keyUrl;
   const v = $('appVersion');
@@ -1348,6 +1282,16 @@ $('apiKey').addEventListener('input', e => {
 $('ttsVoice').addEventListener('change', e => {
   localStorage.setItem(LS.ttsvoice, e.target.value);
   toast('Voix IA : ' + e.target.value);
+});
+$('ttsKey').addEventListener('change', e => {
+  const k = e.target.value.trim();
+  if (k){
+    localStorage.setItem(LS.ttskey, k);
+    toast('✅ Voix IA réaliste activée !');
+  } else {
+    localStorage.removeItem(LS.ttskey);
+    toast('Voix gratuite (Wavenet)');
+  }
 });
 $('aiModel').addEventListener('change', e => {
   localStorage.setItem(LS.model, e.target.value);
