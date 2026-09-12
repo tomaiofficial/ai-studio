@@ -1,15 +1,18 @@
-"""core.audio.tts — TTS 统一接口：EdgeTTSEngine + SilentTTSEngine
+"""core.audio.tts — TTS 统一接口：EdgeTTSEngine + SilentTTSEngine + GeminiTTSEngine
 
 基于 edge_tts（免费 Azure Edge TTS）和静音占位两种实现。
+也支持 Google Gemini TTS（免费，voix très réaliste）。
 """
 
 import asyncio
 import logging
 import os
+import base64
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 
 import edge_tts
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +96,9 @@ class EdgeTTSEngine(TTSEngine):
 
         edge_tts 的 WordBoundary 与音频数据交织于同一 stream，需消费完整 stream
         才能收齐全部 cues；本方法只把 WordBoundary/SentenceBoundary 喂给 SubMaker，
-        音频数据直接丢弃。返回含 .cues 的 sub_maker，供 generate_cue_aware_srt 使用。
+        音频数据直接丢弃。返回含 .cues 的 sub_maker，供 generate_cue_aware_srt 使用.
 
-        字幕只需时间线真值，不需音频字节——这正是「cues 采集」与「音频输出」解耦的核心。
+        字幕只需时间线真值，不需音频字节——这正是「cues 采集」与「音频输出」解耦的核心.
 
         Args:
             text: 要朗读的文本
@@ -135,10 +138,102 @@ class EdgeTTSEngine(TTSEngine):
                 raise RuntimeError(f"EdgeTTS cue harvest failed: {e}") from e
 
 
-class SilentTTSEngine(TTSEngine):
-    """静音占位 TTS 引擎。
+class GeminiTTSEngine:
+    """Google Gemini TTS引擎 - voix très réaliste et naturelle.
 
-    生成指定时长的静音音频，返回空 cues。用于用户关闭旁白时仍需要字幕时间轴的场景。
+    Utilise l'API Gemini TTS (gemini-2.5-flash-preview-tts) avec des voix
+    naturelles supportant les styles : naturel, calme, dynamique, narrateur.
+
+    Clé API gratuite : https://aistudio.google.com/apikey
+    """
+
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.environ.get("GEMINI_TTS_KEY", "")
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:speech"
+        self.style_map = {
+            "natural": {"voice": "AURA"},
+            "calm": {"voice": "PREMIUM"},
+            "dynamic": {"voice": "AURA"},
+            "narrator": {"voice": "OSTEEMICA"},
+        }
+
+    async def generate(
+        self, text: str, output_path: str, voice_style: str = "natural", rate: float = 0.9
+    ) -> Tuple[str, dict]:
+        """Générer audio via Google Gemini TTS.
+
+        Args:
+            text: Texte à convertir
+            output_path: Chemin de sortie audio (.wav)
+            voice_style: Style de voix (natural, calm, dynamic, narrator)
+            rate: Taux de parole (0.9 par défaut)
+
+        Returns:
+            (audio_path, metadata) tuple
+
+        Raises:
+            RuntimeError: Clé API non configurée ou erreur API.
+        """
+        if not self.api_key:
+            raise RuntimeError("Google Gemini API key not configured. Set GEMINI_TTS_KEY env var or pass api_key.")
+
+        style = self.style_map.get(voice_style, self.style_map["natural"])
+        url = f"{self.base_url}?key={self.api_key}"
+
+        payload = {
+            "input": text,
+            "voice": style["voice"],
+            "audioConfig": {
+                "audioEncoding": "WAV",
+                "speakingRate": rate,
+                "pitch": 0.0,
+                "volumeGainDb": 0.0,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(url, json=payload)
+            if response.status_code != 200:
+                raise RuntimeError(f"Gemini TTS HTTP {response.status_code}: {response.text}")
+
+            data = response.json()
+            if not data.get("audio"):
+                raise RuntimeError("Gemini TTS: no audio data returned")
+
+            # Convertir base64 vers fichier WAV
+            base64_audio = data["audio"].replace("data:audio/wav;base64,", "")
+            byte_chars = base64.b64decode(base64_audio)
+            byte_numbers = bytearray(byte_chars)
+
+            with open(output_path, "wb") as f:
+                f.write(byte_numbers)
+
+            metadata = {
+                "voice_style": voice_style,
+                "duration_estimate": len(text) / 150.0,  # estimation rough
+                "api": "gemini",
+            }
+            return output_path, metadata
+
+    async def harvest_cues(self, text: str, voice_style: str = "natural") -> dict:
+        """Collecter les cues de temps sans générer d'audio.
+
+        Pour Gemini TTS, on retourne des estimates de durée basées sur le texte.
+        Les cues réelles viendraient de l'API de synthesis avec time_stamps.
+        Pour l'instant, on estime basément sur le nombre de caractères.
+        """
+        estimated_duration = max(len(text) / 150.0, 1.0)
+        return {
+            "voice_style": voice_style,
+            "estimated_duration": estimated_duration,
+            "cues": [],  # Gemini ne fournit pas de cues word-level gratuites
+        }
+
+
+class SilentTTSEngine(TTSEngine):
+    """静音占位 TTS 引擎.
+
+    生成指定时长的静音音频，返回空 cues。用于用户关闭旁白时仍需要字幕时间轴的场景.
     """
 
     async def generate(
@@ -149,7 +244,7 @@ class SilentTTSEngine(TTSEngine):
         rate: str = "+0%",
         duration_sec: Optional[float] = None,
     ) -> Tuple[str, dict]:
-        """生成静音音频。
+        """生成静音音频.
 
         Args:
             text: 文本（用于估算时长，如果 duration_sec 未提供）
