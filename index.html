@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0a12">
-<meta name="description" content="Assistant Vocal IA — rappels, calendrier, météo, localisation, minuteur, calculs, notes. Parle, il s'occupe du reste.">
+<meta name="description" content="Assistant Vocal IA — parle naturellement avec une vraie voix : rappels, calendrier, météo, localisation, minuteur, calculs, notes.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Assistant Vocal IA</title>
@@ -41,6 +41,8 @@
 
     <div class="heard" id="heard" hidden></div>
 
+    <div class="chat-log" id="chatLog"></div>
+
     <div class="response" id="response">
       <p class="muted">Appuie sur le micro et parle.<br>Ex : « Rappelle-moi d'arroser les plantes dans 2 heures »</p>
     </div>
@@ -53,7 +55,6 @@
       <button data-cmd="minuteur de 5 minutes">⏱️ Minuteur 5 min</button>
       <button data-cmd="combien font 15 + 27">🧮 Calcul</button>
       <button data-cmd="note que je dois acheter du pain">📝 Note</button>
-      <button data-cmd="pile ou face">🪙 Pile ou face</button>
       <button data-cmd="raconte une blague">😂 Blague</button>
       <button data-cmd="quelle heure est-il">🕐 L'heure</button>
       <button data-cmd="aide">❓ Aide</button>
@@ -117,10 +118,32 @@
   <div class="modal-card">
     <button class="modal-close" id="closeSettings">✕</button>
     <h3>⚙️ Réglages</h3>
-    <h4 class="settings-title">🗣️ Voix de l'assistant</h4>
-    <p class="muted">Choisis la voix la plus naturelle disponible sur ton appareil.</p>
-    <div class="voice-picker" id="voicePicker"></div>
+
+    <h4 class="settings-title">🤖 Mode IA (ChatGPT)</h4>
+    <p class="muted">Colle ta clé API OpenAI pour discuter librement avec une vraie voix. La clé reste <b>uniquement sur ton appareil</b> (jamais envoyée sur le site).</p>
+    <input type="password" id="apiKey" class="wide-input" placeholder="sk-…" autocomplete="off">
+    <div class="map-actions">
+      <button class="primary" id="saveApiKey">💾 Enregistrer</button>
+      <a class="secondary" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obtenir une clé</a>
+    </div>
+
+    <h4 class="settings-title">🗣️ Voix IA (OpenAI)</h4>
+    <select id="ttsVoice" class="wide-input">
+      <option value="nova">Nova (femme, chaleureuse)</option>
+      <option value="alloy">Alloy (neutre)</option>
+      <option value="echo">Echo (homme)</option>
+      <option value="fable">Fable (britannique)</option>
+      <option value="onyx">Onyx (homme grave)</option>
+      <option value="shimmer">Shimmer (femme, douce)</option>
+    </select>
     <button class="primary full" id="testVoice">🔊 Tester la voix</button>
+
+    <h4 class="settings-title">🗣️ Voix locale (sans IA)</h4>
+    <p class="muted">Utilisée quand aucune clé API n'est configurée.</p>
+    <div class="voice-picker" id="voicePicker"></div>
+
+    <h4 class="settings-title">💬 Conversation</h4>
+    <button class="secondary full" id="clearChat">🗑️ Effacer la conversation</button>
   </div>
 </div>
 

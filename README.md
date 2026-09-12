@@ -1,39 +1,52 @@
 # 🎙️ Assistant Vocal IA
 
-**Ton assistant vocal sur mobile** — rappels, calendrier, météo, localisation, minuteurs, calculs, notes… Parle, il s'occupe du reste.
+**Ton assistant vocal sur mobile** — parle-lui naturellement comme avec ChatGPT, avec une vraie voix. Rappels, calendrier, météo, localisation, minuteurs, calculs, notes…
 
 🌐 **En ligne** : https://tomaiofficial.github.io/ai-studio/
 
 ## ✨ Fonctionnalités
 
 - 🎙️ **Reconnaissance vocale** en français (gratuite, via le navigateur — Chrome Android recommandé)
+- 🤖 **Mode IA (ChatGPT)** : discussion libre et naturelle, l'IA comprend le contexte et agit (rappels, calendrier, météo, position…) via des outils automatiques
+- 🗣️ **Vraie voix** : synthèse vocale OpenAI (gpt-4o-mini-tts) — voix naturelles au choix (nova, alloy, echo, fable, onyx, shimmer)
 - ⏰ **Rappels** avec notifications + voix (« rappelle-moi de X dans 2 heures »)
 - 📅 **Calendrier** (« ajoute un événement réunion demain à 10h »)
 - 🌤️ **Météo** en temps réel, aujourd'hui et demain (Open-Meteo, sans clé API)
-- 📍 **Localisation GPS** avec carte OpenStreetMap + partage (« où suis-je »)
+- 📍 **Localisation GPS** avec carte OpenStreetMap + adresse + partage (« où suis-je »)
 - ⏱️ **Minuteur** (« minuteur de 5 minutes »)
 - 🧮 **Calculs** (« combien font 15 + 27 ») et **conversions** (« convertir 10 km en miles »)
 - 📝 **Notes** vocales (« note que je dois acheter du pain »)
 - 🎲 **Pile ou face, dé, choix** (« choisis entre A et B »)
 - 🔎 **Recherche web** (« cherche X ») et **ouverture de sites** (« ouvre youtube »)
 - ⏰ **Alarme / réveil** (« réveille-moi à 7h »)
-- 🗣️ **Voix naturelle** : choix de la voix française dans les réglages + test
 - 📱 **PWA installable** : fonctionne hors-ligne, ajoutable à l'écran d'accueil
 - 🌗 Thème sombre / clair
+
+## 🤖 Mode IA (optionnel, recommandé)
+
+Sans configuration, l'assistant fonctionne en **mode local** (commandes vocales). Pour discuter **librement comme avec ChatGPT** avec une **vraie voix** :
+
+1. Ouvre les **réglages ⚙️** dans l'app
+2. Colle ta **clé API OpenAI** (https://platform.openai.com/api-keys) — elle reste **uniquement sur ton appareil**, jamais envoyée sur le site
+3. Choisis ta **voix IA** préférée et teste-la 🔊
+
+En mode IA, tu peux dire n'importe quoi : « rappelle-moi de prendre mes médicaments demain à 8h », « quel temps fait-il ce week-end ? », « ajoute un rendez-vous chez le dentiste vendredi à 15h », « raconte-moi une histoire », « quels sont mes rappels ? »… L'IA utilise automatiquement les bons outils.
+
+> 💡 Sans clé API, l'app reste 100 % fonctionnelle en mode local (gratuit, sans compte).
 
 ## 🛠️ Structure
 
 ```
 index.html            → interface mobile
 style.css             → design (sombre, cyan/rouge)
-app.js                → voix, commandes, rappels, calendrier, météo, notes…
+app.js                → voix, IA (ChatGPT + TTS), commandes, rappels, calendrier, météo, notes…
 manifest.webmanifest  → installation PWA
 sw.js                 → service worker (hors-ligne)
 icon-192.png / icon-512.png → icônes
 _backup-techhelp/     → ancien site TechHelp (sauvegarde)
 ```
 
-## 🗣️ Exemples de commandes
+## 🗣️ Exemples de commandes (mode local)
 
 | Tu dis… | Il fait… |
 |---|---|

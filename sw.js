@@ -1,5 +1,5 @@
 /* Assistant Vocal IA — Service Worker */
-const CACHE = 'assistvocal-v1';
+const CACHE = 'assistvocal-v2';
 const ASSETS = [
   './',
   './index.html',
