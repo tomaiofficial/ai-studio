@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.9';
+const APP_VERSION = '5.0';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -138,24 +138,7 @@ function splitText(text){
   return chunks;
 }
 
-/* Secours vocal n°1 : Google Translate TTS (MP3) */
-function speakGoogle(text){
-  try {
-    const chunks = splitText(text);
-    let i = 0;
-    const playNext = () => {
-      if (i >= chunks.length) return;
-      const a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=' + encodeURIComponent(chunks[i]));
-      i++;
-      a.onended = playNext;
-      a.onerror = () => { if (i === 1) speakResponsive(text); else playNext(); };
-      playAudio(a);
-    };
-    playNext();
-  } catch { speakResponsive(text); }
-}
-
-/* Secours vocal n°2 : ResponsiveVoice (MP3, fiable sur mobile) */
+/* Secours vocal : ResponsiveVoice (MP3, fiable sur mobile) */
 function speakResponsive(text){
   try {
     const chunks = splitText(text);
@@ -163,23 +146,6 @@ function speakResponsive(text){
     const playNext = () => {
       if (i >= chunks.length) return;
       const a = new Audio('https://texttospeech.responsivevoice.org/v1/text:synthesize?text=' + encodeURIComponent(chunks[i]) + '&lang=fr&engine=g1&name=&voice=French%20Female&format=mp3');
-      i++;
-      a.onended = playNext;
-      a.onerror = playNext;
-      playAudio(a);
-    };
-    playNext();
-  } catch {}
-}
-
-/* Dernier secours : cyzon WAV (même voix naturelle que la principale) */
-function speakCyber(text){
-  try {
-    const chunks = splitText(text);
-    let i = 0;
-    const playNext = () => {
-      if (i >= chunks.length) return;
-      const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(chunks[i]) + '&voice=fr-FR-Wavenet-A');
       i++;
       a.onended = playNext;
       a.onerror = playNext;
@@ -307,9 +273,14 @@ function flushPending(){
 );
 
 async function speak(text){
-  /* Clé TTS fournie → vraie voix IA réaliste (Gemini si AIza…, OpenAI si sk-…).
-     Si elle échoue → voix gratuite (Wavenet). */
-  const ttsKey = localStorage.getItem(LS.ttskey);
+  /* 1) Clé TTS dédiée → voix IA réaliste (Gemini AIza… / OpenAI sk-…).
+     2) Sinon, si la clé IA est une clé Gemini (AIza…) → on l'utilise aussi pour la voix.
+     Si tout échoue → voix gratuite (Wavenet neuronale). */
+  let ttsKey = localStorage.getItem(LS.ttskey);
+  if (!ttsKey){
+    const aiKey = localStorage.getItem(LS.apikey);
+    if (aiKey && aiKey.startsWith('AIza')) ttsKey = aiKey;
+  }
   if (ttsKey){
     const ok = ttsKey.startsWith('AIza')
       ? await speakGemini(text)
@@ -319,25 +290,33 @@ async function speak(text){
   speakCloud(text);
 }
 
-/* Voix cloud : cyzon WAV haute qualité (primaire) → Google MP3 (secours) */
+/* Voix gratuite : cyzon WAV (voix neuronale Google, réaliste) avec retry sur
+   plusieurs voix, puis ResponsiveVoice en dernier recours. PAS de voix robotique. */
+const FREE_VOICES = ['fr-FR-Wavenet-A', 'fr-FR-Neural2-A', 'fr-FR-Chirp3-HD-Aoede'];
 function speakCloud(text){
   try {
     const chunks = splitText(text);
-    const audios = chunks.map(c => {
-      const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=fr-FR-Wavenet-A');
-      a.preload = 'auto';
-      return a;
-    });
-    let i = 0;
-    const playNext = () => {
-      if (i >= audios.length) return;
-      const a = audios[i++];
-      a.onended = playNext;
-      a.onerror = () => { if (i === 1) speakGoogle(text); else playNext(); };
-      playAudio(a);
+    let vi = 0;
+    const tryVoice = () => {
+      if (vi >= FREE_VOICES.length){ speakResponsive(text); return; }
+      const voice = FREE_VOICES[vi++];
+      const audios = chunks.map(c => {
+        const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
+        a.preload = 'auto';
+        return a;
+      });
+      let i = 0;
+      const playNext = () => {
+        if (i >= audios.length) return;
+        const a = audios[i++];
+        a.onended = playNext;
+        a.onerror = () => { if (i === 1) tryVoice(); else playNext(); };
+        playAudio(a);
+      };
+      playNext();
     };
-    playNext();
-  } catch { speakGoogle(text); }
+    tryVoice();
+  } catch { speakResponsive(text); }
 }
 
 function htmlToText(html){
