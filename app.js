@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.0';
+const APP_VERSION = '4.1';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -171,10 +171,12 @@ function splitText(text){
 
 /* Voix locale (navigateur) — utilisée avec Groq/Gemini/OpenRouter et sans clé */
 function speakLocal(text){
-  if (!('speechSynthesis' in window)) return;
+  if (!('speechSynthesis' in window)){ speakGoogle(text); return; }
   speechSynthesis.cancel();
   const chunks = splitText(text);
-  /* Petit délai après cancel() : sans ça, Android n'émet aucun son */
+  let started = false;
+  /* Si speechSynthesis ne produit rien en 2,5s → secours Google */
+  const fallback = setTimeout(() => { if (!started) speakGoogle(text); }, 2500);
   setTimeout(() => {
     speechSynthesis.resume();
     chunks.forEach(chunk => {
@@ -182,12 +184,29 @@ function speakLocal(text){
       u.lang = 'fr-FR';
       const v = getVoice();
       if (v) u.voice = v;
-      u.rate = 1.0;
-      u.pitch = 1.0;
-      u.volume = 1.0;
+      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+      u.onstart = () => { started = true; clearTimeout(fallback); };
+      u.onerror = () => { if (!started){ clearTimeout(fallback); speakGoogle(text); } };
       speechSynthesis.speak(u);
     });
   }, 80);
+}
+
+/* Secours vocal : Google Translate TTS (gratuit, marche partout, même sans voix installée) */
+function speakGoogle(text){
+  try {
+    const chunks = splitText(text);
+    let i = 0;
+    const playNext = () => {
+      if (i >= chunks.length) return;
+      const a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=' + encodeURIComponent(chunks[i]));
+      i++;
+      a.onended = playNext;
+      a.onerror = playNext;
+      a.play().catch(playNext);
+    };
+    playNext();
+  } catch {}
 }
 
 /* Voix IA (OpenAI TTS) — très réaliste */
@@ -209,7 +228,12 @@ async function speakAI(text){
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    audio.play();
+    audio.volume = 1.0;
+    audio.play().catch(() => {
+      /* Autoplay bloqué sur mobile : on relance après un geste utilisateur */
+      const retry = () => { audio.play().catch(()=>{}); document.removeEventListener('touchend', retry); };
+      document.addEventListener('touchend', retry);
+    });
   } catch {}
 }
 
