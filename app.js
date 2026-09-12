@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '4.2';
+const APP_VERSION = '4.3';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -43,6 +43,16 @@ const hasAI = () => !!localStorage.getItem('va_apikey');
 const getProviderId = () => localStorage.getItem('va_provider') || 'openai';
 const getProvider = () => PROVIDERS[getProviderId()] || PROVIDERS.openai;
 const getModel = () => localStorage.getItem('va_model') || getProvider().models[0];
+
+/* Détecte le fournisseur d'après le format de la clé */
+function detectProvider(key){
+  const k = String(key || '').trim();
+  if (k.startsWith('gsk_')) return 'groq';
+  if (k.startsWith('sk-or-')) return 'openrouter';
+  if (k.startsWith('AIza')) return 'gemini';
+  if (k.startsWith('sk-')) return 'openai';
+  return null;
+}
 const aiStatus = () => hasAI()
   ? '🤖 Mode IA (' + getProvider().short + ') · dis quelque chose'
   : 'Prêt · dis quelque chose';
@@ -1210,16 +1220,54 @@ $('aiProvider').addEventListener('change', e => {
   toast('Fournisseur : ' + getProvider().short);
 });
 
-$('saveApiKey').addEventListener('click', () => {
+$('saveApiKey').addEventListener('click', async () => {
   const key = $('apiKey').value.trim();
   if (key){
+    /* Détection automatique du fournisseur d'après la clé */
+    const detected = detectProvider(key);
+    if (detected && detected !== getProviderId()){
+      localStorage.setItem(LS.provider, detected);
+      fillModels();
+      $('keyLink').href = getProvider().keyUrl;
+      toast('🔎 Clé ' + getProvider().short + ' détectée !');
+    }
     localStorage.setItem(LS.apikey, key);
-    toast('🤖 Mode IA activé (' + getProvider().short + ') !');
     setStatus(aiStatus());
+    /* Test de connexion : vérifie que la clé marche vraiment */
+    const btn = $('saveApiKey');
+    const old = btn.textContent;
+    btn.textContent = '⏳ Test de connexion…';
+    btn.disabled = true;
+    try {
+      const res = await fetch(getProvider().base + '/models', {
+        headers: { 'Authorization': 'Bearer ' + key }
+      });
+      if (res.ok){
+        toast('✅ Clé ' + getProvider().short + ' valide — IA activée !');
+        setStatus('🤖 Mode IA (' + getProvider().short + ') · clé validée ✅');
+      } else {
+        toast('❌ Clé refusée (' + res.status + '). Vérifie la clé et le fournisseur.');
+        setStatus('⚠️ Clé ' + getProvider().short + ' refusée — vérifie les réglages');
+      }
+    } catch {
+      toast('❌ Connexion impossible. Vérifie ta connexion internet.');
+    } finally {
+      btn.textContent = old;
+      btn.disabled = false;
+    }
   } else {
     localStorage.removeItem(LS.apikey);
     toast('Mode local (sans IA)');
     setStatus(aiStatus());
+  }
+});
+$('apiKey').addEventListener('input', e => {
+  const detected = detectProvider(e.target.value);
+  if (detected && detected !== getProviderId()){
+    $('aiProvider').value = detected;
+    localStorage.setItem(LS.provider, detected);
+    fillModels();
+    $('keyLink').href = getProvider().keyUrl;
   }
 });
 $('ttsVoice').addEventListener('change', e => {
