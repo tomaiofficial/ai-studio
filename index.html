@@ -131,10 +131,17 @@
     <select id="aiModel" class="wide-input"></select>
 
     <h4 class="settings-title">🗣️ Voix IA réaliste</h4>
-    <p class="muted">Groq, Gemini et OpenRouter n'ont <b>pas de voix</b> (texte seulement). Pour une <b>vraie voix IA réaliste</b> partout : colle une clé <b>Google AI Studio</b> (AIza…, <b>gratuite</b>) ou une clé <b>OpenAI</b> (sk-…). Sans clé → voix neuronale Google gratuite.</p>
-    <a class="primary full" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">🔑 Obtenir une clé gratuite (2 min)</a>
-    <input type="password" id="ttsKey" class="wide-input" placeholder="Colle ta clé AIza… ou sk-… ici" autocomplete="off">
+    <p class="muted">Groq, Gemini et OpenRouter n'ont <b>pas de voix</b> (texte seulement). Pour une <b>vraie voix IA réaliste</b> partout : colle une clé <b>Mistral</b>, <b>Google AI Studio</b> (AIza…, gratuite) ou <b>OpenAI</b> (sk-…). Sans clé → voix neuronale Google gratuite.</p>
+    <a class="primary full" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Clé Mistral (console.mistral.ai)</a>
+    <a class="secondary full" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">🔑 Clé Google AI Studio gratuite (2 min)</a>
+    <input type="password" id="ttsKey" class="wide-input" placeholder="Colle ta clé ici (Mistral, AIza… ou sk-…)" autocomplete="off">
     <select id="ttsVoice" class="wide-input">
+      <optgroup label="Voix Mistral (clé Mistral)">
+        <option value="mistral">Mistral (femme)</option>
+        <option value="jean">Jean (homme)</option>
+        <option value="leo">Léo (homme)</option>
+        <option value="mona">Mona (femme)</option>
+      </optgroup>
       <optgroup label="Voix Gemini (clé AIza…, gratuite)">
         <option value="Kore">Kore (femme, chaleureuse)</option>
         <option value="Puck">Puck (femme, douce)</option>

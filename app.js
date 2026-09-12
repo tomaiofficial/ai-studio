@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '5.0';
+const APP_VERSION = '5.1';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -234,6 +234,32 @@ async function speakAI(text){
   } catch { return false; }
 }
 
+/* Voix IA réaliste (Mistral Voxtral TTS) — avec une clé Mistral.
+   Retourne true si la voix a été jouée, false sinon. */
+async function speakMistral(text){
+  const key = localStorage.getItem(LS.ttskey);
+  if (!key) return false;
+  try {
+    const res = await fetch('https://api.mistral.ai/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: 'voxtral-mini-tts-2603',
+        input: String(text).slice(0, 4000),
+        voice_id: localStorage.getItem(LS.ttsvoice) || 'mistral',
+        response_format: 'mp3'
+      })
+    });
+    if (!res.ok) return false;
+    const j = await res.json();
+    if (!j.audio_data) return false;
+    const audio = new Audio('data:audio/mpeg;base64,' + j.audio_data);
+    audio.volume = 1.0;
+    playAudio(audio);
+    return true;
+  } catch { return false; }
+}
+
 /* ============ DÉBLOCAGE AUDIO MOBILE ============ */
 /* Sur mobile, la lecture audio est bloquée tant que l'utilisateur n'a pas
    interagi avec la page. On débloque le système audio au premier toucher. */
@@ -273,18 +299,22 @@ function flushPending(){
 );
 
 async function speak(text){
-  /* 1) Clé TTS dédiée → voix IA réaliste (Gemini AIza… / OpenAI sk-…).
-     2) Sinon, si la clé IA est une clé Gemini (AIza…) → on l'utilise aussi pour la voix.
-     Si tout échoue → voix gratuite (Wavenet neuronale). */
+  /* Clé TTS dédiée → voix IA réaliste.
+     - AIza… → Gemini TTS (gratuit)
+     - sk-… → OpenAI TTS
+     - Sinon → Mistral Voxtral TTS
+     Si la clé IA est Gemini (AIza…), on l'utilise aussi pour la voix.
+     Si ça échoue → voix gratuite (Wavenet neuronale). */
   let ttsKey = localStorage.getItem(LS.ttskey);
   if (!ttsKey){
     const aiKey = localStorage.getItem(LS.apikey);
     if (aiKey && aiKey.startsWith('AIza')) ttsKey = aiKey;
   }
   if (ttsKey){
-    const ok = ttsKey.startsWith('AIza')
-      ? await speakGemini(text)
-      : await speakAI(text);
+    let ok;
+    if (ttsKey.startsWith('AIza')) ok = await speakGemini(text);
+    else if (ttsKey.startsWith('sk-')) ok = await speakAI(text);
+    else ok = await speakMistral(text);
     if (ok) return;
   }
   speakCloud(text);
@@ -1330,7 +1360,9 @@ $('ttsKey').addEventListener('change', e => {
     localStorage.setItem(LS.ttskey, k);
     toast(k.startsWith('AIza')
       ? '✅ Voix IA réaliste (Gemini) activée !'
-      : '✅ Voix IA réaliste (OpenAI) activée !');
+      : k.startsWith('sk-')
+        ? '✅ Voix IA réaliste (OpenAI) activée !'
+        : '✅ Voix IA réaliste (Mistral) activée !');
   } else {
     localStorage.removeItem(LS.ttskey);
     toast('Voix gratuite (Wavenet)');
