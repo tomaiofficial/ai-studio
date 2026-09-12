@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '3.2';
+const APP_VERSION = '3.3';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -514,6 +514,19 @@ async function runTool(name, args){
   }
 }
 
+/* Nettoie la réponse IA : supprime markdown (** * # `) et les relances inutiles */
+function cleanReply(text){
+  return String(text || '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/`(.*?)`/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/\s*(?:besoin d'autre chose|autre chose|as-tu besoin d'autre chose|avez-vous besoin d'autre chose|y a-t-il autre chose|veux-tu autre chose|puis-je t'aider|puis-je vous aider|je peux t'aider avec autre chose|je peux vous aider avec autre chose|tu as besoin d'autre chose|besoin de rien d'autre)[^.!?]*\??\s*$/i, '')
+    .trim();
+}
+
 /* ============ CHAT IA (OpenAI) ============ */
 const SYSTEM_PROMPT = `Tu es « Assistant Vocal IA », un assistant personnel francophone ultra-compétent qui vit dans une PWA mobile. Tu réponds à TOUT comme les meilleurs assistants IA (Claude, ChatGPT) : connaissances générales, explications, conseils, rédaction, calculs, idées, débats, aide au quotidien…
 
@@ -575,7 +588,7 @@ async function chatWithAI(userText){
       guard++;
     }
 
-    const reply = (msg.content || 'Voilà, c\'est fait !').trim();
+    const reply = cleanReply(msg.content || 'Voilà, c\'est fait !');
     chatHistory.push({ role:'user', content: userText }, { role:'assistant', content: reply });
     save(LS.chat, chatHistory.slice(-40));
     addChatBubble('ai', reply);
@@ -845,6 +858,7 @@ function handleLocal(raw){
 
 /* ============ POINT D'ENTRÉE ============ */
 function handleCommand(raw){
+  $('heard').hidden = true; /* la transcription passe dans le chat, on masque le doublon */
   if (hasAI()){
     chatWithAI(raw);
   } else {
