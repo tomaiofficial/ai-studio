@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '3.7';
+const APP_VERSION = '3.8';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -1152,7 +1152,16 @@ fetch('version.json?v=' + Date.now()).then(r => r.json()).then(j => {
     const b = $('updateBanner');
     if (b){
       b.classList.add('show');
-      b.addEventListener('click', () => location.reload());
+      b.addEventListener('click', async () => {
+        b.textContent = '🔄 Mise à jour en cours…';
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const r of regs) await r.update();
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        } catch(e){}
+        location.reload();
+      });
     }
   }
 }).catch(()=>{});
