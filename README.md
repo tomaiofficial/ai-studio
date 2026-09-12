@@ -9,7 +9,7 @@
 - 🎙️ **Reconnaissance vocale** en français (gratuite, via le navigateur — Chrome Android recommandé)
 - 🤖 **Mode IA (ChatGPT)** : discussion libre et naturelle — **répond à tout** comme Claude AI (connaissances, explications, conseils, rédaction, actualité…) et agit (rappels, calendrier, météo, position…) via des outils automatiques
 - 🔎 **Recherche web intégrée** : l'IA cherche sur le web pour répondre aux questions d'actualité et aux faits récents
-- 🧠 **Choix du modèle IA** : GPT-4o mini (rapide), GPT-4o (recommandé), GPT-4.1 (dernier)
+- 🧠 **4 fournisseurs IA au choix** : OpenAI (GPT-4o), Groq (gratuit), Google Gemini (gratuit), OpenRouter (gratuit)
 - 🗣️ **Vraie voix** : synthèse vocale OpenAI (gpt-4o-mini-tts) — voix naturelles au choix (nova, alloy, echo, fable, onyx, shimmer)
 - ⏰ **Rappels** avec notifications + voix (« rappelle-moi de X dans 2 heures »)
 - 📅 **Calendrier** (« ajoute un événement réunion demain à 10h »)
@@ -26,11 +26,18 @@
 
 ## 🤖 Mode IA (optionnel, recommandé)
 
-Sans configuration, l'assistant fonctionne en **mode local** (commandes vocales). Pour discuter **librement comme avec ChatGPT** avec une **vraie voix** :
+Sans configuration, l'assistant fonctionne en **mode local** (commandes vocales). Pour discuter **librement comme avec ChatGPT** — répondre à **tout** — ajoute une clé IA :
 
 1. Ouvre les **réglages ⚙️** dans l'app
-2. Colle ta **clé API OpenAI** (https://platform.openai.com/api-keys) — elle reste **uniquement sur ton appareil**, jamais envoyée sur le site
-3. Choisis ton **modèle IA** (GPT-4o recommandé) et ta **voix IA** préférée, puis teste-la 🔊
+2. Choisis un **fournisseur** :
+   - **Groq** — gratuit, ultra rapide (https://console.groq.com/keys)
+   - **Google Gemini** — gratuit (https://aistudio.google.com/apikey)
+   - **OpenRouter** — modèles gratuits (https://openrouter.ai/keys)
+   - **OpenAI** — qualité max + voix OpenAI (https://platform.openai.com/api-keys)
+3. Colle ta **clé** — elle reste **uniquement sur ton appareil**, jamais envoyée sur le site
+4. Choisis ton **modèle** et ta **voix**, puis teste 🔊
+
+> 💡 **Groq, Gemini et OpenRouter sont gratuits** (sans carte bancaire). La voix OpenAI (très réaliste) nécessite OpenAI ; avec les autres fournisseurs, la voix du navigateur est utilisée.
 
 En mode IA, tu peux dire n'importe quoi : « rappelle-moi de prendre mes médicaments demain à 8h », « quel temps fait-il ce week-end ? », « explique-moi la photosynthèse », « écris un poème sur la mer », « qui a gagné la coupe du monde 2026 ? » (recherche web automatique), « ajoute un rendez-vous chez le dentiste vendredi à 15h », « quels sont mes rappels ? »… L'IA répond à tout et utilise automatiquement les bons outils.
 

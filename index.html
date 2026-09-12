@@ -120,19 +120,16 @@
     <h3>⚙️ Réglages</h3>
 
     <h4 class="settings-title">🤖 Mode IA (ChatGPT)</h4>
-    <p class="muted">Colle ta clé API OpenAI pour discuter librement avec une vraie voix. La clé reste <b>uniquement sur ton appareil</b> (jamais envoyée sur le site).</p>
-    <input type="password" id="apiKey" class="wide-input" placeholder="sk-…" autocomplete="off">
+    <p class="muted">Choisis un fournisseur et colle ta clé. <b>Groq, Gemini et OpenRouter sont gratuits</b> (sans carte bancaire). La clé reste <b>uniquement sur ton appareil</b>.</p>
+    <select id="aiProvider" class="wide-input"></select>
+    <input type="password" id="apiKey" class="wide-input" placeholder="Colle ta clé ici…" autocomplete="off">
     <div class="map-actions">
       <button class="primary" id="saveApiKey">💾 Enregistrer</button>
-      <a class="secondary" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obtenir une clé</a>
+      <a class="secondary" id="keyLink" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obtenir une clé</a>
     </div>
 
     <h4 class="settings-title">🧠 Modèle IA</h4>
-    <select id="aiModel" class="wide-input">
-      <option value="gpt-4o-mini">GPT-4o mini — rapide &amp; économique</option>
-      <option value="gpt-4o" selected>GPT-4o — intelligent (recommandé)</option>
-      <option value="gpt-4.1">GPT-4.1 — dernier modèle</option>
-    </select>
+    <select id="aiModel" class="wide-input"></select>
 
     <h4 class="settings-title">🗣️ Voix IA (OpenAI)</h4>
     <select id="ttsVoice" class="wide-input">

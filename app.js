@@ -2,15 +2,49 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const AI_MODELS = [
-  { id:'gpt-4o-mini',      label:'GPT-4o mini — rapide & économique' },
-  { id:'gpt-4o',           label:'GPT-4o — intelligent (recommandé)' },
-  { id:'gpt-4.1',          label:'GPT-4.1 — dernier modèle' }
-];
+const PROVIDERS = {
+  openai: {
+    label: 'OpenAI — GPT-4o (qualité max)',
+    short: 'GPT-4o',
+    base: 'https://api.openai.com/v1',
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4.1'],
+    tts: true,
+    keyUrl: 'https://platform.openai.com/api-keys'
+  },
+  groq: {
+    label: 'Groq — gratuit & ultra rapide',
+    short: 'Groq',
+    base: 'https://api.groq.com/openai/v1',
+    models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+    tts: false,
+    keyUrl: 'https://console.groq.com/keys'
+  },
+  gemini: {
+    label: 'Google Gemini — gratuit',
+    short: 'Gemini',
+    base: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    models: ['gemini-2.0-flash', 'gemini-2.5-flash'],
+    tts: false,
+    keyUrl: 'https://aistudio.google.com/apikey'
+  },
+  openrouter: {
+    label: 'OpenRouter — modèles gratuits',
+    short: 'OpenRouter',
+    base: 'https://openrouter.ai/api/v1',
+    models: ['meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat-v3-0324:free'],
+    tts: false,
+    keyUrl: 'https://openrouter.ai/keys'
+  }
+};
 const TTS_MODEL  = 'gpt-4o-mini-tts';
 const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
 const hasAI = () => !!localStorage.getItem('va_apikey');
-const getModel = () => localStorage.getItem('va_model') || 'gpt-4o';
+const getProviderId = () => localStorage.getItem('va_provider') || 'openai';
+const getProvider = () => PROVIDERS[getProviderId()] || PROVIDERS.openai;
+const getModel = () => localStorage.getItem('va_model') || getProvider().models[0];
+const aiStatus = () => hasAI()
+  ? '🤖 Mode IA (' + getProvider().short + ') · dis quelque chose'
+  : 'Prêt · dis quelque chose';
 
 /* ============ ÉTAT ============ */
 const LS = {
@@ -20,6 +54,8 @@ const LS = {
   theme:     'va_theme',
   voice:     'va_voice',
   apikey:    'va_apikey',
+  provider:  'va_provider',
+  model:     'va_model',
   ttsvoice:  'va_ttsvoice',
   model:     'va_model',
   chat:      'va_chat'
@@ -149,7 +185,7 @@ async function speakAI(text){
 }
 
 function speak(text){
-  if (hasAI()) speakAI(text);
+  if (hasAI() && getProvider().tts) speakAI(text);
   else speakLocal(text);
 }
 
@@ -208,7 +244,7 @@ function startListening(){
   rec.onend = () => {
     listening = false;
     $('orb').classList.remove('listening');
-    setStatus(hasAI() ? '🤖 Mode IA · dis quelque chose' : 'Prêt · dis quelque chose');
+    setStatus(aiStatus());
   };
   try { rec.start(); } catch {}
 }
@@ -508,7 +544,8 @@ async function chatWithAI(userText){
     ];
 
     const call = async () => {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      const prov = getProvider();
+      const res = await fetch(prov.base + '/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
         body: JSON.stringify({ model: getModel(), messages, tools: TOOLS, tool_choice: 'auto' })
@@ -540,12 +577,12 @@ async function chatWithAI(userText){
     save(LS.chat, chatHistory.slice(-40));
     addChatBubble('ai', reply);
     respond(esc(reply), 'ok');
-    speakAI(reply);
+    speak(reply);
   } catch (err){
-    respond('❌ ' + esc(err.message || 'Erreur IA') + '<br><span class="muted">Vérifie ta clé API dans les réglages ⚙️.</span>', 'err');
+    respond('❌ ' + esc(err.message || 'Erreur IA') + '<br><span class="muted">Vérifie ta clé dans les réglages ⚙️ (ou choisis un fournisseur gratuit : Groq, Gemini, OpenRouter).</span>', 'err');
     handleLocal(userText);
   } finally {
-    setStatus('🤖 Mode IA · dis quelque chose');
+    setStatus(aiStatus());
   }
 }
 
@@ -581,8 +618,8 @@ function handleLocal(raw){
   const text = raw.toLowerCase();
 
   if (text.includes('aide') || text.includes('que sais-tu faire') || text.includes('help') || text.includes('commandes')){
-    respond('Je peux :<br>⏰ <b>Rappels</b> — « rappelle-moi de X dans 2 heures »<br>📅 <b>Calendrier</b> — « ajoute un événement X demain à 14h »<br>📍 <b>Position</b> — « où suis-je »<br>🌤️ <b>Météo</b> — « quel temps fait-il »<br>⏱️ <b>Minuteur</b> — « minuteur de 5 minutes »<br>🧮 <b>Calculs</b> — « combien font 15 + 27 »<br>📝 <b>Notes</b> — « note que X »<br>🎲 <b>Pile ou face / dé / choix</b><br>🕐 <b>Heure/date</b> — « quelle heure est-il »<br><br><span class="muted">💡 Ajoute une clé API OpenAI dans les réglages ⚙️ pour discuter librement avec une vraie voix.</span>', 'info');
-    speak('Je peux gérer tes rappels, ton calendrier, ta position, la météo, des minuteurs, des calculs, des notes, et bien plus. Ajoute une clé API dans les réglages pour discuter librement avec une vraie voix.');
+    respond('Je peux :<br>⏰ <b>Rappels</b> — « rappelle-moi de X dans 2 heures »<br>📅 <b>Calendrier</b> — « ajoute un événement X demain à 14h »<br>📍 <b>Position</b> — « où suis-je »<br>🌤️ <b>Météo</b> — « quel temps fait-il »<br>⏱️ <b>Minuteur</b> — « minuteur de 5 minutes »<br>🧮 <b>Calculs</b> — « combien font 15 + 27 »<br>📝 <b>Notes</b> — « note que X »<br>🎲 <b>Pile ou face / dé / choix</b><br>🕐 <b>Heure/date</b> — « quelle heure est-il »<br><br><span class="muted">💡 Pour que je réponde à <b>tout</b> comme ChatGPT : réglages ⚙️ → <b>Groq, Gemini ou OpenRouter</b> (gratuits, sans carte) → colle ta clé.</span>', 'info');
+    speak('Je peux gérer tes rappels, ton calendrier, ta position, la météo, des minuteurs, des calculs, des notes, et bien plus. Pour que je réponde à tout comme ChatGPT, ajoute une clé gratuite dans les réglages : Groq, Gemini ou OpenRouter.');
     return;
   }
 
@@ -799,8 +836,8 @@ function handleLocal(raw){
     return;
   }
 
-  respond(`🤖 Je n'ai pas compris « <b>${esc(raw)}</b> ». Dis « aide » pour voir ce que je sais faire.`, 'err');
-  speak('Je n\'ai pas compris. Dis aide pour voir ce que je sais faire.');
+  respond(`🤖 Je n'ai pas compris « <b>${esc(raw)}</b> ». Dis « aide » pour voir ce que je sais faire.<br><br><span class="muted">💡 Pour que je réponde à <b>tout</b> comme ChatGPT : réglages ⚙️ → choisis <b>Groq, Gemini ou OpenRouter</b> (gratuits) → colle ta clé.</span>`, 'err');
+  speak('Je n\'ai pas compris. Dis aide pour voir ce que je sais faire. Et pour que je réponde à tout comme ChatGPT, ajoute une clé gratuite dans les réglages.');
 }
 
 /* ============ POINT D'ENTRÉE ============ */
@@ -1001,26 +1038,47 @@ $('themeBtn').addEventListener('click', () => {
 });
 
 /* Réglages */
+function fillProviders(){
+  const sel = $('aiProvider');
+  sel.innerHTML = Object.entries(PROVIDERS).map(([id, p]) =>
+    `<option value="${id}">${p.label}</option>`).join('');
+  sel.value = getProviderId();
+}
+function fillModels(){
+  const sel = $('aiModel');
+  sel.innerHTML = getProvider().models.map(m =>
+    `<option value="${m}">${m}</option>`).join('');
+  sel.value = getModel();
+}
 $('settingsBtn').addEventListener('click', () => {
   loadVoices();
+  fillProviders();
+  fillModels();
   $('apiKey').value = localStorage.getItem(LS.apikey) || '';
   $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'nova';
-  $('aiModel').value = getModel();
+  $('keyLink').href = getProvider().keyUrl;
   $('settingsModal').classList.remove('hidden');
 });
 $('closeSettings').addEventListener('click', () => $('settingsModal').classList.add('hidden'));
 $('settingsBg').addEventListener('click', () => $('settingsModal').classList.add('hidden'));
 
+$('aiProvider').addEventListener('change', e => {
+  localStorage.setItem(LS.provider, e.target.value);
+  fillModels();
+  $('keyLink').href = getProvider().keyUrl;
+  toast('Fournisseur : ' + getProvider().short);
+});
+
 $('saveApiKey').addEventListener('click', () => {
   const key = $('apiKey').value.trim();
   if (key){
     localStorage.setItem(LS.apikey, key);
-    toast('🤖 Mode IA activé !');
-    setStatus('🤖 Mode IA · dis quelque chose');
+    toast('🤖 Mode IA activé (' + getProvider().short + ') !');
+    setStatus(aiStatus());
   } else {
     localStorage.removeItem(LS.apikey);
     toast('Mode local (sans IA)');
-    setStatus('Prêt · dis quelque chose');
+    setStatus(aiStatus());
   }
 });
 $('ttsVoice').addEventListener('change', e => {
@@ -1032,7 +1090,7 @@ $('aiModel').addEventListener('change', e => {
   toast('Modèle IA : ' + e.target.value);
 });
 $('testVoice').addEventListener('click', () => {
-  if (hasAI()) speakAI('Bonjour ! Voici ma voix. Est-ce que ça te plaît ?');
+  if (hasAI() && getProvider().tts) speakAI('Bonjour ! Voici ma voix. Est-ce que ça te plaît ?');
   else speakLocal('Bonjour ! Voici ma voix. Est-ce que ça te plaît ?');
 });
 $('clearChat').addEventListener('click', () => {
@@ -1049,7 +1107,7 @@ renderReminders();
 renderEvents();
 renderNotes();
 renderChatHistory();
-setStatus(hasAI() ? '🤖 Mode IA · dis quelque chose' : 'Prêt · dis quelque chose');
+setStatus(aiStatus());
 
 reminders.filter(r => !r.done && r.ts > Date.now()).forEach(scheduleReminder);
 
