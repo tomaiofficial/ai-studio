@@ -10,7 +10,7 @@
 - 🤖 **Mode IA (ChatGPT)** : discussion libre et naturelle — **répond à tout** comme Claude AI (connaissances, explications, conseils, rédaction, actualité…) et agit (rappels, calendrier, météo, position…) via des outils automatiques
 - 🔎 **Recherche web intégrée** : l'IA cherche sur le web pour répondre aux questions d'actualité et aux faits récents
 - 🧠 **4 fournisseurs IA au choix** : OpenAI (GPT-4o), Groq (gratuit), Google Gemini (gratuit), OpenRouter (gratuit)
-- 🗣️ **Vraie voix** : synthèse vocale OpenAI (gpt-4o-mini-tts) — voix naturelles au choix (nova, alloy, echo, fable, onyx, shimmer)
+- 🗣️ **Vraie voix IA naturelle** : Google Gemini TTS (gemini-2.5-flash-preview-tts) — voix humaines avec **instruction de style** (naturel, calme, dynamique, narrateur, proche). Ce n'est **pas** de la synthèse vocale robotique.
 - ⏰ **Rappels** avec notifications + voix (« rappelle-moi de X dans 2 heures »)
 - 📅 **Calendrier** (« ajoute un événement réunion demain à 10h »)
 - 🌤️ **Météo** en temps réel, aujourd'hui et demain (Open-Meteo, sans clé API)
@@ -37,7 +37,7 @@ Sans configuration, l'assistant fonctionne en **mode local** (commandes vocales)
 3. Colle ta **clé** — elle reste **uniquement sur ton appareil**, jamais envoyée sur le site
 4. Choisis ton **modèle** et ta **voix**, puis teste 🔊
 
-> 💡 **Groq, Gemini et OpenRouter sont gratuits** (sans carte bancaire). La voix OpenAI (très réaliste) nécessite OpenAI ; avec les autres fournisseurs, la voix du navigateur est utilisée.
+> 💡 **Groq, Gemini et OpenRouter sont gratuits** (sans carte bancaire). Pour la voix naturelle, la clé **Google AI Studio** (gratuite) est la solution recommandée.
 
 En mode IA, tu peux dire n'importe quoi : « rappelle-moi de prendre mes médicaments demain à 8h », « quel temps fait-il ce week-end ? », « explique-moi la photosynthèse », « écris un poème sur la mer », « qui a gagné la coupe du monde 2026 ? » (recherche web automatique), « ajoute un rendez-vous chez le dentiste vendredi à 15h », « quels sont mes rappels ? »… L'IA répond à tout et utilise automatiquement les bons outils.
 

@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '5.4';
+const APP_VERSION = '5.5';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -74,6 +74,7 @@ const LS = {
   model:     'va_model',
   ttsvoice:  'va_ttsvoice',
   ttskey:    'va_ttskey',
+  ttsstyle:  'va_ttsstyle',
   chat:      'va_chat'
 };
 let reminders = load(LS.reminders, []);
@@ -160,35 +161,93 @@ function l16ToWav(base64){
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 }
 
-/* Voix IA réaliste (Gemini TTS) — GRATUITE avec une clé Google AI Studio.
+/* Voix IA réaliste (Gemini TTS) — vraie voix naturelle, GRATUITE avec une clé
+   Google AI Studio. On envoie une INSTRUCTION DE STYLE au modèle : c'est ce qui
+   fait la différence entre une voix de synthèse robotique et une voix humaine.
    Retourne true si la voix a été jouée, false sinon. */
+const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+
+const GEMINI_STYLES = {
+  naturel:  'Parle comme un être humain dans une conversation détendue : ton chaleureux, amical et naturel, avec des respirations légères. Intonation vivante, jamais monotone, jamais robotique.',
+  calme:    'Parle d\'une voix calme, posée et apaisante, avec un débit modéré et des pauses naturelles. Ton doux et rassurant, jamais monotone.',
+  energique:'Parle avec énergie et enthousiasme : ton dynamique, expressif et joyeux, avec une intonation variée et vivante.',
+  narrateur:'Parle comme un présentateur professionnel : diction claire, articulation nette, ton assuré et engageant, débit régulier.',
+  proche:   'Parle comme un ami proche : ton complice, détendu et spontané, avec une intonation naturelle et des nuances d\'émotion.'
+};
+
+function geminiStyleInstruction(){
+  const k = localStorage.getItem(LS.ttsstyle) || 'naturel';
+  return GEMINI_STYLES[k] || GEMINI_STYLES.naturel;
+}
+
 async function speakGemini(text){
   const key = localStorage.getItem(LS.ttskey);
   if (!key) return false;
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=' + encodeURIComponent(key), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: String(text).slice(0, 4000) }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: localStorage.getItem(LS.ttsvoice) || 'Kore' } } }
+    const t = String(text).slice(0, 4000);
+    /* Prompt de style + texte : Gemini TTS interprète la consigne de jeu.
+       On découpe en morceaux pour garder une prosodie naturelle sur les longs textes. */
+    const chunks = splitText(t);
+    let ok = false;
+    for (const c of chunks){
+      const res = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: geminiStyleInstruction() + '\n\nLis exactement ce texte, sans rien ajouter ni commenter :\n' + c
+              }]
+            }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: localStorage.getItem(LS.ttsvoice) || 'Kore'
+                  }
+                }
+              }
+            }
+          })
         }
-      })
-    });
-    if (!res.ok) return false;
-    const j = await res.json();
-    const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    if (!part || !part.data) return false;
-    const url = part.mimeType === 'audio/L16'
-      ? l16ToWav(part.data)
-      : 'data:' + (part.mimeType || 'audio/mpeg') + ';base64,' + part.data;
-    const audio = new Audio(url);
-    audio.volume = 1.0;
-    playAudio(audio);
-    return true;
-  } catch { return false; }
+      );
+      if (!res.ok){
+        const err = await res.text().catch(() => '');
+        console.warn('Gemini TTS a échoué (' + res.status + ')', err.slice(0, 300));
+        return false;
+      }
+      const j = await res.json();
+      const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      if (!part || !part.data) return false;
+      const url = part.mimeType === 'audio/L16'
+        ? l16ToWav(part.data)
+        : 'data:' + (part.mimeType || 'audio/mpeg') + ';base64,' + part.data;
+      const audio = new Audio(url);
+      audio.volume = 1.0;
+      if (chunks.length === 1){
+        playAudio(audio);
+      } else {
+        await playAndWait(audio);
+      }
+      ok = true;
+    }
+    return ok;
+  } catch (e){ console.warn('Gemini TTS erreur', e); return false; }
+}
+
+/* Joue un audio et attend la fin (pour enchaîner les morceaux sans coupure) */
+function playAndWait(a){
+  return new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (!done){ done = true; resolve(); } };
+    a.addEventListener('ended', finish, { once: true });
+    a.addEventListener('error', finish, { once: true });
+    setTimeout(finish, Math.max(4000, (a.duration || 10) * 1000));
+    playAudio(a);
+  });
 }
 
 /* Voix IA réaliste (OpenAI TTS) — avec une clé OpenAI.
@@ -259,7 +318,7 @@ async function loadMistralVoices(key){
 function populateVoiceSelect(kind){
   const sel = $('ttsVoice');
   if (kind === 'mistral'){
-    sel.innerHTML = '<option value="mistral">Chargement des voix…</option>';
+    sel.innerHTML = '<option value="mistral">Voix</option>';
   } else if (kind === 'gemini'){
     sel.innerHTML = [
       ['Kore','Kore (femme, chaleureuse)'],['Puck','Puck (femme, douce)'],
@@ -348,7 +407,7 @@ function speakCloud(text){
       if (vi >= FREE_VOICES.length){
         if (!voiceFailShown){
           voiceFailShown = true;
-          toast('🔇 Voix indisponible sur ce réseau — ajoute une clé Mistral dans ⚙️ pour la voix IA');
+          toast('🔇 Voix indisponible — ajoute une clé Google AI Studio dans ⚙️ pour la voix IA');
           setTimeout(() => { voiceFailShown = false; }, 15000);
         }
         return;
@@ -373,7 +432,7 @@ function speakCloud(text){
   } catch {
     if (!voiceFailShown){
       voiceFailShown = true;
-      toast('🔇 Voix indisponible — ajoute une clé Mistral dans ⚙️ pour la voix IA');
+      toast('🔇 Voix indisponible — ajoute une clé Google AI Studio dans ⚙️ pour la voix IA');
       setTimeout(() => { voiceFailShown = false; }, 15000);
     }
   }
@@ -1318,7 +1377,10 @@ $('settingsBtn').addEventListener('click', () => {
   if (savedTts.startsWith('AIza')) populateVoiceSelect('gemini');
   else if (savedTts.startsWith('sk-')) populateVoiceSelect('openai');
   else if (savedTts) populateVoiceSelect('mistral');
-  $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'nova';
+  /* Voix par défaut : Kore (Gemini) */
+  $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'Kore';
+  const st = $('ttsStyle');
+  if (st) st.value = localStorage.getItem(LS.ttsstyle) || 'naturel';
   $('keyLink').href = getProvider().keyUrl;
   const v = $('appVersion');
   if (v) v.textContent = 'Version ' + APP_VERSION + (hasAI() ? ' · IA active (' + getProvider().short + ')' : ' · mode local');
@@ -1388,13 +1450,19 @@ $('ttsVoice').addEventListener('change', e => {
   localStorage.setItem(LS.ttsvoice, e.target.value);
   toast('Voix IA : ' + e.target.value);
 });
+const ttsStyleEl = $('ttsStyle');
+if (ttsStyleEl) ttsStyleEl.addEventListener('change', e => {
+  localStorage.setItem(LS.ttsstyle, e.target.value);
+  toast('Style de voix : ' + e.target.value);
+});
 $('ttsKey').addEventListener('change', async e => {
   const k = e.target.value.trim();
   if (k){
     localStorage.setItem(LS.ttskey, k);
     if (k.startsWith('AIza')){
       populateVoiceSelect('gemini');
-      toast('✅ Voix IA réaliste (Gemini) activée !');
+      localStorage.setItem(LS.ttsvoice, localStorage.getItem(LS.ttsvoice) || 'Kore');
+      toast('✅ Voix IA naturelle (Gemini) activée !');
     } else if (k.startsWith('sk-')){
       populateVoiceSelect('openai');
       toast('✅ Voix IA réaliste (OpenAI) activée !');
