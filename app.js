@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '5.1';
+const APP_VERSION = '5.2';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -258,6 +258,39 @@ async function speakMistral(text){
     playAudio(audio);
     return true;
   } catch { return false; }
+}
+
+/* Charge la liste des vraies voix Mistral avec la clé de l'utilisateur */
+async function loadMistralVoices(key){
+  try {
+    const res = await fetch('https://api.mistral.ai/v1/audio/voices', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j.data || j.voices || null;
+  } catch { return null; }
+}
+
+/* Remplit le sélecteur de voix selon le type de clé TTS */
+function populateVoiceSelect(kind){
+  const sel = $('ttsVoice');
+  if (kind === 'mistral'){
+    sel.innerHTML = '<option value="mistral">Chargement des voix…</option>';
+  } else if (kind === 'gemini'){
+    sel.innerHTML = [
+      ['Kore','Kore (femme, chaleureuse)'],['Puck','Puck (femme, douce)'],
+      ['Charon','Charon (homme, grave)'],['Fenrir','Fenrir (homme, profond)'],
+      ['Aoede','Aoede (femme, expressive)'],['Leda','Leda (femme, claire)'],
+      ['Orus','Orus (homme, neutre)'],['Zephyr','Zephyr (homme, jeune)']
+    ].map(v => `<option value="${v[0]}">${v[1]}</option>`).join('');
+  } else if (kind === 'openai'){
+    sel.innerHTML = [
+      ['nova','Nova (femme, chaleureuse)'],['alloy','Alloy (neutre)'],
+      ['echo','Echo (homme)'],['fable','Fable (britannique)'],
+      ['onyx','Onyx (homme grave)'],['shimmer','Shimmer (femme, douce)']
+    ].map(v => `<option value="${v[0]}">${v[1]}</option>`).join('');
+  }
 }
 
 /* ============ DÉBLOCAGE AUDIO MOBILE ============ */
@@ -1284,6 +1317,10 @@ $('settingsBtn').addEventListener('click', () => {
   fillModels();
   $('apiKey').value = localStorage.getItem(LS.apikey) || '';
   $('ttsKey').value = localStorage.getItem(LS.ttskey) || '';
+  const savedTts = localStorage.getItem(LS.ttskey) || '';
+  if (savedTts.startsWith('AIza')) populateVoiceSelect('gemini');
+  else if (savedTts.startsWith('sk-')) populateVoiceSelect('openai');
+  else if (savedTts) populateVoiceSelect('mistral');
   $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'nova';
   $('keyLink').href = getProvider().keyUrl;
   const v = $('appVersion');
@@ -1354,15 +1391,33 @@ $('ttsVoice').addEventListener('change', e => {
   localStorage.setItem(LS.ttsvoice, e.target.value);
   toast('Voix IA : ' + e.target.value);
 });
-$('ttsKey').addEventListener('change', e => {
+$('ttsKey').addEventListener('change', async e => {
   const k = e.target.value.trim();
   if (k){
     localStorage.setItem(LS.ttskey, k);
-    toast(k.startsWith('AIza')
-      ? '✅ Voix IA réaliste (Gemini) activée !'
-      : k.startsWith('sk-')
-        ? '✅ Voix IA réaliste (OpenAI) activée !'
-        : '✅ Voix IA réaliste (Mistral) activée !');
+    if (k.startsWith('AIza')){
+      populateVoiceSelect('gemini');
+      toast('✅ Voix IA réaliste (Gemini) activée !');
+    } else if (k.startsWith('sk-')){
+      populateVoiceSelect('openai');
+      toast('✅ Voix IA réaliste (OpenAI) activée !');
+    } else {
+      /* Clé Mistral : on charge les vraies voix disponibles */
+      populateVoiceSelect('mistral');
+      const voices = await loadMistralVoices(k);
+      const sel = $('ttsVoice');
+      if (voices && voices.length){
+        sel.innerHTML = voices.map(v => {
+          const name = v.name || v.voice_id || v.id || 'Voix';
+          const lang = v.language || v.languages || '';
+          return `<option value="${esc(v.voice_id || v.id || name)}">${esc(name)}${lang ? ' (' + esc(lang) + ')' : ''}</option>`;
+        }).join('');
+        toast('✅ Voix Mistral activée — ' + voices.length + ' voix disponibles !');
+      } else {
+        sel.innerHTML = '<option value="mistral">Mistral (femme)</option><option value="jean">Jean (homme)</option><option value="leo">Léo (homme)</option><option value="mona">Mona (femme)</option>';
+        toast('✅ Voix Mistral activée (liste des voix indisponible)');
+      }
+    }
   } else {
     localStorage.removeItem(LS.ttskey);
     toast('Voix gratuite (Wavenet)');
