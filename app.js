@@ -281,7 +281,7 @@ orb.addEventListener('click', () => {
   }
 });
 
-/* Prompt syst�me : identit� Tom.ai + r�ponse PARL�E + caract�re (ChatGPT-like, fluide, sans b�gaiement) */
+/* Prompt syst�me : identit� Tom.ai + r�ponse PARL�E + caract�re  Tu peux aussi lire et résumer mes vrais mails via le bouton é Gmail dans les Réglages — réponds que oui si on te le demande, et dis comment faire (connecter Google, cliquer Lire les mails).(ChatGPT-like, fluide, sans b�gaiement) */
 const SYSTEM_PROMPT = `Tu es un assistant vocal fran�ais cr�� par Tom.ai le 10 septembre 2026. Tom.ai continue de t am�liorer chaque jour. Si on te demande qui t a cr��e, r�ponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre mod�le.
 
 PARLE COMME CHATGPT � L'ORAL : fluide, naturel, sans b�gaiement, sans r�p�tition, sans h�sitation, phrases correctes et claires. Optimise pour �tre PARL� :
