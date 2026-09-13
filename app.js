@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.4';
+const APP_VERSION = '6.5';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'groq/compound-mini';
@@ -113,23 +113,25 @@ if (SR){
   recog.onend = () => { if (state === 'listening') setState('idle'); };
 }
 
-/* ===== BIENVENUE (message Tom.ai dit 2 fois) ===== */
+/* ===== BIENVENUE (message Tom.ai dit 1 fois, skippable) ===== */
+let welcomePlaying = false;
 async function playWelcome(){
   if (welcomeDone) return;
   welcomeDone = true;
+  welcomePlaying = true;
   saidLine.style.display = 'block';
   saidText.textContent = DEV_MESSAGE_TXT;
   setState('speaking');
-  setStatus('🔊 Bienvenue…');
+  setStatus('🔊 Bienvenue… (appuie pour passer)');
   await speak(DEV_MESSAGE);
-  await new Promise(r => setTimeout(r, 700));
-  await speak(DEV_MESSAGE);
+  welcomePlaying = false;
   setState('idle');
   setStatus('Appuie sur l\'orbe et parle');
 }
 
 orb.addEventListener('click', () => {
   if (state === 'listening'){ recog && recog.stop(); setState('idle'); setStatus('Appuie sur l\'orbe et parle'); return; }
+  if (welcomePlaying){ stopAudio(); welcomePlaying = false; setState('idle'); setStatus('Appuie sur l\'orbe et parle'); return; }
   if (state === 'thinking' || state === 'speaking') return;
   if (!welcomeDone){ playWelcome(); return; }
   if (!recog){ setStatus('❌ Reconnaissance vocale non supportée sur ce navigateur'); return; }
@@ -220,6 +222,7 @@ async function speakMistral(text){
     const audio = new Audio('data:audio/mp3;base64,' + j.audio_data);
     audio.preload = 'auto';
     audio.volume = 1.0; /* son fort */
+    currentAudios.push(audio);
     return await new Promise(resolve => {
       audio.onended = () => resolve(true);
       audio.onerror = () => resolve(false);
@@ -242,6 +245,7 @@ function speakCloud(text){
           const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
           a.preload = 'auto';
           a.volume = 1.0; /* son fort */
+          currentAudios.push(a);
           return a;
         });
         let i = 0;
@@ -266,14 +270,52 @@ function splitText(text){
   const parts = text.match(/[^.!?…]+[.!?…]+|[^.!?…]+$/g) || [text];
   return parts.map(p => p.trim()).filter(Boolean);
 }
+
+/* ===== NORMALISATION POUR BIEN PRONONCER ===== */
+const UNITS = ['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+const TENS = ['','dix','vingt','trente','quarante','cinquante','soixante','soixante-dix','quatre-vingt','quatre-vingt-dix'];
+function numToFr(n){
+  if (n < 20) return UNITS[n];
+  if (n < 100){
+    const t = Math.floor(n/10), u = n%10;
+    if (u === 0) return TENS[t];
+    if (t === 7) return 'soixante-' + UNITS[10+u];
+    if (t === 9) return 'quatre-vingt-' + UNITS[10+u];
+    return TENS[t] + '-' + UNITS[u];
+  }
+  if (n < 1000){
+    const h = Math.floor(n/100), r = n%100;
+    return (h === 1 ? 'cent' : UNITS[h] + ' cent') + (r ? ' ' + numToFr(r) : '');
+  }
+  if (n < 10000){
+    const th = Math.floor(n/1000), r = n%1000;
+    return (th === 1 ? 'mille' : UNITS[th] + ' mille') + (r ? ' ' + numToFr(r) : '');
+  }
+  return String(n);
+}
+function normalizeForTTS(text){
+  return text
+    .replace(/Tom\.ai/gi, 'Tom point ai')
+    .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
+    .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
+    .replace(/&/g, ' et ')
+    .replace(/%/g, ' pour cent ')
+    .replace(/€/g, ' euros ')
+    .replace(/[#*_`]/g, '')
+    .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function speak(text){
   return new Promise(resolve => {
+    const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('🔊 Elle parle…');
-    speakMistral(text).then(ok => {
+    speakMistral(clean).then(ok => {
       if (ok){ setState('idle'); setStatus('Appuie sur l\'orbe et parle'); resolve(true); }
       else {
-        speakCloud(text).then(ok2 => {
+        speakCloud(clean).then(ok2 => {
           setState('idle');
           setStatus('Appuie sur l\'orbe et parle');
           resolve(ok2);
@@ -281,6 +323,13 @@ function speak(text){
       }
     });
   });
+}
+
+/* ===== STOP AUDIO (pour passer le message) ===== */
+let currentAudios = [];
+function stopAudio(){
+  currentAudios.forEach(a => { try { a.pause(); a.src = ''; } catch {} });
+  currentAudios = [];
 }
 
 /* ===== FLUX PRINCIPAL ===== */
@@ -328,5 +377,3 @@ $('appVersion').textContent = 'Assistant Vocal IA — v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
 setStatus('Appuie sur l\'orbe et parle');
-/* Essaie le message de bienvenue dès l'ouverture (si le navigateur autorise le son) */
-setTimeout(() => { if (!welcomeDone) playWelcome(); }, 900);
