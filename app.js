@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.2';
+const APP_VERSION = '6.3';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'groq/compound-mini';
@@ -289,7 +289,9 @@ async function checkUpdate(){
     const j = await res.json();
     if (j.version && j.version !== APP_VERSION){
       updateBanner.classList.add('show');
-      updateBanner.onclick = () => location.reload(true);
+      updateBanner.textContent = '🔄 Nouvelle version ' + j.version + ' — rechargement automatique…';
+      /* Rechargement AUTO : tout le monde passe à la dernière version */
+      setTimeout(() => location.reload(true), 1500);
     }
   } catch {}
 }
@@ -297,5 +299,6 @@ updateBanner.addEventListener('click', () => location.reload(true));
 
 /* ===== DÉMARRAGE ===== */
 $('appVersion').textContent = 'Assistant Vocal IA — v' + APP_VERSION;
+$('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
 setStatus('Appuie sur l\'orbe et parle');
