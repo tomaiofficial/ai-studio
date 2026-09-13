@@ -1,178 +1,191 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#0a0a12">
-<meta name="description" content="Assistant Vocal IA — parle naturellement avec une vraie voix : rappels, calendrier, météo, localisation, minuteur, calculs, notes.">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f0f1a">
 <title>Assistant Vocal IA</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="stylesheet" href="style.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#0f0f1a;color:#e8e8f0;
+  display:flex;flex-direction:column;align-items:center;
+  overflow:hidden;text-size-adjust:100%;
+}
+/* ===== ORBE ===== */
+.orb-wrap{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:100%;padding:20px;
+}
+.orb{
+  width:min(62vw,260px);height:min(62vw,260px);border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#7c5cff,#3a2a8f 60%,#1a1245);
+  box-shadow:0 0 60px rgba(124,92,255,.45),inset 0 0 40px rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;user-select:none;touch-action:manipulation;
+  transition:transform .15s ease,box-shadow .3s ease;
+  position:relative;
+}
+.orb:active{transform:scale(.94)}
+.orb.listening{
+  animation:orbPulse 1.2s ease-in-out infinite;
+  box-shadow:0 0 90px rgba(124,92,255,.8),inset 0 0 50px rgba(255,255,255,.2);
+}
+.orb.thinking{
+  animation:orbSpin 2.5s linear infinite;
+  box-shadow:0 0 70px rgba(255,170,60,.5),inset 0 0 40px rgba(255,255,255,.15);
+}
+.orb.speaking{
+  animation:orbPulse .8s ease-in-out infinite;
+  box-shadow:0 0 100px rgba(60,220,160,.7),inset 0 0 50px rgba(255,255,255,.25);
+}
+@keyframes orbPulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.08)}
+}
+@keyframes orbSpin{
+  0%{transform:rotate(0) scale(1)}
+  50%{transform:rotate(180deg) scale(1.05)}
+  100%{transform:rotate(360deg) scale(1)}
+}
+.orb-icon{font-size:min(18vw,72px);filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
+/* ===== STATUT ===== */
+.status{
+  margin-top:24px;font-size:15px;color:#9a9ab5;text-align:center;
+  min-height:22px;padding:0 20px;
+}
+.status.active{color:#7c5cff;font-weight:600}
+/* ===== TEXTE ENTENDU / DIT ===== */
+.transcript{
+  width:100%;max-width:520px;padding:0 24px 16px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.t-line{
+  background:rgba(255,255,255,.05);border-radius:14px;padding:10px 14px;
+  font-size:14px;line-height:1.45;color:#c8c8dd;
+  border-left:3px solid #7c5cff;
+}
+.t-line.said{border-left-color:#3cdca0}
+.t-label{font-size:11px;color:#6a6a85;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+/* ===== RÉGLAGES ===== */
+.gear{
+  position:fixed;top:14px;right:14px;width:44px;height:44px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:none;color:#c8c8dd;font-size:20px;
+  cursor:pointer;z-index:20;display:flex;align-items:center;justify-content:center;
+}
+.gear:active{transform:scale(.92)}
+.modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.modal.hidden{display:none}
+.modal-card{
+  background:#171728;width:100%;max-width:480px;border-radius:20px 20px 0 0;
+  padding:24px;max-height:85vh;overflow-y:auto;
+}
+.modal-close{
+  position:absolute;top:14px;right:14px;background:none;border:none;
+  color:#9a9ab5;font-size:22px;cursor:pointer;
+}
+.modal-card h3{font-size:18px;margin-bottom:16px;color:#fff}
+.settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+.muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
+.wide-input{
+  width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
+  background:#10101e;color:#fff;font-size:16px;margin-bottom:10px;outline:none;
+}
+.wide-input:focus{border-color:#7c5cff}
+select.wide-input{appearance:none}
+.primary{
+  width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;
+  font-size:16px;font-weight:600;margin-top:6px;
+}
+.primary:active{transform:scale(.98)}
+.secondary{
+  display:block;width:100%;padding:12px;border-radius:12px;border:1px solid #2a2a45;
+  background:#10101e;color:#c8c8dd;text-align:center;text-decoration:none;
+  font-size:14px;margin-top:8px;
+}
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#2a2a45;color:#fff;padding:12px 20px;border-radius:30px;
+  font-size:14px;z-index:50;opacity:0;transition:opacity .3s;pointer-events:none;
+  max-width:90%;text-align:center;
+}
+.toast.show{opacity:1}
+#updateBanner{
+  position:fixed;top:0;left:0;right:0;background:#ff9f2e;color:#1a1245;
+  text-align:center;padding:12px;font-size:14px;font-weight:600;z-index:60;
+  cursor:pointer;display:none;
+}
+#updateBanner.show{display:block}
+</style>
 </head>
 <body>
 
-<header class="top">
-  <div class="brand">
-    <div class="logo">VA</div>
-    <div class="brand-txt">
-      <b>Assistant Vocal</b>
-      <small id="status">Prêt · dis quelque chose</small>
-    </div>
+<div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
+
+<button class="gear" id="settingsBtn" aria-label="Réglages">⚙️</button>
+
+<div class="orb-wrap">
+  <div class="orb" id="orb" role="button" aria-label="Parler">
+    <span class="orb-icon" id="orbIcon">🎙️</span>
   </div>
-  <div class="top-actions">
-    <button id="settingsBtn" class="icon" title="Réglages">⚙️</button>
-    <button id="themeBtn" class="icon" title="Thème">◐</button>
+  <div class="status" id="status">Appuie sur l'orbe et parle</div>
+</div>
+
+<div class="transcript">
+  <div class="t-line" id="heardLine" style="display:none">
+    <div class="t-label">Tu as dit</div>
+    <div id="heardText"></div>
   </div>
-</header>
-
-<main>
-  <!-- ASSISTANT -->
-  <section id="view-assistant" class="view active">
-    <div class="orb-wrap">
-      <div class="orb" id="orb">
-        <span class="orb-icon">🎙️</span>
-      </div>
-      <div class="orb-ring" id="orbRing"></div>
-    </div>
-
-    <div class="chat-log" id="chatLog"></div>
-
-    <div class="quick">
-      <button data-cmd="rappelle-moi de boire de l'eau dans 1 heure">💧 Rappel eau</button>
-      <button data-cmd="ajoute un événement réunion demain à 10h">📅 Réunion demain</button>
-      <button data-cmd="quel temps fait-il">🌤️ Météo</button>
-      <button data-cmd="où suis-je">📍 Où suis-je ?</button>
-      <button data-cmd="minuteur de 5 minutes">⏱️ Minuteur 5 min</button>
-      <button data-cmd="combien font 15 + 27">🧮 Calcul</button>
-      <button data-cmd="note que je dois acheter du pain">📝 Note</button>
-      <button data-cmd="raconte une blague">😂 Blague</button>
-      <button data-cmd="quelle heure est-il">🕐 L'heure</button>
-      <button data-cmd="aide">❓ Aide</button>
-    </div>
-
-    <div class="text-input-row">
-      <input type="text" id="textInput" placeholder="Écris ta demande… (si le micro ne marche pas)" autocomplete="off" enterkeyhint="send">
-      <button id="sendText" title="Envoyer">➤</button>
-    </div>
-  </section>
-
-  <!-- RAPPELS -->
-  <section id="view-reminders" class="view">
-    <div class="view-head">
-      <h2>⏰ Rappels</h2>
-      <span class="muted" id="reminderCount"></span>
-    </div>
-    <div id="reminderList" class="list"></div>
-  </section>
-
-  <!-- CALENDRIER -->
-  <section id="view-calendar" class="view">
-    <div class="view-head">
-      <h2>📅 Calendrier</h2>
-      <span class="muted" id="eventCount"></span>
-    </div>
-    <div id="eventList" class="list"></div>
-  </section>
-
-  <!-- NOTES -->
-  <section id="view-notes" class="view">
-    <div class="view-head">
-      <h2>📝 Notes</h2>
-      <span class="muted" id="noteCount"></span>
-    </div>
-    <div id="noteList" class="list"></div>
-  </section>
-</main>
-
-<!-- NAV BAR -->
-<nav class="tabbar">
-  <button class="tab active" data-view="assistant"><span>🎙️</span>Assistant</button>
-  <button class="tab" data-view="reminders"><span>⏰</span>Rappels</button>
-  <button class="tab" data-view="calendar"><span>📅</span>Agenda</button>
-  <button class="tab" data-view="notes"><span>📝</span>Notes</button>
-</nav>
-
-<!-- MODAL CARTE -->
-<div id="mapModal" class="modal hidden">
-  <div class="modal-bg" onclick="closeMap()"></div>
-  <div class="modal-card">
-    <button class="modal-close" onclick="closeMap()">✕</button>
-    <h3>📍 Ta position</h3>
-    <p class="muted" id="mapCoords"></p>
-    <div class="map-frame" id="mapFrame"></div>
-    <div class="map-actions">
-      <button class="primary" id="shareLoc">📤 Partager</button>
-      <a class="secondary" id="openMaps" target="_blank" rel="noopener">🗺️ Ouvrir dans Maps</a>
-    </div>
+  <div class="t-line said" id="saidLine" style="display:none">
+    <div class="t-label">Elle répond</div>
+    <div id="saidText"></div>
   </div>
 </div>
 
 <!-- MODAL RÉGLAGES -->
 <div id="settingsModal" class="modal hidden">
-  <div class="modal-bg" id="settingsBg"></div>
   <div class="modal-card">
     <button class="modal-close" id="closeSettings">✕</button>
     <h3>⚙️ Réglages</h3>
 
-    <h4 class="settings-title">🤖 Mode IA (ChatGPT)</h4>
-    <p class="muted">Choisis un fournisseur et colle ta clé. <b>Groq, Gemini et OpenRouter sont gratuits</b> (sans carte bancaire). La clé reste <b>uniquement sur ton appareil</b>.</p>
-    <select id="aiProvider" class="wide-input"></select>
-    <input type="password" id="apiKey" class="wide-input" placeholder="Colle ta clé ici…" autocomplete="off">
-    <div class="map-actions">
-      <button class="primary" id="saveApiKey">💾 Enregistrer</button>
-      <a class="secondary" id="keyLink" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obtenir une clé</a>
-    </div>
+    <h4 class="settings-title">🧠 Clé Groq (cerveau — texte)</h4>
+    <p class="muted">Gratuite et <b>sans limite</b> (14400 requêtes/jour). Sur <b>console.groq.com</b> → API Keys → Create.</p>
+    <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq</a>
+    <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq (gsk_...)" autocomplete="off">
 
-    <h4 class="settings-title">🧠 Modèle IA</h4>
-    <select id="aiModel" class="wide-input"></select>
+    <h4 class="settings-title">🗣️ Clé Mistral (voix réaliste)</h4>
+    <p class="muted">Pour la voix IA réaliste. Sur <b>console.mistral.ai</b> (crédits offerts).</p>
+    <a class="secondary" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral</a>
+    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici…" autocomplete="off">
 
-    <h4 class="settings-title">🗣️ Voix IA réaliste</h4>
-    <p class="muted">Groq, Gemini et OpenRouter n'ont <b>pas de voix</b> (texte seulement). Pour une <b>vraie voix IA réaliste</b> partout : colle une clé <b>Mistral</b>, <b>Google AI Studio</b> (AIza…, gratuite) ou <b>OpenAI</b> (sk-…). Sans clé → voix neuronale Google gratuite.</p>
-    <a class="primary full" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Clé Mistral (console.mistral.ai)</a>
-    <a class="secondary full" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">🔑 Clé Google AI Studio gratuite (2 min)</a>
-    <input type="password" id="ttsKey" class="wide-input" placeholder="Colle ta clé ici (Mistral, AIza… ou sk-…)" autocomplete="off">
+    <h4 class="settings-title">🗣️ Voix</h4>
     <select id="ttsVoice" class="wide-input">
-      <optgroup label="Voix Mistral (clé Mistral)">
-        <option value="mistral">Mistral (femme)</option>
-        <option value="jean">Jean (homme)</option>
-        <option value="leo">Léo (homme)</option>
-        <option value="mona">Mona (femme)</option>
-      </optgroup>
-      <optgroup label="Voix Gemini (clé AIza…, gratuite)">
-        <option value="Kore">Kore (femme, chaleureuse)</option>
-        <option value="Puck">Puck (femme, douce)</option>
-        <option value="Charon">Charon (homme, grave)</option>
-        <option value="Fenrir">Fenrir (homme, profond)</option>
-        <option value="Aoede">Aoede (femme, expressive)</option>
-        <option value="Leda">Leda (femme, claire)</option>
-        <option value="Orus">Orus (homme, neutre)</option>
-        <option value="Zephyr">Zephyr (homme, jeune)</option>
-      </optgroup>
-      <optgroup label="Voix OpenAI (clé sk-…)">
-        <option value="nova">Nova (femme, chaleureuse)</option>
-        <option value="alloy">Alloy (neutre)</option>
-        <option value="echo">Echo (homme)</option>
-        <option value="fable">Fable (britannique)</option>
-        <option value="onyx">Onyx (homme grave)</option>
-        <option value="shimmer">Shimmer (femme, douce)</option>
-      </optgroup>
+      <option value="c69964a6-ab8b-4f8a-9465-ec0925096ec8">Paul - Neutre (homme)</option>
+      <option value="a3e41ea8-020b-44c0-8d8b-f6cc03524e31">Jane - Sarcastique (femme)</option>
+      <option value="e3596645-b1af-469e-b857-f18ddedc7652">Oliver - Neutre (homme, brit.)</option>
+      <option value="1024d823-a11e-43ee-bf3d-d440dccc0577">Paul - Joyeux (homme)</option>
+      <option value="01d985cd-5e0c-4457-bfd8-80ba31a5bc03">Paul - Enthousiaste (homme)</option>
+      <option value="98559b22-62b5-4a64-a7cd-fc78ca41faa8">Paul - Confiant (homme)</option>
+      <option value="5940190b-f58a-4c3e-8264-a40d63fd6883">Paul - Excité (homme)</option>
+      <option value="530e2e20-58e2-45d8-b0a5-4594f4915944">Paul - Triste (homme)</option>
+      <option value="1f017bcb-02e5-460d-989b-db065c0c6122">Paul - Frustré (homme)</option>
+      <option value="cb891218-482c-4392-9878-91e8d999d57a">Paul - En colère (homme)</option>
     </select>
-    <button class="primary full" id="testVoice">🔊 Tester la voix</button>
+    <button class="primary" id="testVoice">🔊 Tester la voix</button>
 
-    <h4 class="settings-title">💬 Conversation</h4>
-    <button class="secondary full" id="clearChat">🗑️ Effacer la conversation</button>
-
-    <p class="muted settings-version" id="appVersion"></p>
+    <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
-
-<div id="updateBanner" class="update-banner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
 
 <script src="app.js"></script>
 </body>
