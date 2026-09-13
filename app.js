@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.7';
+const APP_VERSION = '7.8';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -570,11 +570,22 @@ async function handleQuestion(question){
 }
 
 /* ===== MISE À JOUR ===== */
+function versionCompare(a, b){
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++){
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x > y) return 1;
+    if (x < y) return -1;
+  }
+  return 0;
+}
 async function checkUpdate(){
   try {
     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
-    if (j.version && j.version !== APP_VERSION){
+    /* Ne recharge que si la version en ligne est PLUS RÉCENTE (jamais l'inverse) */
+    if (j.version && versionCompare(j.version, APP_VERSION) > 0){
       updateBanner.classList.add('show');
       updateBanner.textContent = '🔄 Nouvelle version ' + j.version + ' — rechargement automatique…';
       /* Rechargement AUTO : tout le monde passe à la dernière version */
