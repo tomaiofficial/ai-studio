@@ -31,7 +31,7 @@ let state = 'idle'; // idle | listening | thinking | speaking
 let session = [];   // mémoire de conversation
 let toastTimer = null;
 
-/* ===== CONVERSATIONS (mémoire persistante — L'IA se souvient de tout) ===== */
+/* ===== CONVERSATIONS (mémoire persistante — elle se souvient de tout) ===== */
 const CONV_KEY = 'va_convs';
 let conversations = [];
 try { conversations = JSON.parse(localStorage.getItem(CONV_KEY) || '[]'); } catch { conversations = []; }
@@ -92,7 +92,7 @@ function showConversation(conv){
   conv.messages.forEach(m => {
     const d = document.createElement('div');
     d.className = 'conv-msg ' + (m.role === 'user' ? 'user' : 'ai');
-    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'L'IA a répondu') + '</div>' + escapeHtml(m.content);
+    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'L\'IA a répondu') + '</div>' + escapeHtml(m.content);
     list.appendChild(d);
   });
 }
@@ -353,7 +353,7 @@ async function askAI(question){
   if (!r.error){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
-    saveConversation(); /* 💾 L'IA se souvient de tout */
+    saveConversation(); /* 💾 elle se souvient de tout */
   }
   return r;
 }
@@ -367,7 +367,7 @@ function enforceIdentity(reply){
 }
 
 /* Graine d'identité : l'IA sait dès le départ qui l'a créée.
-   Si une conversation récente existe (< 30 min), elle la reprend (L'IA se souvient). */
+   Si une conversation récente existe (< 30 min), elle la reprend (elle se souvient). */
 const lastConv = conversations[conversations.length - 1];
 if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (lastConv.updated || 0) < 30 * 60 * 1000){
   currentConvId = lastConv.id;
@@ -614,7 +614,7 @@ function speak(text){
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('🔊 Elle parle…');
-    const done = ok => { setState('idle'); setStatus('Appuie sur l''orbe et parle'); try{saidLine.classList.remove('speaking')}catch{} resolve(ok); };
+    const done = ok => { setState('idle'); setStatus('Appuie sur l\'orbe et parle'); try{saidLine.classList.remove('speaking')}catch{}; resolve(ok); };
     try{saidLine.classList.add('speaking')}catch{}
     /* 1ʳᵉ choix pour TOUT LE MONDE : voix Edge native « Online (Natural) »
        — INSTANTANÉE, gratuite, SANS worker, sur Edge/Chrome/Windows/Android
