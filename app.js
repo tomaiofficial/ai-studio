@@ -747,7 +747,7 @@ async function checkUpdate(){
     /* Ne recharge que si la version en ligne est PLUS R�CENTE (jamais l'inverse) */
     if (j.version && versionCompare(j.version, APP_VERSION) > 0){
       updateBanner.classList.add('show');
-      updateBanner.textContent = '?? Nouvelle version ' + j.version + ' � rechargement automatique�';
+      updateBanner.textContent = 'Nouvelle version ' + j.version + ' — rechargement automatique';
       /* Rechargement AUTO : tout le monde passe � la derni�re version */
       setTimeout(() => location.reload(true), 1500);
     }
