@@ -254,7 +254,7 @@ const SYSTEM_PROMPT = `Tu es un assistant vocal français créé par Tom.ai le 1
 - Développe les acronymes (API → interface de programmation)
 - Écris les nombres en toutes lettres
 - Phrases courtes et naturelles
-- Ajoute la phonétique pour les mots difficiles
+- Ne mets JAMAIS de phonétique entre parenthèses du type (prononcé ...)
 - Pas d'emojis, de listes à tirets, ni de URLs
 Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 2 à 3 phrases naturelles, ni trop courtes ni trop longues, faciles à prononcer à l oral.`;
 
@@ -493,6 +493,7 @@ function numToFr(n){
 }
 function normalizeForTTS(text){
   return text
+    .replace(/\(prononc[^)]*\)/gi, ' ') /* supprime (prononcé ...) — on ne veut plus l'entendre */
     /* retire les accents (é→e, à→a, ç→c…) pour une lecture plus nette */
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/Tom\.ai/gi, 'Tom point aï')
