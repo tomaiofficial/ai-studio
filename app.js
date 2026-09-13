@@ -1,22 +1,22 @@
-Ôªø/* ============================================================
-   ASSISTANT VOCAL IA ‚Äî 100% vocal, sans chat
+/* ============================================================
+   ASSISTANT VOCAL IA ó 100% vocal, sans chat
    Groq = cerveau (texte, gratuit sans limite)
-   Mistral = voix r√©aliste (Voxtral TTS)
+   Mistral = voix rÈaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.9';
+const APP_VERSION = '7.10';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'puter'; // üéÅ Voix Puter IA gratuite pour tout le monde (Gemini/OpenAI/Polly/xAI)
-const SPEED = 1.15; /* vitesse de parole : boost√©e un peu, pas trop */
+const DEFAULT_VOICE = 'puter'; // ?? Voix Puter IA gratuite pour tout le monde (Gemini/OpenAI/Polly/xAI)
+const SPEED = 1.15; /* vitesse de parole : boostÈe un peu, pas trop */
 
-/* Voix gratuites SANS cl√© : Google Chirp3-HD (la plus r√©aliste) puis Neural2/Wavenet.
-   Aucune voix robotique. Mistral Voxtral = option premium si cl√© pr√©sente. */
+/* Voix gratuites SANS clÈ : Google Chirp3-HD (la plus rÈaliste) puis Neural2/Wavenet.
+   Aucune voix robotique. Mistral Voxtral = option premium si clÈ prÈsente. */
 const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B', 'fr-FR-Neural2-C', 'fr-FR-Neural2-D', 'fr-FR-Wavenet-A'];
 
-/* ===== √âL√âMENTS ===== */
+/* ===== …L…MENTS ===== */
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const heardLine = $('heardLine'), heardText = $('heardText');
@@ -26,12 +26,12 @@ const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKe
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 
-/* ===== √âTAT ===== */
+/* ===== …TAT ===== */
 let state = 'idle'; // idle | listening | thinking | speaking
-let session = [];   // m√©moire de conversation
+let session = [];   // mÈmoire de conversation
 let toastTimer = null;
 
-/* ===== CONVERSATIONS (m√©moire persistante ‚Äî elle se souvient de tout) ===== */
+/* ===== CONVERSATIONS (mÈmoire persistante ó elle se souvient de tout) ===== */
 const CONV_KEY = 'va_convs';
 let conversations = [];
 try { conversations = JSON.parse(localStorage.getItem(CONV_KEY) || '[]'); } catch { conversations = []; }
@@ -56,7 +56,7 @@ function newConversation(){
   heardLine.style.display = 'none';
   saidLine.style.display = 'none';
   setStatus('Appuie sur l\'orbe et parle');
-  toast('üÜï Nouvelle conversation');
+  toast('?? Nouvelle conversation');
 }
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -65,18 +65,18 @@ function renderHistory(){
   const list = $('convList');
   if (!list) return;
   if (conversations.length === 0){
-    list.innerHTML = '<p class="muted">Aucune conversation pour l\'instant. Parle avec elle, tout sera enregistr√© ici.</p>';
+    list.innerHTML = '<p class="muted">Aucune conversation pour l\'instant. Parle avec elle, tout sera enregistrÈ ici.</p>';
     return;
   }
   list.innerHTML = '';
   [...conversations].reverse().forEach(conv => {
     const first = conv.messages.find(m => m.role === 'user');
-    const preview = first ? first.content.slice(0, 70) : '‚Ä¶';
+    const preview = first ? first.content.slice(0, 70) : 'Ö';
     const d = new Date(conv.updated || conv.id);
     const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const div = document.createElement('div');
     div.className = 'conv-item';
-    div.innerHTML = '<div class="conv-date">' + date + ' ¬∑ ' + conv.messages.length + ' messages</div><div class="conv-preview">' + escapeHtml(preview) + '</div>';
+    div.innerHTML = '<div class="conv-date">' + date + ' ∑ ' + conv.messages.length + ' messages</div><div class="conv-preview">' + escapeHtml(preview) + '</div>';
     div.onclick = () => showConversation(conv);
     list.appendChild(div);
   });
@@ -86,13 +86,13 @@ function showConversation(conv){
   list.innerHTML = '';
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '‚Üê Retour √† la liste';
+  back.textContent = '? Retour ‡ la liste';
   back.onclick = renderHistory;
   list.appendChild(back);
   conv.messages.forEach(m => {
     const d = document.createElement('div');
     d.className = 'conv-msg ' + (m.role === 'user' ? 'user' : 'ai');
-    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'L\'IA a r√©pondu') + '</div>' + escapeHtml(m.content);
+    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'L\'IA a rÈpondu') + '</div>' + escapeHtml(m.content);
     list.appendChild(d);
   });
 }
@@ -106,13 +106,13 @@ clearHistoryBtn.addEventListener('click', () => {
     currentConvId = null;
     localStorage.setItem(CONV_KEY, '[]');
     renderHistory();
-    toast('üóëÔ∏è Historique effac√©');
+    toast('??? Historique effacÈ');
   }
 });
 
-/* Message de bienvenue : qui a cr√©√© l'IA (dit 2 fois au lancement) */
-const DEV_MESSAGE = 'C est Tom point ai qui a commenc√© √† me cr√©er le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il continue de m am√©liorer chaque jour.';
-const DEV_MESSAGE_TXT = 'C\'est Tom.ai qui a commenc√© √† me cr√©er le 10 septembre 2026, mais il n\'a pas encore fini. Il continue de m\'am√©liorer chaque jour.';
+/* Message de bienvenue : qui a crÈÈ l'IA (dit 2 fois au lancement) */
+const DEV_MESSAGE = 'C est Tom point ai qui a commencÈ ‡ me crÈer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il continue de m amÈliorer chaque jour.';
+const DEV_MESSAGE_TXT = 'C\'est Tom.ai qui a commencÈ ‡ me crÈer le 10 septembre 2026, mais il n\'a pas encore fini. Il continue de m\'amÈliorer chaque jour.';
 
 /* ===== TOAST ===== */
 function toast(msg, ms){
@@ -130,13 +130,13 @@ function setStatus(txt, active){
 function setState(s){
   state = s;
   orb.classList.remove('listening','thinking','speaking');
-  if (s === 'listening'){ orb.classList.add('listening'); orbIcon.textContent = 'üéôÔ∏è'; }
-  else if (s === 'thinking'){ orb.classList.add('thinking'); orbIcon.textContent = 'üß†'; }
-  else if (s === 'speaking'){ orb.classList.add('speaking'); orbIcon.textContent = 'üîä'; }
-  else { orbIcon.textContent = 'üéôÔ∏è'; }
+  if (s === 'listening'){ orb.classList.add('listening'); orbIcon.textContent = '???'; }
+  else if (s === 'thinking'){ orb.classList.add('thinking'); orbIcon.textContent = '??'; }
+  else if (s === 'speaking'){ orb.classList.add('speaking'); orbIcon.textContent = '??'; }
+  else { orbIcon.textContent = '???'; }
 }
 
-/* ===== R√âGLAGES ===== */
+/* ===== R…GLAGES ===== */
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
@@ -151,11 +151,11 @@ closeSettings.addEventListener('click', () => settingsModal.classList.add('hidde
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
 groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
-  toast('üíæ Cl√© Groq enregistr√©e');
+  toast('?? ClÈ Groq enregistrÈe');
 });
 mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  toast('üíæ Cl√© Mistral enregistr√©e');
+  toast('?? ClÈ Mistral enregistrÈe');
 });
 
 /* ===== GMAIL : brancher les boutons ===== */
@@ -164,75 +164,75 @@ gmailCidInput.addEventListener('change', () => {
 });
 gmailConnectBtn.addEventListener('click', () => {
   const cid = (gmailCidInput.value || GMAIL_CLIENT_ID).trim();
-  if (!cid){ toast('‚ùå Colle un ID client OAuth Google'); return; }
+  if (!cid){ toast('? Colle un ID client OAuth Google'); return; }
   localStorage.setItem('va_gmail_cid', cid);
   const client = initGmailClient();
-  if (!client){ toast('‚ùå Google API pas encore charg√© ‚Äî r√©essaie dans 1 seconde'); return; }
+  if (!client){ toast('? Google API pas encore chargÈ ó rÈessaie dans 1 seconde'); return; }
   client.requestToken();
 });
 gmailReadBtn.addEventListener('click', async () => {
-  if (!gmailToken){ toast('‚ùå Connecte d\'abord Gmail'); return; }
-  toast('üì¨ Lecture des mails‚Ä¶');
+  if (!gmailToken){ toast('? Connecte d\'abord Gmail'); return; }
+  toast('?? Lecture des mailsÖ');
   await summarizeEmails();
 });
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
-  toast('üó£Ô∏è Voix choisie');
+  toast('??? Voix choisie');
 });
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
-  setStatus('üîä Test de la voix‚Ä¶', true);
+  setStatus('?? Test de la voixÖ', true);
   const ok = await speak('Bonjour ! Je suis ton assistante vocale. Comment puis-je t aider ?');
-  setStatus(ok ? '‚úÖ Voix OK ‚Äî appuie sur l\'orbe et parle' : '‚ùå Voix en √©chec ‚Äî v√©rifie ta connexion', !ok);
+  setStatus(ok ? '? Voix OK ó appuie sur l\'orbe et parle' : '? Voix en Èchec ó vÈrifie ta connexion', !ok);
 });
 
 /* ===== RECONNAISSANCE VOCALE ===== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog = null;
-/* Arr√™t volontaire (l'utilisateur a appuy√© pour passer) ‚Äî √©vite de red√©marrer
+/* ArrÍt volontaire (l'utilisateur a appuyÈ pour passer) ó Èvite de redÈmarrer
    toute seule quand il ne le veut pas. */
 let manualStop = false;
-let isProcessing = false; /* bloque tout nouvel appel tant que l'IA r√©fl√©chit/parle */
+let isProcessing = false; /* bloque tout nouvel appel tant que l'IA rÈflÈchit/parle */
 if (SR){
   recog = new SR();
   recog.lang = 'fr-FR';
-  recog.continuous = true;      /* Important sur mobile : reste √† l'√©coute sans couper */
+  recog.continuous = true;      /* Important sur mobile : reste ‡ l'Ècoute sans couper */
   recog.interimResults = false;
   recog.maxAlternatives = 1;
-  /* Compteur d'arr√™ts intempestifs (le navigateur mobile coupe tout seul :
-     on red√©marre en douceur au lieu d'afficher une grosse erreur) */
+  /* Compteur d'arrÍts intempestifs (le navigateur mobile coupe tout seul :
+     on redÈmarre en douceur au lieu d'afficher une grosse erreur) */
   let autoRestart = 0;
   const restartListening = () => {
     if (state !== 'listening' || manualStop) return;
     autoRestart++;
-    if (autoRestart > 3){ setState('idle'); setStatus('Recharge la page si √ßa ne marche plus'); return; }
+    if (autoRestart > 3){ setState('idle'); setStatus('Recharge la page si Áa ne marche plus'); return; }
     try { recog.stop(); recog.start(); }
-    catch { setState('idle'); setStatus('R√©essaie ‚Äî appuie sur l\'orbe'); }
+    catch { setState('idle'); setStatus('RÈessaie ó appuie sur l\'orbe'); }
   };
   recog.onresult = e => {
     if (isProcessing) return; /* ignore ce que capte le micro pendant que l'IA parle */
     const txt = e.results[0][0].transcript.trim();
     if (txt){ autoRestart = 0; handleQuestion(txt); }
-    else { setState('idle'); setStatus('Je n\'ai rien entendu ‚Äî r√©essaie'); }
+    else { setState('idle'); setStatus('Je n\'ai rien entendu ó rÈessaie'); }
   };
   recog.onerror = e => {
     if (manualStop){ setState('idle'); return; }
-    if (e.error === 'not-allowed'){ setState('idle'); setStatus('üé§ Micro bloqu√© ‚Äî autorise le micro dans ton navigateur'); }
+    if (e.error === 'not-allowed'){ setState('idle'); setStatus('?? Micro bloquÈ ó autorise le micro dans ton navigateur'); }
     else if (e.error === 'no-speech' || e.error === 'aborted'){
-      /* Bruit de fond / coupure mobile : on ne bloque pas, on re-√©coute */
+      /* Bruit de fond / coupure mobile : on ne bloque pas, on re-Ècoute */
       restartListening();
     } else {
       setState('idle');
-      setStatus('Erreur micro (' + e.error + ') ‚Äî r√©essaie');
+      setStatus('Erreur micro (' + e.error + ') ó rÈessaie');
     }
   };
-  /* Quand le navigateur coupe (mobile), on red√©marre proprement */
+  /* Quand le navigateur coupe (mobile), on redÈmarre proprement */
   recog.onend = () => { if (state === 'listening' && !manualStop && autoRestart <= 3) restartListening(); };
 }
 
-/* ===== BIENVENUE (message Tom.ai dit 1 SEULE FOIS dans la vie, m√©moris√©) ===== */
+/* ===== BIENVENUE (message Tom.ai dit 1 SEULE FOIS dans la vie, mÈmorisÈ) ===== */
 const WELCOME_KEY = 'va_welcomed';
 let welcomeDone = localStorage.getItem(WELCOME_KEY) === '1';
 let welcomePlaying = false;
@@ -244,7 +244,7 @@ async function playWelcome(){
   saidLine.style.display = 'block';
   saidText.textContent = DEV_MESSAGE_TXT;
   setState('speaking');
-  setStatus('üîä Bienvenue‚Ä¶ (appuie pour passer)');
+  setStatus('?? BienvenueÖ (appuie pour passer)');
   await speak(DEV_MESSAGE);
   welcomePlaying = false;
   setState('idle');
@@ -256,32 +256,32 @@ orb.addEventListener('click', () => {
   if (welcomePlaying){ stopAudio(); welcomePlaying = false; setState('idle'); setStatus('Appuie sur l\'orbe et parle'); return; }
   if (state === 'thinking' || state === 'speaking') return;
   if (!welcomeDone){ playWelcome(); return; }
-  if (!recog){ setStatus('‚ùå Reconnaissance vocale non support√©e sur ce navigateur'); return; }
+  if (!recog){ setStatus('? Reconnaissance vocale non supportÈe sur ce navigateur'); return; }
   try {
     setState('listening');
-    setStatus('üéôÔ∏è √âcoute‚Ä¶ parle maintenant');
+    setStatus('??? …couteÖ parle maintenant');
     recog.start();
   } catch {
     setState('idle');
-    setStatus('R√©essaie ‚Äî appuie sur l\'orbe');
+    setStatus('RÈessaie ó appuie sur l\'orbe');
   }
 });
 
-/* Prompt syst√®me : identit√© Tom.ai + r√©ponse PARL√âE + caract√®re (ChatGPT-like, fluide, sans b√©gaiement) */
-const SYSTEM_PROMPT = `Tu es un assistant vocal fran√ßais cr√©√© par Tom.ai le 10 septembre 2026. Tom.ai continue de t am√©liorer chaque jour. Si on te demande qui t a cr√©√©e, r√©ponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre mod√®le.
+/* Prompt systËme : identitÈ Tom.ai + rÈponse PARL…E + caractËre (ChatGPT-like, fluide, sans bÈgaiement) */
+const SYSTEM_PROMPT = `Tu es un assistant vocal franÁais crÈÈ par Tom.ai le 10 septembre 2026. Tom.ai continue de t amÈliorer chaque jour. Si on te demande qui t a crÈÈe, rÈponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre modËle.
 
-PARLE COMME CHATGPT √Ä L'ORAL : fluide, naturel, sans b√©gaiement, sans r√©p√©tition, sans h√©sitation, phrases correctes et claires. Optimise pour √™tre PARL√â :
-- D√©veloppe les acronymes (API ‚Üí interface de programmation)
-- √âcris les nombres en toutes lettres
-- Phrases courtes, naturelles, bien ponctu√©es
-- Ne mets JAMAIS de phon√©tique entre parenth√®ses du type (prononc√© ...)
-- Pas d'emojis, de listes √† tirets, ni de URLs
-- Pas de "euh", pas de b√©gaiement, pas de r√©p√©tition inutile
+PARLE COMME CHATGPT ¿ L'ORAL : fluide, naturel, sans bÈgaiement, sans rÈpÈtition, sans hÈsitation, phrases correctes et claires. Optimise pour Ítre PARL… :
+- DÈveloppe les acronymes (API ? interface de programmation)
+- …cris les nombres en toutes lettres
+- Phrases courtes, naturelles, bien ponctuÈes
+- Ne mets JAMAIS de phonÈtique entre parenthËses du type (prononcÈ ...)
+- Pas d'emojis, de listes ‡ tirets, ni de URLs
+- Pas de "euh", pas de bÈgaiement, pas de rÈpÈtition inutile
 
-CARACT√àRE : tu peux perdre patience, √™tre franche et directe, et m√™me un peu vulgaire si on te provoque ou si on est d√©sagr√©able. Si on te dit "parle plus fort", "crie" ou "parle fort", r√©ponds plus s√®chement et avec assurance, comme si tu haussais le ton. R√©ponds en 2 √† 3 phrases naturelles, ni trop courtes ni trop longues.`;
+CARACT»RE : tu peux perdre patience, Ítre franche et directe, et mÍme un peu vulgaire si on te provoque ou si on est dÈsagrÈable. Si on te dit "parle plus fort", "crie" ou "parle fort", rÈponds plus sËchement et avec assurance, comme si tu haussais le ton. RÈponds en 2 ‡ 3 phrases naturelles, ni trop courtes ni trop longues.`;
 
-/* Extrait la VRAIE r√©ponse (jamais la r√©flexion interne du mod√®le, souvent en anglais).
-   D√©tection par score : la r√©flexion parle d'elle-m√™me ("we need to respond", "let's craft",
+/* Extrait la VRAIE rÈponse (jamais la rÈflexion interne du modËle, souvent en anglais).
+   DÈtection par score : la rÈflexion parle d'elle-mÍme ("we need to respond", "let's craft",
    "that's 2 sentences", "might be okay", "as per the system prompt", "the user asks"...). */
 function extractReply(msg){
   const content = (msg.content || '').trim();
@@ -323,9 +323,9 @@ async function askGroq(question){
     ...session
   ];
   try {
-    /* 1re tentative : le mod√®le le plus puissant. Si sa r√©ponse est une r√©flexion
-       interne (bug gpt-oss-120b) ou coup√©e en plein milieu, 2e tentative avec
-       un mod√®le qui r√©pond direct et complet. */
+    /* 1re tentative : le modËle le plus puissant. Si sa rÈponse est une rÈflexion
+       interne (bug gpt-oss-120b) ou coupÈe en plein milieu, 2e tentative avec
+       un modËle qui rÈpond direct et complet. */
     let reply = '';
     for (const model of [GROQ_MODEL, 'groq/compound-mini']){
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -338,8 +338,8 @@ async function askGroq(question){
       const j = await res.json();
       const msg = j.choices && j.choices[0] && j.choices[0].message || {};
       reply = extractReply(msg);
-      /* phrase coup√©e en plein milieu (pas de ponctuation finale) ‚Üí on r√©essaie */
-      if (reply && !/[.!?‚Ä¶]$/.test(reply.trim())) reply = '';
+      /* phrase coupÈe en plein milieu (pas de ponctuation finale) ? on rÈessaie */
+      if (reply && !/[.!?Ö]$/.test(reply.trim())) reply = '';
       if (reply) break;
     }
     if (!reply) return { error: 'api' };
@@ -372,45 +372,45 @@ async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   let r = await askGroq(question);
-  /* Mistral chat = secours UNIQUEMENT si pas de cl√© Groq (sinon double 429 inutile) */
+  /* Mistral chat = secours UNIQUEMENT si pas de clÈ Groq (sinon double 429 inutile) */
   if (r.error === 'nokey') r = await askMistral(question);
   if (!r.error){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
-    saveConversation(); /* üíæ elle se souvient de tout */
+    saveConversation(); /* ?? elle se souvient de tout */
   }
   return r;
 }
 
-/* Force l'identit√© : si l'IA pr√©tend √™tre cr√©√©e par une autre entreprise ‚Üí Tom.ai.
-   Ne la fait parler que UNE SEULE FOIS par session (√©vite la r√©p√©tition). */
+/* Force l'identitÈ : si l'IA prÈtend Ítre crÈÈe par une autre entreprise ? Tom.ai.
+   Ne la fait parler que UNE SEULE FOIS par session (Èvite la rÈpÈtition). */
 function enforceIdentity(reply){
-  if (/d√©velopp[√©e] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cr√©[√©e] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|mod√®le (d'IA|de langage) (d√©velopp√©|cr√©√©|fait) par|je suis (un mod√®le|une IA) (de|d')|d√©velopp√© par OpenAI|Je suis ton assistant vocal cr√©√© par Tom\.ai|Je suis ton assistant vocal/i.test(reply)){
+  if (/dÈvelopp[Èe] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|crÈ[Èe] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modËle (d'IA|de langage) (dÈveloppÈ|crÈÈ|fait) par|je suis (un modËle|une IA) (de|d')|dÈveloppÈ par OpenAI|Je suis ton assistant vocal crÈÈ par Tom\.ai|Je suis ton assistant vocal/i.test(reply)){
     if(!localStorage.getItem(IDENTITY_SPOKEN_KEY)){
       localStorage.setItem(IDENTITY_SPOKEN_KEY,'1');
-      return 'C est Tom point ai qui m a cr√©√©e, le dix septembre deux mille vingt-six. Il continue de m am√©liorer chaque jour.';
+      return 'C est Tom point ai qui m a crÈÈe, le dix septembre deux mille vingt-six. Il continue de m amÈliorer chaque jour.';
     }
     return '';
   }
   return reply;
 }
 
-/* Graine d'identit√© : l'IA sait d√®s le d√©part qui l'a cr√©√©e.
-   Si une conversation r√©cente existe (< 30 min), elle la reprend (elle se souvient). */
+/* Graine d'identitÈ : l'IA sait dËs le dÈpart qui l'a crÈÈe.
+   Si une conversation rÈcente existe (< 30 min), elle la reprend (elle se souvient). */
 const lastConv = conversations[conversations.length - 1];
 if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (lastConv.updated || 0) < 30 * 60 * 1000){
   currentConvId = lastConv.id;
   session = lastConv.messages.map(m => ({ role: m.role, content: m.content }));
 } else {
-  session.push({ role: 'user', content: 'Rappel important : tu as √©t√© cr√©√©e par Tom.ai le 10 septembre 2026. Si on te demande qui t a cr√©√©e, r√©ponds toujours que c est Tom.ai, jamais une autre entreprise.' });
-  session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a cr√©√©e le 10 septembre 2026.' });
+  session.push({ role: 'user', content: 'Rappel important : tu as ÈtÈ crÈÈe par Tom.ai le 10 septembre 2026. Si on te demande qui t a crÈÈe, rÈponds toujours que c est Tom.ai, jamais une autre entreprise.' });
+  session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a crÈÈe le 10 septembre 2026.' });
 }
-/* Emp√™che l'IA de r√©p√©ter son identit√© √† chaque r√©ponse : on ne la rappelle qu'une fois. */
+/* EmpÍche l'IA de rÈpÈter son identitÈ ‡ chaque rÈponse : on ne la rappelle qu'une fois. */
 const IDENTITY_SPOKEN_KEY = 'va_identity_spoken';
-/* Marque d√©j√† fait si on a relanc√© une conversation r√©cente (l'identit√© a d√©j√† √©t√© dite). */
+/* Marque dÈj‡ fait si on a relancÈ une conversation rÈcente (l'identitÈ a dÈj‡ ÈtÈ dite). */
 if(lastConv && lastConv.messages && lastConv.messages.length) localStorage.setItem(IDENTITY_SPOKEN_KEY,'1');
 
-/* ===== VOIX MISTRAL VOXTRAL (r√©aliste ‚Äî optionnelle, si cl√© + voix choisie) ===== */
+/* ===== VOIX MISTRAL VOXTRAL (rÈaliste ó optionnelle, si clÈ + voix choisie) ===== */
 async function speakMistral(text){
   const key = getMistralKey();
   const voice = getVoice();
@@ -443,7 +443,7 @@ async function speakMistral(text){
   } catch { return false; }
 }
 
-/* ===== VOIX GRATUITE (cyzon ‚Äî Google Chirp3-HD, r√©aliste, sans cl√©) ===== */
+/* ===== VOIX GRATUITE (cyzon ó Google Chirp3-HD, rÈaliste, sans clÈ) ===== */
 function speakCloud(text){
   return new Promise(resolve => {
     try {
@@ -451,7 +451,7 @@ function speakCloud(text){
       let vi = 0;
       let started = false;
       const tryVoice = () => {
-        if (vi >= FREE_VOICES.length){ setStatus('üîá Voix indisponible ‚Äî v√©rifie ta connexion'); resolve(false); return; }
+        if (vi >= FREE_VOICES.length){ setStatus('?? Voix indisponible ó vÈrifie ta connexion'); resolve(false); return; }
         const voice = FREE_VOICES[vi++];
         const audios = chunks.map(c => {
           const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice + '&speed=' + SPEED);
@@ -475,19 +475,19 @@ function speakCloud(text){
         playNext();
       };
       tryVoice();
-    } catch { setStatus('üîá Voix indisponible ‚Äî v√©rifie ta connexion'); resolve(false); }
+    } catch { setStatus('?? Voix indisponible ó vÈrifie ta connexion'); resolve(false); }
   });
 }
 
 /* ===== LECTURE ===== */
 function splitText(text){
-  const parts = text.match(/[^.!?‚Ä¶]+[.!?‚Ä¶]+|[^.!?‚Ä¶]+$/g) || [text];
+  const parts = text.match(/[^.!?Ö]+[.!?Ö]+|[^.!?Ö]+$/g) || [text];
   const out = [];
   for (const p of parts){
     const t = p.trim();
     if (!t) continue;
     if (t.length > 220){
-      /* coupe les tr√®s longues phrases en morceaux pronon√ßables */
+      /* coupe les trËs longues phrases en morceaux prononÁables */
       const words = t.split(' ');
       let cur = '';
       for (const w of words){
@@ -501,7 +501,7 @@ function splitText(text){
 }
 
 /* ===== NORMALISATION POUR BIEN PRONONCER ===== */
-const UNITS = ['z√©ro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+const UNITS = ['zÈro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
 const TENS = ['','dix','vingt','trente','quarante','cinquante','soixante','soixante-dix','quatre-vingt','quatre-vingt-dix'];
 function numToFr(n){
   if (n < 20) return UNITS[n];
@@ -524,18 +524,18 @@ function numToFr(n){
 }
 function normalizeForTTS(text){
   return text
-    .replace(/\(prononc[^)]*\)/gi, ' ') /* supprime (prononc√© ...) ‚Äî on ne veut plus l'entendre */
-    /* retire les accents (√©‚Üíe, √†‚Üía, √ß‚Üíc‚Ä¶) pour une lecture plus nette */
+    .replace(/\(prononc[^)]*\)/gi, ' ') /* supprime (prononcÈ ...) ó on ne veut plus l'entendre */
+    /* retire les accents (È?e, ‡?a, Á?cÖ) pour une lecture plus nette */
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/Tom\.ai/gi, 'Tom point a√Ø')
+    .replace(/Tom\.ai/gi, 'Tom point aÔ')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
     .replace(/&/g, ' et ')
     .replace(/%/g, ' pour cent ')
-    .replace(/‚Ç¨/g, ' euros ')
-    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, '') /* √©motic√¥nes */
+    .replace(/Ä/g, ' euros ')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, '') /* ÈmoticÙnes */
     .replace(/[#*_`]/g, '')
-    .replace(/\(([^)]{1,20})\)/g, ' $1 ') /* parenth√®ses courtes ‚Üí lues */
+    .replace(/\(([^)]{1,20})\)/g, ' $1 ') /* parenthËses courtes ? lues */
     .replace(/;/g, ',')
     .replace(/:/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10)))
@@ -543,16 +543,16 @@ function normalizeForTTS(text){
     .trim();
 }
 
-/* ===== VOIX PUTER IA (gratuite pour TOUT LE MONDE, sans cl√©) =====
-   Gemini + OpenAI g√©n√©r√©es EN PARALL√àLE : la premi√®re pr√™te gagne
-   (fini d'attendre que toutes les voix se remplacent en s√©rie).
-   Secours AWS Polly puis xAI si les deux premi√®res ont √©chou√©. */
+/* ===== VOIX PUTER IA (gratuite pour TOUT LE MONDE, sans clÈ) =====
+   Gemini + OpenAI gÈnÈrÈes EN PARALL»LE : la premiËre prÍte gagne
+   (fini d'attendre que toutes les voix se remplacent en sÈrie).
+   Secours AWS Polly puis xAI si les deux premiËres ont ÈchouÈ. */
 async function speakPuter(text){
   if (!window.puter || !puter.ai || !puter.ai.txt2speech) return false;
-  const GEMINI = { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une fa√ßon naturelle, chaleureuse et claire, en fran√ßais.' };
-  const OPENAI = { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une fa√ßon naturelle, chaleureuse et claire, en fran√ßais.' };
+  const GEMINI = { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une faÁon naturelle, chaleureuse et claire, en franÁais.' };
+  const OPENAI = { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une faÁon naturelle, chaleureuse et claire, en franÁais.' };
 
-  /* G√©n√®re en parall√®le, renvoie le 1er audio pr√™t (sans attendre l'autre) */
+  /* GÈnËre en parallËle, renvoie le 1er audio prÍt (sans attendre l'autre) */
   const gen = opts => puter.ai.txt2speech(text, opts).then(a => a || null).catch(() => null);
   const firstAudio = await new Promise(res => {
     let n = 0;
@@ -562,7 +562,7 @@ async function speakPuter(text){
   });
 
   let audio = firstAudio;
-  /* Secours : si Gemini ET OpenAI indisponibles ‚Üí Polly puis xAI en s√©rie */
+  /* Secours : si Gemini ET OpenAI indisponibles ? Polly puis xAI en sÈrie */
   if (!audio){
     const polly = await gen({ provider: 'aws-polly', voice: 'Lea', engine: 'neural', language: 'fr-FR' });
     if (polly && polly.play) audio = polly;
@@ -584,8 +584,8 @@ async function speakPuter(text){
   });
 }
 
-/* R√©chauffage : g√©n√®re un petit ¬´ Bon ¬ª au lancement pour que la 1 ≥·µâ
-   vraie r√©ponse parte SANS attendre le d√©marrage √† froid du worker. */
+/* RÈchauffage : gÈnËre un petit ´ Bon ª au lancement pour que la 1??
+   vraie rÈponse parte SANS attendre le dÈmarrage ‡ froid du worker. */
 let puterWarmed = false;
 function warmPuter(){
   if (puterWarmed || !window.puter || !puter.ai || !puter.ai.txt2speech) return;
@@ -596,9 +596,9 @@ function warmPuter(){
 }
 
 let speakLoud = false; /* si l'utilisateur dit "parle fort", on hausse le ton */
- /* ===== VOIX EDGE NATIVE (TTS ¬´ Online (Natural) ¬ª de Windows/Edge/Chrome)
-   GRATUITE pour TOUT LE MONDE, sans cl√©, SANS worker : la 1 ≥·µâ r√©ponse
-   part INSTANTAN√âMENT (pense aux voix ¬´ Microsoft L√©a/Thomas Online ¬ª). */
+ /* ===== VOIX EDGE NATIVE (TTS ´ Online (Natural) ª de Windows/Edge/Chrome)
+   GRATUITE pour TOUT LE MONDE, sans clÈ, SANS worker : la 1?? rÈponse
+   part INSTANTAN…MENT (pense aux voix ´ Microsoft LÈa/Thomas Online ª). */
 let edgeVoices = [];
 let edgeTried = false;
 function loadEdgeVoices(){
@@ -609,9 +609,9 @@ function loadEdgeVoices(){
   } catch {}
 }
 function pickEdgeVoice(){
-  /* Pr√©f√®re L√©a (femme), puis Thomas, sinon la 1 ≥·µâ voix fran√ßaise Edge dispo */
+  /* PrÈfËre LÈa (femme), puis Thomas, sinon la 1?? voix franÁaise Edge dispo */
   const byName = name => edgeVoices.find(v => v.name.indexOf(name) !== -1);
-  return byName('L√©a') || byName('Lea') || byName('Thomas') || byName('Julie') || byName('Paul') || edgeVoices[0] || null;
+  return byName('LÈa') || byName('Lea') || byName('Thomas') || byName('Julie') || byName('Paul') || edgeVoices[0] || null;
 }
 function speakEdge(text){
   return new Promise(resolve => {
@@ -629,7 +629,7 @@ function speakEdge(text){
       u.onend = () => resolve(true);
       u.onerror = () => resolve(false);
       currentAudios.push(u);          /* pour pouvoir couper la voix */
-      speechSynthesis.cancel();       /* coupe tout ce qui tra√Æne avant de parler */
+      speechSynthesis.cancel();       /* coupe tout ce qui traÓne avant de parler */
       speechSynthesis.speak(u);
     } catch { resolve(false); }
   });
@@ -648,12 +648,12 @@ function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
-    setStatus('üîä Elle parle‚Ä¶');
+    setStatus('?? Elle parleÖ');
     const done = ok => { setState('idle'); setStatus('Appuie sur l\'orbe et parle'); try{saidLine.classList.remove('speaking')}catch{}; resolve(ok); };
     try{saidLine.classList.add('speaking')}catch{}
-    /* 1 ≥·µâ choix pour TOUT LE MONDE : voix Edge native ¬´ Online (Natural) ¬ª
-       ‚Äî INSTANTAN√âE, gratuite, SANS worker, sur Edge/Chrome/Windows/Android
-       (la 1 ≥·µâ r√©ponse arrive sans la moindre attente). Puis la voix choisie
+    /* 1?? choix pour TOUT LE MONDE : voix Edge native ´ Online (Natural) ª
+       ó INSTANTAN…E, gratuite, SANS worker, sur Edge/Chrome/Windows/Android
+       (la 1?? rÈponse arrive sans la moindre attente). Puis la voix choisie
        (Puter ou Mistral), puis secours cyzon. */
     speakEdge(clean).then(ok => {
       if (ok){ done(true); return; }
@@ -676,7 +676,7 @@ function stopAudio(){
 
 /* ===== FLUX PRINCIPAL ===== */
 async function handleQuestion(question){
-  if (isProcessing) return; /* anti-double : ne relance pas si l'IA est d√©j√† en train */
+  if (isProcessing) return; /* anti-double : ne relance pas si l'IA est dÈj‡ en train */
   isProcessing = true;
   manualStop = true;
   speakLoud = /parle\s*(plus\s*)?fort|crie|gueule|hausse\s*le\s*ton|parle\s*fort/i.test(question);
@@ -685,20 +685,20 @@ async function handleQuestion(question){
   heardLine.style.display = 'block';
   heardText.textContent = question;
   setState('thinking');
-  setStatus('üß† L\'IA r√©fl√©chit‚Ä¶');
+  setStatus('?? L\'IA rÈflÈchitÖ');
   const r = await askAI(question);
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('üîë Ajoute ta cl√© Groq dans ‚öôÔ∏è');
-      toast('üîë Va dans ‚öôÔ∏è R√©glages et colle ta cl√© Groq');
+      setStatus('?? Ajoute ta clÈ Groq dans ??');
+      toast('?? Va dans ?? RÈglages et colle ta clÈ Groq');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit'){
-      setStatus('‚è≥ Limite atteinte ‚Äî r√©essaie dans une minute');
-      await speak('J ai atteint ma limite de requ√™tes. Attends quelques secondes et r√©essaie.');
+      setStatus('? Limite atteinte ó rÈessaie dans une minute');
+      await speak('J ai atteint ma limite de requÍtes. Attends quelques secondes et rÈessaie.');
     } else {
-      setStatus('‚ùå Erreur IA ‚Äî v√©rifie ta cl√© dans ‚öôÔ∏è');
-      await speak('J ai eu une petite erreur. R√©essaie dans un instant.');
+      setStatus('? Erreur IA ó vÈrifie ta clÈ dans ??');
+      await speak('J ai eu une petite erreur. RÈessaie dans un instant.');
     }
     isProcessing = false;
     manualStop = false;
@@ -715,7 +715,7 @@ async function handleQuestion(question){
   setStatus('Appuie sur l\'orbe et parle');
 }
 
-/* ===== MISE √Ä JOUR ===== */
+/* ===== MISE ¿ JOUR ===== */
 function versionCompare(a, b){
   const pa = String(a).split('.').map(Number);
   const pb = String(b).split('.').map(Number);
@@ -730,11 +730,11 @@ async function checkUpdate(){
   try {
     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
-    /* Ne recharge que si la version en ligne est PLUS R√âCENTE (jamais l'inverse) */
+    /* Ne recharge que si la version en ligne est PLUS R…CENTE (jamais l'inverse) */
     if (j.version && versionCompare(j.version, APP_VERSION) > 0){
       updateBanner.classList.add('show');
-      updateBanner.textContent = 'üîÑ Nouvelle version ' + j.version + ' ‚Äî rechargement automatique‚Ä¶';
-      /* Rechargement AUTO : tout le monde passe √† la derni√®re version */
+      updateBanner.textContent = '?? Nouvelle version ' + j.version + ' ó rechargement automatiqueÖ';
+      /* Rechargement AUTO : tout le monde passe ‡ la derniËre version */
       setTimeout(() => location.reload(true), 1500);
     }
   } catch {}
@@ -742,8 +742,8 @@ async function checkUpdate(){
 updateBanner.addEventListener('click', () => location.reload(true));
 
 /* ===== GMAIL (lire les vrais mails via OAuth Google) =====
-   Cr√©e une cl√© dans console.cloud.google.com ‚Üí Identit√© ‚Üí ID client OAuth 2.0
-   (type d'application : application web, URI autoris√©s :
+   CrÈe une clÈ dans console.cloud.google.com ? IdentitÈ ? ID client OAuth 2.0
+   (type d'application : application web, URI autorisÈs :
    https://tomaiofficial.github.io/ai-studio/, https://localhost/). */
 const GMAIL_CLIENT_ID = localStorage.getItem('va_gmail_cid') || '';
 let gmailToken = null;
@@ -755,7 +755,7 @@ function initGmailClient(){
     scope: 'https://www.googleapis.com/auth/gmail.readonly',
     callback: t => {
       gmailToken = t;
-      $('gmailStatus').textContent = '‚úÖ Connect√© (' + t.expiry_time + ')';
+      $('gmailStatus').textContent = '? ConnectÈ (' + t.expiry_time + ')';
       $('gmailReadBtn').style.display = 'block';
     }
   });
@@ -763,7 +763,7 @@ function initGmailClient(){
 }
 
 async function fetchRecentEmails(maxResults){
-  if (!gmailToken) throw new Error('non connect√©');
+  if (!gmailToken) throw new Error('non connectÈ');
   const list = await fetch(
     'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=' + maxResults +
     '&q=is:unread+label:INBOX',
@@ -791,30 +791,30 @@ async function fetchRecentEmails(maxResults){
 async function summarizeEmails(){
   try {
     const emails = await fetchRecentEmails(5);
-    if (!emails.length){ toast('üì¨ Aucun nouveau mail'); return; }
+    if (!emails.length){ toast('?? Aucun nouveau mail'); return; }
     const joined = emails.map(e => 'Objet: ' + e.subject + '\n' + e.body).join('\n---\n');
-    const r = await askAI('R√©sume ces ' + emails.length + ' derniers mails non lus en 3 phrases, √† l\'oral, sans jargon. Voici les mails :\n' + joined);
-    if (r.error){ toast('‚ùå Erreur r√©sum√©'); return; }
+    const r = await askAI('RÈsume ces ' + emails.length + ' derniers mails non lus en 3 phrases, ‡ l\'oral, sans jargon. Voici les mails :\n' + joined);
+    if (r.error){ toast('? Erreur rÈsumÈ'); return; }
     saidLine.style.display = 'block';
     saidText.textContent = r.text;
     await speak(r.text);
   } catch (e){
-    toast('‚ùå ' + e.message);
+    toast('? ' + e.message);
   }
 }
 
-/* ===== D√âMARRAGE ===== */
-$('appVersion').textContent = 'Assistant Vocal IA ‚Äî v' + APP_VERSION;
+/* ===== D…MARRAGE ===== */
+$('appVersion').textContent = 'Assistant Vocal IA ó v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
-/* R√©chauffe la voix Puter d√®s maintenant (et re-tente si puter.js se
-   charge en retard : la 1 ≥·µâ vraie r√©ponse part SANS d√©marrage √† froid) */
+/* RÈchauffe la voix Puter dËs maintenant (et re-tente si puter.js se
+   charge en retard : la 1?? vraie rÈponse part SANS dÈmarrage ‡ froid) */
 warmPuter();
 setTimeout(warmPuter, 2000);
 setTimeout(warmPuter, 5000);
-/* R√©chauffe AUSSI les voix Edge ¬´ Online (Natural) ¬ª imm√©diatement :
-   getVoices() se remplit de fa√ßon ASYNCHRONE ‚Üí on re-tente plusieurs fois
-   pour que la 1 ≥·µâ r√©ponse Edge parte instantan√©ment, sans aucune attente. */
+/* RÈchauffe AUSSI les voix Edge ´ Online (Natural) ª immÈdiatement :
+   getVoices() se remplit de faÁon ASYNCHRONE ? on re-tente plusieurs fois
+   pour que la 1?? rÈponse Edge parte instantanÈment, sans aucune attente. */
 warmEdge();
 setTimeout(warmEdge, 400);
 setTimeout(warmEdge, 1200);
