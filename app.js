@@ -367,7 +367,7 @@ async function askAI(question){
 /* Force l'identité : si l'IA prétend être créée par une autre entreprise → Tom.ai.
    Ne la fait parler que UNE SEULE FOIS par session (évite la répétition). */
 function enforceIdentity(reply){
-  if (/développ[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cré[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modèle (d'IA|de langage) (développé|créé|fait) par|je suis (un modèle|une IA) (de|d')|développé par OpenAI/i.test(reply)){
+  if (/développ[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cré[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modèle (d'IA|de langage) (développé|créé|fait) par|je suis (un modèle|une IA) (de|d')|développé par OpenAI|Je suis ton assistant vocal créé par Tom\.ai|Je suis ton assistant vocal/i.test(reply)){
     if(!localStorage.getItem(IDENTITY_SPOKEN_KEY)){
       localStorage.setItem(IDENTITY_SPOKEN_KEY,'1');
       return 'C est Tom point ai qui m a créée, le dix septembre deux mille vingt-six. Il continue de m améliorer chaque jour.';
@@ -389,6 +389,8 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
 }
 /* Empêche l'IA de répéter son identité à chaque réponse : on ne la rappelle qu'une fois. */
 const IDENTITY_SPOKEN_KEY = 'va_identity_spoken';
+/* Marque déjà fait si on a relancé une conversation récente (l'identité a déjà été dite). */
+if(lastConv && lastConv.messages && lastConv.messages.length) localStorage.setItem(IDENTITY_SPOKEN_KEY,'1');
 
 /* ===== VOIX MISTRAL VOXTRAL (réaliste — optionnelle, si clé + voix choisie) ===== */
 async function speakMistral(text){
