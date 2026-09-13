@@ -56,7 +56,7 @@ function newConversation(){
   heardLine.style.display = 'none';
   saidLine.style.display = 'none';
   setStatus('Appuie sur l\'orbe et parle');
-  toast('?? Nouvelle conversation');
+  toast('Nouvelle conversation');
 }
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -106,7 +106,7 @@ clearHistoryBtn.addEventListener('click', () => {
     currentConvId = null;
     localStorage.setItem(CONV_KEY, '[]');
     renderHistory();
-    toast('??? Historique effac�');
+    toast('Historique efface');
   }
 });
 
@@ -154,11 +154,11 @@ closeSettings.addEventListener('click', () => settingsModal.classList.add('hidde
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
 groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
-  toast('?? Cl� Groq enregistr�e');
+  toast('Cle Groq enregistree');
 });
 mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  toast('?? Cl� Mistral enregistr�e');
+  toast('Cle Mistral enregistree');
 });
 
 /* ===== GMAIL : brancher les boutons ===== */
@@ -186,18 +186,18 @@ gmailConnectBtn.addEventListener('click', async () => {
 });
 gmailReadBtn.addEventListener('click', async () => {
   if (!gmailToken){ toast('? Connecte d\'abord Gmail'); return; }
-  toast('?? Lecture des mails�');
+  toast('Lecture des mails');
   await summarizeEmails();
 });
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
-  toast('??? Voix choisie');
+  toast('Voix choisie');
 });
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
-  setStatus('?? Test de la voix�', true);
+  setStatus('Test de la voix', true);
   const ok = await speak('Bonjour ! Je suis ton assistante vocale. Comment puis-je t aider ?');
   setStatus(ok ? '? Voix OK � appuie sur l\'orbe et parle' : '? Voix en �chec � v�rifie ta connexion', !ok);
 });
@@ -233,7 +233,7 @@ if (SR){
   };
   recog.onerror = e => {
     if (manualStop){ setState('idle'); return; }
-    if (e.error === 'not-allowed'){ setState('idle'); setStatus('?? Micro bloqu� � autorise le micro dans ton navigateur'); }
+    if (e.error === 'not-allowed'){ setState('idle'); setStatus('Micro bloque - autorise le micro'); }
     else if (e.error === 'no-speech' || e.error === 'aborted'){
       /* Bruit de fond / coupure mobile : on ne bloque pas, on re-�coute */
       restartListening();
@@ -258,7 +258,7 @@ async function playWelcome(){
   saidLine.style.display = 'block';
   saidText.textContent = DEV_MESSAGE_TXT;
   setState('speaking');
-  setStatus('?? Bienvenue� (appuie pour passer)');
+  setStatus('Bienvenue - appuie pour passer');
   await speak(DEV_MESSAGE);
   welcomePlaying = false;
   setState('idle');
@@ -273,7 +273,7 @@ orb.addEventListener('click', () => {
   if (!recog){ setStatus('? Reconnaissance vocale non support�e sur ce navigateur'); return; }
   try {
     setState('listening');
-    setStatus('??? �coute� parle maintenant');
+    setStatus('Ecoute - parle maintenant');
     recog.start();
   } catch {
     setState('idle');
@@ -465,7 +465,7 @@ function speakCloud(text){
       let vi = 0;
       let started = false;
       const tryVoice = () => {
-        if (vi >= FREE_VOICES.length){ setStatus('?? Voix indisponible � v�rifie ta connexion'); resolve(false); return; }
+        if (vi >= FREE_VOICES.length){ setStatus('Voix indisponible - verifie ta connexion'); resolve(false); return; }
         const voice = FREE_VOICES[vi++];
         const audios = chunks.map(c => {
           const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice + '&speed=' + SPEED);
@@ -662,7 +662,7 @@ function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
-    setStatus('?? Elle parle�');
+    setStatus('Elle parle');
     const done = ok => { setState('idle'); setStatus('Appuie sur l\'orbe et parle'); try{saidLine.classList.remove('speaking')}catch{}; resolve(ok); };
     try{saidLine.classList.add('speaking')}catch{}
     /* 1?? choix pour TOUT LE MONDE : voix Edge native � Online (Natural) �
@@ -699,19 +699,19 @@ async function handleQuestion(question){
   heardLine.style.display = 'block';
   heardText.textContent = question;
   setState('thinking');
-  setStatus('?? L\'IA r�fl�chit�');
+  setStatus('L\'IA reflechit');
   const r = await askAI(question);
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('?? Ajoute ta cl� Groq dans ??');
-      toast('?? Va dans ?? R�glages et colle ta cl� Groq');
+      setStatus('Ajoute ta cle Groq dans Reglages');
+      toast('Va dans Reglages et colle ta cle Groq');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit'){
       setStatus('? Limite atteinte � r�essaie dans une minute');
       await speak('J ai atteint ma limite de requ�tes. Attends quelques secondes et r�essaie.');
     } else {
-      setStatus('? Erreur IA � v�rifie ta cl� dans ??');
+      setStatus('Erreur IA - verifie ta cle dans Reglages');
       await speak('J ai eu une petite erreur. R�essaie dans un instant.');
     }
     isProcessing = false;
@@ -805,7 +805,7 @@ async function fetchRecentEmails(maxResults){
 async function summarizeEmails(){
   try {
     const emails = await fetchRecentEmails(5);
-    if (!emails.length){ toast('?? Aucun nouveau mail'); return; }
+    if (!emails.length){ toast('Aucun nouveau mail'); return; }
     const joined = emails.map(e => 'Objet: ' + e.subject + '\n' + e.body).join('\n---\n');
     const r = await askAI('R�sume ces ' + emails.length + ' derniers mails non lus en 3 phrases, � l\'oral, sans jargon. Voici les mails :\n' + joined);
     if (r.error){ toast('? Erreur r�sum�'); return; }
