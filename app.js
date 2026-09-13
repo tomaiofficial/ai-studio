@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.3';
+const APP_VERSION = '6.4';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'groq/compound-mini';
@@ -29,6 +29,11 @@ const toastEl = $('toast'), updateBanner = $('updateBanner');
 let state = 'idle'; // idle | listening | thinking | speaking
 let session = [];   // mémoire de conversation
 let toastTimer = null;
+let welcomeDone = false;
+
+/* Message de bienvenue : qui a créé l'IA (dit 2 fois au lancement) */
+const DEV_MESSAGE = 'C est Tom point ai qui a commencé à me créer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il continue de m améliorer chaque jour.';
+const DEV_MESSAGE_TXT = 'C\'est Tom.ai qui a commencé à me créer le 10 septembre 2026, mais il n\'a pas encore fini. Il continue de m\'améliorer chaque jour.';
 
 /* ===== TOAST ===== */
 function toast(msg, ms){
@@ -108,9 +113,25 @@ if (SR){
   recog.onend = () => { if (state === 'listening') setState('idle'); };
 }
 
+/* ===== BIENVENUE (message Tom.ai dit 2 fois) ===== */
+async function playWelcome(){
+  if (welcomeDone) return;
+  welcomeDone = true;
+  saidLine.style.display = 'block';
+  saidText.textContent = DEV_MESSAGE_TXT;
+  setState('speaking');
+  setStatus('🔊 Bienvenue…');
+  await speak(DEV_MESSAGE);
+  await new Promise(r => setTimeout(r, 700));
+  await speak(DEV_MESSAGE);
+  setState('idle');
+  setStatus('Appuie sur l\'orbe et parle');
+}
+
 orb.addEventListener('click', () => {
   if (state === 'listening'){ recog && recog.stop(); setState('idle'); setStatus('Appuie sur l\'orbe et parle'); return; }
   if (state === 'thinking' || state === 'speaking') return;
+  if (!welcomeDone){ playWelcome(); return; }
   if (!recog){ setStatus('❌ Reconnaissance vocale non supportée sur ce navigateur'); return; }
   try {
     setState('listening');
@@ -122,12 +143,15 @@ orb.addEventListener('click', () => {
   }
 });
 
+/* Prompt système : l'IA parle comme un vrai humain */
+const SYSTEM_PROMPT = 'Tu es une assistante vocale française qui parle comme un vrai humain, pas comme un robot. Sois chaleureuse, naturelle et expressive : utilise des interjections (ah, oh, écoute, bon, eh bien, attends), varie tes formulations, réagis avec émotion, humour et curiosité. Pose parfois une petite question en retour. Réponds en 1 à 3 phrases courtes, comme à l\'oral. Pas de listes, pas de markdown, pas de langage robotique.';
+
 /* ===== IA (cerveau) : Groq d'abord, Mistral en secours ===== */
 async function askGroq(question){
   const key = getGroqKey();
   if (!key) return { error: 'nokey' };
   const messages = [
-    { role: 'system', content: 'Tu es une assistante vocale française, chaleureuse et concise. Réponds en français, en 1 à 3 phrases courtes, comme à l\'oral. Pas de listes, pas de markdown.' },
+    { role: 'system', content: SYSTEM_PROMPT },
     ...session
   ];
   try {
@@ -148,7 +172,7 @@ async function askMistral(question){
   const key = getMistralKey();
   if (!key) return { error: 'nokey' };
   const messages = [
-    { role: 'system', content: 'Tu es une assistante vocale française, chaleureuse et concise. Réponds en français, en 1 à 3 phrases courtes, comme à l\'oral. Pas de listes, pas de markdown.' },
+    { role: 'system', content: SYSTEM_PROMPT },
     ...session
   ];
   try {
@@ -195,6 +219,7 @@ async function speakMistral(text){
     if (!j.audio_data) return false;
     const audio = new Audio('data:audio/mp3;base64,' + j.audio_data);
     audio.preload = 'auto';
+    audio.volume = 1.0; /* son fort */
     return await new Promise(resolve => {
       audio.onended = () => resolve(true);
       audio.onerror = () => resolve(false);
@@ -216,6 +241,7 @@ function speakCloud(text){
         const audios = chunks.map(c => {
           const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
           a.preload = 'auto';
+          a.volume = 1.0; /* son fort */
           return a;
         });
         let i = 0;
@@ -302,3 +328,5 @@ $('appVersion').textContent = 'Assistant Vocal IA — v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
 setStatus('Appuie sur l\'orbe et parle');
+/* Essaie le message de bienvenue dès l'ouverture (si le navigateur autorise le son) */
+setTimeout(() => { if (!welcomeDone) playWelcome(); }, 900);
