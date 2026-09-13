@@ -173,23 +173,43 @@ testVoiceBtn.addEventListener('click', async () => {
 /* ===== RECONNAISSANCE VOCALE ===== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog = null;
+/* Arrêt volontaire (l'utilisateur a appuyé pour passer) — évite de redémarrer
+   toute seule quand il ne le veut pas. */
+let manualStop = false;
 if (SR){
   recog = new SR();
   recog.lang = 'fr-FR';
+  recog.continuous = true;      /* Important sur mobile : reste à l'écoute sans couper */
   recog.interimResults = false;
   recog.maxAlternatives = 1;
+  /* Compteur d'arrêts intempestifs (le navigateur mobile coupe tout seul :
+     on redémarre en douceur au lieu d'afficher une grosse erreur) */
+  let autoRestart = 0;
+  const restartListening = () => {
+    if (state !== 'listening' || manualStop) return;
+    autoRestart++;
+    if (autoRestart > 3){ setState('idle'); setStatus('Recharge la page si ça ne marche plus'); return; }
+    try { recog.stop(); recog.start(); }
+    catch { setState('idle'); setStatus('Réessaie — appuie sur l\'orbe'); }
+  };
   recog.onresult = e => {
     const txt = e.results[0][0].transcript.trim();
-    if (txt) handleQuestion(txt);
+    if (txt){ autoRestart = 0; handleQuestion(txt); }
     else { setState('idle'); setStatus('Je n\'ai rien entendu — réessaie'); }
   };
   recog.onerror = e => {
-    setState('idle');
-    if (e.error === 'not-allowed') setStatus('🎤 Micro bloqué — autorise le micro dans ton navigateur');
-    else if (e.error === 'no-speech') setStatus('Je n\'ai rien entendu — appuie et reparle');
-    else setStatus('Erreur micro (' + e.error + ') — réessaie');
+    if (manualStop){ setState('idle'); return; }
+    if (e.error === 'not-allowed'){ setState('idle'); setStatus('🎤 Micro bloqué — autorise le micro dans ton navigateur'); }
+    else if (e.error === 'no-speech' || e.error === 'aborted'){
+      /* Bruit de fond / coupure mobile : on ne bloque pas, on re-écoute */
+      restartListening();
+    } else {
+      setState('idle');
+      setStatus('Erreur micro (' + e.error + ') — réessaie');
+    }
   };
-  recog.onend = () => { if (state === 'listening') setState('idle'); };
+  /* Quand le navigateur coupe (mobile), on redémarre proprement */
+  recog.onend = () => { if (state === 'listening' && !manualStop && autoRestart <= 3) restartListening(); };
 }
 
 /* ===== BIENVENUE (message Tom.ai dit 1 SEULE FOIS dans la vie, mémorisé) ===== */
@@ -490,32 +510,103 @@ function normalizeForTTS(text){
 }
 
 /* ===== VOIX PUTER IA (gratuite pour TOUT LE MONDE, sans clé) =====
-   Essaie Gemini → OpenAI → AWS Polly → xAI, la première qui marche. */
+   Gemini + OpenAI générées EN PARALLÈLE : la première prête gagne
+   (fini d'attendre que toutes les voix se remplacent en série).
+   Secours AWS Polly puis xAI si les deux premières ont échoué. */
 async function speakPuter(text){
   if (!window.puter || !puter.ai || !puter.ai.txt2speech) return false;
-  const providers = [
-    { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' },
-    { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' },
-    { provider: 'aws-polly', voice: 'Lea', engine: 'neural', language: 'fr-FR' },
-    { provider: 'xai', voice: 'eve', language: 'auto' }
-  ];
-  for (const opts of providers){
-    try {
-      const audio = await puter.ai.txt2speech(text, opts);
-      if (!audio || !audio.play) continue;
-      audio.volume = 1.0;
-      audio.playbackRate = SPEED;
-      if ('preservePitch' in audio) audio.preservePitch = true;
-      currentAudios.push(audio);
-      const played = await new Promise(res => {
-        audio.onended = () => res(true);
-        audio.onerror = () => res(false);
-        audio.play().then(() => {}).catch(() => res(false));
-      });
-      if (played) return true;
-    } catch {}
+  const GEMINI = { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' };
+  const OPENAI = { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' };
+
+  /* Génère en parallèle, renvoie le 1er audio prêt (sans attendre l'autre) */
+  const gen = opts => puter.ai.txt2speech(text, opts).then(a => a || null).catch(() => null);
+  const firstAudio = await new Promise(res => {
+    let n = 0;
+    const check = audio => { if (audio && audio.play) res(audio); else if (++n >= 2) res(null); };
+    gen(GEMINI).then(check);
+    gen(OPENAI).then(check);
+  });
+
+  let audio = firstAudio;
+  /* Secours : si Gemini ET OpenAI indisponibles → Polly puis xAI en série */
+  if (!audio){
+    const polly = await gen({ provider: 'aws-polly', voice: 'Lea', engine: 'neural', language: 'fr-FR' });
+    if (polly && polly.play) audio = polly;
+    else {
+      const xai = await gen({ provider: 'xai', voice: 'eve', language: 'auto' });
+      if (xai && xai.play) audio = xai;
+    }
   }
-  return false;
+  if (!audio) return false;
+
+  audio.volume = 1.0; /* son fort */
+  audio.playbackRate = SPEED; /* parle un peu plus vite */
+  if ('preservePitch' in audio) audio.preservePitch = true;
+  currentAudios.push(audio);
+  return await new Promise(res => {
+    audio.onended = () => res(true);
+    audio.onerror = () => res(false);
+    audio.play().then(() => {}).catch(() => res(false));
+  });
+}
+
+/* Réchauffage : génère un petit « Bon » au lancement pour que la 1ʳᵉ
+   vraie réponse parte SANS attendre le démarrage à froid du worker. */
+let puterWarmed = false;
+function warmPuter(){
+  if (puterWarmed || !window.puter || !puter.ai || !puter.ai.txt2speech) return;
+  try {
+    puterWarmed = true;
+    puter.ai.txt2speech('Bon.', { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore' }).catch(() => {});
+  } catch {}
+}
+
+/* ===== VOIX EDGE NATIVE (TTS « Online (Natural) » de Windows/Edge/Chrome)
+   GRATUITE pour TOUT LE MONDE, sans clé, SANS worker : la 1ʳᵉ réponse
+   part INSTANTANÉMENT (pense aux voix « Microsoft Léa/Thomas Online »). */
+let edgeVoices = [];
+let edgeTried = false;
+function loadEdgeVoices(){
+  try {
+    if (window.speechSynthesis && speechSynthesis.getVoices){
+      edgeVoices = speechSynthesis.getVoices().filter(v => /fr(-[_ ]*.?)*/i.test(v.lang) && /natural|online|neural/i.test(v.name));
+    }
+  } catch {}
+}
+function pickEdgeVoice(){
+  /* Préfère Léa (femme), puis Thomas, sinon la 1ʳᵉ voix française Edge dispo */
+  const byName = name => edgeVoices.find(v => v.name.indexOf(name) !== -1);
+  return byName('Léa') || byName('Lea') || byName('Thomas') || byName('Julie') || byName('Paul') || edgeVoices[0] || null;
+}
+function speakEdge(text){
+  return new Promise(resolve => {
+    try {
+      if (!window.speechSynthesis) return resolve(false);
+      loadEdgeVoices();
+      const voice = pickEdgeVoice();
+      if (!voice) return resolve(false);
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'fr-FR';
+      u.voice = voice;
+      u.volume = 1.0;
+      u.rate = SPEED;
+      if ('pitch' in u) u.pitch = 1.0;
+      u.onend = () => resolve(true);
+      u.onerror = () => resolve(false);
+      currentAudios.push(u);          /* pour pouvoir couper la voix */
+      speechSynthesis.cancel();       /* coupe tout ce qui traîne avant de parler */
+      speechSynthesis.speak(u);
+    } catch { resolve(false); }
+  });
+}
+function warmEdge(){
+  if (edgeTried || !window.speechSynthesis) return;
+  try {
+    edgeTried = true;
+    loadEdgeVoices();
+    const v = pickEdgeVoice();
+    if (v){ const u = new SpeechSynthesisUtterance('Bon.'); u.voice = v; u.volume = 0; speechSynthesis.speak(u); }
+  } catch {}
 }
 
 function speak(text){
@@ -524,14 +615,19 @@ function speak(text){
     setState('speaking');
     setStatus('🔊 Elle parle…');
     const done = ok => { setState('idle'); setStatus('Appuie sur l\'orbe et parle'); resolve(ok); };
-    const voice = getVoice();
-    if (voice === 'puter'){
-      /* Voix Puter IA (gratuite pour tout le monde) puis secours cyzon */
-      speakPuter(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
-    } else {
-      /* Voix Mistral (si clé + voix choisie) puis secours cyzon */
-      speakMistral(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
-    }
+    /* 1ʳᵉ choix pour TOUT LE MONDE : voix Edge native « Online (Natural) »
+       — INSTANTANÉE, gratuite, SANS worker, sur Edge/Chrome/Windows/Android
+       (la 1ʳᵉ réponse arrive sans la moindre attente). Puis la voix choisie
+       (Puter ou Mistral), puis secours cyzon. */
+    speakEdge(clean).then(ok => {
+      if (ok){ done(true); return; }
+      const voice = getVoice();
+      if (voice === 'puter'){
+        speakPuter(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); });
+      } else {
+        speakMistral(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); });
+      }
+    });
   });
 }
 
@@ -599,4 +695,16 @@ updateBanner.addEventListener('click', () => location.reload(true));
 $('appVersion').textContent = 'Assistant Vocal IA — v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
+/* Réchauffe la voix Puter dès maintenant (et re-tente si puter.js se
+   charge en retard : la 1ʳᵉ vraie réponse part SANS démarrage à froid) */
+warmPuter();
+setTimeout(warmPuter, 2000);
+setTimeout(warmPuter, 5000);
+/* Réchauffe AUSSI les voix Edge « Online (Natural) » immédiatement :
+   getVoices() se remplit de façon ASYNCHRONE → on re-tente plusieurs fois
+   pour que la 1ʳᵉ réponse Edge parte instantanément, sans aucune attente. */
+warmEdge();
+setTimeout(warmEdge, 400);
+setTimeout(warmEdge, 1200);
+setTimeout(warmEdge, 3000);
 setStatus('Appuie sur l\'orbe et parle');
