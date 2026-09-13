@@ -3,16 +3,17 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.1';
+const APP_VERSION = '6.2';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'groq/compound-mini';
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Paul - Neutre
+const DEFAULT_VOICE = 'free'; // 🎁 voix gratuite réaliste (Chirp3-HD), aucune clé
 
-/* Voix gratuite de secours (cyzon Wavenet) si la clé échoue */
-const FREE_VOICES = ['fr-FR-Wavenet-A', 'fr-FR-Neural2-A', 'fr-FR-Chirp3-HD-Aoede'];
+/* Voix gratuites SANS clé : Google Chirp3-HD (la plus réaliste) puis Neural2/Wavenet.
+   Aucune voix robotique. Mistral Voxtral = option premium si clé présente. */
+const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B', 'fr-FR-Wavenet-A'];
 
 /* ===== ÉLÉMENTS ===== */
 const $ = id => document.getElementById(id);
@@ -82,7 +83,7 @@ testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('🔊 Test de la voix…', true);
   const ok = await speak('Bonjour ! Je suis ton assistante vocale. Comment puis-je t aider ?');
-  setStatus(ok ? '✅ Voix OK — appuie sur l\'orbe et parle' : '❌ Voix en échec — vérifie ta clé Mistral', !ok);
+  setStatus(ok ? '✅ Voix OK — appuie sur l\'orbe et parle' : '❌ Voix en échec — vérifie ta connexion', !ok);
 });
 
 /* ===== RECONNAISSANCE VOCALE ===== */
@@ -173,10 +174,11 @@ async function askAI(question){
   return r;
 }
 
-/* ===== VOIX MISTRAL VOXTRAL (réaliste) ===== */
+/* ===== VOIX MISTRAL VOXTRAL (réaliste — optionnelle, si clé + voix choisie) ===== */
 async function speakMistral(text){
   const key = getMistralKey();
-  if (!key) return false;
+  const voice = getVoice();
+  if (!key || voice === 'free') return false;
   try {
     const res = await fetch('https://api.mistral.ai/v1/audio/speech', {
       method: 'POST',
@@ -184,7 +186,7 @@ async function speakMistral(text){
       body: JSON.stringify({
         model: MISTRAL_TTS_MODEL,
         input: text,
-        voice_id: getVoice(),
+        voice_id: voice,
         response_format: 'mp3'
       })
     });
@@ -201,31 +203,36 @@ async function speakMistral(text){
   } catch { return false; }
 }
 
-/* ===== VOIX GRATUITE DE SECOURS (cyzon Wavenet) ===== */
+/* ===== VOIX GRATUITE (cyzon — Google Chirp3-HD, réaliste, sans clé) ===== */
 function speakCloud(text){
-  try {
-    const chunks = splitText(text);
-    let vi = 0;
-    const tryVoice = () => {
-      if (vi >= FREE_VOICES.length){ setStatus('🔇 Voix indisponible — vérifie ta clé Mistral dans ⚙️'); return; }
-      const voice = FREE_VOICES[vi++];
-      const audios = chunks.map(c => {
-        const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
-        a.preload = 'auto';
-        return a;
-      });
-      let i = 0;
-      const playNext = () => {
-        if (i >= audios.length) return;
-        const a = audios[i++];
-        a.onended = playNext;
-        a.onerror = () => { if (i === 1) tryVoice(); else playNext(); };
-        a.play().catch(() => playNext());
+  return new Promise(resolve => {
+    try {
+      const chunks = splitText(text);
+      let vi = 0;
+      let started = false;
+      const tryVoice = () => {
+        if (vi >= FREE_VOICES.length){ setStatus('🔇 Voix indisponible — vérifie ta connexion'); resolve(false); return; }
+        const voice = FREE_VOICES[vi++];
+        const audios = chunks.map(c => {
+          const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
+          a.preload = 'auto';
+          return a;
+        });
+        let i = 0;
+        const playNext = () => {
+          if (i >= audios.length) return;
+          const a = audios[i++];
+          a.onended = playNext;
+          a.onerror = () => { if (i === 1) tryVoice(); else playNext(); };
+          a.play().then(() => {
+            if (!started){ started = true; resolve(true); }
+          }).catch(() => playNext());
+        };
+        playNext();
       };
-      playNext();
-    };
-    tryVoice();
-  } catch { setStatus('🔇 Voix indisponible — vérifie ta clé Mistral dans ⚙️'); }
+      tryVoice();
+    } catch { setStatus('🔇 Voix indisponible — vérifie ta connexion'); resolve(false); }
+  });
 }
 
 /* ===== LECTURE ===== */
@@ -240,10 +247,11 @@ function speak(text){
     speakMistral(text).then(ok => {
       if (ok){ setState('idle'); setStatus('Appuie sur l\'orbe et parle'); resolve(true); }
       else {
-        speakCloud(text);
-        setState('idle');
-        setStatus('Appuie sur l\'orbe et parle');
-        resolve(false);
+        speakCloud(text).then(ok2 => {
+          setState('idle');
+          setStatus('Appuie sur l\'orbe et parle');
+          resolve(ok2);
+        });
       }
     });
   });
