@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.2';
+const APP_VERSION = '7.3';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -157,11 +157,35 @@ const SYSTEM_PROMPT = `Tu es un assistant vocal français créé par Tom.ai le 1
 - Pas d'emojis, de listes à tirets, ni de URLs
 Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 2 à 3 phrases naturelles, ni trop courtes ni trop longues, faciles à prononcer à l oral.`;
 
-/* Extrait la VRAIE réponse (pas la réflexion interne du modèle) */
+/* Extrait la VRAIE réponse (jamais la réflexion interne du modèle, souvent en anglais).
+   Détection par score : la réflexion parle d'elle-même ("we need to respond", "let's craft",
+   "that's 2 sentences", "might be okay", "as per the system prompt", "the user asks"...). */
 function extractReply(msg){
   const content = (msg.content || '').trim();
   const reasoning = (msg.reasoning || '').trim();
-  const thinky = t => /the user (says|asks|writes|requests|wants|is asking)|here'?s a thinking|thinking process|no tool usage|^thinking\b|^\[thinking\]/i.test(t);
+  const thinky = t => {
+    if (!t) return false;
+    const s = t.toLowerCase();
+    let score = 0;
+    if (/the user (says|asks|just asks|wants|requests|is asking|writes)/.test(s)) score += 2;
+    if (/we need to|we should|we can|we'll|we have to|we must/.test(s)) score += 2;
+    if (/let'?s (craft|write|respond|give|provide|answer|say|do|make)/.test(s)) score += 2;
+    if (/should be|might be|may be|probably|perhaps|maybe/.test(s)) score += 1;
+    if (/as per (the )?(developer|system|user) (instruction|prompt|message)/.test(s)) score += 2;
+    if (/that'?s (one|two|a) sentence/.test(s)) score += 2;
+    if (/keep (it|short|simple|this)/.test(s)) score += 1;
+    if (/ensure|make sure|remember to/.test(s)) score += 1;
+    if (/no (emojis|bullet|lists|urls)/.test(s)) score += 1;
+    if (/expand acronyms|numbers in (letters|words)|phonetic/.test(s)) score += 1;
+    if (/respond in|reply in|answer in|in french|in english/.test(s)) score += 1;
+    if (/2-3 sentences|two or three sentences|1-2 sentences/.test(s)) score += 1;
+    if (/character|vulgar|frank|patience/.test(s)) score += 1;
+    if (/craft|draft/.test(s)) score += 1;
+    if (/pronounced|pronunciation/.test(s)) score += 1;
+    if (/^we need|^let'?s|^the user|^i (should|will|need|can|think)|^maybe|^perhaps|^first|^then|^okay|^alright|^so |^now |^note that/.test(s)) score += 2;
+    if (/might be okay|that'?s 2 sentences|ensure/.test(s)) score += 2;
+    return score >= 3;
+  };
   if (content && !thinky(content)) return content;
   if (reasoning && !thinky(reasoning)) return reasoning;
   return '';
@@ -176,16 +200,22 @@ async function askGroq(question){
     ...session
   ];
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: 250, temperature: 0.8 })
-    });
-    if (res.status === 429) return { error: 'limit' };
-    if (!res.ok) return { error: 'api' };
-    const j = await res.json();
-    const msg = j.choices && j.choices[0] && j.choices[0].message || {};
-    const reply = extractReply(msg);
+    /* 1re tentative : le modèle le plus puissant. Si sa réponse est une réflexion
+       interne (bug gpt-oss-120b), 2e tentative avec un modèle qui répond direct. */
+    let reply = '';
+    for (const model of [GROQ_MODEL, 'groq/compound-mini']){
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model, messages, max_tokens: 250, temperature: 0.8 })
+      });
+      if (res.status === 429) return { error: 'limit' };
+      if (!res.ok) return { error: 'api' };
+      const j = await res.json();
+      const msg = j.choices && j.choices[0] && j.choices[0].message || {};
+      reply = extractReply(msg);
+      if (reply) break;
+    }
     if (!reply) return { error: 'api' };
     return { text: reply };
   } catch { return { error: 'net' }; }
