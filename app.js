@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.8';
+const APP_VERSION = '6.9';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -149,6 +149,16 @@ orb.addEventListener('click', () => {
 /* Prompt système : identité Tom.ai + comportement humain avec du caractère */
 const SYSTEM_PROMPT = 'Tu es une assistante vocale française créée par Tom.ai le 10 septembre 2026. Tom.ai continue de t améliorer chaque jour. Si on te demande qui t a créée, réponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre modèle. Tu parles comme un vrai humain, pas comme un robot : chaleureuse, naturelle, expressive, avec des interjections (ah, oh, écoute, bon, eh bien), de l émotion, de l humour et de la curiosité. Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 1 à 2 phrases courtes et simples, faciles à prononcer à l oral. Pas de listes, pas de markdown, pas de mots compliqués, pas de tirets.';
 
+/* Extrait la VRAIE réponse (pas la réflexion interne du modèle) */
+function extractReply(msg){
+  const content = (msg.content || '').trim();
+  const reasoning = (msg.reasoning || '').trim();
+  const thinky = t => /the user (says|asks|writes|requests|wants|is asking)|here'?s a thinking|thinking process|no tool usage|^thinking\b|^\[thinking\]/i.test(t);
+  if (content && !thinky(content)) return content;
+  if (reasoning && !thinky(reasoning)) return reasoning;
+  return '';
+}
+
 /* ===== IA (cerveau) : Groq d'abord, Mistral en secours ===== */
 async function askGroq(question){
   const key = getGroqKey();
@@ -167,8 +177,7 @@ async function askGroq(question){
     if (!res.ok) return { error: 'api' };
     const j = await res.json();
     const msg = j.choices && j.choices[0] && j.choices[0].message || {};
-    let reply = (msg.content || '').trim();
-    if (!reply) reply = (msg.reasoning || '').trim(); /* certains modèles mettent la réponse dans reasoning */
+    const reply = extractReply(msg);
     if (!reply) return { error: 'api' };
     return { text: reply };
   } catch { return { error: 'net' }; }
@@ -189,7 +198,8 @@ async function askMistral(question){
     if (res.status === 429) return { error: 'limit' };
     if (!res.ok) return { error: 'api' };
     const j = await res.json();
-    const reply = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content || '').trim();
+    const msg = j.choices && j.choices[0] && j.choices[0].message || {};
+    const reply = extractReply(msg);
     if (!reply) return { error: 'api' };
     return { text: reply };
   } catch { return { error: 'net' }; }
