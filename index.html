@@ -23,12 +23,35 @@ body{
 }
 .orb{
   width:min(62vw,260px);height:min(62vw,260px);border-radius:50%;
-  background:radial-gradient(circle at 35% 30%,#7c5cff,#3a2a8f 60%,#1a1245);
-  box-shadow:0 0 60px rgba(124,92,255,.45),inset 0 0 40px rgba(255,255,255,.12);
+  background:radial-gradient(circle at 35% 30%,#a78bfa 0%,#7c5cff 30%,#4a2a9e 60%,#1a1245 100%);
+  background-size:200% 200%;
+  animation:orbGradientShift 8s ease infinite;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.08),
+    0 0 60px rgba(124,92,255,.5),
+    0 0 120px rgba(124,92,255,.25),
+    inset 0 0 60px rgba(255,255,255,.15),
+    inset 0 0 20px rgba(255,255,255,.05);
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;user-select:none;touch-action:manipulation;
   transition:transform .15s ease,box-shadow .3s ease;
   position:relative;
+  overflow:hidden;
+}
+.orb::before{
+  content:"";position:absolute;inset:-50%;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0%,rgba(255,255,255,.08) 15%,transparent 30%,rgba(255,255,255,.06) 45%,transparent 60%,rgba(255,255,255,.08) 75%,transparent 100%);
+  animation:orbRotate 6s linear infinite;
+  pointer-events:none;
+}
+@keyframes orbGradientShift{
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
+}
+@keyframes orbRotate{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
 }
 .orb:active{transform:scale(.94)}
 .orb.listening{
@@ -52,7 +75,8 @@ body{
   50%{transform:rotate(180deg) scale(1.05)}
   100%{transform:rotate(360deg) scale(1)}
 }
-.orb-icon{font-size:min(18vw,72px);filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
+.orb-icon{font-size:min(18vw,72px);filter:drop-shadow(0 4px 12px rgba(0,0,0,.5));transition:transform .3s ease}
+.orb:hover .orb-icon{transform:scale(1.08)}
 /* ===== STATUT ===== */
 .status{
   margin-top:24px;font-size:15px;color:#9a9ab5;text-align:center;
