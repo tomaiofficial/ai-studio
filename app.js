@@ -249,14 +249,18 @@ orb.addEventListener('click', () => {
   }
 });
 
-/* Prompt système : identité Tom.ai + réponse PARLÉE + caractère */
-const SYSTEM_PROMPT = `Tu es un assistant vocal français créé par Tom.ai le 10 septembre 2026. Tom.ai continue de t améliorer chaque jour. Si on te demande qui t a créée, réponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre modèle. Optimise ta réponse pour être PARLÉE :
+/* Prompt système : identité Tom.ai + réponse PARLÉE + caractère (ChatGPT-like, fluide, sans bégaiement) */
+const SYSTEM_PROMPT = `Tu es un assistant vocal français créé par Tom.ai le 10 septembre 2026. Tom.ai continue de t améliorer chaque jour. Si on te demande qui t a créée, réponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre modèle.
+
+PARLE COMME CHATGPT À L'ORAL : fluide, naturel, sans bégaiement, sans répétition, sans hésitation, phrases correctes et claires. Optimise pour être PARLÉ :
 - Développe les acronymes (API → interface de programmation)
 - Écris les nombres en toutes lettres
-- Phrases courtes et naturelles
+- Phrases courtes, naturelles, bien ponctuées
 - Ne mets JAMAIS de phonétique entre parenthèses du type (prononcé ...)
 - Pas d'emojis, de listes à tirets, ni de URLs
-Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 2 à 3 phrases naturelles, ni trop courtes ni trop longues, faciles à prononcer à l oral.`;
+- Pas de "euh", pas de bégaiement, pas de répétition inutile
+
+CARACTÈRE : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te provoque ou si on est désagréable. Si on te dit "parle plus fort", "crie" ou "parle fort", réponds plus sèchement et avec assurance, comme si tu haussais le ton. Réponds en 2 à 3 phrases naturelles, ni trop courtes ni trop longues.`;
 
 /* Extrait la VRAIE réponse (jamais la réflexion interne du modèle, souvent en anglais).
    Détection par score : la réflexion parle d'elle-même ("we need to respond", "let's craft",
@@ -542,8 +546,8 @@ async function speakPuter(text){
   }
   if (!audio) return false;
 
-  audio.volume = 1.0; /* son fort */
-  audio.playbackRate = SPEED; /* parle un peu plus vite */
+  audio.volume = 1.0; /* son fort (max si on lui dit de parler fort) */
+  audio.playbackRate = speakLoud ? Math.min(SPEED + 0.06, 1.3) : SPEED;
   if ('preservePitch' in audio) audio.preservePitch = true;
   currentAudios.push(audio);
   return await new Promise(res => {
@@ -564,7 +568,8 @@ function warmPuter(){
   } catch {}
 }
 
-/* ===== VOIX EDGE NATIVE (TTS « Online (Natural) » de Windows/Edge/Chrome)
+let speakLoud = false; /* si l'utilisateur dit "parle fort", on hausse le ton */
+ /* ===== VOIX EDGE NATIVE (TTS « Online (Natural) » de Windows/Edge/Chrome)
    GRATUITE pour TOUT LE MONDE, sans clé, SANS worker : la 1ʳᵉ réponse
    part INSTANTANÉMENT (pense aux voix « Microsoft Léa/Thomas Online »). */
 let edgeVoices = [];
@@ -592,8 +597,8 @@ function speakEdge(text){
       u.lang = 'fr-FR';
       u.voice = voice;
       u.volume = 1.0;
-      u.rate = SPEED;
-      if ('pitch' in u) u.pitch = 1.0;
+      u.rate = speakLoud ? Math.min(SPEED + 0.08, 1.35) : SPEED;
+      if ('pitch' in u) u.pitch = speakLoud ? 0.92 : 1.0;
       u.onend = () => resolve(true);
       u.onerror = () => resolve(false);
       currentAudios.push(u);          /* pour pouvoir couper la voix */
@@ -647,6 +652,7 @@ async function handleQuestion(question){
   if (isProcessing) return; /* anti-double : ne relance pas si l'IA est déjà en train */
   isProcessing = true;
   manualStop = true;
+  speakLoud = /parle\s*(plus\s*)?fort|crie|gueule|hausse\s*le\s*ton|parle\s*fort/i.test(question);
   try{ recog && recog.stop(); }catch{}
   try{ speechSynthesis.cancel(); }catch{}
   heardLine.style.display = 'block';
