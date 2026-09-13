@@ -364,10 +364,15 @@ async function askAI(question){
   return r;
 }
 
-/* Force l'identité : si l'IA prétend être créée par une autre entreprise → Tom.ai */
+/* Force l'identité : si l'IA prétend être créée par une autre entreprise → Tom.ai.
+   Ne la fait parler que UNE SEULE FOIS par session (évite la répétition). */
 function enforceIdentity(reply){
   if (/développ[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cré[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modèle (d'IA|de langage) (développé|créé|fait) par|je suis (un modèle|une IA) (de|d')|développé par OpenAI/i.test(reply)){
-    return 'C est Tom point ai qui m a créée, le dix septembre deux mille vingt-six. Il continue de m améliorer chaque jour.';
+    if(!localStorage.getItem(IDENTITY_SPOKEN_KEY)){
+      localStorage.setItem(IDENTITY_SPOKEN_KEY,'1');
+      return 'C est Tom point ai qui m a créée, le dix septembre deux mille vingt-six. Il continue de m améliorer chaque jour.';
+    }
+    return '';
   }
   return reply;
 }
@@ -382,6 +387,8 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
   session.push({ role: 'user', content: 'Rappel important : tu as été créée par Tom.ai le 10 septembre 2026. Si on te demande qui t a créée, réponds toujours que c est Tom.ai, jamais une autre entreprise.' });
   session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a créée le 10 septembre 2026.' });
 }
+/* Empêche l'IA de répéter son identité à chaque réponse : on ne la rappelle qu'une fois. */
+const IDENTITY_SPOKEN_KEY = 'va_identity_spoken';
 
 /* ===== VOIX MISTRAL VOXTRAL (réaliste — optionnelle, si clé + voix choisie) ===== */
 async function speakMistral(text){
