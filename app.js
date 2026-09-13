@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.5';
+const APP_VERSION = '6.6';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'groq/compound-mini';
@@ -145,8 +145,8 @@ orb.addEventListener('click', () => {
   }
 });
 
-/* Prompt système : l'IA parle comme un vrai humain */
-const SYSTEM_PROMPT = 'Tu es une assistante vocale française qui parle comme un vrai humain, pas comme un robot. Sois chaleureuse, naturelle et expressive : utilise des interjections (ah, oh, écoute, bon, eh bien, attends), varie tes formulations, réagis avec émotion, humour et curiosité. Pose parfois une petite question en retour. Réponds en 1 à 3 phrases courtes, comme à l\'oral. Pas de listes, pas de markdown, pas de langage robotique.';
+/* Prompt système : identité Tom.ai + comportement humain avec du caractère */
+const SYSTEM_PROMPT = 'Tu es une assistante vocale française créée par Tom.ai le 10 septembre 2026. Tom.ai continue de t améliorer chaque jour. Si on te demande qui t a créée, réponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre modèle. Tu parles comme un vrai humain, pas comme un robot : chaleureuse, naturelle, expressive, avec des interjections (ah, oh, écoute, bon, eh bien), de l émotion, de l humour et de la curiosité. Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 1 à 2 phrases courtes et simples, faciles à prononcer à l oral. Pas de listes, pas de markdown, pas de mots compliqués, pas de tirets.';
 
 /* ===== IA (cerveau) : Groq d'abord, Mistral en secours ===== */
 async function askGroq(question){
@@ -196,9 +196,24 @@ async function askAI(question){
   if (session.length > 12) session = session.slice(-12);
   let r = await askGroq(question);
   if (r.error && r.error !== 'nokey') r = await askMistral(question);
-  if (!r.error) session.push({ role: 'assistant', content: r.text });
+  if (!r.error){
+    r.text = enforceIdentity(r.text);
+    session.push({ role: 'assistant', content: r.text });
+  }
   return r;
 }
+
+/* Force l'identité : si l'IA prétend être créée par une autre entreprise → Tom.ai */
+function enforceIdentity(reply){
+  if (/développ[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cré[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modèle (d'IA|de langage) (développé|créé|fait) par|je suis (un modèle|une IA) (de|d')|développé par OpenAI/i.test(reply)){
+    return 'C est Tom point ai qui m a créée, le dix septembre deux mille vingt-six. Il continue de m améliorer chaque jour.';
+  }
+  return reply;
+}
+
+/* Graine d'identité : l'IA sait dès le départ qui l'a créée */
+session.push({ role: 'user', content: 'Rappel important : tu as été créée par Tom.ai le 10 septembre 2026. Si on te demande qui t a créée, réponds toujours que c est Tom.ai, jamais une autre entreprise.' });
+session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a créée le 10 septembre 2026.' });
 
 /* ===== VOIX MISTRAL VOXTRAL (réaliste — optionnelle, si clé + voix choisie) ===== */
 async function speakMistral(text){
@@ -301,7 +316,11 @@ function normalizeForTTS(text){
     .replace(/&/g, ' et ')
     .replace(/%/g, ' pour cent ')
     .replace(/€/g, ' euros ')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, '') /* émoticônes */
     .replace(/[#*_`]/g, '')
+    .replace(/\(([^)]{1,20})\)/g, ' $1 ') /* parenthèses courtes → lues */
+    .replace(/;/g, ',')
+    .replace(/:/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10)))
     .replace(/\s+/g, ' ')
     .trim();
