@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.6';
+const APP_VERSION = '7.7';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -280,19 +280,22 @@ async function askGroq(question){
   ];
   try {
     /* 1re tentative : le modèle le plus puissant. Si sa réponse est une réflexion
-       interne (bug gpt-oss-120b), 2e tentative avec un modèle qui répond direct. */
+       interne (bug gpt-oss-120b) ou coupée en plein milieu, 2e tentative avec
+       un modèle qui répond direct et complet. */
     let reply = '';
     for (const model of [GROQ_MODEL, 'groq/compound-mini']){
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model, messages, max_tokens: 250, temperature: 0.8 })
+        body: JSON.stringify({ model, messages, max_tokens: 600, temperature: 0.8 })
       });
       if (res.status === 429) return { error: 'limit' };
       if (!res.ok) return { error: 'api' };
       const j = await res.json();
       const msg = j.choices && j.choices[0] && j.choices[0].message || {};
       reply = extractReply(msg);
+      /* phrase coupée en plein milieu (pas de ponctuation finale) → on réessaie */
+      if (reply && !/[.!?…]$/.test(reply.trim())) reply = '';
       if (reply) break;
     }
     if (!reply) return { error: 'api' };
@@ -310,7 +313,7 @@ async function askMistral(question){
     const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 200, temperature: 0.7 })
+      body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 400, temperature: 0.7 })
     });
     if (res.status === 429) return { error: 'limit' };
     if (!res.ok) return { error: 'api' };
