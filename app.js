@@ -561,20 +561,73 @@ function warmPuter(){
   } catch {}
 }
 
+/* ===== VOIX EDGE NATIVE (TTS « Online (Natural) » de Windows/Edge/Chrome)
+   GRATUITE pour TOUT LE MONDE, sans clé, SANS worker : la 1ʳᵉ réponse
+   part INSTANTANÉMENT (pense aux voix « Microsoft Léa/Thomas Online »). */
+let edgeVoices = [];
+let edgeTried = false;
+function loadEdgeVoices(){
+  try {
+    if (window.speechSynthesis && speechSynthesis.getVoices){
+      edgeVoices = speechSynthesis.getVoices().filter(v => /fr(-[_ ]*.?)*/i.test(v.lang) && /natural|online|neural/i.test(v.name));
+    }
+  } catch {}
+}
+function pickEdgeVoice(){
+  /* Préfère Léa (femme), puis Thomas, sinon la 1ʳᵉ voix française Edge dispo */
+  const byName = name => edgeVoices.find(v => v.name.indexOf(name) !== -1);
+  return byName('Léa') || byName('Lea') || byName('Thomas') || byName('Julie') || byName('Paul') || edgeVoices[0] || null;
+}
+function speakEdge(text){
+  return new Promise(resolve => {
+    try {
+      if (!window.speechSynthesis) return resolve(false);
+      loadEdgeVoices();
+      const voice = pickEdgeVoice();
+      if (!voice) return resolve(false);
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'fr-FR';
+      u.voice = voice;
+      u.volume = 1.0;
+      u.rate = SPEED;
+      if ('pitch' in u) u.pitch = 1.0;
+      u.onend = () => resolve(true);
+      u.onerror = () => resolve(false);
+      currentAudios.push(u);          /* pour pouvoir couper la voix */
+      speechSynthesis.cancel();       /* coupe tout ce qui traîne avant de parler */
+      speechSynthesis.speak(u);
+    } catch { resolve(false); }
+  });
+}
+function warmEdge(){
+  if (edgeTried || !window.speechSynthesis) return;
+  try {
+    edgeTried = true;
+    loadEdgeVoices();
+    const v = pickEdgeVoice();
+    if (v){ const u = new SpeechSynthesisUtterance('Bon.'); u.voice = v; u.volume = 0; speechSynthesis.speak(u); }
+  } catch {}
+}
+
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('🔊 Elle parle…');
     const done = ok => { setState('idle'); setStatus('Appuie sur l\'orbe et parle'); resolve(ok); };
-    const voice = getVoice();
-    if (voice === 'puter'){
-      /* Voix Puter IA (gratuite pour tout le monde) puis secours cyzon */
-      speakPuter(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
-    } else {
-      /* Voix Mistral (si clé + voix choisie) puis secours cyzon */
-      speakMistral(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
-    }
+    /* 1ʳᵉ choix pour TOUT LE MONDE : voix Edge native « Online (Natural) »
+       — INSTANTANÉE, gratuite, SANS worker, sur Edge/Chrome/Windows/Android
+       (la 1ʳᵉ réponse arrive sans la moindre attente). Puis la voix choisie
+       (Puter ou Mistral), puis secours cyzon. */
+    speakEdge(clean).then(ok => {
+      if (ok){ done(true); return; }
+      const voice = getVoice();
+      if (voice === 'puter'){
+        speakPuter(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); });
+      } else {
+        speakMistral(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); });
+      }
+    });
   });
 }
 
@@ -643,8 +696,15 @@ $('appVersion').textContent = 'Assistant Vocal IA — v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
 /* Réchauffe la voix Puter dès maintenant (et re-tente si puter.js se
-   charge en retard : la 1ᵉʳᵉ vraie réponse part SANS démarrage à froid) */
+   charge en retard : la 1ʳᵉ vraie réponse part SANS démarrage à froid) */
 warmPuter();
 setTimeout(warmPuter, 2000);
 setTimeout(warmPuter, 5000);
+/* Réchauffe AUSSI les voix Edge « Online (Natural) » immédiatement :
+   getVoices() se remplit de façon ASYNCHRONE → on re-tente plusieurs fois
+   pour que la 1ʳᵉ réponse Edge parte instantanément, sans aucune attente. */
+warmEdge();
+setTimeout(warmEdge, 400);
+setTimeout(warmEdge, 1200);
+setTimeout(warmEdge, 3000);
 setStatus('Appuie sur l\'orbe et parle');
