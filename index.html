@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f0f1a">
+<title>Assistant Vocal IA</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:#0f0f1a;color:#e8e8f0;
+  display:flex;flex-direction:column;align-items:center;
+  overflow:hidden;text-size-adjust:100%;
+}
+/* ===== ORBE ===== */
+.orb-wrap{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:100%;padding:20px;
+}
+.orb{
+  width:min(62vw,260px);height:min(62vw,260px);border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#7c5cff,#3a2a8f 60%,#1a1245);
+  box-shadow:0 0 60px rgba(124,92,255,.45),inset 0 0 40px rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;user-select:none;touch-action:manipulation;
+  transition:transform .15s ease,box-shadow .3s ease;
+  position:relative;
+}
+.orb:active{transform:scale(.94)}
+.orb.listening{
+  animation:orbPulse 1.2s ease-in-out infinite;
+  box-shadow:0 0 90px rgba(124,92,255,.8),inset 0 0 50px rgba(255,255,255,.2);
+}
+.orb.thinking{
+  animation:orbSpin 2.5s linear infinite;
+  box-shadow:0 0 70px rgba(255,170,60,.5),inset 0 0 40px rgba(255,255,255,.15);
+}
+.orb.speaking{
+  animation:orbPulse .8s ease-in-out infinite;
+  box-shadow:0 0 100px rgba(60,220,160,.7),inset 0 0 50px rgba(255,255,255,.25);
+}
+@keyframes orbPulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.08)}
+}
+@keyframes orbSpin{
+  0%{transform:rotate(0) scale(1)}
+  50%{transform:rotate(180deg) scale(1.05)}
+  100%{transform:rotate(360deg) scale(1)}
+}
+.orb-icon{font-size:min(18vw,72px);filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
+/* ===== STATUT ===== */
+.status{
+  margin-top:24px;font-size:15px;color:#9a9ab5;text-align:center;
+  min-height:22px;padding:0 20px;
+}
+.status.active{color:#7c5cff;font-weight:600}
+/* ===== TEXTE ENTENDU / DIT ===== */
+.transcript{
+  width:100%;max-width:520px;padding:0 24px 16px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.t-line{
+  background:rgba(255,255,255,.05);border-radius:14px;padding:10px 14px;
+  font-size:14px;line-height:1.45;color:#c8c8dd;
+  border-left:3px solid #7c5cff;
+}
+.t-line.said{border-left-color:#3cdca0}
+.t-label{font-size:11px;color:#6a6a85;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+/* ===== RÉGLAGES ===== */
+.gear{
+  position:fixed;top:14px;right:14px;width:44px;height:44px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:none;color:#c8c8dd;font-size:20px;
+  cursor:pointer;z-index:20;display:flex;align-items:center;justify-content:center;
+}
+.gear:active{transform:scale(.92)}
+/* ===== HISTORIQUE ===== */
+.conv-item{
+  background:rgba(255,255,255,.05);border-radius:14px;padding:12px 14px;
+  margin-bottom:10px;cursor:pointer;border-left:3px solid #7c5cff;
+}
+.conv-item:active{background:rgba(255,255,255,.1)}
+.conv-date{font-size:11px;color:#6a6a85;margin-bottom:4px}
+.conv-preview{font-size:14px;color:#c8c8dd;line-height:1.4}
+.conv-msg{
+  background:rgba(255,255,255,.05);border-radius:14px;padding:10px 14px;
+  font-size:14px;line-height:1.45;color:#c8c8dd;margin-bottom:8px;
+  border-left:3px solid #7c5cff;white-space:pre-wrap;word-break:break-word;
+}
+.conv-msg.user{border-left-color:#ff9f2e}
+.conv-msg.ai{border-left-color:#3cdca0}
+.modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.modal.hidden{display:none}
+.modal-card{
+  background:#171728;width:100%;max-width:480px;border-radius:20px 20px 0 0;
+  padding:24px;max-height:85vh;overflow-y:auto;
+}
+.modal-close{
+  position:absolute;top:14px;right:14px;background:none;border:none;
+  color:#9a9ab5;font-size:22px;cursor:pointer;
+}
+.modal-card h3{font-size:18px;margin-bottom:16px;color:#fff}
+.settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+.version-tag{
+  position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:#5a5a75;padding:4px 12px;border-radius:20px;
+  background:rgba(255,255,255,.04);
+}
+.muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
+.wide-input{
+  width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
+  background:#10101e;color:#fff;font-size:16px;margin-bottom:10px;outline:none;
+}
+.wide-input:focus{border-color:#7c5cff}
+select.wide-input{appearance:none}
+.primary{
+  width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;
+  font-size:16px;font-weight:600;margin-top:6px;
+}
+.primary:active{transform:scale(.98)}
+.secondary{
+  display:block;width:100%;padding:12px;border-radius:12px;border:1px solid #2a2a45;
+  background:#10101e;color:#c8c8dd;text-align:center;text-decoration:none;
+  font-size:14px;margin-top:8px;
+}
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#2a2a45;color:#fff;padding:12px 20px;border-radius:30px;
+  font-size:14px;z-index:50;opacity:0;transition:opacity .3s;pointer-events:none;
+  max-width:90%;text-align:center;
+}
+.toast.show{opacity:1}
+#updateBanner{
+  position:fixed;top:0;left:0;right:0;background:#ff9f2e;color:#1a1245;
+  text-align:center;padding:12px;font-size:14px;font-weight:600;z-index:60;
+  cursor:pointer;display:none;
+}
+#updateBanner.show{display:block}
+</style>
+</head>
+<body>
+
+<div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
+
+<button class="gear" id="historyBtn" style="left:14px;right:auto" aria-label="Historique">📜</button>
+<button class="gear" id="settingsBtn" aria-label="Réglages">⚙️</button>
+
+<div class="orb-wrap">
+  <div class="orb" id="orb" role="button" aria-label="Parler">
+    <span class="orb-icon" id="orbIcon">🎙️</span>
+  </div>
+  <div class="status" id="status">Appuie sur l'orbe et parle</div>
+</div>
+
+<div class="transcript">
+  <div class="t-line" id="heardLine" style="display:none">
+    <div class="t-label">Tu as dit</div>
+    <div id="heardText"></div>
+  </div>
+  <div class="t-line said" id="saidLine" style="display:none">
+    <div class="t-label">Elle répond</div>
+    <div id="saidText"></div>
+  </div>
+</div>
+
+<div class="version-tag" id="versionTag"></div>
+
+<!-- MODAL HISTORIQUE -->
+<div id="historyModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="closeHistory">✕</button>
+    <h3>📜 Conversations</h3>
+    <p class="muted">Elle se souvient de tout ce que tu lui dis. Appuie sur une conversation pour la relire.</p>
+    <button class="primary" id="newConvBtn" style="margin-bottom:14px">➕ Nouvelle conversation</button>
+    <div id="convList"></div>
+    <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
+  </div>
+</div>
+
+<!-- MODAL RÉGLAGES -->
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="closeSettings">✕</button>
+    <h3>⚙️ Réglages</h3>
+
+    <h4 class="settings-title">🧠 Clé Groq (cerveau — texte)</h4>
+    <p class="muted">Gratuite et <b>sans limite</b> (14400 requêtes/jour). Sur <b>console.groq.com</b> → API Keys → Create.</p>
+    <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq</a>
+    <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq (gsk_...)" autocomplete="off">
+
+    <h4 class="settings-title">🗣️ Clé Mistral (voix réaliste)</h4>
+    <p class="muted">Pour la voix IA réaliste. Sur <b>console.mistral.ai</b> (crédits offerts).</p>
+    <a class="secondary" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral</a>
+    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici…" autocomplete="off">
+
+    <h4 class="settings-title">🗣️ Voix</h4>
+    <p class="muted">🎁 <b>Voix Puter IA par défaut</b> — gratuite pour tout le monde, sans clé (Gemini, OpenAI, Polly, xAI). Secours automatique si indisponible.</p>
+    <select id="ttsVoice" class="wide-input">
+      <option value="puter">🎁 Voix Puter IA (gratuite — Gemini/OpenAI)</option>
+      <option value="free">🎁 Voix gratuite réaliste (Chirp3-HD)</option>
+      <option value="c69964a6-ab8b-4f8a-9465-ec0925096ec8">Paul - Neutre (homme)</option>
+      <option value="a3e41ea8-020b-44c0-8d8b-f6cc03524e31">Jane - Sarcastique (femme)</option>
+      <option value="e3596645-b1af-469e-b857-f18ddedc7652">Oliver - Neutre (homme, brit.)</option>
+      <option value="1024d823-a11e-43ee-bf3d-d440dccc0577">Paul - Joyeux (homme)</option>
+      <option value="01d985cd-5e0c-4457-bfd8-80ba31a5bc03">Paul - Enthousiaste (homme)</option>
+      <option value="98559b22-62b5-4a64-a7cd-fc78ca41faa8">Paul - Confiant (homme)</option>
+      <option value="5940190b-f58a-4c3e-8264-a40d63fd6883">Paul - Excité (homme)</option>
+      <option value="530e2e20-58e2-45d8-b0a5-4594f4915944">Paul - Triste (homme)</option>
+      <option value="1f017bcb-02e5-460d-989b-db065c0c6122">Paul - Frustré (homme)</option>
+      <option value="cb891218-482c-4392-9878-91e8d999d57a">Paul - En colère (homme)</option>
+    </select>
+    <button class="primary" id="testVoice">🔊 Tester la voix</button>
+
+    <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://js.puter.com/v2/"></script>
+<script src="app.js"></script>
+</body>
+</html>
