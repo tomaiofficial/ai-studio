@@ -3,13 +3,13 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.5';
+const APP_VERSION = '7.6';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'free'; // 🎁 voix gratuite réaliste (Chirp3-HD), aucune clé
+const DEFAULT_VOICE = 'puter'; // 🎁 Voix Puter IA gratuite pour tout le monde (Gemini/OpenAI/Polly/xAI)
 const SPEED = 1.15; /* vitesse de parole : boostée un peu, pas trop */
 
 /* Voix gratuites SANS clé : Google Chirp3-HD (la plus réaliste) puis Neural2/Wavenet.
@@ -486,21 +486,49 @@ function normalizeForTTS(text){
     .trim();
 }
 
+/* ===== VOIX PUTER IA (gratuite pour TOUT LE MONDE, sans clé) =====
+   Essaie Gemini → OpenAI → AWS Polly → xAI, la première qui marche. */
+async function speakPuter(text){
+  if (!window.puter || !puter.ai || !puter.ai.txt2speech) return false;
+  const providers = [
+    { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' },
+    { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' },
+    { provider: 'aws-polly', voice: 'Lea', engine: 'neural', language: 'fr-FR' },
+    { provider: 'xai', voice: 'eve', language: 'auto' }
+  ];
+  for (const opts of providers){
+    try {
+      const audio = await puter.ai.txt2speech(text, opts);
+      if (!audio || !audio.play) continue;
+      audio.volume = 1.0;
+      audio.playbackRate = SPEED;
+      if ('preservePitch' in audio) audio.preservePitch = true;
+      currentAudios.push(audio);
+      const played = await new Promise(res => {
+        audio.onended = () => res(true);
+        audio.onerror = () => res(false);
+        audio.play().then(() => {}).catch(() => res(false));
+      });
+      if (played) return true;
+    } catch {}
+  }
+  return false;
+}
+
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('🔊 Elle parle…');
-    speakMistral(clean).then(ok => {
-      if (ok){ setState('idle'); setStatus('Appuie sur l\'orbe et parle'); resolve(true); }
-      else {
-        speakCloud(clean).then(ok2 => {
-          setState('idle');
-          setStatus('Appuie sur l\'orbe et parle');
-          resolve(ok2);
-        });
-      }
-    });
+    const done = ok => { setState('idle'); setStatus('Appuie sur l\'orbe et parle'); resolve(ok); };
+    const voice = getVoice();
+    if (voice === 'puter'){
+      /* Voix Puter IA (gratuite pour tout le monde) puis secours cyzon */
+      speakPuter(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
+    } else {
+      /* Voix Mistral (si clé + voix choisie) puis secours cyzon */
+      speakMistral(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
+    }
   });
 }
 
