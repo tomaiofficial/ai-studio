@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.7';
+const APP_VERSION = '6.8';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -317,6 +317,8 @@ function numToFr(n){
 }
 function normalizeForTTS(text){
   return text
+    /* retire les accents (é→e, à→a, ç→c…) pour une lecture plus nette */
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/Tom\.ai/gi, 'Tom point aï')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
