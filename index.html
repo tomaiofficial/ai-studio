@@ -18,42 +18,50 @@ body{
   background-image:radial-gradient(circle at 50% 30%,#1a1030 0%,#0a0a14 70%);
 }
 /* ===== ORBE ===== */
-.orb-wrap{
+/* ===== BULLE VOCALE (mode vocal) ===== */
+.bubble-wrap{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   width:100%;padding:20px;
 }
-.orb{
-  width:min(58vw,220px);height:min(58vw,220px);border-radius:50%;
-  background:rgba(255,255,255,.03);
-  border:1.5px solid rgba(255,255,255,.7);
-  box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 50px rgba(255,255,255,.15),inset 0 0 30px rgba(255,255,255,.08),0 20px 60px rgba(0,0,0,.4);
-  display:flex;align-items:center;justify-content:center;
+.bubble{
+  width:min(72vw,320px);max-width:320px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:32px 32px 32px 8px;
+  padding:28px 24px;
+  box-shadow:0 20px 60px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  display:flex;flex-direction:column;align-items:center;gap:16px;
   cursor:pointer;user-select:none;touch-action:manipulation;
   transition:transform .15s ease,box-shadow .3s ease,border-color .3s ease;
   position:relative;
-  overflow:hidden;
 }
-.orb::before{
-  content:"";position:absolute;inset:-50%;border-radius:50%;
-  background:conic-gradient(from 0deg,transparent 0%,rgba(255,255,255,.06) 15%,transparent 30%,rgba(255,255,255,.04) 45%,transparent 60%,rgba(255,255,255,.06) 75%,transparent 100%);
-  animation:orbRotate 6s linear infinite;
-  pointer-events:none;
-}
-.orb:active{transform:scale(.96)}
-.orb.listening{
-  animation:orbPulse 1.2s ease-in-out infinite;
+.bubble:active{transform:scale(.97)}
+.bubble.listening{
   border-color:#fff;
-  box-shadow:0 0 0 1px rgba(255,255,255,.3),0 0 80px rgba(255,255,255,.25),inset 0 0 40px rgba(255,255,255,.15);
+  box-shadow:0 20px 60px rgba(255,255,255,.15),inset 0 1px 0 rgba(255,255,255,.1);
 }
-.orb.thinking{
-  animation:orbSpin 2.5s linear infinite;
+.bubble.thinking{
   border-color:#ffb347;
-  box-shadow:0 0 0 1px rgba(255,179,71,.3),0 0 70px rgba(255,179,71,.4),inset 0 0 40px rgba(255,255,255,.15);
+  box-shadow:0 20px 60px rgba(255,179,71,.15),inset 0 1px 0 rgba(255,255,255,.1);
 }
-.orb.speaking{
-  animation:orbPulse .8s ease-in-out infinite;
+.bubble.speaking{
   border-color:#3cdca0;
-  box-shadow:0 0 0 1px rgba(60,220,160,.3),0 0 100px rgba(60,220,160,.35),inset 0 0 50px rgba(255,255,255,.2);
+  box-shadow:0 20px 60px rgba(60,220,160,.15),inset 0 1px 0 rgba(255,255,255,.1);
+}
+.bubble-icon{
+  width:72px;height:72px;border-radius:50%;
+  background:rgba(255,255,255,.08);
+  border:1.5px solid rgba(255,255,255,.7);
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;color:#fff;
+  box-shadow:0 0 30px rgba(255,255,255,.15);
+  transition:transform .3s ease;
+}
+.bubble:hover .bubble-icon{transform:scale(1.05)}
+.bubble-label{
+  font-size:13px;color:#aaa;letter-spacing:.5px;text-align:center;
+  font-weight:300;
 }
 @keyframes orbGradientShift{
   0%{background-position:0% 50%}
@@ -64,16 +72,16 @@ body{
   from{transform:rotate(0deg)}
   to{transform:rotate(360deg)}
 }
-.orb:active{transform:scale(.94)}
-.orb.listening{
+.bubble:active{transform:scale(.94)}
+.bubble.listening{
   animation:orbPulse 1.2s ease-in-out infinite;
   box-shadow:0 0 90px rgba(124,92,255,.8),inset 0 0 50px rgba(255,255,255,.2);
 }
-.orb.thinking{
+.bubble:thinking{
   animation:orbSpin 2.5s linear infinite;
   box-shadow:0 0 70px rgba(255,170,60,.5),inset 0 0 40px rgba(255,255,255,.15);
 }
-.orb.speaking{
+.bubble.speaking{
   animation:orbPulse .8s ease-in-out infinite;
   box-shadow:0 0 100px rgba(60,220,160,.7),inset 0 0 50px rgba(255,255,255,.25);
 }
@@ -86,7 +94,7 @@ body{
   50%{transform:rotate(180deg) scale(1.05)}
   100%{transform:rotate(360deg) scale(1)}
 }
-.orb-icon{font-size:min(16vw,64px);filter:drop-shadow(0 2px 8px rgba(255,255,255,.3));color:#fff;transition:transform .3s ease}
+.bubble-icon{font-size:min(16vw,64px);filter:drop-shadow(0 2px 8px rgba(255,255,255,.3));color:#fff;transition:transform .3s ease}
 .orb:hover .orb-icon{transform:scale(1.05)}
 /* ===== STATUT ===== */
 .status{
@@ -224,11 +232,11 @@ select.wide-input{appearance:none}
 <button class="gear" id="historyBtn" style="left:14px;right:auto" aria-label="Historique">📜</button>
 <button class="gear" id="settingsBtn" aria-label="Réglages">⚙️</button>
 
-<div class="orb-wrap">
-  <div class="orb" id="orb" role="button" aria-label="Parler">
-    <span class="orb-icon" id="orbIcon">🎙️</span>
+<div class="bubble-wrap">
+  <div class="bubble" id="orb" role="button" aria-label="Parler">
+    <div class="bubble-icon" id="orbIcon">🎙️</div>
+    <div class="bubble-label" id="status">Appuie sur la bulle et parle</div>
   </div>
-  <div class="status" id="status">Appuie sur l'orbe et parle</div>
 </div>
 
 <div class="transcript">
