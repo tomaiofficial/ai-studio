@@ -3,13 +3,14 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '6.6';
+const APP_VERSION = '6.7';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
-const GROQ_MODEL = 'groq/compound-mini';
+const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
 const DEFAULT_VOICE = 'free'; // 🎁 voix gratuite réaliste (Chirp3-HD), aucune clé
+const SPEED = 1.15; /* vitesse de parole : boostée un peu, pas trop */
 
 /* Voix gratuites SANS clé : Google Chirp3-HD (la plus réaliste) puis Neural2/Wavenet.
    Aucune voix robotique. Mistral Voxtral = option premium si clé présente. */
@@ -160,12 +161,14 @@ async function askGroq(question){
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: 200, temperature: 0.7 })
+      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: 150, temperature: 0.8 })
     });
     if (res.status === 429) return { error: 'limit' };
     if (!res.ok) return { error: 'api' };
     const j = await res.json();
-    const reply = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content || '').trim();
+    const msg = j.choices && j.choices[0] && j.choices[0].message || {};
+    let reply = (msg.content || '').trim();
+    if (!reply) reply = (msg.reasoning || '').trim(); /* certains modèles mettent la réponse dans reasoning */
     if (!reply) return { error: 'api' };
     return { text: reply };
   } catch { return { error: 'net' }; }
@@ -237,6 +240,8 @@ async function speakMistral(text){
     const audio = new Audio('data:audio/mp3;base64,' + j.audio_data);
     audio.preload = 'auto';
     audio.volume = 1.0; /* son fort */
+    audio.playbackRate = SPEED; /* parle un peu plus vite */
+    if ('preservePitch' in audio) audio.preservePitch = true;
     currentAudios.push(audio);
     return await new Promise(resolve => {
       audio.onended = () => resolve(true);
@@ -257,9 +262,11 @@ function speakCloud(text){
         if (vi >= FREE_VOICES.length){ setStatus('🔇 Voix indisponible — vérifie ta connexion'); resolve(false); return; }
         const voice = FREE_VOICES[vi++];
         const audios = chunks.map(c => {
-          const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
+          const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice + '&speed=' + SPEED);
           a.preload = 'auto';
           a.volume = 1.0; /* son fort */
+          a.playbackRate = SPEED; /* parle un peu plus vite */
+          if ('preservePitch' in a) a.preservePitch = true;
           currentAudios.push(a);
           return a;
         });
@@ -310,7 +317,7 @@ function numToFr(n){
 }
 function normalizeForTTS(text){
   return text
-    .replace(/Tom\.ai/gi, 'Tom point ai')
+    .replace(/Tom\.ai/gi, 'Tom point aï')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
     .replace(/&/g, ' et ')
