@@ -78,6 +78,21 @@ body{
   cursor:pointer;z-index:20;display:flex;align-items:center;justify-content:center;
 }
 .gear:active{transform:scale(.92)}
+/* ===== HISTORIQUE ===== */
+.conv-item{
+  background:rgba(255,255,255,.05);border-radius:14px;padding:12px 14px;
+  margin-bottom:10px;cursor:pointer;border-left:3px solid #7c5cff;
+}
+.conv-item:active{background:rgba(255,255,255,.1)}
+.conv-date{font-size:11px;color:#6a6a85;margin-bottom:4px}
+.conv-preview{font-size:14px;color:#c8c8dd;line-height:1.4}
+.conv-msg{
+  background:rgba(255,255,255,.05);border-radius:14px;padding:10px 14px;
+  font-size:14px;line-height:1.45;color:#c8c8dd;margin-bottom:8px;
+  border-left:3px solid #7c5cff;white-space:pre-wrap;word-break:break-word;
+}
+.conv-msg.user{border-left-color:#ff9f2e}
+.conv-msg.ai{border-left-color:#3cdca0}
 .modal{
   position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;
   display:flex;align-items:flex-end;justify-content:center;
@@ -135,6 +150,7 @@ select.wide-input{appearance:none}
 
 <div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
 
+<button class="gear" id="historyBtn" style="left:14px;right:auto" aria-label="Historique">📜</button>
 <button class="gear" id="settingsBtn" aria-label="Réglages">⚙️</button>
 
 <div class="orb-wrap">
@@ -156,6 +172,18 @@ select.wide-input{appearance:none}
 </div>
 
 <div class="version-tag" id="versionTag"></div>
+
+<!-- MODAL HISTORIQUE -->
+<div id="historyModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="closeHistory">✕</button>
+    <h3>📜 Conversations</h3>
+    <p class="muted">Elle se souvient de tout ce que tu lui dis. Appuie sur une conversation pour la relire.</p>
+    <button class="primary" id="newConvBtn" style="margin-bottom:14px">➕ Nouvelle conversation</button>
+    <div id="convList"></div>
+    <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
+  </div>
+</div>
 
 <!-- MODAL RÉGLAGES -->
 <div id="settingsModal" class="modal hidden">

@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.4';
+const APP_VERSION = '7.5';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -30,6 +30,85 @@ const toastEl = $('toast'), updateBanner = $('updateBanner');
 let state = 'idle'; // idle | listening | thinking | speaking
 let session = [];   // mémoire de conversation
 let toastTimer = null;
+
+/* ===== CONVERSATIONS (mémoire persistante — elle se souvient de tout) ===== */
+const CONV_KEY = 'va_convs';
+let conversations = [];
+try { conversations = JSON.parse(localStorage.getItem(CONV_KEY) || '[]'); } catch { conversations = []; }
+let currentConvId = null;
+
+function saveConversation(){
+  if (session.length === 0) return;
+  let conv = conversations.find(c => c.id === currentConvId);
+  if (!conv){
+    conv = { id: Date.now(), started: new Date().toLocaleString('fr-FR'), messages: [] };
+    conversations.push(conv);
+    currentConvId = conv.id;
+  }
+  conv.messages = session.map(m => ({ role: m.role, content: m.content }));
+  conv.updated = Date.now();
+  if (conversations.length > 50) conversations = conversations.slice(-50);
+  localStorage.setItem(CONV_KEY, JSON.stringify(conversations));
+}
+function newConversation(){
+  session = [];
+  currentConvId = null;
+  heardLine.style.display = 'none';
+  saidLine.style.display = 'none';
+  setStatus('Appuie sur l\'orbe et parle');
+  toast('🆕 Nouvelle conversation');
+}
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function renderHistory(){
+  const list = $('convList');
+  if (!list) return;
+  if (conversations.length === 0){
+    list.innerHTML = '<p class="muted">Aucune conversation pour l\'instant. Parle avec elle, tout sera enregistré ici.</p>';
+    return;
+  }
+  list.innerHTML = '';
+  [...conversations].reverse().forEach(conv => {
+    const first = conv.messages.find(m => m.role === 'user');
+    const preview = first ? first.content.slice(0, 70) : '…';
+    const d = new Date(conv.updated || conv.id);
+    const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const div = document.createElement('div');
+    div.className = 'conv-item';
+    div.innerHTML = '<div class="conv-date">' + date + ' · ' + conv.messages.length + ' messages</div><div class="conv-preview">' + escapeHtml(preview) + '</div>';
+    div.onclick = () => showConversation(conv);
+    list.appendChild(div);
+  });
+}
+function showConversation(conv){
+  const list = $('convList');
+  list.innerHTML = '';
+  const back = document.createElement('button');
+  back.className = 'secondary';
+  back.textContent = '← Retour à la liste';
+  back.onclick = renderHistory;
+  list.appendChild(back);
+  conv.messages.forEach(m => {
+    const d = document.createElement('div');
+    d.className = 'conv-msg ' + (m.role === 'user' ? 'user' : 'ai');
+    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'Elle a répondu') + '</div>' + escapeHtml(m.content);
+    list.appendChild(d);
+  });
+}
+historyBtn.addEventListener('click', () => { renderHistory(); historyModal.classList.remove('hidden'); });
+closeHistory.addEventListener('click', () => historyModal.classList.add('hidden'));
+historyModal.addEventListener('click', e => { if (e.target === historyModal) historyModal.classList.add('hidden'); });
+newConvBtn.addEventListener('click', () => { newConversation(); historyModal.classList.add('hidden'); });
+clearHistoryBtn.addEventListener('click', () => {
+  if (confirm('Effacer tout l\'historique des conversations ?')){
+    conversations = [];
+    currentConvId = null;
+    localStorage.setItem(CONV_KEY, '[]');
+    renderHistory();
+    toast('🗑️ Historique effacé');
+  }
+});
 
 /* Message de bienvenue : qui a créé l'IA (dit 2 fois au lancement) */
 const DEV_MESSAGE = 'C est Tom point ai qui a commencé à me créer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il continue de m améliorer chaque jour.';
@@ -251,6 +330,7 @@ async function askAI(question){
   if (!r.error){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
+    saveConversation(); /* 💾 elle se souvient de tout */
   }
   return r;
 }
@@ -263,9 +343,16 @@ function enforceIdentity(reply){
   return reply;
 }
 
-/* Graine d'identité : l'IA sait dès le départ qui l'a créée */
-session.push({ role: 'user', content: 'Rappel important : tu as été créée par Tom.ai le 10 septembre 2026. Si on te demande qui t a créée, réponds toujours que c est Tom.ai, jamais une autre entreprise.' });
-session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a créée le 10 septembre 2026.' });
+/* Graine d'identité : l'IA sait dès le départ qui l'a créée.
+   Si une conversation récente existe (< 30 min), elle la reprend (elle se souvient). */
+const lastConv = conversations[conversations.length - 1];
+if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (lastConv.updated || 0) < 30 * 60 * 1000){
+  currentConvId = lastConv.id;
+  session = lastConv.messages.map(m => ({ role: m.role, content: m.content }));
+} else {
+  session.push({ role: 'user', content: 'Rappel important : tu as été créée par Tom.ai le 10 septembre 2026. Si on te demande qui t a créée, réponds toujours que c est Tom.ai, jamais une autre entreprise.' });
+  session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a créée le 10 septembre 2026.' });
+}
 
 /* ===== VOIX MISTRAL VOXTRAL (réaliste — optionnelle, si clé + voix choisie) ===== */
 async function speakMistral(text){
