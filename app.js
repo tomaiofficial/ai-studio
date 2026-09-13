@@ -489,7 +489,7 @@ function speakCloud(text){
         playNext();
       };
       tryVoice();
-    } catch { setStatus('?? Voix indisponible � v�rifie ta connexion'); resolve(false); }
+    } catch { setStatus('Voix indisponible � v�rifie ta connexion'); resolve(false); }
   });
 }
 
