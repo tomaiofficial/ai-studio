@@ -229,6 +229,13 @@ select.wide-input{appearance:none}
     <button class="modal-close" id="closeSettings">✕</button>
     <h3>⚙️ Réglages</h3>
 
+    <h4 class="settings-title">📬 Gmail (lire les vrais mails)</h4>
+    <p class="muted">Connecte ton compte Google pour que l'IA lise et résume tes derniers mails à l'oral. Aucune clé à copier — c'est l'OAuth Google.</p>
+    <input type="text" id="gmailCid" class="wide-input" placeholder="ID client OAuth Google (optionnel, sinon utilise le par défaut)" autocomplete="off">
+    <button class="primary" id="gmailConnectBtn">📬 Connecter Google / Gmail</button>
+    <div id="gmailStatus" class="muted" style="margin-top:8px"></div>
+    <button class="secondary" id="gmailReadBtn" style="display:none;margin-top:8px">📬 Lire les 5 derniers mails</button>
+
     <h4 class="settings-title">🧠 Clé Groq (cerveau — texte)</h4>
     <p class="muted">Gratuite et <b>sans limite</b> (14400 requêtes/jour). Sur <b>console.groq.com</b> → API Keys → Create.</p>
     <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq</a>
@@ -257,12 +264,19 @@ select.wide-input{appearance:none}
     </select>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
 
-    <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
-  </div>
-</div>
+     <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
+
+     <h4 class="settings-title">📧 Gmail (lecture réelle)</h4>
+     <p class="muted">Connecte ta boîte Gmail pour que l'IA puisse <b>lire tes mails réels</b> (comme Claude). Nécessite une autorisation Google une seule fois.</p>
+     <button class="primary" id="connectGmail" style="background:linear-gradient(135deg,#ea4335,#c5221f)">🔗 Connecter Gmail</button>
+     <div id="gmailStatus" class="muted" style="margin-top:8px"></div>
+     <button class="secondary" id="readMailsBtn" style="display:none;margin-top:8px">📨 Lire mes derniers mails</button>
+   </div>
+ </div>
 
 <div id="toast" class="toast"></div>
 
+<script src="https://accounts.google.com/gsi/client"></script>
 <script src="https://js.puter.com/v2/"></script>
 <script src="app.js"></script>
 </body>

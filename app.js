@@ -157,6 +157,24 @@ mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   toast('💾 Clé Mistral enregistrée');
 });
+
+/* ===== GMAIL : brancher les boutons ===== */
+gmailCidInput.addEventListener('change', () => {
+  localStorage.setItem('va_gmail_cid', gmailCidInput.value.trim());
+});
+gmailConnectBtn.addEventListener('click', () => {
+  const cid = (gmailCidInput.value || GMAIL_CLIENT_ID).trim();
+  if (!cid){ toast('❌ Colle un ID client OAuth Google'); return; }
+  localStorage.setItem('va_gmail_cid', cid);
+  const client = initGmailClient();
+  if (!client){ toast('❌ Google API pas encore chargé — réessaie dans 1 seconde'); return; }
+  client.requestToken();
+});
+gmailReadBtn.addEventListener('click', async () => {
+  if (!gmailToken){ toast('❌ Connecte d\'abord Gmail'); return; }
+  toast('📬 Lecture des mails…');
+  await summarizeEmails();
+});
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   toast('🗣️ Voix choisie');
@@ -722,6 +740,68 @@ async function checkUpdate(){
   } catch {}
 }
 updateBanner.addEventListener('click', () => location.reload(true));
+
+/* ===== GMAIL (lire les vrais mails via OAuth Google) =====
+   Crée une clé dans console.cloud.google.com → Identité → ID client OAuth 2.0
+   (type d'application : application web, URI autorisés :
+   https://tomaiofficial.github.io/ai-studio/, https://localhost/). */
+const GMAIL_CLIENT_ID = localStorage.getItem('va_gmail_cid') || '';
+let gmailToken = null;
+
+function initGmailClient(){
+  if (!window.google || !google.accounts || !google.accounts.oauth2) return null;
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GMAIL_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/gmail.readonly',
+    callback: t => {
+      gmailToken = t;
+      $('gmailStatus').textContent = '✅ Connecté (' + t.expiry_time + ')';
+      $('gmailReadBtn').style.display = 'block';
+    }
+  });
+  return client;
+}
+
+async function fetchRecentEmails(maxResults){
+  if (!gmailToken) throw new Error('non connecté');
+  const list = await fetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=' + maxResults +
+    '&q=is:unread+label:INBOX',
+    { headers: { Authorization: 'Bearer ' + gmailToken.access_token } }
+  );
+  if (!list.ok) throw new Error('API gmail ' + list.status);
+  const j = await list.json();
+  const out = [];
+  for (const m of (j.messages || [])){
+    const d = await fetch(m.id, { headers: { Authorization: 'Bearer ' + gmailToken.access_token } });
+    if (!d.ok) continue;
+    const full = await d.json();
+    const hdr = full.payload.headers;
+    const subj = (hdr.find(h => h.name === 'Subject') || {}).value || '(sans objet)';
+    const body = (full.payload.parts || []).map(p => {
+      if (!p.body || !p.body.data) return '';
+      try { return atob(p.body.data.replace(/-/g,'+').replace(/_/g,'/')); }
+      catch { return ''; }
+    }).join('\n').slice(0, 600);
+    out.push({ id: m.id, subject: subj, body });
+  }
+  return out;
+}
+
+async function summarizeEmails(){
+  try {
+    const emails = await fetchRecentEmails(5);
+    if (!emails.length){ toast('📬 Aucun nouveau mail'); return; }
+    const joined = emails.map(e => 'Objet: ' + e.subject + '\n' + e.body).join('\n---\n');
+    const r = await askAI('Résume ces ' + emails.length + ' derniers mails non lus en 3 phrases, à l\'oral, sans jargon. Voici les mails :\n' + joined);
+    if (r.error){ toast('❌ Erreur résumé'); return; }
+    saidLine.style.display = 'block';
+    saidText.textContent = r.text;
+    await speak(r.text);
+  } catch (e){
+    toast('❌ ' + e.message);
+  }
+}
 
 /* ===== DÉMARRAGE ===== */
 $('appVersion').textContent = 'Assistant Vocal IA — v' + APP_VERSION;
