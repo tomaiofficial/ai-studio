@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.3';
+const APP_VERSION = '7.4';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -246,7 +246,8 @@ async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   let r = await askGroq(question);
-  if (r.error && r.error !== 'nokey') r = await askMistral(question);
+  /* Mistral chat = secours UNIQUEMENT si pas de clé Groq (sinon double 429 inutile) */
+  if (r.error === 'nokey') r = await askMistral(question);
   if (!r.error){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
@@ -437,9 +438,11 @@ async function handleQuestion(question){
       toast('🔑 Va dans ⚙️ Réglages et colle ta clé Groq');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit'){
-      setStatus('⏳ Clé limitée pour l\'instant — réessaie dans une minute');
+      setStatus('⏳ Limite atteinte — réessaie dans une minute');
+      await speak('J ai atteint ma limite de requêtes. Attends quelques secondes et réessaie.');
     } else {
       setStatus('❌ Erreur IA — vérifie ta clé dans ⚙️');
+      await speak('J ai eu une petite erreur. Réessaie dans un instant.');
     }
     return;
   }
