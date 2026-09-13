@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.1';
+const APP_VERSION = '7.2';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -14,7 +14,7 @@ const SPEED = 1.15; /* vitesse de parole : boostée un peu, pas trop */
 
 /* Voix gratuites SANS clé : Google Chirp3-HD (la plus réaliste) puis Neural2/Wavenet.
    Aucune voix robotique. Mistral Voxtral = option premium si clé présente. */
-const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B', 'fr-FR-Wavenet-A'];
+const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B', 'fr-FR-Neural2-C', 'fr-FR-Neural2-D', 'fr-FR-Wavenet-A'];
 
 /* ===== ÉLÉMENTS ===== */
 const $ = id => document.getElementById(id);
@@ -30,7 +30,6 @@ const toastEl = $('toast'), updateBanner = $('updateBanner');
 let state = 'idle'; // idle | listening | thinking | speaking
 let session = [];   // mémoire de conversation
 let toastTimer = null;
-let welcomeDone = false;
 
 /* Message de bienvenue : qui a créé l'IA (dit 2 fois au lancement) */
 const DEV_MESSAGE = 'C est Tom point ai qui a commencé à me créer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il continue de m améliorer chaque jour.';
@@ -114,11 +113,14 @@ if (SR){
   recog.onend = () => { if (state === 'listening') setState('idle'); };
 }
 
-/* ===== BIENVENUE (message Tom.ai dit 1 fois, skippable) ===== */
+/* ===== BIENVENUE (message Tom.ai dit 1 SEULE FOIS dans la vie, mémorisé) ===== */
+const WELCOME_KEY = 'va_welcomed';
+let welcomeDone = localStorage.getItem(WELCOME_KEY) === '1';
 let welcomePlaying = false;
 async function playWelcome(){
   if (welcomeDone) return;
   welcomeDone = true;
+  localStorage.setItem(WELCOME_KEY, '1'); /* ne se dira plus jamais */
   welcomePlaying = true;
   saidLine.style.display = 'block';
   saidText.textContent = DEV_MESSAGE_TXT;
@@ -153,7 +155,7 @@ const SYSTEM_PROMPT = `Tu es un assistant vocal français créé par Tom.ai le 1
 - Phrases courtes et naturelles
 - Ajoute la phonétique pour les mots difficiles
 - Pas d'emojis, de listes à tirets, ni de URLs
-Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 1 à 2 phrases courtes et simples, faciles à prononcer à l oral.`;
+Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 2 à 3 phrases naturelles, ni trop courtes ni trop longues, faciles à prononcer à l oral.`;
 
 /* Extrait la VRAIE réponse (pas la réflexion interne du modèle) */
 function extractReply(msg){
@@ -177,7 +179,7 @@ async function askGroq(question){
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: 150, temperature: 0.8 })
+      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: 250, temperature: 0.8 })
     });
     if (res.status === 429) return { error: 'limit' };
     if (!res.ok) return { error: 'api' };
@@ -306,7 +308,22 @@ function speakCloud(text){
 /* ===== LECTURE ===== */
 function splitText(text){
   const parts = text.match(/[^.!?…]+[.!?…]+|[^.!?…]+$/g) || [text];
-  return parts.map(p => p.trim()).filter(Boolean);
+  const out = [];
+  for (const p of parts){
+    const t = p.trim();
+    if (!t) continue;
+    if (t.length > 220){
+      /* coupe les très longues phrases en morceaux prononçables */
+      const words = t.split(' ');
+      let cur = '';
+      for (const w of words){
+        if ((cur + ' ' + w).length > 220){ out.push(cur.trim()); cur = w; }
+        else cur += ' ' + w;
+      }
+      if (cur.trim()) out.push(cur.trim());
+    } else out.push(t);
+  }
+  return out;
 }
 
 /* ===== NORMALISATION POUR BIEN PRONONCER ===== */
