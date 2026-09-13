@@ -140,6 +140,9 @@ function setState(s){
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
+const gmailCidInput = $('gmailCid');
+const gmailConnectBtn = $('gmailConnectBtn');
+const gmailReadBtn = $('gmailReadBtn');
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
