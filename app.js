@@ -176,6 +176,7 @@ let recog = null;
 /* Arrêt volontaire (l'utilisateur a appuyé pour passer) — évite de redémarrer
    toute seule quand il ne le veut pas. */
 let manualStop = false;
+let isProcessing = false; /* bloque tout nouvel appel tant que l'IA réfléchit/parle */
 if (SR){
   recog = new SR();
   recog.lang = 'fr-FR';
@@ -193,6 +194,7 @@ if (SR){
     catch { setState('idle'); setStatus('Réessaie — appuie sur l\'orbe'); }
   };
   recog.onresult = e => {
+    if (isProcessing) return; /* ignore ce que capte le micro pendant que l'IA parle */
     const txt = e.results[0][0].transcript.trim();
     if (txt){ autoRestart = 0; handleQuestion(txt); }
     else { setState('idle'); setStatus('Je n\'ai rien entendu — réessaie'); }
@@ -641,10 +643,15 @@ function stopAudio(){
 
 /* ===== FLUX PRINCIPAL ===== */
 async function handleQuestion(question){
+  if (isProcessing) return; /* anti-double : ne relance pas si l'IA est déjà en train */
+  isProcessing = true;
+  manualStop = true;
+  try{ recog && recog.stop(); }catch{}
+  try{ speechSynthesis.cancel(); }catch{}
   heardLine.style.display = 'block';
   heardText.textContent = question;
   setState('thinking');
-  setStatus('🧠 Elle réfléchit…');
+  setStatus('🧠 L\'IA réfléchit…');
   const r = await askAI(question);
   if (r.error){
     setState('idle');
@@ -659,11 +666,19 @@ async function handleQuestion(question){
       setStatus('❌ Erreur IA — vérifie ta clé dans ⚙️');
       await speak('J ai eu une petite erreur. Réessaie dans un instant.');
     }
+    isProcessing = false;
+    manualStop = false;
+    setState('idle');
+    setStatus('Appuie sur l\'orbe et parle');
     return;
   }
   saidLine.style.display = 'block';
   saidText.textContent = r.text;
   await speak(r.text);
+  isProcessing = false;
+  manualStop = false;
+  setState('idle');
+  setStatus('Appuie sur l\'orbe et parle');
 }
 
 /* ===== MISE À JOUR ===== */
