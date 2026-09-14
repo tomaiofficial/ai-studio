@@ -567,11 +567,18 @@ async function handleQuestion(question){
       setStatus('❌ Erreur IA — vérifie ta clé dans ⚙️');
       await speak('J ai eu une petite erreur. Réessaie dans un instant.');
     }
+    /* RESET sur erreur : sinon isProcessing restait true -> plus rien ne reagit */
+    isProcessing = false;
+    manualStop = false;
     return;
   }
   saidLine.style.display = 'block';
   saidText.textContent = r.text;
   await speak(r.text);
+  /* RESET SYSTEMATIQUE : sans ceci, isProcessing reste true pour toujours
+     apres la 1ere question -> chaque appui suivant est bloque (ca reagit plus). */
+  isProcessing = false;
+  manualStop = false;
 }
 
 /* ===== MISE À JOUR ===== */
