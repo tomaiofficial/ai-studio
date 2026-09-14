@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.8';
+const APP_VERSION = '7.12';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -590,11 +590,19 @@ async function checkUpdate(){
     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
     /* Ne recharge que si la version en ligne est PLUS RÉCENTE (jamais l'inverse) */
-    if (j.version && versionCompare(j.version, APP_VERSION) > 0){
+        if (j.version && versionCompare(j.version, APP_VERSION) > 0){
       updateBanner.classList.add('show');
-      updateBanner.textContent = '🔄 Nouvelle version ' + j.version + ' — rechargement automatique…';
-      /* Rechargement AUTO : tout le monde passe à la dernière version */
-      setTimeout(() => location.reload(true), 1500);
+      /* ANTI-BOUCLE : on ne recharge qu'UNE SEULE fois, jamais en boucle.
+         Sinon (version.json en avance sur app.js en cache) => bandeau errone bloque en reload infini. */
+      if (!sessionStorage.getItem('va_reloaded_once')){
+        sessionStorage.setItem('va_reloaded_once', '1');
+        updateBanner.textContent = '?? Nouvelle version ' + j.version + ' - rechargement automatique';
+        setTimeout(() => location.reload(true), 1500);
+      } else {
+        /* Deja recharge une fois : on affiche juste un bouton, on ne relance PAS un reload (sinon boucle). */
+        updateBanner.textContent = '?? Nouvelle version ' + j.version + ' disponible - appuie pour maj';
+        updateBanner.classList.remove('swal');
+      }
     }
   } catch {}
 }
