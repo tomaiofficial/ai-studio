@@ -201,17 +201,10 @@ select.wide-input{appearance:none}
     <a class="secondary" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral</a>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici…" autocomplete="off">
 
-    <h4 class="settings-title">🔑 Clé Azure Speech (voix Microsoft officielle)</h4>
-    <p class="muted">Si Edge ne marche pas, colle ta clé <b>Azure Speech</b> (portail Azure → Speech Service → Keys). Gratuit 5h/mois. Même voix Denise, mais 100% stable.</p>
-    <a class="secondary" href="https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices" target="_blank" rel="noopener">🔑 Créer une clé Azure Speech</a>
-    <input type="password" id="azureKey" class="wide-input" placeholder="Colle ta clé Azure (xxx...)" autocomplete="off">
-    <input type="text" id="azureRegion" class="wide-input" placeholder="Région Azure (ex: francecentral, westeurope)" autocomplete="off">
-
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Edge TTS gratuit</b> sans clé, sinon <b>Azure</b> avec clé. Même voix Denise.</p>
+    <p class="muted">🎙️ <b>Edge TTS uniquement</b> — voix IA réaliste gratuite (Microsoft Edge), sans clé.</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="edge">🎙️ Edge TTS (gratuit) → secours Azure si clé</option>
-      <option value="azure">☁️ Azure TTS (Denise - officiel)</option>
+      <option value="edge">🎙️ Edge TTS (voix IA réaliste — Denise) — Unique</option>
     </select>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
 

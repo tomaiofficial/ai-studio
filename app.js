@@ -4,8 +4,8 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.29';
-const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice', azure: 'va_azure_key', azureRegion: 'va_azure_region' };
+const APP_VERSION = '7.30';
+const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -14,8 +14,6 @@ const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par d�faut
 const SPEED = 1.15;
 
 /* Voix gratuites SANS cl� : Edge TTS puis Google Chirp3-HD */
-const AZURE_DEFAULT_REGION = 'francecentral';
-const AZURE_VOICE = 'fr-FR-DeniseNeural';
 const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B'];
 
 /* ===== �L�MENTS ===== */
@@ -24,7 +22,7 @@ const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const heardLine = $('heardLine'), heardText = $('heardText');
 const saidLine = $('saidLine'), saidText = $('saidText');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey'), azureKeyInput = $('azureKey'), azureRegionInput = $('azureRegion');
+const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -146,15 +144,11 @@ function setState(s){
 /* ===== REGLAGES ===== */
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
-function getAzureKey(){ return (localStorage.getItem(LS.azure) || '').trim(); }
-function getAzureRegion(){ return (localStorage.getItem(LS.azureRegion) || AZURE_DEFAULT_REGION).trim() || AZURE_DEFAULT_REGION; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
   mistralKeyInput.value = getMistralKey();
-  if (azureKeyInput) azureKeyInput.value = getAzureKey();
-  if (azureRegionInput) azureRegionInput.value = getAzureRegion();
   ttsVoiceSel.value = getVoice();
   settingsModal.classList.remove('hidden');
 });
@@ -168,14 +162,6 @@ mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   toast('Cle Mistral enregistree');
 });
-if (azureKeyInput) azureKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.azure, azureKeyInput.value.trim());
-  toast('Cle Azure enregistree');
-});
-if (azureRegionInput) azureRegionInput.addEventListener('change', () => {
-  localStorage.setItem(LS.azureRegion, azureRegionInput.value.trim() || AZURE_DEFAULT_REGION);
-  toast('Region Azure enregistree');
-});
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   toast('Voix choisie');
@@ -183,8 +169,6 @@ ttsVoiceSel.addEventListener('change', () => {
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  if (azureKeyInput) localStorage.setItem(LS.azure, azureKeyInput.value.trim());
-  if (azureRegionInput) localStorage.setItem(LS.azureRegion, azureRegionInput.value.trim() || AZURE_DEFAULT_REGION);
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
@@ -484,23 +468,24 @@ async function generateSecMsGec(){
 }
 
 function speakEdgeNeural(text){
-  return generateSecMsGec().then(gec => new Promise(resolve => {
+  const tryOnce = (gec, gecVer) => new Promise(resolve => {
     let done = false;
     const finish = ok => { if (!done){ done=true; resolve(ok); } };
-    if (!gec){ finish(false); return; }
     try {
       const voice = 'fr-FR-DeniseNeural';
       const TRUSTED = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
-      const GEC_VER = '1-143.0.3650.75';
       const connId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-      const ws = new WebSocket('wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=' + TRUSTED + '&Sec-MS-GEC=' + gec + '&Sec-MS-GEC-Version=' + GEC_VER);
+      const baseUrl = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=' + TRUSTED;
+      const url = gec ? baseUrl + '&Sec-MS-GEC=' + gec + '&Sec-MS-GEC-Version=' + gecVer : baseUrl;
+      const ws = new WebSocket(url);
       const audioChunks = [];
-      let timeout = setTimeout(() => { try{ ws.close(); }catch{} finish(false); }, 8000);
+      let timeout = setTimeout(() => { try{ ws.close(); }catch{} finish(false); }, 12000);
       ws.onopen = () => {
-        const config = 'X-Timestamp:' + new Date().toString() + '\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}';
+        const ts = new Date().toUTCString();
+        const config = 'X-Timestamp:' + ts + '\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}';
         ws.send(config);
         const ssml = `<speak version='1.0' xml:lang='fr-FR'><voice name='${voice}'><prosody rate='+0%' pitch='+0Hz'>${escapeXml(text)}</prosody></voice></speak>`;
-        const msg = 'X-RequestId:' + connId + '\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:' + new Date().toString() + '\r\nPath:ssml\r\n\r\n' + ssml;
+        const msg = 'X-RequestId:' + connId + '\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:' + ts + '\r\nPath:ssml\r\n\r\n' + ssml;
         ws.send(msg);
       };
       ws.onmessage = async e => {
@@ -538,47 +523,14 @@ function speakEdgeNeural(text){
         audio.play().catch(()=> finish(false));
       };
     } catch { finish(false); }
-  }));
+  });
+  return generateSecMsGec().then(gec => {
+    const ver = '1-143.0.3650.75';
+    if (gec) return tryOnce(gec, ver).then(ok => ok ? true : tryOnce(null, null));
+    return tryOnce(null, null);
+  });
 }
 function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
-
-/* ===== AZURE TTS (Microsoft) - meme voix neuronale que Edge mais via API officielle ===== */
-async function speakAzure(text){
-  const key = getAzureKey();
-  const region = getAzureRegion();
-  if (!key) return false;
-  try {
-    const ssml = `<speak version='1.0' xml:lang='fr-FR'><voice name='${AZURE_VOICE}'><prosody rate='+0%' pitch='+0Hz'>${escapeXml(text)}</prosody></voice></speak>`;
-    const url = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': key,
-        'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
-        'User-Agent': 'voice-ai'
-      },
-      body: ssml
-    });
-    if (!res.ok) {
-      if (res.status === 401 || res.status === 403) setStatus('Cle Azure invalide');
-      return false;
-    }
-    const buf = await res.arrayBuffer();
-    if (!buf || buf.byteLength < 100) return false;
-    const blob = new Blob([buf], {type:'audio/mpeg'});
-    const objUrl = URL.createObjectURL(blob);
-    const audio = new Audio(objUrl);
-    audio.volume = 1.0; audio.playbackRate = SPEED;
-    if ('preservePitch' in audio) audio.preservePitch = true;
-    currentAudios.push(audio);
-    return await new Promise(resolve => {
-      audio.onended = () => { URL.revokeObjectURL(objUrl); resolve(true); };
-      audio.onerror = () => resolve(false);
-      audio.play().catch(()=> resolve(false));
-    });
-  } catch { return false; }
-}
 
 function splitText(text){
   const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
@@ -634,25 +586,8 @@ function speak(text){
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('Elle parle...');
-    const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    const voice = getVoice();
-    if (voice === 'azure'){
-      speakAzure(clean).then(ok => {
-        if (ok) done(true);
-        else speakEdge(clean).then(ok2 => {
-          if (ok2) done(true);
-          else { setStatus("Voix indisponible - verifie ta cle Azure"); done(false); }
-        });
-      });
-    } else {
-      speakEdge(clean).then(ok => {
-        if (ok) done(true);
-        else speakAzure(clean).then(ok2 => {
-          if (ok2) done(true);
-          else { setStatus("Voix indisponible - ajoute ta cle Azure dans reglages"); done(false); }
-        });
-      });
-    }
+    const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); if (!ok) setStatus("Echec connexion voix Edge - reessaie"); };
+    speakEdge(clean).then(done);
   });
 }
 let currentAudios = [];
