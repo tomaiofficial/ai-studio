@@ -700,14 +700,14 @@ async function checkUpdate(){
     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
     if (j.version && versionCompare(j.version, APP_VERSION) > 0){
-      updateBanner.classList.add('show');
-      if (!sessionStorage.getItem('va_reloaded_once')){
-        sessionStorage.setItem('va_reloaded_once', '1');
-        updateBanner.textContent = 'Nouvelle version ' + j.version + ' - rechargement automatique';
-        setTimeout(() => { location.href = location.pathname + '?force=' + Date.now(); }, 1500);
-      } else {
-        updateBanner.textContent = 'Nouvelle version ' + j.version + ' disponible - appuie pour maj';
-        updateBanner.style.cursor = 'pointer';
+      /* Mise a jour SILENCIEUSE 100% automatique : rechargement direct, aucun bandeau bloque, aucun clic */
+      if (versionCompare(j.version, APP_VERSION) > 0){
+        try{
+          const swReg = await navigator.serviceWorker.getRegistration();
+          if (swReg && swReg.waiting){ swReg.waiting.postMessage({type:'SKIP_WAITING'}); }
+        }catch{}
+        setStatus('Mise a jour... un instant');
+        setTimeout(() => { location.href = location.pathname + '?v=' + Date.now(); }, 900);
       }
     }
   } catch {}
