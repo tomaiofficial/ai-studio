@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.23';
+const APP_VERSION = '7.24';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -438,38 +438,48 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
   session.push({ role: 'assistant', content: "Compris, c est Tom.ai qui m a creee le 10 septembre 2026." });
 }
 
-/* ===== VOIX EDGE TTS (gratuite, realiste, locale) ===== */
+/* ===== VOIX EDGE TTS (synthese vocale systeme) ===== */
 async function speakEdge(text){
   if (!('speechSynthesis' in window)) return false;
   return new Promise(resolve => {
+    let done = false;
+    const finish = ok => { if (!done){ done=true; resolve(ok); } };
     try {
-      // Attendre les voix si pas encore chargees
-      let voices = speechSynthesis.getVoices();
-      const pickVoice = () => {
-        voices = speechSynthesis.getVoices();
-        // Cherche voix francaise Edge/Microsoft en priorite
-        let v = voices.find(x => x.lang.toLowerCase().startsWith('fr') && /Microsoft|Edge|Denise|Henri|Hortense|Julie|Paul/i.test(x.name));
+      const pickVoice = (voices) => {
+        let v = voices.find(x => x.lang.toLowerCase().startsWith('fr') && /Microsoft|Edge|Denise|Henri|Hortense|Julie|Paul|Amelie|Thomas/i.test(x.name));
         if (!v) v = voices.find(x => x.lang.toLowerCase().startsWith('fr'));
         if (!v) v = voices[0];
         return v;
       };
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'fr-FR';
-      utter.rate = 1.0;
-      utter.pitch = 1.0;
-      utter.volume = 1.0;
-      const v = pickVoice();
-      if (v) utter.voice = v;
-      utter.onend = () => resolve(true);
-      utter.onerror = () => resolve(false);
-      // Fix iOS : il faut cancel avant
-      try { speechSynthesis.cancel(); } catch {}
-      speechSynthesis.speak(utter);
-      // Securite : si bloqu�, on fallback
-      setTimeout(() => {
-        if (!speechSynthesis.speaking && !speechSynthesis.pending) resolve(false);
-      }, 1200);
-    } catch { resolve(false); }
+      const doSpeak = () => {
+        try { speechSynthesis.cancel(); } catch {}
+        const voices = speechSynthesis.getVoices();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'fr-FR';
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+        utter.volume = 1.0;
+        const v = pickVoice(voices);
+        if (v) utter.voice = v;
+        utter.onend = () => finish(true);
+        utter.onerror = () => finish(false);
+        speechSynthesis.speak(utter);
+        setTimeout(() => {
+          if (!speechSynthesis.speaking && !speechSynthesis.pending) finish(false);
+        }, 1500);
+      };
+      const voices = speechSynthesis.getVoices();
+      if (voices.length === 0){
+        // Voix pas encore chargees (Chrome/Edge) -> attendre
+        let waited = false;
+        speechSynthesis.onvoiceschanged = () => { if (!waited){ waited=true; doSpeak(); } };
+        setTimeout(() => { if (!waited){ waited=true; doSpeak(); } }, 800);
+        // declenche chargement
+        try { speechSynthesis.getVoices(); } catch {}
+      } else {
+        doSpeak();
+      }
+    } catch { finish(false); }
   });
 }
 
