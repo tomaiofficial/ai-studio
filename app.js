@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.15';
+const APP_VERSION = '7.16';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -609,7 +609,7 @@ async function checkUpdate(){
       if (!sessionStorage.getItem('va_reloaded_once')){
         sessionStorage.setItem('va_reloaded_once', '1');
         updateBanner.textContent = '🔄 Nouvelle version ' + j.version + ' - rechargement automatique';
-        setTimeout(() => location.reload(), 1500);
+        setTimeout(() => { location.href = location.pathname + '?force=' + Date.now(); }, 1500);
       } else {
         /* Deja recharge une fois : on affiche juste un bouton, on ne relance PAS un reload (sinon boucle). */
         updateBanner.textContent = '⬆️ Nouvelle version ' + j.version + ' disponible - appuie pour maj';
@@ -627,11 +627,11 @@ updateBanner.addEventListener('click', async () => {
     }
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.update()));
+      for (const r of regs) { try { await r.unregister(); } catch {} }
     }
   } catch {}
-  sessionStorage.removeItem('va_reloaded_once');
-  location.reload();
+  try { sessionStorage.clear(); } catch {}
+  location.href = location.pathname + '?force=' + Date.now();
 });
 
 function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; puterWarmed=false; state="idle"; setStatus("Appuie sur la bulle et parle"); setState("idle"); location.reload(true); }
