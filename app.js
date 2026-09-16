@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.30';
+const APP_VERSION = '7.31';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -506,10 +506,10 @@ function speakEdgeNeural(text){
           }
         }
       };
-      ws.onerror = () => { clearTimeout(timeout); finish(false); };
+      ws.onerror = (e) => { console.warn('[VOIX] WS error', e); clearTimeout(timeout); finish(false); };
       ws.onclose = () => {
         clearTimeout(timeout);
-        if (audioChunks.length === 0){ finish(false); return; }
+        if (audioChunks.length === 0){ console.warn('[VOIX] WS close sans audio (GEC ou reseau)'); finish(false); return; }
         const total = audioChunks.reduce((s,c)=>s+c.length,0);
         const out = new Uint8Array(total); let off=0;
         for (const c of audioChunks){ out.set(c, off); off+=c.length; }
@@ -581,13 +581,54 @@ function normalizeForTTS(text){
     .replace(/[#*_`]/g, '').replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').trim();
 }
+/* Secours gratuit Chirp3-HD si Edge bloque (aucune cle) */
+function speakCloud(text){
+  return new Promise(resolve => {
+    try {
+      const chunks = splitText(text);
+      let vi = 0;
+      let started = false;
+      const tryVoice = () => {
+        if (vi >= FREE_VOICES.length){ resolve(false); return; }
+        const voice = FREE_VOICES[vi++];
+        const audios = chunks.map(c => {
+          const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice + '&speed=' + SPEED);
+          a.preload = 'auto'; a.volume = 1.0; a.playbackRate = SPEED;
+          if ('preservePitch' in a) a.preservePitch = true;
+          currentAudios.push(a);
+          return a;
+        });
+        let i = 0;
+        const playNext = () => {
+          if (i >= audios.length) return;
+          const a = audios[i++];
+          a.onended = playNext;
+          a.onerror = () => { if (i === 1) tryVoice(); else playNext(); };
+          a.play().then(() => { if (!started){ started = true; resolve(true); } }).catch(() => playNext());
+        };
+        playNext();
+      };
+      tryVoice();
+    } catch { resolve(false); }
+  });
+}
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('Elle parle...');
-    const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); if (!ok) setStatus("Echec connexion voix Edge - reessaie"); };
-    speakEdge(clean).then(done);
+    const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
+    speakEdge(clean).then(ok => {
+      if (ok) { console.log('[VOIX] Edge OK'); done(true); }
+      else {
+        console.warn('[VOIX] Edge echec, bascule Cloud');
+        setStatus('Edge bloque, secours Cloud...');
+        speakCloud(clean).then(ok2 => {
+          if (ok2) { console.log('[VOIX] Cloud OK'); done(true); }
+          else { setStatus("Echec connexion voix - reessaie"); done(false); }
+        });
+      }
+    });
   });
 }
 let currentAudios = [];
