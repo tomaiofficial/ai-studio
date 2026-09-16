@@ -696,19 +696,14 @@ function versionCompare(a, b){
   return 0;
 }
 async function checkUpdate(){
+  /* FINI LA BOUCLE : plus AUCUN rechargement automatique ni bandeau.
+     Le service worker est network-first : chaque ouverture de l'app charge deja
+     la toute derniere version directement. Rien a cliquer, rien de bloque. */
   try {
     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
     if (j.version && versionCompare(j.version, APP_VERSION) > 0){
-      /* Mise a jour SILENCIEUSE 100% automatique : rechargement direct, aucun bandeau bloque, aucun clic */
-      if (versionCompare(j.version, APP_VERSION) > 0){
-        try{
-          const swReg = await navigator.serviceWorker.getRegistration();
-          if (swReg && swReg.waiting){ swReg.waiting.postMessage({type:'SKIP_WAITING'}); }
-        }catch{}
-        setStatus('Mise a jour... un instant');
-        setTimeout(() => { location.href = location.pathname + '?v=' + Date.now(); }, 900);
-      }
+      console.info('[MAJ] Nouvelle version ' + j.version + ' detectee - deja chargee au prochain chargement (network-first)');
     }
   } catch {}
 }
