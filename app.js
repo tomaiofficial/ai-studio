@@ -4,7 +4,7 @@
    Mistral = voix réaliste (Voxtral TTS)
    Edge TTS = voix gratuite réaliste par défaut
    ============================================================ */
-const APP_VERSION = '7.20';
+const APP_VERSION = '7.21';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -679,14 +679,29 @@ async function checkUpdate(){
     }
   } catch {}
 }
-function forceUpdate(){
-  updateBanner.textContent = 'Mise a jour...';
+async function forceUpdate(){
+  updateBanner.textContent = 'Mise a jour... patiente 2s';
+  updateBanner.style.pointerEvents = 'none';
   try { sessionStorage.clear(); } catch {}
+  try { localStorage.removeItem('va_reloaded_once'); } catch {}
+  // Purge VRAIE : on attend que tout soit supprimé avant de recharger
   try {
-    if ('caches' in window) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
-    if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
   } catch {}
-  location.href = location.pathname + '?force=' + Date.now() + '&v=' + encodeURIComponent(updateBanner.textContent);
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+  } catch {}
+  // Hard reload qui bypass le cache
+  const url = location.pathname + '?force=' + Date.now() + '&v=' + APP_VERSION;
+  location.href = url;
+  // filet de sécurité si href bloqué par l'ancien SW
+  setTimeout(() => { try { location.reload(true); } catch { location.href = url; } }, 800);
 }
 updateBanner.addEventListener('click', forceUpdate);
 updateBanner.addEventListener('touchend', e => { e.preventDefault(); forceUpdate(); }, {passive:false});
