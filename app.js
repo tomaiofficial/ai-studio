@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.24';
+const APP_VERSION = '7.25';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -438,15 +438,19 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
   session.push({ role: 'assistant', content: "Compris, c est Tom.ai qui m a creee le 10 septembre 2026." });
 }
 
-/* ===== VOIX EDGE TTS (synthese vocale systeme) ===== */
+/* ===== VOIX EDGE TTS NEURAL (vraie voix IA Microsoft, pas synthese locale) ===== */
 async function speakEdge(text){
+  // 1) Essaie vraie voix Edge Neural via WebSocket (son ultra réaliste)
+  const neuralOk = await speakEdgeNeural(text);
+  if (neuralOk) return true;
+  // 2) Fallback : synthèse locale si hors-ligne
   if (!('speechSynthesis' in window)) return false;
   return new Promise(resolve => {
     let done = false;
     const finish = ok => { if (!done){ done=true; resolve(ok); } };
     try {
       const pickVoice = (voices) => {
-        let v = voices.find(x => x.lang.toLowerCase().startsWith('fr') && /Microsoft|Edge|Denise|Henri|Hortense|Julie|Paul|Amelie|Thomas/i.test(x.name));
+        let v = voices.find(x => x.lang.toLowerCase().startsWith('fr') && /Microsoft|Edge|Denise|Henri/i.test(x.name));
         if (!v) v = voices.find(x => x.lang.toLowerCase().startsWith('fr'));
         if (!v) v = voices[0];
         return v;
@@ -455,33 +459,78 @@ async function speakEdge(text){
         try { speechSynthesis.cancel(); } catch {}
         const voices = speechSynthesis.getVoices();
         const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = 'fr-FR';
-        utter.rate = 1.0;
-        utter.pitch = 1.0;
-        utter.volume = 1.0;
-        const v = pickVoice(voices);
-        if (v) utter.voice = v;
-        utter.onend = () => finish(true);
-        utter.onerror = () => finish(false);
+        utter.lang = 'fr-FR'; utter.rate = 1.0; utter.pitch = 1.0; utter.volume = 1.0;
+        const v = pickVoice(voices); if (v) utter.voice = v;
+        utter.onend = () => finish(true); utter.onerror = () => finish(false);
         speechSynthesis.speak(utter);
-        setTimeout(() => {
-          if (!speechSynthesis.speaking && !speechSynthesis.pending) finish(false);
-        }, 1500);
+        setTimeout(() => { if (!speechSynthesis.speaking && !speechSynthesis.pending) finish(false); }, 1500);
       };
       const voices = speechSynthesis.getVoices();
       if (voices.length === 0){
-        // Voix pas encore chargees (Chrome/Edge) -> attendre
         let waited = false;
         speechSynthesis.onvoiceschanged = () => { if (!waited){ waited=true; doSpeak(); } };
         setTimeout(() => { if (!waited){ waited=true; doSpeak(); } }, 800);
-        // declenche chargement
         try { speechSynthesis.getVoices(); } catch {}
-      } else {
-        doSpeak();
-      }
+      } else doSpeak();
     } catch { finish(false); }
   });
 }
+function speakEdgeNeural(text){
+  return new Promise(resolve => {
+    let done = false;
+    const finish = ok => { if (!done){ done=true; resolve(ok); } };
+    try {
+      const voice = 'fr-FR-DeniseNeural';
+      const TRUSTED = '6A5AAEFD-AFF3-4d18-A333-E5EE6665E6F7';
+      const connId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+      const ws = new WebSocket('wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=' + TRUSTED);
+      const audioChunks = [];
+      let timeout = setTimeout(() => { try{ ws.close(); }catch{} finish(false); }, 8000);
+      ws.onopen = () => {
+        const config = 'X-Timestamp:' + new Date().toString() + '\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}';
+        ws.send(config);
+        const ssml = `<speak version='1.0' xml:lang='fr-FR'><voice name='${voice}'><prosody rate='+0%' pitch='+0Hz'>${escapeXml(text)}</prosody></voice></speak>`;
+        const msg = 'X-RequestId:' + connId + '\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:' + new Date().toString() + '\r\nPath:ssml\r\n\r\n' + ssml;
+        ws.send(msg);
+      };
+      ws.onmessage = async e => {
+        if (typeof e.data === 'string'){
+          if (e.data.includes('Path:turn.end')){ try{ ws.close(); }catch{} }
+        } else {
+          // binaire : header + mp3
+          const data = e.data;
+          const buf = data instanceof Blob ? await data.arrayBuffer() : data;
+          const bytes = new Uint8Array(buf);
+          const txt = new TextDecoder().decode(bytes.slice(0, 200));
+          const idx = txt.indexOf('Path:audio');
+          if (idx !== -1){
+            // trouve fin du header (\r\n\r\n)
+            let headerEnd = -1;
+            for (let i=0;i<bytes.length-1;i++) if (bytes[i]==13 && bytes[i+1]==10 && bytes[i+2]==13 && bytes[i+3]==10){ headerEnd=i+4; break; }
+            if (headerEnd !== -1) audioChunks.push(bytes.slice(headerEnd));
+          }
+        }
+      };
+      ws.onerror = () => { clearTimeout(timeout); finish(false); };
+      ws.onclose = () => {
+        clearTimeout(timeout);
+        if (audioChunks.length === 0){ finish(false); return; }
+        const total = audioChunks.reduce((s,c)=>s+c.length,0);
+        const out = new Uint8Array(total); let off=0;
+        for (const c of audioChunks){ out.set(c, off); off+=c.length; }
+        const blob = new Blob([out], {type:'audio/mpeg'});
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.volume = 1.0; audio.playbackRate = SPEED;
+        currentAudios.push(audio);
+        audio.onended = () => { URL.revokeObjectURL(url); finish(true); };
+        audio.onerror = () => finish(false);
+        audio.play().catch(()=> finish(false));
+      };
+    } catch { finish(false); }
+  });
+}
+function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
 
 async function speakMistral(text){
   const key = getMistralKey();
