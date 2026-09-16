@@ -1,22 +1,22 @@
-ï»¿/* ============================================================
-   ASSISTANT VOCAL IA â€” 100% vocal, sans chat
+/* ============================================================
+   ASSISTANT VOCAL IA — 100% vocal, sans chat
    Groq = cerveau (texte, gratuit sans limite)
-   Mistral = voix rÃ©aliste (Voxtral TTS)
-   Edge TTS = voix gratuite rÃ©aliste par dÃ©faut
+   Mistral = voix réaliste (Voxtral TTS)
+   Edge TTS = voix gratuite réaliste par défaut
    ============================================================ */
-const APP_VERSION = '7.21';
+const APP_VERSION = '7.22';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par dÃ©faut
+const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par défaut
 const SPEED = 1.15;
 
-/* Voix gratuites SANS clÃ© : Edge TTS puis Google Chirp3-HD */
+/* Voix gratuites SANS clé : Edge TTS puis Google Chirp3-HD */
 const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B'];
 
-/* ===== Ã‰LÃ‰MENTS ===== */
+/* ===== ÉLÉMENTS ===== */
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const heardLine = $('heardLine'), heardText = $('heardText');
@@ -28,7 +28,7 @@ const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
 
-/* ===== Ã‰TAT ===== */
+/* ===== ÉTAT ===== */
 let state = 'idle';
 let session = [];
 let toastTimer = null;
@@ -136,10 +136,10 @@ function setStatus(txt, active){
 function setState(s){
   state = s;
   orb.classList.remove('listening','thinking','speaking');
-  if (s === 'listening'){ orb.classList.add('listening'); orbIcon.textContent = 'â—'; }
-  else if (s === 'thinking'){ orb.classList.add('thinking'); orbIcon.textContent = 'â—'; }
-  else if (s === 'speaking'){ orb.classList.add('speaking'); orbIcon.textContent = 'â—'; }
-  else { orbIcon.textContent = 'â—'; }
+  if (s === 'listening'){ orb.classList.add('listening'); orbIcon.textContent = '?'; }
+  else if (s === 'thinking'){ orb.classList.add('thinking'); orbIcon.textContent = '?'; }
+  else if (s === 'speaking'){ orb.classList.add('speaking'); orbIcon.textContent = '?'; }
+  else { orbIcon.textContent = '?'; }
 }
 
 /* ===== REGLAGES ===== */
@@ -455,7 +455,7 @@ async function speakEdge(text){
       // Fix iOS : il faut cancel avant
       try { speechSynthesis.cancel(); } catch {}
       speechSynthesis.speak(utter);
-      // Securite : si bloquÃ©, on fallback
+      // Securite : si bloqué, on fallback
       setTimeout(() => {
         if (!speechSynthesis.speaking && !speechSynthesis.pending) resolve(false);
       }, 1200);
@@ -684,7 +684,7 @@ async function forceUpdate(){
   updateBanner.style.pointerEvents = 'none';
   try { sessionStorage.clear(); } catch {}
   try { localStorage.removeItem('va_reloaded_once'); } catch {}
-  // Purge VRAIE : on attend que tout soit supprimÃ© avant de recharger
+  // Purge VRAIE : on attend que tout soit supprimé avant de recharger
   try {
     if ('caches' in window) {
       const keys = await caches.keys();
@@ -700,7 +700,7 @@ async function forceUpdate(){
   // Hard reload qui bypass le cache
   const url = location.pathname + '?force=' + Date.now() + '&v=' + APP_VERSION;
   location.href = url;
-  // filet de sÃ©curitÃ© si href bloquÃ© par l'ancien SW
+  // filet de sécurité si href bloqué par l'ancien SW
   setTimeout(() => { try { location.reload(true); } catch { location.href = url; } }, 800);
 }
 updateBanner.addEventListener('click', forceUpdate);
