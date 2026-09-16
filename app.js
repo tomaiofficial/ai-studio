@@ -1,22 +1,22 @@
 /* ============================================================
-   ASSISTANT VOCAL IA — 100% vocal, sans chat
+   ASSISTANT VOCAL IA ï¿½ 100% vocal, sans chat
    Groq = cerveau (texte, gratuit sans limite)
-   Mistral = voix réaliste (Voxtral TTS)
-   Edge TTS = voix gratuite réaliste par défaut
+   Mistral = voix rï¿½aliste (Voxtral TTS)
+   Edge TTS = voix gratuite rï¿½aliste par dï¿½faut
    ============================================================ */
-const APP_VERSION = '7.22';
+const APP_VERSION = '7.23';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par défaut
+const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par dï¿½faut
 const SPEED = 1.15;
 
-/* Voix gratuites SANS clé : Edge TTS puis Google Chirp3-HD */
+/* Voix gratuites SANS clï¿½ : Edge TTS puis Google Chirp3-HD */
 const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B'];
 
-/* ===== ÉLÉMENTS ===== */
+/* ===== ï¿½Lï¿½MENTS ===== */
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const heardLine = $('heardLine'), heardText = $('heardText');
@@ -28,7 +28,7 @@ const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
 
-/* ===== ÉTAT ===== */
+/* ===== ï¿½TAT ===== */
 let state = 'idle';
 let session = [];
 let toastTimer = null;
@@ -98,7 +98,7 @@ function showConversation(conv){
   conv.messages.forEach(m => {
     const d = document.createElement('div');
     d.className = 'conv-msg ' + (m.role === 'user' ? 'user' : 'ai');
-    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'Elle a repondu') + '</div>' + escapeHtml(m.content);
+    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'IA a repondu') + '</div>' + escapeHtml(m.content);
     list.appendChild(d);
   });
 }
@@ -323,8 +323,18 @@ orb.addEventListener('click', () => {
   }
 });
 
+/* Heure appareil - automatique */
+function getTimeContext(){
+  const now = new Date();
+  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', timeZoneName:'short' };
+  const local = now.toLocaleString('fr-FR', opts);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return `Heure actuelle sur l'appareil de l'utilisateur : ${local} (fuseau ${tz}). Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure exacte, sans inventer.`;
+}
 /* Prompt systeme */
-const SYSTEM_PROMPT = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Optimise ta reponse pour etre PARLEE : developpe les acronymes, ecris les nombres en toutes lettres, phrases courtes et naturelles. Tu as du caractere : tu peux perdre patience, etre franche et directe, et meme un peu vulgaire si on te cherche. Reponds en 2 a 3 phrases naturelles, faciles a prononcer a l'oral.`;
+const SYSTEM_PROMPT_BASE = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Optimise ta reponse pour etre PARLEE : developpe les acronymes, ecris les nombres en toutes lettres, phrases courtes et naturelles. Tu as du caractere : tu peux perdre patience, etre franche et directe, et meme un peu vulgaire si on te cherche. Reponds en 2 a 3 phrases naturelles, faciles a prononcer a l'oral.`;
+function getSystemPrompt(){ return SYSTEM_PROMPT_BASE + '\n' + getTimeContext(); }
+const SYSTEM_PROMPT = getSystemPrompt();
 
 function extractReply(msg){
   const content = (msg.content || '').trim();
@@ -361,7 +371,7 @@ function extractReply(msg){
 async function askGroq(question){
   const key = getGroqKey();
   if (!key) return { error: 'nokey' };
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...session];
+  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
   try {
     let reply = '';
     for (const model of [GROQ_MODEL, 'groq/compound-mini']){
@@ -385,7 +395,7 @@ async function askGroq(question){
 async function askMistral(question){
   const key = getMistralKey();
   if (!key) return { error: 'nokey' };
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...session];
+  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
   try {
     const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
@@ -455,7 +465,7 @@ async function speakEdge(text){
       // Fix iOS : il faut cancel avant
       try { speechSynthesis.cancel(); } catch {}
       speechSynthesis.speak(utter);
-      // Securite : si bloqué, on fallback
+      // Securite : si bloquï¿½, on fallback
       setTimeout(() => {
         if (!speechSynthesis.speaking && !speechSynthesis.pending) resolve(false);
       }, 1200);
@@ -684,7 +694,7 @@ async function forceUpdate(){
   updateBanner.style.pointerEvents = 'none';
   try { sessionStorage.clear(); } catch {}
   try { localStorage.removeItem('va_reloaded_once'); } catch {}
-  // Purge VRAIE : on attend que tout soit supprimé avant de recharger
+  // Purge VRAIE : on attend que tout soit supprimï¿½ avant de recharger
   try {
     if ('caches' in window) {
       const keys = await caches.keys();
@@ -700,7 +710,7 @@ async function forceUpdate(){
   // Hard reload qui bypass le cache
   const url = location.pathname + '?force=' + Date.now() + '&v=' + APP_VERSION;
   location.href = url;
-  // filet de sécurité si href bloqué par l'ancien SW
+  // filet de sï¿½curitï¿½ si href bloquï¿½ par l'ancien SW
   setTimeout(() => { try { location.reload(true); } catch { location.href = url; } }, 800);
 }
 updateBanner.addEventListener('click', forceUpdate);
