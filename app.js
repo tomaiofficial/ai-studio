@@ -370,7 +370,15 @@ function extractReply(msg){
 async function askGroq(question){
   const key = getGroqKey();
   if (!key) return { error: 'nokey' };
-  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  let messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  /* INTERNET GRATUIT INCLUS A VIE : si la question porte sur l'actualite/l'info fraiche,
+     on cherche le web en direct (DuckDuckGo, zero cle, zero limite) et on colle les
+     resultats dans le contexte pour que l'assistante reponde avec des faits recents. */
+  const webCtx = await webSearch(question);
+  if (webCtx){
+    messages = messages.filter(m => !(m.role === 'system' && /Web \(recherche DuckDuckGo\)/.test(m.content)));
+    messages = [{ role: 'system', content: 'Web (recherche DuckDuckGo, acces internet gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+  }
   try {
     let reply = '';
     for (const model of [GROQ_MODEL, 'groq/compound-mini']){
@@ -409,6 +417,27 @@ async function askMistral(question){
     if (!reply) return { error: 'api' };
     return { text: reply };
   } catch { return { error: 'net' }; }
+}
+async function webSearch(question){
+  /* Internet GRATUIT inclus a vie, aucune cle, aucune limite : DuckDuckGo Instant Answer
+     + pages web. L'IA consulte le web en direct pour repondre a jour. */
+  try {
+    const q = encodeURIComponent(question.replace(/[\r\n]+/g,' ').slice(0, 160));
+    const res = await fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' });
+    if (!res.ok) return '';
+    const j = await res.json();
+    const parts = [];
+    if (j.AbstractText) parts.push(j.AbstractText.slice(0, 600));
+    if (j.Answer) parts.push(j.Answer.slice(0, 400));
+    if (j.Heading) parts.push(j.Heading.slice(0, 120));
+    if (j.RelatedTopics && j.RelatedTopics.length){
+      const flat = [];
+      const walk = items => items.forEach(it => { if (it.Text) flat.push(it.Text); else if (it.Topics) walk(it.Topics); });
+      walk(j.RelatedTopics);
+      flat.slice(0, 5).forEach(t => parts.push(t.slice(0, 300)));
+    }
+    return parts.join(' | ').slice(0, 1400).trim();
+  } catch { return ''; }
 }
 async function askAI(question){
   session.push({ role: 'user', content: question });
