@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.14';
+const APP_VERSION = '7.15';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -608,17 +608,31 @@ async function checkUpdate(){
          Sinon (version.json en avance sur app.js en cache) => bandeau errone bloque en reload infini. */
       if (!sessionStorage.getItem('va_reloaded_once')){
         sessionStorage.setItem('va_reloaded_once', '1');
-        updateBanner.textContent = '?? Nouvelle version ' + j.version + ' - rechargement automatique';
-        setTimeout(() => location.reload(true), 1500);
+        updateBanner.textContent = '🔄 Nouvelle version ' + j.version + ' - rechargement automatique';
+        setTimeout(() => location.reload(), 1500);
       } else {
         /* Deja recharge une fois : on affiche juste un bouton, on ne relance PAS un reload (sinon boucle). */
-        updateBanner.textContent = '?? Nouvelle version ' + j.version + ' disponible - appuie pour maj';
-        updateBanner.classList.remove('swal');
+        updateBanner.textContent = '⬆️ Nouvelle version ' + j.version + ' disponible - appuie pour maj';
+        updateBanner.style.cursor = 'pointer';
       }
     }
   } catch {}
 }
-updateBanner.addEventListener('click', () => location.reload(true));
+updateBanner.addEventListener('click', async () => {
+  updateBanner.textContent = '⏳ Mise à jour...';
+  try {
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.update()));
+    }
+  } catch {}
+  sessionStorage.removeItem('va_reloaded_once');
+  location.reload();
+});
 
 function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; puterWarmed=false; state="idle"; setStatus("Appuie sur la bulle et parle"); setState("idle"); location.reload(true); }
 /* ===== DÉMARRAGE ===== */
