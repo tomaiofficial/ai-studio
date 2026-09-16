@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.33';
+const APP_VERSION = '7.34';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -581,6 +581,28 @@ function normalizeForTTS(text){
     .replace(/[#*_`]/g, '').replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').trim();
 }
+/* Vraie voix IA web (StreamElements Polly Neural) - gratuite, ultra realiste, pas de synthese locale */
+async function speakRealAI(text){
+  try {
+    // StreamElements - voix neurale francaise Lea (Polly Neural), 100% web, pas de cle
+    const voice = 'Lea'; // alternatives: Celine, Mathieu
+    const url = 'https://api.streamelements.com/kappa/v2/speech?voice=' + voice + '&text=' + encodeURIComponent(text);
+    const res = await fetch(url);
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    if (!blob || blob.size < 1000) return false;
+    const objUrl = URL.createObjectURL(blob);
+    const audio = new Audio(objUrl);
+    audio.volume = 1.0; audio.playbackRate = SPEED;
+    if ('preservePitch' in audio) audio.preservePitch = true;
+    currentAudios.push(audio);
+    return await new Promise(resolve => {
+      audio.onended = () => { URL.revokeObjectURL(objUrl); resolve(true); };
+      audio.onerror = () => resolve(false);
+      audio.play().catch(()=> resolve(false));
+    });
+  } catch { return false; }
+}
 /* Voix IA incluse gratuite a vie - Chirp3-HD (Google) ultra realiste, aucune cle */
 function speakCloud(text){
   return new Promise(resolve => {
@@ -618,15 +640,22 @@ function speak(text){
     setState('speaking');
     setStatus('Elle parle...');
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    // Voix IA incluse gratuite a vie (Chirp HD) en priorite, Edge en secours
-    speakCloud(clean).then(ok => {
-      if (ok) { console.log('[VOIX] Chirp HD OK (incluse)'); done(true); }
+    // Vraie voix IA web (Lea Neural) en priorite, puis Chirp HD, puis Edge
+    speakRealAI(clean).then(ok => {
+      if (ok) { console.log('[VOIX] RealAI Lea OK (incluse)'); done(true); }
       else {
-        console.warn('[VOIX] Chirp echec, bascule Edge');
-        setStatus('Chirp bloque, secours Edge...');
-        speakEdge(clean).then(ok2 => {
-          if (ok2) { console.log('[VOIX] Edge OK (secours)'); done(true); }
-          else { setStatus("Echec connexion voix - reessaie"); done(false); }
+        console.warn('[VOIX] RealAI echec, bascule Chirp');
+        setStatus('Voix IA web bloque, secours Chirp...');
+        speakCloud(clean).then(ok2 => {
+          if (ok2) { console.log('[VOIX] Chirp HD OK'); done(true); }
+          else {
+            console.warn('[VOIX] Chirp echec, bascule Edge');
+            setStatus('Chirp bloque, secours Edge...');
+            speakEdge(clean).then(ok3 => {
+              if (ok3) { console.log('[VOIX] Edge OK'); done(true); }
+              else { setStatus("Echec connexion voix - reessaie"); done(false); }
+            });
+          }
         });
       }
     });
