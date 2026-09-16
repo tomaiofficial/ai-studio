@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.17';
+const APP_VERSION = '7.18';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -629,21 +629,20 @@ async function checkUpdate(){
     }
   } catch {}
 }
-updateBanner.addEventListener('click', async () => {
+function forceUpdate(){
   updateBanner.textContent = '⏳ Mise à jour...';
-  try {
-    if ('caches' in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
-    }
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      for (const r of regs) { try { await r.unregister(); } catch {} }
-    }
-  } catch {}
   try { sessionStorage.clear(); } catch {}
-  location.href = location.pathname + '?force=' + Date.now();
-});
+  // purge synchrone + navigation immédiate (pas d'await qui casse le geste utilisateur)
+  try {
+    if ('caches' in window) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+    if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  } catch {}
+  location.href = location.pathname + '?force=' + Date.now() + '&v=' + encodeURIComponent(updateBanner.textContent);
+}
+updateBanner.addEventListener('click', forceUpdate);
+updateBanner.addEventListener('touchend', e => { e.preventDefault(); forceUpdate(); }, {passive:false});
+// filet de sécurité : clic n'importe où sur le bandeau
+updateBanner.onclick = forceUpdate;
 
 function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; puterWarmed=false; state="idle"; setStatus("Appuie sur la bulle et parle"); setState("idle"); location.reload(true); }
 /* ===== DÉMARRAGE ===== */
