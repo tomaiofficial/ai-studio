@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.27';
+const APP_VERSION = '7.28';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -526,64 +526,6 @@ function speakEdgeNeural(text){
 }
 function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
 
-async function speakMistral(text){
-  const key = getMistralKey();
-  const voice = getVoice();
-  if (!key || voice === 'free' || voice === 'edge') return false;
-  try {
-    const res = await fetch('https://api.mistral.ai/v1/audio/speech', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: MISTRAL_TTS_MODEL, input: text, voice_id: voice, response_format: 'mp3' })
-    });
-    if (!res.ok) return false;
-    const j = await res.json();
-    if (!j.audio_data) return false;
-    const audio = new Audio('data:audio/mp3;base64,' + j.audio_data);
-    audio.preload = 'auto';
-    audio.volume = 1.0;
-    audio.playbackRate = SPEED;
-    if ('preservePitch' in audio) audio.preservePitch = true;
-    currentAudios.push(audio);
-    return await new Promise(resolve => {
-      audio.onended = () => resolve(true);
-      audio.onerror = () => resolve(false);
-      audio.play().catch(() => resolve(false));
-    });
-  } catch { return false; }
-}
-function speakCloud(text){
-  return new Promise(resolve => {
-    try {
-      const chunks = splitText(text);
-      let vi = 0;
-      let started = false;
-      const tryVoice = () => {
-        if (vi >= FREE_VOICES.length){ setStatus('Voix indisponible - verifie ta connexion'); resolve(false); return; }
-        const voice = FREE_VOICES[vi++];
-        const audios = chunks.map(c => {
-          const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice + '&speed=' + SPEED);
-          a.preload = 'auto';
-          a.volume = 1.0;
-          a.playbackRate = SPEED;
-          if ('preservePitch' in a) a.preservePitch = true;
-          currentAudios.push(a);
-          return a;
-        });
-        let i = 0;
-        const playNext = () => {
-          if (i >= audios.length) return;
-          const a = audios[i++];
-          a.onended = playNext;
-          a.onerror = () => { if (i === 1) tryVoice(); else playNext(); };
-          a.play().then(() => { if (!started){ started = true; resolve(true); } }).catch(() => playNext());
-        };
-        playNext();
-      };
-      tryVoice();
-    } catch { setStatus('Voix indisponible - verifie ta connexion'); resolve(false); }
-  });
-}
 function splitText(text){
   const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
   const out = [];
@@ -638,13 +580,8 @@ function speak(text){
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('Elle parle...');
-    const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    const voice = getVoice();
-    if (voice === 'edge'){
-      speakEdge(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
-    } else {
-      speakMistral(clean).then(ok => { if (ok) done(true); else speakEdge(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); }); });
-    }
+    const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); if (!ok) setStatus("Voix Edge indisponible - verifie ta connexion"); };
+    speakEdge(clean).then(done);
   });
 }
 let currentAudios = [];
