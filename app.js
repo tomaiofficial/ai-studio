@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.25';
+const APP_VERSION = '7.26';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -438,52 +438,47 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
   session.push({ role: 'assistant', content: "Compris, c est Tom.ai qui m a creee le 10 septembre 2026." });
 }
 
-/* ===== VOIX EDGE TTS NEURAL (vraie voix IA Microsoft, pas synthese locale) ===== */
+/* ===== VOIX EDGE TTS NEURAL (vraie voix IA Microsoft DeniseNeural) ===== */
 async function speakEdge(text){
-  // 1) Essaie vraie voix Edge Neural via WebSocket (son ultra réaliste)
+  // Voix Edge Neural uniquement - aucune synthese locale robot
   const neuralOk = await speakEdgeNeural(text);
-  if (neuralOk) return true;
-  // 2) Fallback : synthèse locale si hors-ligne
-  if (!('speechSynthesis' in window)) return false;
-  return new Promise(resolve => {
-    let done = false;
-    const finish = ok => { if (!done){ done=true; resolve(ok); } };
-    try {
-      const pickVoice = (voices) => {
-        let v = voices.find(x => x.lang.toLowerCase().startsWith('fr') && /Microsoft|Edge|Denise|Henri/i.test(x.name));
-        if (!v) v = voices.find(x => x.lang.toLowerCase().startsWith('fr'));
-        if (!v) v = voices[0];
-        return v;
-      };
-      const doSpeak = () => {
-        try { speechSynthesis.cancel(); } catch {}
-        const voices = speechSynthesis.getVoices();
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = 'fr-FR'; utter.rate = 1.0; utter.pitch = 1.0; utter.volume = 1.0;
-        const v = pickVoice(voices); if (v) utter.voice = v;
-        utter.onend = () => finish(true); utter.onerror = () => finish(false);
-        speechSynthesis.speak(utter);
-        setTimeout(() => { if (!speechSynthesis.speaking && !speechSynthesis.pending) finish(false); }, 1500);
-      };
-      const voices = speechSynthesis.getVoices();
-      if (voices.length === 0){
-        let waited = false;
-        speechSynthesis.onvoiceschanged = () => { if (!waited){ waited=true; doSpeak(); } };
-        setTimeout(() => { if (!waited){ waited=true; doSpeak(); } }, 800);
-        try { speechSynthesis.getVoices(); } catch {}
-      } else doSpeak();
-    } catch { finish(false); }
-  });
+  return neuralOk;
 }
+/* ---- DiFy Sec-MS-GEC : jeton anti-bot officiel Microsoft (algo edge-tts v143.x) ----
+   Microsoft exige depuis 2023 le header/sec Sec-MS-GEC dans la poignee de main Edge TTS,
+   sinon le WebSocket Bing renvoie 403 et la voix retombe sur la synthese locale (robot).
+   Portage JS de l'algo officiel rany2/edge-tts drm.DRM.generate_sec_ms_gec :
+     ticks = unix(now) + WIN_EPOCH        (epoch Windows 1601-01-01)
+     ticks -= ticks % 300                  (fenetre 5 minutes)
+     ticks *= 1e7                          (intervalle 100 ns)
+     str = f"{ticks:.0f}{TRUSTED_CLIENT_TOKEN}"
+     return sha256(str).hexdigest().toUpperCase()
+------------------------------------------------------------------------------ */
+const EDGE_TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"; // edge-tts constants.py
+const EDGE_WIN_EPOCH = 11644473600;   // 1601-01-01 00:00:00 UTC en secondes Unix
+async function generateSecMsGec(){
+  try {
+    let ticks = Date.now() / 1000;          // unix secondes
+    ticks += EDGE_WIN_EPOCH;                // -> Windows file time (secondes)
+    ticks -= ticks % 300;                   // arrondi inferieur a la fenetre 5 min
+    ticks *= 1e7;                           // -> intervalles de 100 ns
+    const str = `${ticks.toFixed(0)}${EDGE_TRUSTED_CLIENT_TOKEN}`;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
+  } catch { return ''; }
+}
+
 function speakEdgeNeural(text){
-  return new Promise(resolve => {
+  return generateSecMsGec().then(gec => new Promise(resolve => {
     let done = false;
     const finish = ok => { if (!done){ done=true; resolve(ok); } };
+    if (!gec){ finish(false); return; }
     try {
       const voice = 'fr-FR-DeniseNeural';
-      const TRUSTED = '6A5AAEFD-AFF3-4d18-A333-E5EE6665E6F7';
+      const TRUSTED = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+      const GEC_VER = '1-143.0.3650.75';
       const connId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-      const ws = new WebSocket('wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=' + TRUSTED);
+      const ws = new WebSocket('wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=' + TRUSTED + '&Sec-MS-GEC=' + gec + '&Sec-MS-GEC-Version=' + GEC_VER);
       const audioChunks = [];
       let timeout = setTimeout(() => { try{ ws.close(); }catch{} finish(false); }, 8000);
       ws.onopen = () => {
@@ -528,7 +523,7 @@ function speakEdgeNeural(text){
         audio.play().catch(()=> finish(false));
       };
     } catch { finish(false); }
-  });
+  }));
 }
 function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
 
@@ -683,7 +678,6 @@ function speak(text){
 }
 let currentAudios = [];
 function stopAudio(){
-  try { speechSynthesis.cancel(); } catch {}
   currentAudios.forEach(a => { try { a.pause(); a.src = ''; } catch {} });
   currentAudios = [];
 }
@@ -692,7 +686,6 @@ async function handleQuestion(question){
   isProcessing = true;
   manualStop = true;
   try{ recog && recog.stop(); }catch{}
-  try{ speechSynthesis.cancel(); }catch{}
   heardLine.style.display = 'block';
   heardText.textContent = question;
   setState('thinking');
@@ -780,6 +773,4 @@ $('appVersion').textContent = 'Assistant Vocal IA - v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
 setStatus("Appuie sur l'orbe et parle");
-// Precharge les voix Edge
-try { speechSynthesis.getVoices(); } catch {}
-if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => { try { speechSynthesis.getVoices(); } catch {} };
+// Voix Edge Neural via WebSocket uniquement
