@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.26';
+const APP_VERSION = '7.27';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -35,7 +35,6 @@ let toastTimer = null;
 let isProcessing = false;
 let manualStop = false;
 let edgeTried = false;
-let puterWarmed = false;
 
 /* ===== CONVERSATIONS ===== */
 const CONV_KEY = 'va_convs';
@@ -634,32 +633,6 @@ function normalizeForTTS(text){
     .replace(/[#*_`]/g, '').replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').trim();
 }
-async function speakPuter(text){
-  if (!window.puter || !puter.ai || !puter.ai.txt2speech) return false;
-  const providers = [
-    { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une facon naturelle, chaleureuse et claire, en francais.' },
-    { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une facon naturelle, chaleureuse et claire, en francais.' },
-    { provider: 'aws-polly', voice: 'Lea', engine: 'neural', language: 'fr-FR' },
-    { provider: 'xai', voice: 'eve', language: 'auto' }
-  ];
-  for (const opts of providers){
-    try {
-      const audio = await puter.ai.txt2speech(text, opts);
-      if (!audio || !audio.play) continue;
-      audio.volume = 1.0;
-      audio.playbackRate = SPEED;
-      if ('preservePitch' in audio) audio.preservePitch = true;
-      currentAudios.push(audio);
-      const played = await new Promise(res => {
-        audio.onended = () => res(true);
-        audio.onerror = () => res(false);
-        audio.play().then(() => {}).catch(() => res(false));
-      });
-      if (played) return true;
-    } catch {}
-  }
-  return false;
-}
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
@@ -668,9 +641,7 @@ function speak(text){
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
     const voice = getVoice();
     if (voice === 'edge'){
-      speakEdge(clean).then(ok => { if (ok) done(true); else speakPuter(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); }); });
-    } else if (voice === 'puter'){
-      speakPuter(clean).then(ok => { if (ok) done(true); else speakEdge(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); }); });
+      speakEdge(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
     } else {
       speakMistral(clean).then(ok => { if (ok) done(true); else speakEdge(clean).then(ok2 => { if (ok2) done(true); else speakCloud(clean).then(done); }); });
     }
@@ -768,7 +739,7 @@ async function forceUpdate(){
 updateBanner.addEventListener('click', forceUpdate);
 updateBanner.addEventListener('touchend', e => { e.preventDefault(); forceUpdate(); }, {passive:false});
 updateBanner.onclick = forceUpdate;
-function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; puterWarmed=false; state="idle"; setStatus("Appuie sur la bulle et parle"); setState("idle"); location.reload(true); }
+function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; state="idle"; setStatus("Appuie sur la bulle et parle"); setState("idle"); location.reload(true); }
 $('appVersion').textContent = 'Assistant Vocal IA - v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
