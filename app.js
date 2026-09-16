@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.32';
+const APP_VERSION = '7.33';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -581,7 +581,7 @@ function normalizeForTTS(text){
     .replace(/[#*_`]/g, '').replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').trim();
 }
-/* Secours gratuit Chirp3-HD si Edge bloque (aucune cle) */
+/* Voix IA incluse gratuite a vie - Chirp3-HD (Google) ultra realiste, aucune cle */
 function speakCloud(text){
   return new Promise(resolve => {
     try {
@@ -618,13 +618,14 @@ function speak(text){
     setState('speaking');
     setStatus('Elle parle...');
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    speakEdge(clean).then(ok => {
-      if (ok) { console.log('[VOIX] Edge OK'); done(true); }
+    // Voix IA incluse gratuite a vie (Chirp HD) en priorite, Edge en secours
+    speakCloud(clean).then(ok => {
+      if (ok) { console.log('[VOIX] Chirp HD OK (incluse)'); done(true); }
       else {
-        console.warn('[VOIX] Edge echec, bascule Cloud');
-        setStatus('Edge bloque, secours Cloud...');
-        speakCloud(clean).then(ok2 => {
-          if (ok2) { console.log('[VOIX] Cloud OK'); done(true); }
+        console.warn('[VOIX] Chirp echec, bascule Edge');
+        setStatus('Chirp bloque, secours Edge...');
+        speakEdge(clean).then(ok2 => {
+          if (ok2) { console.log('[VOIX] Edge OK (secours)'); done(true); }
           else { setStatus("Echec connexion voix - reessaie"); done(false); }
         });
       }
