@@ -3,7 +3,7 @@
    Groq = cerveau (texte, gratuit sans limite)
    Mistral = voix réaliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.13';
+const APP_VERSION = '7.14';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
@@ -189,7 +189,12 @@ if (SR){
     else if (e.error === 'no-speech') setStatus('Je n\'ai rien entendu — appuie et reparle');
     else setStatus('Erreur micro (' + e.error + ') — réessaie');
   };
-  recog.onend = () => { if (state === 'listening') setState('idle'); };
+  recog.onend = () => {
+    if (state === 'listening'){
+      setState('idle');
+      setStatus('Je n\'ai rien entendu — appuie et reparle');
+    }
+  };
 }
 
 /* ===== BIENVENUE (message Tom.ai dit 1 SEULE FOIS dans la vie, mémorisé) ===== */
