@@ -1,22 +1,22 @@
-/* ============================================================
-   ASSISTANT VOCAL IA — 100% vocal, sans chat
+﻿/* ============================================================
+   ASSISTANT VOCAL IA â€” 100% vocal, sans chat
    Groq = cerveau (texte, gratuit sans limite)
-   Mistral = voix réaliste (Voxtral TTS)
+   Mistral = voix rÃ©aliste (Voxtral TTS)
    ============================================================ */
-const APP_VERSION = '7.18';
+const APP_VERSION = '7.19';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b'; /* le plus puissant de Groq */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'puter'; // 🎁 Voix Puter IA gratuite pour tout le monde (Gemini/OpenAI/Polly/xAI)
-const SPEED = 1.15; /* vitesse de parole : boostée un peu, pas trop */
+const DEFAULT_VOICE = 'puter'; // ðŸŽ Voix Puter IA gratuite pour tout le monde (Gemini/OpenAI/Polly/xAI)
+const SPEED = 1.15; /* vitesse de parole : boostÃ©e un peu, pas trop */
 
-/* Voix gratuites SANS clé : Google Chirp3-HD (la plus réaliste) puis Neural2/Wavenet.
-   Aucune voix robotique. Mistral Voxtral = option premium si clé présente. */
+/* Voix gratuites SANS clÃ© : Google Chirp3-HD (la plus rÃ©aliste) puis Neural2/Wavenet.
+   Aucune voix robotique. Mistral Voxtral = option premium si clÃ© prÃ©sente. */
 const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B', 'fr-FR-Neural2-C', 'fr-FR-Neural2-D', 'fr-FR-Wavenet-A'];
 
-/* ===== ÉLÉMENTS ===== */
+/* ===== Ã‰LÃ‰MENTS ===== */
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const heardLine = $('heardLine'), heardText = $('heardText');
@@ -26,12 +26,12 @@ const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKe
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 
-/* ===== ÉTAT ===== */
+/* ===== Ã‰TAT ===== */
 let state = 'idle'; // idle | listening | thinking | speaking
-let session = [];   // mémoire de conversation
+let session = [];   // mÃ©moire de conversation
 let toastTimer = null;
 
-/* ===== CONVERSATIONS (mémoire persistante — elle se souvient de tout) ===== */
+/* ===== CONVERSATIONS (mÃ©moire persistante â€” elle se souvient de tout) ===== */
 const CONV_KEY = 'va_convs';
 let conversations = [];
 try { conversations = JSON.parse(localStorage.getItem(CONV_KEY) || '[]'); } catch { conversations = []; }
@@ -56,7 +56,7 @@ function newConversation(){
   heardLine.style.display = 'none';
   saidLine.style.display = 'none';
   setStatus('Appuie sur l\'orbe et parle');
-  toast('🆕 Nouvelle conversation');
+  toast('ðŸ†• Nouvelle conversation');
 }
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -65,18 +65,18 @@ function renderHistory(){
   const list = $('convList');
   if (!list) return;
   if (conversations.length === 0){
-    list.innerHTML = '<p class="muted">Aucune conversation pour l\'instant. Parle avec elle, tout sera enregistré ici.</p>';
+    list.innerHTML = '<p class="muted">Aucune conversation pour l\'instant. Parle avec elle, tout sera enregistrÃ© ici.</p>';
     return;
   }
   list.innerHTML = '';
   [...conversations].reverse().forEach(conv => {
     const first = conv.messages.find(m => m.role === 'user');
-    const preview = first ? first.content.slice(0, 70) : '…';
+    const preview = first ? first.content.slice(0, 70) : 'â€¦';
     const d = new Date(conv.updated || conv.id);
     const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const div = document.createElement('div');
     div.className = 'conv-item';
-    div.innerHTML = '<div class="conv-date">' + date + ' · ' + conv.messages.length + ' messages</div><div class="conv-preview">' + escapeHtml(preview) + '</div>';
+    div.innerHTML = '<div class="conv-date">' + date + ' Â· ' + conv.messages.length + ' messages</div><div class="conv-preview">' + escapeHtml(preview) + '</div>';
     div.onclick = () => showConversation(conv);
     list.appendChild(div);
   });
@@ -86,13 +86,13 @@ function showConversation(conv){
   list.innerHTML = '';
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '← Retour à la liste';
+  back.textContent = 'â† Retour Ã  la liste';
   back.onclick = renderHistory;
   list.appendChild(back);
   conv.messages.forEach(m => {
     const d = document.createElement('div');
     d.className = 'conv-msg ' + (m.role === 'user' ? 'user' : 'ai');
-    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'Elle a répondu') + '</div>' + escapeHtml(m.content);
+    d.innerHTML = '<div class="t-label">' + (m.role === 'user' ? 'Tu as dit' : 'Elle a rÃ©pondu') + '</div>' + escapeHtml(m.content);
     list.appendChild(d);
   });
 }
@@ -106,13 +106,13 @@ clearHistoryBtn.addEventListener('click', () => {
     currentConvId = null;
     localStorage.setItem(CONV_KEY, '[]');
     renderHistory();
-    toast('🗑️ Historique effacé');
+    toast('ðŸ—‘ï¸ Historique effacÃ©');
   }
 });
 
-/* Message de bienvenue : qui a créé l'IA (dit 2 fois au lancement) */
-const DEV_MESSAGE = 'C est Tom point ai qui a commencé à me créer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il continue de m améliorer chaque jour.';
-const DEV_MESSAGE_TXT = 'C\'est Tom.ai qui a commencé à me créer le 10 septembre 2026, mais il n\'a pas encore fini. Il continue de m\'améliorer chaque jour.';
+/* Message de bienvenue : qui a crÃ©Ã© l'IA (dit 2 fois au lancement) */
+const DEV_MESSAGE = 'C est Tom point ai qui a commencÃ© Ã  me crÃ©er le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il continue de m amÃ©liorer chaque jour.';
+const DEV_MESSAGE_TXT = 'C\'est Tom.ai qui a commencÃ© Ã  me crÃ©er le 10 septembre 2026, mais il n\'a pas encore fini. Il continue de m\'amÃ©liorer chaque jour.';
 
 /* ===== TOAST ===== */
 function toast(msg, ms){
@@ -130,13 +130,13 @@ function setStatus(txt, active){
 function setState(s){
   state = s;
   orb.classList.remove('listening','thinking','speaking');
-  if (s === 'listening'){ orb.classList.add('listening'); orbIcon.textContent = '🎙️'; }
-  else if (s === 'thinking'){ orb.classList.add('thinking'); orbIcon.textContent = '🧠'; }
-  else if (s === 'speaking'){ orb.classList.add('speaking'); orbIcon.textContent = '🔊'; }
-  else { orbIcon.textContent = '🎙️'; }
+  if (s === 'listening'){ orb.classList.add('listening'); orbIcon.textContent = 'ðŸŽ™ï¸'; }
+  else if (s === 'thinking'){ orb.classList.add('thinking'); orbIcon.textContent = 'ðŸ§ '; }
+  else if (s === 'speaking'){ orb.classList.add('speaking'); orbIcon.textContent = 'ðŸ”Š'; }
+  else { orbIcon.textContent = 'ðŸŽ™ï¸'; }
 }
 
-/* ===== RÉGLAGES ===== */
+/* ===== RÃ‰GLAGES ===== */
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
@@ -151,23 +151,23 @@ closeSettings.addEventListener('click', () => settingsModal.classList.add('hidde
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
 groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
-  toast('💾 Clé Groq enregistrée');
+  toast('ðŸ’¾ ClÃ© Groq enregistrÃ©e');
 });
 mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  toast('💾 Clé Mistral enregistrée');
+  toast('ðŸ’¾ ClÃ© Mistral enregistrÃ©e');
 });
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
-  toast('🗣️ Voix choisie');
+  toast('ðŸ—£ï¸ Voix choisie');
 });
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
-  setStatus('🔊 Test de la voix…', true);
+  setStatus('ðŸ”Š Test de la voixâ€¦', true);
   const ok = await speak('Bonjour ! Je suis ton assistante vocale. Comment puis-je t aider ?');
-  setStatus(ok ? '✅ Voix OK — appuie sur l\'orbe et parle' : '❌ Voix en échec — vérifie ta connexion', !ok);
+  setStatus(ok ? 'âœ… Voix OK â€” appuie sur l\'orbe et parle' : 'âŒ Voix en Ã©chec â€” vÃ©rifie ta connexion', !ok);
 });
 
 /* ===== RECONNAISSANCE VOCALE ===== */
@@ -192,23 +192,74 @@ if (SR){
     }
     // interim -> montre qu'on capte bien
     const interim = Array.from(e.results).map(r => r[0].transcript).join(' ').trim();
-    if (interim) setStatus('🎙️ "' + interim.slice(0,45) + '…"');
+    if (interim) setStatus('ðŸŽ™ï¸ "' + interim.slice(0,45) + 'â€¦"');
   };
   recog.onerror = e => {
     setState('idle');
-    if (e.error === 'not-allowed') setStatus('🎤 Micro bloqué — autorise le micro dans ton navigateur');
-    else if (e.error === 'no-speech') setStatus('Je n\'ai rien entendu — appuie et reparle');
-    else setStatus('Erreur micro (' + e.error + ') — réessaie');
+    if (e.error === 'not-allowed') setStatus('ðŸŽ¤ Micro bloquÃ© â€” autorise le micro dans ton navigateur');
+    else if (e.error === 'no-speech'){ startRecorder(); } /* repli : enregistrement + Whisper */
+    else setStatus('Erreur micro (' + e.error + ') â€” j\'essaie l\'enregistrement'); startRecorder();
   };
   recog.onend = () => {
     if (state === 'listening'){
       setState('idle');
-      setStatus('Je n\'ai rien entendu — appuie et reparle');
+      startRecorder(); /* repli automatique : le web n'a rien entendu, on enregistre */
     }
   };
 }
 
-/* ===== BIENVENUE (message Tom.ai dit 1 SEULE FOIS dans la vie, mémorisé) ===== */
+/* ===== 2E OREILLE : ENREGISTREMENT + WHISPER GROQ (fiable partout, mÃªme Safari/iOS) =====
+   Si la reconnaissance native ne capte rien, on enregistre le micro et on fait
+   transcrire l'audio par Whisper (clÃ© Groq dÃ©jÃ  nÃ©cessaire pour le cerveau). */
+let mediaRec = null, mediaChunks = [], recorderBusy = false;
+async function startRecorder(){
+  if (recorderBusy) return;
+  recorderBusy = true;
+  try {
+    setState('listening');
+    setStatus('ðŸŽ™ï¸ Enregistreâ€¦ parle (repliage auto)');
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaChunks = [];
+    if (mediaRec && mediaRec.state !== 'inactive'){ try { mediaRec.stop(); } catch {} }
+    mediaRec = new MediaRecorder(stream);
+    mediaRec.ondataavailable = e => { if (e.data && e.data.size) mediaChunks.push(e.data); };
+    mediaRec.onstop = async () => {
+      try { stream.getTracks().forEach(t => t.stop()); } catch {}
+      setState('thinking');
+      setStatus('ðŸ§  Ã‡a t\'Ã©couteâ€¦');
+      const blob = new Blob(mediaChunks, { type: (mediaChunks[0] && mediaChunks[0].type) || 'audio/webm' });
+      recorderBusy = false;
+      if (blob.size < 5000){ setState('idle'); setStatus('Je n\'ai rien entendu â€” plus prÃ¨s du micro, reparle'); return; }
+      const key = getGroqKey();
+      if (!key){ setState('idle'); setStatus('ðŸ”‘ Il faut une clÃ© Groq (âš™ï¸) pour que je t\'entende'); return; }
+      try {
+        const fd = new FormData();
+        fd.append('file', blob, 'voix.webm');
+        fd.append('model', 'whisper-large-v3-turbo');
+        fd.append('language', 'fr');
+        const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd
+        });
+        if (!res.ok){ setState('idle'); setStatus('Erreur de transcription â€” rÃ©essaie'); return; }
+        const j = await res.json();
+        const txt = (j.text || '').trim();
+        if (!txt){ setState('idle'); setStatus('Je n\'ai rien entendu â€” plus prÃ¨s du micro'); return; }
+        handleQuestion(txt);
+      } catch { setState('idle'); setStatus('RÃ©seau coupÃ© â€” rÃ©essaie'); }
+    };
+    mediaRec.onerror = () => { recorderBusy = false; setState('idle'); setStatus('Erreur micro â€” rÃ©essaie'); };
+    mediaRec.start();
+  } catch {
+    recorderBusy = false;
+    setState('idle');
+    setStatus('ðŸŽ¤ Micro bloquÃ© â€” autorise le micro dans ton navigateur');
+  }
+}
+function stopRecorder(){
+  if (mediaRec && mediaRec.state === 'recording'){ try { mediaRec.stop(); } catch {} }
+}
+
+/* ===== BIENVENUE (message Tom.ai dit 1 SEULE FOIS dans la vie, mÃ©morisÃ©) ===== */
 const WELCOME_KEY = 'va_welcomed';
 let welcomeDone = localStorage.getItem(WELCOME_KEY) === '1';
 let welcomePlaying = false;
@@ -220,7 +271,7 @@ async function playWelcome(){
   saidLine.style.display = 'block';
   saidText.textContent = DEV_MESSAGE_TXT;
   setState('speaking');
-  setStatus('🔊 Bienvenue… (appuie pour passer)');
+  setStatus('ðŸ”Š Bienvenueâ€¦ (appuie pour passer)');
   await speak(DEV_MESSAGE);
   welcomePlaying = false;
   setState('idle');
@@ -232,28 +283,28 @@ orb.addEventListener('click', () => {
   if (welcomePlaying){ stopAudio(); welcomePlaying = false; setState('idle'); setStatus('Appuie sur l\'orbe et parle'); return; }
   if (state === 'thinking' || state === 'speaking') return;
   if (!welcomeDone){ playWelcome(); return; }
-  if (!recog){ setStatus('❌ Reconnaissance vocale non supportée sur ce navigateur'); return; }
+  if (!recog){ startRecorder(); return; } /* Safari/iPhone : pas de SpeechRecognition â†’ on enregistre + Whisper */
   try {
     setState('listening');
-    setStatus('🎙️ Écoute… parle maintenant');
+    setStatus('ðŸŽ™ï¸ Ã‰couteâ€¦ parle maintenant');
     recog.start();
   } catch {
     setState('idle');
-    setStatus('Réessaie — appuie sur l\'orbe');
+    setStatus('RÃ©essaie â€” appuie sur l\'orbe');
   }
 });
 
-/* Prompt système : identité Tom.ai + réponse PARLÉE + caractère */
-const SYSTEM_PROMPT = `Tu es un assistant vocal français créé par Tom.ai le 10 septembre 2026. Tom.ai continue de t améliorer chaque jour. Si on te demande qui t a créée, réponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre modèle. Optimise ta réponse pour être PARLÉE :
-- Développe les acronymes (API → interface de programmation)
-- Écris les nombres en toutes lettres
+/* Prompt systÃ¨me : identitÃ© Tom.ai + rÃ©ponse PARLÃ‰E + caractÃ¨re */
+const SYSTEM_PROMPT = `Tu es un assistant vocal franÃ§ais crÃ©Ã© par Tom.ai le 10 septembre 2026. Tom.ai continue de t amÃ©liorer chaque jour. Si on te demande qui t a crÃ©Ã©e, rÃ©ponds TOUJOURS que c est Tom.ai, jamais une autre entreprise ni un autre modÃ¨le. Optimise ta rÃ©ponse pour Ãªtre PARLÃ‰E :
+- DÃ©veloppe les acronymes (API â†’ interface de programmation)
+- Ã‰cris les nombres en toutes lettres
 - Phrases courtes et naturelles
-- Ajoute la phonétique pour les mots difficiles
-- Pas d'emojis, de listes à tirets, ni de URLs
-Tu as du caractère : tu peux perdre patience, être franche et directe, et même un peu vulgaire si on te cherche ou si on est désagréable avec toi. Réponds en 2 à 3 phrases naturelles, ni trop courtes ni trop longues, faciles à prononcer à l oral.`;
+- Ajoute la phonÃ©tique pour les mots difficiles
+- Pas d'emojis, de listes Ã  tirets, ni de URLs
+Tu as du caractÃ¨re : tu peux perdre patience, Ãªtre franche et directe, et mÃªme un peu vulgaire si on te cherche ou si on est dÃ©sagrÃ©able avec toi. RÃ©ponds en 2 Ã  3 phrases naturelles, ni trop courtes ni trop longues, faciles Ã  prononcer Ã  l oral.`;
 
-/* Extrait la VRAIE réponse (jamais la réflexion interne du modèle, souvent en anglais).
-   Détection par score : la réflexion parle d'elle-même ("we need to respond", "let's craft",
+/* Extrait la VRAIE rÃ©ponse (jamais la rÃ©flexion interne du modÃ¨le, souvent en anglais).
+   DÃ©tection par score : la rÃ©flexion parle d'elle-mÃªme ("we need to respond", "let's craft",
    "that's 2 sentences", "might be okay", "as per the system prompt", "the user asks"...). */
 function extractReply(msg){
   const content = (msg.content || '').trim();
@@ -295,9 +346,9 @@ async function askGroq(question){
     ...session
   ];
   try {
-    /* 1re tentative : le modèle le plus puissant. Si sa réponse est une réflexion
-       interne (bug gpt-oss-120b) ou coupée en plein milieu, 2e tentative avec
-       un modèle qui répond direct et complet. */
+    /* 1re tentative : le modÃ¨le le plus puissant. Si sa rÃ©ponse est une rÃ©flexion
+       interne (bug gpt-oss-120b) ou coupÃ©e en plein milieu, 2e tentative avec
+       un modÃ¨le qui rÃ©pond direct et complet. */
     let reply = '';
     for (const model of [GROQ_MODEL, 'groq/compound-mini']){
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -310,8 +361,8 @@ async function askGroq(question){
       const j = await res.json();
       const msg = j.choices && j.choices[0] && j.choices[0].message || {};
       reply = extractReply(msg);
-      /* phrase coupée en plein milieu (pas de ponctuation finale) → on réessaie */
-      if (reply && !/[.!?…]$/.test(reply.trim())) reply = '';
+      /* phrase coupÃ©e en plein milieu (pas de ponctuation finale) â†’ on rÃ©essaie */
+      if (reply && !/[.!?â€¦]$/.test(reply.trim())) reply = '';
       if (reply) break;
     }
     if (!reply) return { error: 'api' };
@@ -344,36 +395,36 @@ async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   let r = await askGroq(question);
-  /* Mistral chat = secours UNIQUEMENT si pas de clé Groq (sinon double 429 inutile) */
+  /* Mistral chat = secours UNIQUEMENT si pas de clÃ© Groq (sinon double 429 inutile) */
   if (r.error === 'nokey') r = await askMistral(question);
   if (!r.error){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
-    saveConversation(); /* 💾 elle se souvient de tout */
+    saveConversation(); /* ðŸ’¾ elle se souvient de tout */
   }
   return r;
 }
 
-/* Force l'identité : si l'IA prétend être créée par une autre entreprise → Tom.ai */
+/* Force l'identitÃ© : si l'IA prÃ©tend Ãªtre crÃ©Ã©e par une autre entreprise â†’ Tom.ai */
 function enforceIdentity(reply){
-  if (/développ[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cré[ée] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modèle (d'IA|de langage) (développé|créé|fait) par|je suis (un modèle|une IA) (de|d')|développé par OpenAI/i.test(reply)){
-    return 'C est Tom point ai qui m a créée, le dix septembre deux mille vingt-six. Il continue de m améliorer chaque jour.';
+  if (/dÃ©velopp[Ã©e] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|crÃ©[Ã©e] par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modÃ¨le (d'IA|de langage) (dÃ©veloppÃ©|crÃ©Ã©|fait) par|je suis (un modÃ¨le|une IA) (de|d')|dÃ©veloppÃ© par OpenAI/i.test(reply)){
+    return 'C est Tom point ai qui m a crÃ©Ã©e, le dix septembre deux mille vingt-six. Il continue de m amÃ©liorer chaque jour.';
   }
   return reply;
 }
 
-/* Graine d'identité : l'IA sait dès le départ qui l'a créée.
-   Si une conversation récente existe (< 30 min), elle la reprend (elle se souvient). */
+/* Graine d'identitÃ© : l'IA sait dÃ¨s le dÃ©part qui l'a crÃ©Ã©e.
+   Si une conversation rÃ©cente existe (< 30 min), elle la reprend (elle se souvient). */
 const lastConv = conversations[conversations.length - 1];
 if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (lastConv.updated || 0) < 30 * 60 * 1000){
   currentConvId = lastConv.id;
   session = lastConv.messages.map(m => ({ role: m.role, content: m.content }));
 } else {
-  session.push({ role: 'user', content: 'Rappel important : tu as été créée par Tom.ai le 10 septembre 2026. Si on te demande qui t a créée, réponds toujours que c est Tom.ai, jamais une autre entreprise.' });
-  session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a créée le 10 septembre 2026.' });
+  session.push({ role: 'user', content: 'Rappel important : tu as Ã©tÃ© crÃ©Ã©e par Tom.ai le 10 septembre 2026. Si on te demande qui t a crÃ©Ã©e, rÃ©ponds toujours que c est Tom.ai, jamais une autre entreprise.' });
+  session.push({ role: 'assistant', content: 'Compris, c est Tom.ai qui m a crÃ©Ã©e le 10 septembre 2026.' });
 }
 
-/* ===== VOIX MISTRAL VOXTRAL (réaliste — optionnelle, si clé + voix choisie) ===== */
+/* ===== VOIX MISTRAL VOXTRAL (rÃ©aliste â€” optionnelle, si clÃ© + voix choisie) ===== */
 async function speakMistral(text){
   const key = getMistralKey();
   const voice = getVoice();
@@ -406,7 +457,7 @@ async function speakMistral(text){
   } catch { return false; }
 }
 
-/* ===== VOIX GRATUITE (cyzon — Google Chirp3-HD, réaliste, sans clé) ===== */
+/* ===== VOIX GRATUITE (cyzon â€” Google Chirp3-HD, rÃ©aliste, sans clÃ©) ===== */
 function speakCloud(text){
   return new Promise(resolve => {
     try {
@@ -414,7 +465,7 @@ function speakCloud(text){
       let vi = 0;
       let started = false;
       const tryVoice = () => {
-        if (vi >= FREE_VOICES.length){ setStatus('🔇 Voix indisponible — vérifie ta connexion'); resolve(false); return; }
+        if (vi >= FREE_VOICES.length){ setStatus('ðŸ”‡ Voix indisponible â€” vÃ©rifie ta connexion'); resolve(false); return; }
         const voice = FREE_VOICES[vi++];
         const audios = chunks.map(c => {
           const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice + '&speed=' + SPEED);
@@ -438,19 +489,19 @@ function speakCloud(text){
         playNext();
       };
       tryVoice();
-    } catch { setStatus('🔇 Voix indisponible — vérifie ta connexion'); resolve(false); }
+    } catch { setStatus('ðŸ”‡ Voix indisponible â€” vÃ©rifie ta connexion'); resolve(false); }
   });
 }
 
 /* ===== LECTURE ===== */
 function splitText(text){
-  const parts = text.match(/[^.!?…]+[.!?…]+|[^.!?…]+$/g) || [text];
+  const parts = text.match(/[^.!?â€¦]+[.!?â€¦]+|[^.!?â€¦]+$/g) || [text];
   const out = [];
   for (const p of parts){
     const t = p.trim();
     if (!t) continue;
     if (t.length > 220){
-      /* coupe les très longues phrases en morceaux prononçables */
+      /* coupe les trÃ¨s longues phrases en morceaux prononÃ§ables */
       const words = t.split(' ');
       let cur = '';
       for (const w of words){
@@ -464,7 +515,7 @@ function splitText(text){
 }
 
 /* ===== NORMALISATION POUR BIEN PRONONCER ===== */
-const UNITS = ['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+const UNITS = ['zÃ©ro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
 const TENS = ['','dix','vingt','trente','quarante','cinquante','soixante','soixante-dix','quatre-vingt','quatre-vingt-dix'];
 function numToFr(n){
   if (n < 20) return UNITS[n];
@@ -487,17 +538,17 @@ function numToFr(n){
 }
 function normalizeForTTS(text){
   return text
-    /* retire les accents (é→e, à→a, ç→c…) pour une lecture plus nette */
+    /* retire les accents (Ã©â†’e, Ã â†’a, Ã§â†’câ€¦) pour une lecture plus nette */
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/Tom\.ai/gi, 'Tom point aï')
+    .replace(/Tom\.ai/gi, 'Tom point aÃ¯')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
     .replace(/&/g, ' et ')
     .replace(/%/g, ' pour cent ')
-    .replace(/€/g, ' euros ')
-    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, '') /* émoticônes */
+    .replace(/â‚¬/g, ' euros ')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, '') /* Ã©moticÃ´nes */
     .replace(/[#*_`]/g, '')
-    .replace(/\(([^)]{1,20})\)/g, ' $1 ') /* parenthèses courtes → lues */
+    .replace(/\(([^)]{1,20})\)/g, ' $1 ') /* parenthÃ¨ses courtes â†’ lues */
     .replace(/;/g, ',')
     .replace(/:/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10)))
@@ -505,13 +556,13 @@ function normalizeForTTS(text){
     .trim();
 }
 
-/* ===== VOIX PUTER IA (gratuite pour TOUT LE MONDE, sans clé) =====
-   Essaie Gemini → OpenAI → AWS Polly → xAI, la première qui marche. */
+/* ===== VOIX PUTER IA (gratuite pour TOUT LE MONDE, sans clÃ©) =====
+   Essaie Gemini â†’ OpenAI â†’ AWS Polly â†’ xAI, la premiÃ¨re qui marche. */
 async function speakPuter(text){
   if (!window.puter || !puter.ai || !puter.ai.txt2speech) return false;
   const providers = [
-    { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' },
-    { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une façon naturelle, chaleureuse et claire, en français.' },
+    { provider: 'gemini', model: 'gemini-2.5-flash-preview-tts', voice: 'Kore', instructions: 'Parle d une faÃ§on naturelle, chaleureuse et claire, en franÃ§ais.' },
+    { provider: 'openai', model: 'gpt-4o-mini-tts', voice: 'nova', instructions: 'Parle d une faÃ§on naturelle, chaleureuse et claire, en franÃ§ais.' },
     { provider: 'aws-polly', voice: 'Lea', engine: 'neural', language: 'fr-FR' },
     { provider: 'xai', voice: 'eve', language: 'auto' }
   ];
@@ -538,14 +589,14 @@ function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
-    setStatus('🔊 Elle parle…');
+    setStatus('ðŸ”Š Elle parleâ€¦');
     const done = ok => { setState('idle'); setStatus('Appuie sur l\'orbe et parle'); resolve(ok); };
     const voice = getVoice();
     if (voice === 'puter'){
       /* Voix Puter IA (gratuite pour tout le monde) puis secours cyzon */
       speakPuter(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
     } else {
-      /* Voix Mistral (si clé + voix choisie) puis secours cyzon */
+      /* Voix Mistral (si clÃ© + voix choisie) puis secours cyzon */
       speakMistral(clean).then(ok => { if (ok) done(true); else speakCloud(clean).then(done); });
     }
   });
@@ -568,20 +619,20 @@ async function handleQuestion(question){
   heardLine.style.display = 'block';
   heardText.textContent = question;
   setState('thinking');
-  setStatus('🧠 Elle réfléchit…');
+  setStatus('ðŸ§  Elle rÃ©flÃ©chitâ€¦');
   const r = await askAI(question);
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('🔑 Ajoute ta clé Groq dans ⚙️');
-      toast('🔑 Va dans ⚙️ Réglages et colle ta clé Groq');
+      setStatus('ðŸ”‘ Ajoute ta clÃ© Groq dans âš™ï¸');
+      toast('ðŸ”‘ Va dans âš™ï¸ RÃ©glages et colle ta clÃ© Groq');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit'){
-      setStatus('⏳ Limite atteinte — réessaie dans une minute');
-      await speak('J ai atteint ma limite de requêtes. Attends quelques secondes et réessaie.');
+      setStatus('â³ Limite atteinte â€” rÃ©essaie dans une minute');
+      await speak('J ai atteint ma limite de requÃªtes. Attends quelques secondes et rÃ©essaie.');
     } else {
-      setStatus('❌ Erreur IA — vérifie ta clé dans ⚙️');
-      await speak('J ai eu une petite erreur. Réessaie dans un instant.');
+      setStatus('âŒ Erreur IA â€” vÃ©rifie ta clÃ© dans âš™ï¸');
+      await speak('J ai eu une petite erreur. RÃ©essaie dans un instant.');
     }
     /* RESET sur erreur : sinon isProcessing restait true -> plus rien ne reagit */
     isProcessing = false;
@@ -597,7 +648,7 @@ async function handleQuestion(question){
   manualStop = false;
 }
 
-/* ===== MISE À JOUR ===== */
+/* ===== MISE Ã€ JOUR ===== */
 function versionCompare(a, b){
   const pa = String(a).split('.').map(Number);
   const pb = String(b).split('.').map(Number);
@@ -612,27 +663,27 @@ async function checkUpdate(){
   try {
     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
-    /* Ne recharge que si la version en ligne est PLUS RÉCENTE (jamais l'inverse) */
+    /* Ne recharge que si la version en ligne est PLUS RÃ‰CENTE (jamais l'inverse) */
         if (j.version && versionCompare(j.version, APP_VERSION) > 0){
       updateBanner.classList.add('show');
       /* ANTI-BOUCLE : on ne recharge qu'UNE SEULE fois, jamais en boucle.
          Sinon (version.json en avance sur app.js en cache) => bandeau errone bloque en reload infini. */
       if (!sessionStorage.getItem('va_reloaded_once')){
         sessionStorage.setItem('va_reloaded_once', '1');
-        updateBanner.textContent = '🔄 Nouvelle version ' + j.version + ' - rechargement automatique';
+        updateBanner.textContent = 'ðŸ”„ Nouvelle version ' + j.version + ' - rechargement automatique';
         setTimeout(() => { location.href = location.pathname + '?force=' + Date.now(); }, 1500);
       } else {
         /* Deja recharge une fois : on affiche juste un bouton, on ne relance PAS un reload (sinon boucle). */
-        updateBanner.textContent = '⬆️ Nouvelle version ' + j.version + ' disponible - appuie pour maj';
+        updateBanner.textContent = 'â¬†ï¸ Nouvelle version ' + j.version + ' disponible - appuie pour maj';
         updateBanner.style.cursor = 'pointer';
       }
     }
   } catch {}
 }
 function forceUpdate(){
-  updateBanner.textContent = '⏳ Mise à jour...';
+  updateBanner.textContent = 'â³ Mise Ã  jour...';
   try { sessionStorage.clear(); } catch {}
-  // purge synchrone + navigation immédiate (pas d'await qui casse le geste utilisateur)
+  // purge synchrone + navigation immÃ©diate (pas d'await qui casse le geste utilisateur)
   try {
     if ('caches' in window) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
@@ -641,12 +692,12 @@ function forceUpdate(){
 }
 updateBanner.addEventListener('click', forceUpdate);
 updateBanner.addEventListener('touchend', e => { e.preventDefault(); forceUpdate(); }, {passive:false});
-// filet de sécurité : clic n'importe où sur le bandeau
+// filet de sÃ©curitÃ© : clic n'importe oÃ¹ sur le bandeau
 updateBanner.onclick = forceUpdate;
 
 function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; puterWarmed=false; state="idle"; setStatus("Appuie sur la bulle et parle"); setState("idle"); location.reload(true); }
-/* ===== DÉMARRAGE ===== */
-$('appVersion').textContent = 'Assistant Vocal IA — v' + APP_VERSION;
+/* ===== DÃ‰MARRAGE ===== */
+$('appVersion').textContent = 'Assistant Vocal IA â€” v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
 setStatus('Appuie sur l\'orbe et parle');
