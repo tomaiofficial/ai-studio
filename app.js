@@ -4,17 +4,17 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.31';
+const APP_VERSION = '7.32';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
 const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par d�faut
-const SPEED = 1.15;
+const SPEED = 1.0; // naturel
 
 /* Voix gratuites SANS cl� : Edge TTS puis Google Chirp3-HD */
-const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon', 'fr-FR-Neural2-A', 'fr-FR-Neural2-B'];
+const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon']; // Chirp HD uniquement, ultra realiste
 
 /* ===== �L�MENTS ===== */
 const $ = id => document.getElementById(id);
