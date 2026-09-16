@@ -14,7 +14,7 @@ const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par d�faut
 const SPEED = 1.0; // naturel
 
 /* Voix gratuites SANS cl� : Edge TTS puis Google Chirp3-HD */
-const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon']; // Chirp HD uniquement, ultra realiste
+const FREE_VOICES = ['fr-FR-Wavenet-A', 'fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon']; // Wavenet-A (le plus realiste Google) puis Chirp3-HD, ultra naturel, inclues gratuites a vie
 
 /* ===== �L�MENTS ===== */
 const $ = id => document.getElementById(id);
@@ -640,24 +640,10 @@ function speak(text){
     setState('speaking');
     setStatus('Elle parle...');
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    // Vraie voix IA web (Lea Neural) en priorite, puis Chirp HD, puis Edge
-    speakRealAI(clean).then(ok => {
-      if (ok) { console.log('[VOIX] RealAI Lea OK (incluse)'); done(true); }
-      else {
-        console.warn('[VOIX] RealAI echec, bascule Chirp');
-        setStatus('Voix IA web bloque, secours Chirp...');
-        speakCloud(clean).then(ok2 => {
-          if (ok2) { console.log('[VOIX] Chirp HD OK'); done(true); }
-          else {
-            console.warn('[VOIX] Chirp echec, bascule Edge');
-            setStatus('Chirp bloque, secours Edge...');
-            speakEdge(clean).then(ok3 => {
-              if (ok3) { console.log('[VOIX] Edge OK'); done(true); }
-              else { setStatus("Echec connexion voix - reessaie"); done(false); }
-            });
-          }
-        });
-      }
+    /* Vraie voix IA realiste web incluse a vie - Chirp3-HD (Google) ultra naturel, aucune synthese locale */
+    speakCloud(clean).then(ok => {
+      if (ok) { console.log('[VOIX] Chirp3-HD Google OK (incluse gratuite a vie)'); done(true); }
+      else { console.warn('[VOIX] Chirp bloque'); setStatus("Echec connexion voix - reessaie"); done(false); }
     });
   });
 }
