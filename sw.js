@@ -1,5 +1,5 @@
-﻿/* Assistant Vocal IA â€” Service Worker */
-const CACHE = 'assistvocal-v16';
+/* Assistant Vocal IA — Service Worker */
+const CACHE = 'assistvocal-v17';
 const STATIC = [
   './manifest.webmanifest',
   './icon-192.png',
@@ -20,11 +20,11 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  /* Network-first pour le code ET version.json (sinon le bandeau de mise Ã  jour
+  /* Network-first pour le code ET version.json (sinon le bandeau de mise à jour
      voit toujours l'ancienne version en cache) */
   const isMain = e.request.mode === 'navigate' || /\.(html|js|css|json)$/.test(url.pathname);
   if (isMain){
-    /* Network-first : toujours la derniÃ¨re version, cache en secours hors-ligne */
+    /* Network-first : toujours la dernière version, cache en secours hors-ligne */
     e.respondWith(
       fetch(e.request).then(res => {
         const copy = res.clone();
@@ -33,7 +33,7 @@ self.addEventListener('fetch', e => {
       }).catch(() => caches.match(e.request).then(hit => hit || caches.match('./index.html')))
     );
   } else {
-    /* Cache-first pour les fichiers statiques (icÃ´nes, manifest) */
+    /* Cache-first pour les fichiers statiques (icônes, manifest) */
     e.respondWith(
       caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
         const copy = res.clone();
