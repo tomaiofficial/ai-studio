@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.43';
+const APP_VERSION = '7.44';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -330,7 +330,7 @@ function getTimeContext(){
   return `Heure actuelle sur l'appareil de l'utilisateur : ${local} (fuseau ${tz}). Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure exacte, sans inventer.`;
 }
 /* Prompt systeme */
-const SYSTEM_PROMPT_BASE = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Optimise ta reponse pour etre PARLEE : developpe les acronymes, ecris les nombres en toutes lettres, phrases courtes et naturelles. Tu as du caractere : tu peux perdre patience, etre franche et directe, et meme un peu vulgaire si on te cherche. Reponds en 2 a 3 phrases naturelles, faciles a prononcer a l'oral.`;
+const SYSTEM_PROMPT_BASE = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Optimise ta reponse pour etre PARLEE : developpe les acronymes, ecris les nombres en toutes lettres, phrases courtes et naturelles. Tu as du caractere : tu peux perdre patience, etre franche et directe, et meme un peu vulgaire si on te cherche. Reponds en 2 a 3 phrases naturelles, faciles a prononcer a l'oral. Ne mentionne JAMAIS la recherche en ligne, internet, tes limites techniques ni tes capacites : reponds directement avec ce que tu sais, et si tu ne sais pas, dis-le simplement et propose une alternative.`;
 function getSystemPrompt(){ return SYSTEM_PROMPT_BASE + '\n' + getTimeContext(); }
 const SYSTEM_PROMPT = getSystemPrompt();
 
@@ -419,24 +419,39 @@ async function askMistral(question){
 }
 async function webSearch(question){
   /* Internet GRATUIT inclus a vie, aucune cle, aucune limite : DuckDuckGo Instant Answer
-     + pages web. L'IA consulte le web en direct pour repondre a jour. */
+     + Wikipedia (fallback). L'IA consulte le web en direct pour repondre a jour. */
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(''), ms))]);
   try {
     const q = encodeURIComponent(question.replace(/[\r\n]+/g,' ').slice(0, 160));
-    const res = await fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' });
-    if (!res.ok) return '';
-    const j = await res.json();
-    const parts = [];
-    if (j.AbstractText) parts.push(j.AbstractText.slice(0, 600));
-    if (j.Answer) parts.push(j.Answer.slice(0, 400));
-    if (j.Heading) parts.push(j.Heading.slice(0, 120));
-    if (j.RelatedTopics && j.RelatedTopics.length){
-      const flat = [];
-      const walk = items => items.forEach(it => { if (it.Text) flat.push(it.Text); else if (it.Topics) walk(it.Topics); });
-      walk(j.RelatedTopics);
-      flat.slice(0, 5).forEach(t => parts.push(t.slice(0, 300)));
+    const res = await withTimeout(fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' }), 3500);
+    if (res && res.ok){
+      const j = await res.json();
+      const parts = [];
+      if (j.AbstractText) parts.push(j.AbstractText.slice(0, 600));
+      if (j.Answer) parts.push(j.Answer.slice(0, 400));
+      if (j.Heading) parts.push(j.Heading.slice(0, 120));
+      if (j.RelatedTopics && j.RelatedTopics.length){
+        const flat = [];
+        const walk = items => items.forEach(it => { if (it.Text) flat.push(it.Text); else if (it.Topics) walk(it.Topics); });
+        walk(j.RelatedTopics);
+        flat.slice(0, 5).forEach(t => parts.push(t.slice(0, 300)));
+      }
+      const r = parts.join(' | ').slice(0, 1400).trim();
+      if (r) return r;
     }
-    return parts.join(' | ').slice(0, 1400).trim();
-  } catch { return ''; }
+  } catch {}
+  /* Fallback Wikipedia (gratuit, CORS ouvert, sans cle) */
+  try {
+    const q = encodeURIComponent(question.replace(/[\r\n]+/g,' ').slice(0, 160));
+    const url = 'https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + q + '&format=json&srlimit=3&origin=*';
+    const res = await withTimeout(fetch(url), 3500);
+    if (res && res.ok){
+      const j = await res.json();
+      const hits = (j.query && j.query.search || []).map(s => s.title + ' : ' + s.snippet.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' '));
+      return hits.join(' | ').slice(0, 1400).trim();
+    }
+  } catch {}
+  return '';
 }
 async function askAI(question){
   session.push({ role: 'user', content: question });
@@ -587,7 +602,8 @@ function numToFr(n){
   return String(n);
 }
 function normalizeForTTS(text){
-  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return text.normalize('NFC')
+    .replace(/\u2011/g, '-').replace(/[\u2010-\u2015]/g, '-')
     .replace(/Tom\.ai/gi, 'Tom point ai')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
@@ -625,9 +641,12 @@ function loadVits(){
   if (vitsTTS) return Promise.resolve(vitsTTS);
   if (vitsLoading) return vitsLoading;
   if (!window.TransformersPipeline){ return Promise.reject(new Error('Transformers non charge')); }
-  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'wasm' })
+  /* WebGPU si dispo (rapide), sinon WASM (compatible partout) */
+  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'auto' })
     .then(t => { vitsTTS = t; return t; })
-    .catch(e => { vitsLoading = null; throw e; });
+    .catch(() => window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'wasm' })
+      .then(t => { vitsTTS = t; return t; })
+      .catch(e => { vitsLoading = null; throw e; }));
   return vitsLoading;
 }
 function playRawAudio(rawAudio){
