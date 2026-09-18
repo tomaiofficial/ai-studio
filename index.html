@@ -202,7 +202,9 @@ select.wide-input{appearance:none}
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici…" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Vraie voix IA réaliste incluse à vie</b> — Wavenet-A (Google, ultra naturel) puis Chirp3-HD. Aucune clé, pas de robot.</p>
+    <p class="muted">🎙️ <b>Vraie voix IA réaliste incluse à vie</b> — sans clé : voix réaliste gratuite incluse. Avec clé Google : <b>Chirp3-HD-Aoede officielle 24000 Hz</b> (la vraie « celle de Google »).</p>
+    <a class="secondary" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">🔑 Créer une clé Google Cloud (Text-to-Speech)</a>
+    <input type="password" id="googleTtsKey" class="wide-input" placeholder="Colle ta clé Google TTS ici (optionnel)…" autocomplete="off">
     <select id="ttsVoice" class="wide-input">
       <option value="edge">🎙️ Vraie voix IA réaliste (incluse à vie — Gratuite)</option>
     </select>
