@@ -4,8 +4,8 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.39';
-const LS = { groq: 'va_gkey', mistral: 'va_mkey', google: 'va_googlekey', voice: 'va_ttsvoice' };
+const APP_VERSION = '7.40';
+const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -13,8 +13,6 @@ const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
 const DEFAULT_VOICE = 'edge'; // Edge TTS gratuit par d�faut
 const SPEED = 1.0; // naturel
 
-/* Voix gratuites SANS cl� : Edge TTS puis Google Chirp3-HD */
-const FREE_VOICES = ['fr-FR-Wavenet-A', 'fr-FR-Chirp3-HD-Aoede', 'fr-FR-Chirp3-HD-Charon']; // Wavenet-A (le plus realiste Google) puis Chirp3-HD, ultra naturel, inclues gratuites a vie
 
 /* ===== �L�MENTS ===== */
 const $ = id => document.getElementById(id);
@@ -23,7 +21,7 @@ const heardLine = $('heardLine'), heardText = $('heardText');
 const saidLine = $('saidLine'), saidText = $('saidText');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
 const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey');
-const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), googleTtsKeyInput = $('googleTtsKey');
+const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
@@ -144,7 +142,6 @@ function setState(s){
 /* ===== REGLAGES ===== */
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
-function getGoogleKey(){ return (localStorage.getItem(LS.google) || '').trim(); }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
@@ -163,10 +160,7 @@ mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   toast('Cle Mistral enregistree');
 });
-googleTtsKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.google, googleTtsKeyInput.value.trim());
-  toast(getGoogleKey() ? 'Cle Google TTS enregistree - voix Chirp3-HD officielle' : 'Cle Google retiree - voix gratuite incluse');
-});
+
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   toast('Voix choisie');
@@ -174,7 +168,6 @@ ttsVoiceSel.addEventListener('change', () => {
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  localStorage.setItem(LS.google, googleTtsKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
@@ -567,26 +560,6 @@ function speakEdgeNeural(text){
 }
 function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
 
-function splitText(text){
-  const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
-  const out = [];
-  for (const p of parts){
-    const t = p.trim();
-    if (!t) continue;
-    if (t.length > 220){
-      const words = t.split(' ');
-      let cur = '';
-      for (const w of words){
-        if ((cur + ' ' + w).length > 220){ out.push(cur.trim()); cur = w; }
-        else cur += ' ' + w;
-      }
-      if (cur.trim()) out.push(cur.trim());
-    } else out.push(t);
-  }
-  return out;
-}
-const UNITS = ['zero','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
-const TENS = ['','dix','vingt','trente','quarante','cinquante','soixante','soixante-dix','quatre-vingt','quatre-vingt-dix'];
 function numToFr(n){
   if (n < 20) return UNITS[n];
   if (n < 100){
@@ -638,139 +611,16 @@ async function speakRealAI(text){
     });
   } catch { return false; }
 }
-/* Voix IA incluse gratuite a vie - Chirp3-HD (Google) ultra realiste, aucune cle */
-function speakCloud(text){
-  return new Promise(resolve => {
-    try {
-      const chunks = splitText(text);
-      let vi = 0;
-      let started = false;
-      const tryVoice = () => {
-        if (vi >= FREE_VOICES.length){ resolve(false); return; }
-        const voice = FREE_VOICES[vi++];
-        const audios = chunks.map(c => {
-          const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice + '&speed=' + SPEED);
-          a.preload = 'auto'; a.volume = 1.0; a.playbackRate = SPEED;
-          if ('preservePitch' in a) a.preservePitch = true;
-          currentAudios.push(a);
-          return a;
-        });
-        let i = 0;
-        const playNext = () => {
-          if (i >= audios.length) return;
-          const a = audios[i++];
-          a.onended = playNext;
-          a.onerror = () => { if (i === 1) tryVoice(); else playNext(); };
-          a.play().then(() => { if (!started){ started = true; resolve(true); } }).catch(() => playNext());
-        };
-        playNext();
-      };
-      tryVoice();
-    } catch { resolve(false); }
-  });
-}
-/* ===== VRAIE VOIX GOOGLE OFFICIELLE — Chirp3-HD-Aoede 24000 Hz HD (« celle de Google ») =====
-   Endpoint officiel texttospeech.googleapis.com + clé Google. Sans clé : repli cyzon gratuit réaliste. */
-function speakGoogle(text){
-  return new Promise(resolve => {
-    const key = getGoogleKey();
-    if (!key) { resolve(false); return; }
-    const body = {
-      input: { text },
-      voice: { languageCode: 'fr-FR', name: 'fr-FR-Chirp3-HD-Aoede' },
-      audioConfig: { audioEncoding: 'LINEAR16', sampleRateHertz: 24000, speakingRate: SPEED }
-    };
-    fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=' + encodeURIComponent(key), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-    })
-      .then(r => r.json())
-      .then(j => {
-        if (!j.audioContent) { console.warn('[VOIX] Google refuse (' + (j.error && j.error.message ? j.error.message : '') + ')'); resolve(false); return; }
-        const bytes = base64ToBytes(j.audioContent);
-        const buf = pcmToWav24k(bytes);
-        const blob = new Blob([buf], { type: 'audio/wav' });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.volume = 1.0; audio.playbackRate = SPEED;
-        if ('preservePitch' in audio) audio.preservePitch = true;
-        currentAudios.push(audio);
-        audio.onended = () => { URL.revokeObjectURL(url); resolve(true); };
-        audio.onerror = () => { URL.revokeObjectURL(url); resolve(false); };
-        audio.play().catch(() => { URL.revokeObjectURL(url); resolve(false); });
-      })
-      .catch(() => resolve(false));
-  });
-}
-function base64ToBytes(b64){
-  const bin = atob(b64), u = new Uint8Array(bin.length);
-  for (let i = 0; i < u.length; i++) u[i] = bin.charCodeAt(i);
-  return u;
-}
-function pcmToWav24k(pcm){
-  const buf = new ArrayBuffer(44 + pcm.length), v = new DataView(buf);
-  const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  ws(0, 'RIFF'); v.setUint32(4, 36 + pcm.length, true); ws(8, 'WAVE'); ws(12, 'fmt ');
-  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-  ws(36, 'data'); v.setUint32(40, pcm.length, true);
-  new Uint8Array(buf, 44).set(pcm);
-  return buf;
-}
-/* ===== VRAIE VOIX GOOGLE OFFICIELLE = « celle de Google » — Chirp3-HD-Aoede 24000 Hz HD =====
-   Endpoint officiel texttospeech.googleapis.com, LINEAR16 24000 Hz (HD). Repli cyzon si Google bloque. */
-async function speakGoogle(clean){
-  return speakGoogleChunk(clean, true);
-}
-function speakGoogleChunk(clean){
-  return new Promise(resolve => {
-    const key = getGoogleKey();
-    if (!key) { resolve(false); return; }
-    const api = 'https://texttospeech.googleapis.com/v1/text:synthesize?key=' + encodeURIComponent(key);
-    const body = {
-      input: { text: clean },
-      voice: { languageCode: 'fr-FR', name: 'fr-FR-Chirp3-HD-Aoede' },
-      audioConfig: { audioEncoding: 'LINEAR16', sampleRateHertz: 24000, speakingRate: SPEED }
-    };
-    fetch(api, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-    })
-      .then(r => r.json())
-      .then(j => {
-        if (!j.audioContent) { console.warn('[VOIX] Google : pas d audio (' + (j.error && j.error.message || '?') + ')'); resolve(false); return; }
-        const pcm = base64ToBytes(j.audioContent);            /* LINEAR16 24000 Hz */
-        const buf = pcmToWav24k(pcm);
-        const blob = new Blob([buf], { type: 'audio/wav' });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.volume = 1.0; audio.playbackRate = SPEED;
-        if ('preservePitch' in audio) audio.preservePitch = true;
-        currentAudios.push(audio);
-        const done = ok => { URL.revokeObjectURL(url); resolve(ok); };
-        audio.onended = () => done(true);
-        audio.onerror = () => done(false);
-        audio.play().catch(() => done(false));
-      })
-      .catch(() => resolve(false));
-  });
-}
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('Elle parle...');
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    /* VRAIE VOIX GOOGLE : si clé officielle -> Chirp3-HD-Aoede 24000 Hz (« celle de Google ») */
-    if (getGoogleKey()) {
-      speakGoogle(clean).then(ok => {
-        if (ok) { console.log('[VOIX] Chirp3-HD-Aoede Google officielle 24000 Hz OK (« celle de Google »)'); done(true); }
-        else { console.warn('[VOIX] Google bloque -> repli cyzon gratuit'); speakCloud(clean).then(ok2 => { if (ok2) console.log('[VOIX] cyzon réaliste OK'); else { console.warn('[VOIX] cyzon bloque'); setStatus("Echec connexion voix - reessaie"); } done(ok2); }); }
-      });
-      return;
-    }
-    /* Sans clé : voix réaliste gratuite incluse à vie (cyzon) */
-    speakCloud(clean).then(ok => {
-      if (ok) { console.log('[VOIX] Chirp3-HD Google OK (incluse gratuite a vie)'); done(true); }
-      else { console.warn('[VOIX] Chirp bloque'); setStatus("Echec connexion voix - reessaie"); done(false); }
+    /* Vraie voix IA réaliste incluse à vie — comme la voix d'Edge. Aucune clé, aucun robot. */
+    speakEdgeNeural(clean).then(ok => {
+      if (ok) { console.log('[VOIX] voix Edge réaliste OK (incluse gratuite a vie)'); done(true); }
+      else { console.warn('[VOIX] voix Edge bloque'); setStatus("Echec connexion voix - reessaie"); done(false); }
     });
   });
 }
