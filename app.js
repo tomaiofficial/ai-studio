@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.46';
+const APP_VERSION = '7.47';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -641,12 +641,10 @@ function loadVits(){
   if (vitsTTS) return Promise.resolve(vitsTTS);
   if (vitsLoading) return vitsLoading;
   if (!window.TransformersPipeline){ return Promise.reject(new Error('Transformers non charge')); }
-  /* WebGPU si dispo (rapide), sinon WASM (compatible partout) */
-  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'auto' })
+  /* WASM force : fiable partout (WebGPU peut echouer a l'inference avec q8) */
+  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'wasm' })
     .then(t => { vitsTTS = t; return t; })
-    .catch(() => window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'wasm' })
-      .then(t => { vitsTTS = t; return t; })
-      .catch(e => { vitsLoading = null; throw e; }));
+    .catch(e => { vitsLoading = null; throw e; });
   return vitsLoading;
 }
 /* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
@@ -713,21 +711,16 @@ async function speakVits(text){
   } catch(e){ console.warn('[VOIX] VITS echec:', e.message); return false; }
 }
 /* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
-   meme quand le modele local ne peut pas se charger) */
+   pas de fetch -> pas de blocage CORS) */
 async function speakGoogleTTS(text){
   try {
     const chunks = splitVits(text, 180);
     for (const c of chunks){
       const url = 'https://translate.google.com/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob';
-      const res = await fetch(url);
-      if (!res.ok) return false;
-      const blob = await res.blob();
-      if (!blob || blob.size < 1000) return false;
-      const objUrl = URL.createObjectURL(blob);
-      const audio = new Audio(objUrl);
-      audio.volume = 1.0;
-      currentAudios.push(audio);
       const ok = await new Promise(res => {
+        const audio = new Audio(url);
+        audio.volume = 1.0;
+        currentAudios.push(audio);
         let done = false;
         const finish = v => { if (done) return; done = true; res(v); };
         audio.onended = () => finish(true);
@@ -735,7 +728,6 @@ async function speakGoogleTTS(text){
         audio.play().catch(() => finish(false));
         setTimeout(() => finish(true), 15000);
       });
-      URL.revokeObjectURL(objUrl);
       if (!ok) return false;
     }
     return true;
@@ -747,7 +739,7 @@ function speak(text){
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('...');
-    const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
+    const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
     /* IA vocale locale incluse a vie -> repli GoogleTTS (universel) -> repli Edge */
     speakVits(clean).then(ok => {
       if (ok) { console.log('[VOIX] VITS OK (locale gratuite a vie)'); done(true); }
@@ -757,7 +749,7 @@ function speak(text){
           if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
           else {
             console.warn('[VOIX] GoogleTTS bloque -> repli Edge');
-            speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Echec connexion voix - reessaie"); } done(ok3); });
+            speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
           }
         });
       }

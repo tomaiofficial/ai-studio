@@ -214,16 +214,20 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script type="importmap">
-{
-  "imports": {
-    "@huggingface/transformers": "https://esm.sh/@huggingface/transformers@3.5.1"
-  }
-}
-</script>
 <script type="module">
-import { pipeline } from "@huggingface/transformers";
-window.TransformersPipeline = pipeline;
+(async () => {
+  try {
+    const m = await import("https://esm.sh/@huggingface/transformers@3.5.1");
+    window.TransformersPipeline = m.pipeline;
+  } catch (e) {
+    try {
+      const m = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/+esm");
+      window.TransformersPipeline = m.pipeline;
+    } catch (e2) {
+      console.warn('[VOIX] Transformers indisponible:', e2);
+    }
+  }
+})();
 </script>
 <script src="app.js"></script>
 </body>
