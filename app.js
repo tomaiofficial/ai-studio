@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.45';
+const APP_VERSION = '7.46';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -671,6 +671,9 @@ function playRawAudio(rawAudio){
     try {
       const ctx = ensureAudio();
       if (!ctx) return resolve(false);
+      /* si le contexte est bloque (mobile sans geste), on ne peut pas jouer -> echec -> repli */
+      if (ctx.state !== 'running'){ try { ctx.resume(); } catch {} }
+      if (ctx.state !== 'running') return resolve(false);
       const buf = ctx.createBuffer(1, rawAudio.audio.length, rawAudio.sampling_rate);
       buf.copyToChannel(rawAudio.audio, 0);
       const src = ctx.createBufferSource();
@@ -709,17 +712,55 @@ async function speakVits(text){
     return true;
   } catch(e){ console.warn('[VOIX] VITS echec:', e.message); return false; }
 }
+/* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
+   meme quand le modele local ne peut pas se charger) */
+async function speakGoogleTTS(text){
+  try {
+    const chunks = splitVits(text, 180);
+    for (const c of chunks){
+      const url = 'https://translate.google.com/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob';
+      const res = await fetch(url);
+      if (!res.ok) return false;
+      const blob = await res.blob();
+      if (!blob || blob.size < 1000) return false;
+      const objUrl = URL.createObjectURL(blob);
+      const audio = new Audio(objUrl);
+      audio.volume = 1.0;
+      currentAudios.push(audio);
+      const ok = await new Promise(res => {
+        let done = false;
+        const finish = v => { if (done) return; done = true; res(v); };
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(false);
+        audio.play().catch(() => finish(false));
+        setTimeout(() => finish(true), 15000);
+      });
+      URL.revokeObjectURL(objUrl);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] GoogleTTS echec:', e.message); return false; }
+}
 
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
-    setStatus('Elle parle...');
+    setStatus('...');
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    /* IA vocale locale incluse a vie (aucune cle, aucun serveur) -> repli Edge */
+    /* IA vocale locale incluse a vie -> repli GoogleTTS (universel) -> repli Edge */
     speakVits(clean).then(ok => {
       if (ok) { console.log('[VOIX] VITS OK (locale gratuite a vie)'); done(true); }
-      else { console.warn('[VOIX] VITS bloque -> repli Edge'); speakEdgeNeural(clean).then(ok2 => { if (ok2) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Echec connexion voix - reessaie"); } done(ok2); }); }
+      else {
+        console.warn('[VOIX] VITS bloque -> repli GoogleTTS');
+        speakGoogleTTS(clean).then(ok2 => {
+          if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
+          else {
+            console.warn('[VOIX] GoogleTTS bloque -> repli Edge');
+            speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Echec connexion voix - reessaie"); } done(ok3); });
+          }
+        });
+      }
     });
   });
 }
@@ -736,7 +777,7 @@ async function handleQuestion(question){
   heardLine.style.display = 'block';
   heardText.textContent = question;
   setState('thinking');
-  setStatus('Elle reflechit...');
+  setStatus('...');
   const r = await askAI(question);
   if (r.error){
     setState('idle');
