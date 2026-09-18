@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.42';
+const APP_VERSION = '7.43';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -618,17 +618,17 @@ async function speakRealAI(text){
     });
   } catch { return false; }
 }
-/* ===== KOKORO TTS : IA vocale locale (ONNX) incluse a vie, aucune cle, aucun serveur ===== */
-let kokoroTTS = null;
-let kokoroLoading = null;
-function loadKokoro(){
-  if (kokoroTTS) return Promise.resolve(kokoroTTS);
-  if (kokoroLoading) return kokoroLoading;
-  if (!window.KokoroTTS){ return Promise.reject(new Error('Kokoro non charge')); }
-  kokoroLoading = window.KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "q8" })
-    .then(t => { kokoroTTS = t; return t; })
-    .catch(e => { kokoroLoading = null; throw e; });
-  return kokoroLoading;
+/* ===== VOIX IA LOCALE (VITS Meta MMS) : incluse a vie, aucune cle, aucun serveur ===== */
+let vitsTTS = null;
+let vitsLoading = null;
+function loadVits(){
+  if (vitsTTS) return Promise.resolve(vitsTTS);
+  if (vitsLoading) return vitsLoading;
+  if (!window.TransformersPipeline){ return Promise.reject(new Error('Transformers non charge')); }
+  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'wasm' })
+    .then(t => { vitsTTS = t; return t; })
+    .catch(e => { vitsLoading = null; throw e; });
+  return vitsLoading;
 }
 function playRawAudio(rawAudio){
   return new Promise((resolve, reject) => {
@@ -645,7 +645,7 @@ function playRawAudio(rawAudio){
     } catch(e){ reject(e); }
   });
 }
-function splitKokoro(text, max){
+function splitVits(text, max){
   const out = [];
   let cur = '';
   for (const word of text.split(/(\s+)/)){
@@ -655,17 +655,17 @@ function splitKokoro(text, max){
   if (cur.trim()) out.push(cur.trim());
   return out;
 }
-async function speakKokoro(text){
+async function speakVits(text){
   try {
-    const tts = await loadKokoro();
-    const chunks = splitKokoro(text, 400);
+    const tts = await loadVits();
+    const chunks = splitVits(text, 400);
     for (const c of chunks){
-      const audio = await tts.generate(c, { voice: 'ff_siwis' });
-      const ok = await playRawAudio(audio);
+      const out = await tts(c);
+      const ok = await playRawAudio(out);
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.warn('[VOIX] Kokoro echec:', e.message); return false; }
+  } catch(e){ console.warn('[VOIX] VITS echec:', e.message); return false; }
 }
 
 function speak(text){
@@ -674,10 +674,10 @@ function speak(text){
     setState('speaking');
     setStatus('Elle parle...');
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    /* IA vocale Kokoro incluse a vie (locale, aucune cle, aucun serveur) -> repli Edge */
-    speakKokoro(clean).then(ok => {
-      if (ok) { console.log('[VOIX] Kokoro OK (locale gratuite a vie)'); done(true); }
-      else { console.warn('[VOIX] Kokoro bloque -> repli Edge'); speakEdgeNeural(clean).then(ok2 => { if (ok2) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Echec connexion voix - reessaie"); } done(ok2); }); }
+    /* IA vocale locale incluse a vie (aucune cle, aucun serveur) -> repli Edge */
+    speakVits(clean).then(ok => {
+      if (ok) { console.log('[VOIX] VITS OK (locale gratuite a vie)'); done(true); }
+      else { console.warn('[VOIX] VITS bloque -> repli Edge'); speakEdgeNeural(clean).then(ok2 => { if (ok2) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Echec connexion voix - reessaie"); } done(ok2); }); }
     });
   });
 }

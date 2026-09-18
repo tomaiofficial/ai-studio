@@ -202,9 +202,9 @@ select.wide-input{appearance:none}
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici…" autocomplete="off">
 
 <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>IA vocale Kokoro incluse à vie</b> — tourne dans ton navigateur, gratuite, aucune clé, aucun serveur. <b>Aucun robot.</b></p>
+    <p class="muted">🎙️ <b>IA vocale française incluse à vie</b> — tourne dans ton navigateur, gratuite, aucune clé, aucun serveur. <b>Aucun robot.</b></p>
     <select id="ttsVoice" class="wide-input">
-      <option value="kokoro">🎙️ Kokoro — IA vocale locale incluse à vie (Gratuite)</option>
+      <option value="vits">🎙️ Voix IA française locale incluse à vie (Gratuite)</option>
       <option value="edge">🎙️ Voix Edge (repli)</option>
     </select>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
@@ -217,13 +217,13 @@ select.wide-input{appearance:none}
 <script type="importmap">
 {
   "imports": {
-    "kokoro-js": "https://esm.sh/kokoro-js@1.0.0"
+    "@huggingface/transformers": "https://esm.sh/@huggingface/transformers@3.5.1"
   }
 }
 </script>
 <script type="module">
-import { KokoroTTS } from "kokoro-js";
-window.KokoroTTS = KokoroTTS;
+import { pipeline } from "@huggingface/transformers";
+window.TransformersPipeline = pipeline;
 </script>
 <script src="app.js"></script>
 </body>
