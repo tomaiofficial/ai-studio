@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.41';
+const APP_VERSION = '7.42';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -618,16 +618,66 @@ async function speakRealAI(text){
     });
   } catch { return false; }
 }
+/* ===== KOKORO TTS : IA vocale locale (ONNX) incluse a vie, aucune cle, aucun serveur ===== */
+let kokoroTTS = null;
+let kokoroLoading = null;
+function loadKokoro(){
+  if (kokoroTTS) return Promise.resolve(kokoroTTS);
+  if (kokoroLoading) return kokoroLoading;
+  if (!window.KokoroTTS){ return Promise.reject(new Error('Kokoro non charge')); }
+  kokoroLoading = window.KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", { dtype: "q8" })
+    .then(t => { kokoroTTS = t; return t; })
+    .catch(e => { kokoroLoading = null; throw e; });
+  return kokoroLoading;
+}
+function playRawAudio(rawAudio){
+  return new Promise((resolve, reject) => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const buf = ctx.createBuffer(1, rawAudio.audio.length, rawAudio.sampling_rate);
+      buf.copyToChannel(rawAudio.audio, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.onended = () => { try{ ctx.close(); }catch{} resolve(true); };
+      src.onerror = () => { try{ ctx.close(); }catch{} resolve(false); };
+      src.start();
+    } catch(e){ reject(e); }
+  });
+}
+function splitKokoro(text, max){
+  const out = [];
+  let cur = '';
+  for (const word of text.split(/(\s+)/)){
+    if ((cur + word).length > max && cur){ out.push(cur.trim()); cur = word; }
+    else cur += word;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+async function speakKokoro(text){
+  try {
+    const tts = await loadKokoro();
+    const chunks = splitKokoro(text, 400);
+    for (const c of chunks){
+      const audio = await tts.generate(c, { voice: 'ff_siwis' });
+      const ok = await playRawAudio(audio);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] Kokoro echec:', e.message); return false; }
+}
+
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('Elle parle...');
     const done = ok => { setState('idle'); setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    /* Vraie voix IA réaliste incluse à vie — comme la voix d'Edge. Aucune clé, aucun robot. */
-    speakEdgeNeural(clean).then(ok => {
-      if (ok) { console.log('[VOIX] voix Edge réaliste OK (incluse gratuite a vie)'); done(true); }
-      else { console.warn('[VOIX] voix Edge bloque'); setStatus("Echec connexion voix - reessaie"); done(false); }
+    /* IA vocale Kokoro incluse a vie (locale, aucune cle, aucun serveur) -> repli Edge */
+    speakKokoro(clean).then(ok => {
+      if (ok) { console.log('[VOIX] Kokoro OK (locale gratuite a vie)'); done(true); }
+      else { console.warn('[VOIX] Kokoro bloque -> repli Edge'); speakEdgeNeural(clean).then(ok2 => { if (ok2) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Echec connexion voix - reessaie"); } done(ok2); }); }
     });
   });
 }
