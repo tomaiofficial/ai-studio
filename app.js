@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.44';
+const APP_VERSION = '7.45';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -649,17 +649,40 @@ function loadVits(){
       .catch(e => { vitsLoading = null; throw e; }));
   return vitsLoading;
 }
+/* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
+   et limitent le nombre de contextes -> un seul, reveille au premier toucher) */
+let sharedCtx = null;
+function ensureAudio(){
+  try {
+    if (!sharedCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      sharedCtx = new AC();
+    }
+    if (sharedCtx.state === 'suspended'){ try { sharedCtx.resume(); } catch {} }
+    return sharedCtx;
+  } catch(e){ return null; }
+}
+['pointerdown','touchstart','click','keydown'].forEach(ev => {
+  window.addEventListener(ev, () => { ensureAudio(); }, { passive: true });
+});
 function playRawAudio(rawAudio){
   return new Promise((resolve, reject) => {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = ensureAudio();
+      if (!ctx) return resolve(false);
       const buf = ctx.createBuffer(1, rawAudio.audio.length, rawAudio.sampling_rate);
       buf.copyToChannel(rawAudio.audio, 0);
       const src = ctx.createBufferSource();
       src.buffer = buf;
       src.connect(ctx.destination);
-      src.onended = () => { try{ ctx.close(); }catch{} resolve(true); };
-      src.onerror = () => { try{ ctx.close(); }catch{} resolve(false); };
+      let done = false;
+      const finish = ok => { if (done) return; done = true; resolve(ok); };
+      src.onended = () => finish(true);
+      src.onerror = () => finish(false);
+      /* securite mobile : si onended ne se declenche pas, on termine apres la duree */
+      const ms = Math.ceil((rawAudio.audio.length / rawAudio.sampling_rate) * 1000) + 500;
+      setTimeout(() => finish(true), ms);
       src.start();
     } catch(e){ reject(e); }
   });
