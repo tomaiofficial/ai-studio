@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.40';
+const APP_VERSION = '7.41';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -485,6 +485,7 @@ const EDGE_TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"; // edge-tt
 const EDGE_WIN_EPOCH = 11644473600;   // 1601-01-01 00:00:00 UTC en secondes Unix
 async function generateSecMsGec(){
   try {
+    // Algo officiel edge-tts (drm.py) : sha256(ticks + TRUSTED_CLIENT_TOKEN) en HEX UPPERCASE
     let ticks = Date.now() / 1000;          // unix secondes
     ticks += EDGE_WIN_EPOCH;                // -> Windows file time (secondes)
     ticks -= ticks % 300;                   // arrondi inferieur a la fenetre 5 min
@@ -493,6 +494,15 @@ async function generateSecMsGec(){
     const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
     return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
   } catch { return ''; }
+}
+
+function edgeDateToString(){
+  // Format edge-tts date_to_string() : "Fri Sep 18 2026 12:34:56 GMT+0000 (Coordinated Universal Time)"
+  const d = new Date();
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const p = n => String(n).padStart(2,'0');
+  return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${p(d.getUTCDate())} ${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`;
 }
 
 function speakEdgeNeural(text){
@@ -504,34 +514,31 @@ function speakEdgeNeural(text){
       const TRUSTED = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
       const connId = Date.now().toString(36) + Math.random().toString(36).slice(2);
       const baseUrl = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=' + TRUSTED;
-      const url = gec ? baseUrl + '&Sec-MS-GEC=' + gec + '&Sec-MS-GEC-Version=' + gecVer : baseUrl;
+      const url = gec ? baseUrl + '&Sec-MS-GEC=' + gec + '&Sec-MS-GEC-Version=' + gecVer + '&ConnectionId=' + connId : baseUrl;
       const ws = new WebSocket(url);
       const audioChunks = [];
       let timeout = setTimeout(() => { try{ ws.close(); }catch{} finish(false); }, 12000);
       ws.onopen = () => {
-        const ts = new Date().toUTCString();
-        const config = 'X-Timestamp:' + ts + '\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}';
+        const ts = edgeDateToString();
+        const config = 'X-Timestamp:' + ts + '\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n';
         ws.send(config);
-        const ssml = `<speak version='1.0' xml:lang='fr-FR'><voice name='${voice}'><prosody rate='+0%' pitch='+0Hz'>${escapeXml(text)}</prosody></voice></speak>`;
-        const msg = 'X-RequestId:' + connId + '\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:' + ts + '\r\nPath:ssml\r\n\r\n' + ssml;
+        const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voice}'><prosody pitch='+0Hz' rate='+0%' volume='+0%'>${escapeXml(text)}</prosody></voice></speak>`;
+        const msg = 'X-RequestId:' + connId + '\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:' + ts + 'Z\r\nPath:ssml\r\n\r\n' + ssml;
         ws.send(msg);
       };
       ws.onmessage = async e => {
         if (typeof e.data === 'string'){
           if (e.data.includes('Path:turn.end')){ try{ ws.close(); }catch{} }
         } else {
-          // binaire : header + mp3
+          // binaire edge-tts : 2 premiers octets = longueur du header (big-endian), puis header, puis audio
           const data = e.data;
           const buf = data instanceof Blob ? await data.arrayBuffer() : data;
           const bytes = new Uint8Array(buf);
-          const txt = new TextDecoder().decode(bytes.slice(0, 200));
-          const idx = txt.indexOf('Path:audio');
-          if (idx !== -1){
-            // trouve fin du header (\r\n\r\n)
-            let headerEnd = -1;
-            for (let i=0;i<bytes.length-1;i++) if (bytes[i]==13 && bytes[i+1]==10 && bytes[i+2]==13 && bytes[i+3]==10){ headerEnd=i+4; break; }
-            if (headerEnd !== -1) audioChunks.push(bytes.slice(headerEnd));
-          }
+          if (bytes.length < 2) return;
+          const headerLen = (bytes[0] << 8) | bytes[1];
+          if (headerLen <= 0 || 2 + headerLen > bytes.length) return;
+          const headerTxt = new TextDecoder().decode(bytes.slice(2, 2 + headerLen));
+          if (headerTxt.includes('Path:audio')) audioChunks.push(bytes.slice(2 + headerLen));
         }
       };
       ws.onerror = (e) => { console.warn('[VOIX] WS error', e); clearTimeout(timeout); finish(false); };
