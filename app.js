@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.49';
+const APP_VERSION = '7.50';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -716,40 +716,6 @@ async function speakVits(text){
     return true;
   } catch(e){ console.warn('[VOIX] VITS echec:', e.message); return false; }
 }
-/* Voix IA de qualite GPT-like via Groq TTS (PlayAI) - utilise la cle Groq deja presente,
-   aucune cle supplementaire, prononciation naturelle avec accents */
-async function speakGroqTTS(text){
-  const key = getGroqKey();
-  if (!key) return false;
-  try {
-    const chunks = splitVits(text, 400);
-    for (const c of chunks){
-      const res = await fetch('https://api.groq.com/openai/v1/audio/speech', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model: 'playai-tts', voice: 'Aster', input: c, response_format: 'mp3' })
-      });
-      if (!res.ok) return false;
-      const blob = await res.blob();
-      if (!blob || blob.size < 1000) return false;
-      const objUrl = URL.createObjectURL(blob);
-      const audio = new Audio(objUrl);
-      audio.volume = 1.0;
-      currentAudios.push(audio);
-      const ok = await new Promise(res => {
-        let done = false;
-        const finish = v => { if (done) return; done = true; res(v); };
-        audio.onended = () => finish(true);
-        audio.onerror = () => finish(false);
-        audio.play().catch(() => finish(false));
-        setTimeout(() => finish(true), 20000);
-      });
-      URL.revokeObjectURL(objUrl);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] GroqTTS echec:', e.message); return false; }
-}
 /* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
    pas de fetch -> pas de blocage CORS) */
 async function speakGoogleTTS(text){
@@ -780,10 +746,6 @@ function speak(text){
     setState('speaking');
     setStatus('...');
     const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    const tryGroq = () => speakGroqTTS(clean).then(ok => {
-      if (ok) { console.log('[VOIX] GroqTTS OK (qualite GPT)'); done(true); }
-      else { console.warn('[VOIX] GroqTTS bloque'); if (IS_MOBILE) tryGoogle(); else tryVits(); }
-    });
     const tryVits = () => speakVits(clean).then(ok => {
       if (ok) { console.log('[VOIX] VITS OK (locale gratuite a vie)'); done(true); }
       else { console.warn('[VOIX] VITS bloque -> GoogleTTS'); tryGoogle(); }
@@ -795,8 +757,8 @@ function speak(text){
         speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
       }
     });
-    /* 1) Groq TTS (qualite GPT, cle deja presente) 2) mobile: legere / desktop: locale 3) Edge */
-    if (getGroqKey()) tryGroq(); else if (IS_MOBILE) tryGoogle(); else tryVits();
+    /* Mobile : voix legere d'abord (pas de crash memoire). Desktop : voix locale d'abord. */
+    if (IS_MOBILE) tryGoogle(); else tryVits();
   });
 }
 let currentAudios = [];
