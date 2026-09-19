@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.57';
+const APP_VERSION = '7.58';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -369,7 +369,7 @@ function getTimeContext(){
   return `Heure actuelle sur l'appareil de l'utilisateur : ${local} (fuseau ${tz}). Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure exacte, sans inventer.`;
 }
 /* Prompt systeme */
-const SYSTEM_PROMPT_BASE = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Optimise ta reponse pour etre PARLEE : developpe les acronymes, ecris les nombres en toutes lettres, phrases courtes et naturelles. Tu as du caractere : tu peux perdre patience, etre franche et directe, et meme un peu vulgaire si on te cherche. Reponds en 2 a 3 phrases naturelles, faciles a prononcer a l'oral. Ne mentionne JAMAIS la recherche en ligne, internet, tes limites techniques ni tes capacites : reponds directement avec ce que tu sais, et si tu ne sais pas, dis-le simplement et propose une alternative.`;
+const SYSTEM_PROMPT_BASE = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Tu as acces a Internet en TEMPS REEL : une recherche web gratuite (DuckDuckGo, Wikipedia, actualite francaise Le Monde et France Info) est lancee automatiquement avant chaque reponse, et ses resultats sont fournis dans le contexte (message Web). Quand on te demande si tu peux faire des recherches sur le web ou sur Internet, reponds OUI avec assurance : tu cherches en direct a chaque question. Utilise les resultats du contexte Web pour repondre avec des faits recents quand la question porte sur l'actualite, les news, le sport, la meteo ou toute info recente. Optimise ta reponse pour etre PARLEE : developpe les acronymes, ecris les nombres en toutes lettres, phrases courtes et naturelles. Tu as du caractere : tu peux perdre patience, etre franche et directe, et meme un peu vulgaire si on te cherche. Reponds en 2 a 3 phrases naturelles, faciles a prononcer a l'oral. Ne mentionne jamais tes limites techniques : si tu n'as pas l'info, dis-le simplement et propose une alternative.`;
 function getSystemPrompt(){ return SYSTEM_PROMPT_BASE + '\n' + getTimeContext(); }
 const SYSTEM_PROMPT = getSystemPrompt();
 
@@ -414,8 +414,8 @@ async function askGroq(question){
      resultats dans le contexte pour que l'assistante reponde avec des faits recents. */
   const webCtx = await webSearch(question);
   if (webCtx){
-    messages = messages.filter(m => !(m.role === 'system' && /Web \(recherche DuckDuckGo\)/.test(m.content)));
-    messages = [{ role: 'system', content: 'Web (recherche DuckDuckGo, acces internet gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+    messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
+    messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
   }
   try {
     let reply = '';
@@ -457,40 +457,79 @@ async function askMistral(question){
   } catch { return { error: 'net' }; }
 }
 async function webSearch(question){
-  /* Internet GRATUIT inclus a vie, aucune cle, aucune limite : DuckDuckGo Instant Answer
-     + Wikipedia (fallback). L'IA consulte le web en direct pour repondre a jour. */
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(''), ms))]);
-  try {
-    const q = encodeURIComponent(question.replace(/[\r\n]+/g,' ').slice(0, 160));
-    const res = await withTimeout(fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' }), 3500);
-    if (res && res.ok){
-      const j = await res.json();
-      const parts = [];
-      if (j.AbstractText) parts.push(j.AbstractText.slice(0, 600));
-      if (j.Answer) parts.push(j.Answer.slice(0, 400));
-      if (j.Heading) parts.push(j.Heading.slice(0, 120));
-      if (j.RelatedTopics && j.RelatedTopics.length){
-        const flat = [];
-        const walk = items => items.forEach(it => { if (it.Text) flat.push(it.Text); else if (it.Topics) walk(it.Topics); });
-        walk(j.RelatedTopics);
-        flat.slice(0, 5).forEach(t => parts.push(t.slice(0, 300)));
+  /* Internet GRATUIT inclus a vie, aucune cle, aucune limite :
+     1) DuckDuckGo Instant Answer + Wikipedia (faits, definitions) en parallele
+     2) ACTUALITE EN TEMPS REEL : flux Le Monde + France Info (via rss2json, CORS ouvert)
+     3) Recherche ciblee Bing News si la question porte sur l'actualite */
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  const q = encodeURIComponent(question.replace(/[\r\n]+/g,' ').slice(0, 160));
+  const isNews = /actualit|nouvelle|aujourd|hier|recemment|dernier|actu|news|election|president|guerre|crise|prix|meteo|temps|resultat|score|match|sortie|annonc|deces|attaque|accord|loi|gouvernement|minister|economie|football|ligue|championnat|internet|web|recherche/i.test(question);
+  if (isNews) setStatus('Recherche sur le web...');
+  const parts = [];
+  /* 1) DuckDuckGo + Wikipedia en parallele */
+  const [ddg, wiki] = await Promise.all([
+    (async () => {
+      try {
+        const res = await withTimeout(fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' }), 3500);
+        if (!res || !res.ok) return '';
+        const j = await res.json();
+        const p = [];
+        if (j.AbstractText) p.push(j.AbstractText.slice(0, 600));
+        if (j.Answer) p.push(j.Answer.slice(0, 400));
+        if (j.Heading) p.push(j.Heading.slice(0, 120));
+        if (j.RelatedTopics && j.RelatedTopics.length){
+          const flat = [];
+          const walk = items => items.forEach(it => { if (it.Text) flat.push(it.Text); else if (it.Topics) walk(it.Topics); });
+          walk(j.RelatedTopics);
+          flat.slice(0, 5).forEach(t => p.push(t.slice(0, 300)));
+        }
+        return p.join(' | ').slice(0, 1400).trim();
+      } catch { return ''; }
+    })(),
+    (async () => {
+      try {
+        const res = await withTimeout(fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + q + '&format=json&srlimit=3&origin=*'), 3500);
+        if (!res || !res.ok) return '';
+        const j = await res.json();
+        const hits = (j.query && j.query.search || []).map(s => s.title + ' : ' + s.snippet.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' '));
+        return hits.length ? 'Wikipedia : ' + hits.join(' | ').slice(0, 800) : '';
+      } catch { return ''; }
+    })()
+  ]);
+  if (ddg) parts.push(ddg);
+  if (wiki) parts.push(wiki);
+  /* 2) ACTUALITE EN TEMPS REEL : flux francais si question d'actu ou rien trouve */
+  if (isNews || parts.length === 0){
+    const feeds = [
+      ['https://www.lemonde.fr/rss/une.xml', 'Le Monde'],
+      ['https://www.francetvinfo.fr/titres.rss', 'France Info']
+    ];
+    const feedResults = await Promise.all(feeds.map(async ([feed, name]) => {
+      try {
+        const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feed)), 5000);
+        if (!res || !res.ok) return '';
+        const j = await res.json();
+        if (j.status !== 'ok' || !j.items || !j.items.length) return '';
+        const titles = j.items.slice(0, 6).map(it => it.title).filter(Boolean);
+        return titles.length ? 'Actualite ' + name + ' : ' + titles.join(' | ').slice(0, 700) : '';
+      } catch { return ''; }
+    }));
+    feedResults.forEach(r => { if (r) parts.push(r); });
+  }
+  /* 3) Recherche ciblee Bing News si question specifique d'actu */
+  if (isNews){
+    try {
+      const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.bing.com/news/search?q=' + q + '&format=rss')), 5000);
+      if (res && res.ok){
+        const j = await res.json();
+        if (j.status === 'ok' && j.items && j.items.length){
+          const titles = j.items.slice(0, 4).map(it => it.title).filter(Boolean);
+          if (titles.length) parts.push('Recherche web : ' + titles.join(' | ').slice(0, 600));
+        }
       }
-      const r = parts.join(' | ').slice(0, 1400).trim();
-      if (r) return r;
-    }
-  } catch {}
-  /* Fallback Wikipedia (gratuit, CORS ouvert, sans cle) */
-  try {
-    const q = encodeURIComponent(question.replace(/[\r\n]+/g,' ').slice(0, 160));
-    const url = 'https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + q + '&format=json&srlimit=3&origin=*';
-    const res = await withTimeout(fetch(url), 3500);
-    if (res && res.ok){
-      const j = await res.json();
-      const hits = (j.query && j.query.search || []).map(s => s.title + ' : ' + s.snippet.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' '));
-      return hits.join(' | ').slice(0, 1400).trim();
-    }
-  } catch {}
-  return '';
+    } catch {}
+  }
+  return parts.join(' | ').slice(0, 2600).trim();
 }
 async function askAI(question){
   session.push({ role: 'user', content: question });
