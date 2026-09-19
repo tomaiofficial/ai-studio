@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: agnes-ia
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: AGNES_API_KEY
+        sync: false
+      - key: PORT
+        value: 10000
+      # Stockage persistant (galerie communautaire + metadonnees de taches)
+      # Creer un projet gratuit sur https://supabase.com (voir SUPABASE_SETUP.md)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_DATABASE_URL
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: agnes-community
+    healthCheckPath: /

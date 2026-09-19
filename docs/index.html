@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Agnes Video Generator</title>
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<link rel="icon" type="image/png" sizes="1024x1024" href="/static/icon.png">
+<link rel="apple-touch-icon" href="/static/icon.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  .animate-spin { animation: spin 1s linear infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+  @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+  .glass-card {
+    background: rgba(17,24,39,0.6);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.07);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .glass-card:hover {
+    border-color: rgba(59,130,246,0.2);
+    box-shadow: 0 0 20px rgba(59,130,246,0.06);
+  }
+  .glow-btn {
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(37,99,235,0.25), 0 0 30px rgba(37,99,235,0.1);
+    transition: all 0.3s ease;
+  }
+  .glow-btn:hover:not(:disabled) {
+    box-shadow: 0 4px 25px rgba(37,99,235,0.4), 0 0 50px rgba(37,99,235,0.15);
+    transform: translateY(-1px);
+  }
+  .glow-btn::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%; width: 200%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    animation: shimmer 3s ease-in-out infinite;
+  }
+  .glass-input {
+    background: rgba(31,41,55,0.5);
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: all 0.3s ease;
+  }
+  .glass-input:focus {
+    border-color: rgba(59,130,246,0.5);
+    box-shadow: 0 0 12px rgba(59,130,246,0.15);
+    background: rgba(31,41,55,0.7);
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+  ::selection { background: rgba(59,130,246,0.3); color: white; }
+  pre { white-space: pre-wrap; word-break: break-all; }
+
+  /* ═════ Sora 2 Inspired Generation UI ═════ */
+  @keyframes ring-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes ring-rotate-reverse {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @keyframes ring-pulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(59,130,246,0.3), 0 0 40px rgba(59,130,246,0.1); }
+    50% { box-shadow: 0 0 30px rgba(59,130,246,0.5), 0 0 60px rgba(147,51,234,0.15); }
+  }
+  @keyframes icon-breathe {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.08); opacity: 1; }
+  }
+  @keyframes status-fade-in {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes step-slide-in {
+    0% { opacity: 0; transform: translateX(-12px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes step-slide-out {
+    0% { opacity: 1; transform: translateX(0); max-height: 40px; margin-bottom: 8px; }
+    100% { opacity: 0; transform: translateX(12px); max-height: 0; margin-bottom: 0; }
+  }
+  @keyframes result-reveal {
+    0% { opacity: 0; transform: scale(0.92) translateY(20px); filter: blur(4px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+  }
+  @keyframes count-up {
+    0% { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 1; transform: scale(1.15); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes ambient-drift {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+    50% { transform: translate(-45%, -55%) scale(1.3); opacity: 0.8; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+  }
+  @keyframes dots-pulse {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+  }
+  @keyframes progress-glow-drift {
+    0% { filter: hue-rotate(0deg) brightness(1); }
+    50% { filter: hue-rotate(15deg) brightness(1.2); }
+    100% { filter: hue-rotate(0deg) brightness(1); }
+  }
+  @keyframes shimmer-fast {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes complete-check {
+    0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+    50% { transform: scale(1.3) rotate(0deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  .sora-ring {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+  }
+  .sora-ring-inner {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0%, rgba(59,130,246,0.3) 25%, rgba(147,51,234,0.4) 50%, rgba(59,130,246,0.3) 75%, transparent 100%);
+    animation: ring-rotate 2s linear infinite;
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  }
+  .sora-ring-inner-2 {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: conic-gradient(from 180deg, transparent 0%, rgba(168,85,247,0.2) 35%, rgba(59,130,246,0.3) 65%, transparent 100%);
+    animation: ring-rotate-reverse 3s linear infinite;
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  }
+  .sora-ring-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    animation: icon-breathe 2s ease-in-out infinite;
+  }
+  .sora-ring-pulse {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: 0 0 20px rgba(59,130,246,0.3), 0 0 40px rgba(59,130,246,0.1);
+    animation: ring-pulse 2.5s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .sora-ambient {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, rgba(147,51,234,0.04) 40%, transparent 70%);
+    animation: ambient-drift 8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .sora-step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+  }
+  .sora-step {
+    animation: step-slide-in 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 40px;
+    opacity: 0;
+  }
+  .sora-step.completed {
+    opacity: 0.5;
+  }
+  .sora-step.exit {
+    animation: step-slide-out 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .sora-dot-1 { animation-delay: 0s; }
+  .sora-dot-2 { animation-delay: 0.15s; }
+  .sora-dot-3 { animation-delay: 0.3s; }
+  .sora-status-text {
+    animation: status-fade-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .sora-progress-bar {
+    height: 3px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
+    background-size: 200% 100%;
+    animation: shimmer-fast 2s linear infinite;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 2px;
+  }
+  .sora-progress-track {
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    height: 3px;
+    overflow: hidden;
+  }
+  .sora-result {
+    animation: result-reveal 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .sora-count-up {
+    animation: count-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+  .sora-check {
+    animation: complete-check 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  /* Form collapse */
+  .sora-form-collapse {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 1200px;
+    opacity: 1;
+    overflow: hidden;
+  }
+  .sora-form-collapse.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  .generation-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(8px);
+  }
+
+  .sora-skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 2s ease-in-out infinite;
+    border-radius: 8px;
+  }
+
+  /* ═════ Mobile optimizations ═════ */
+  * { -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  input, select, textarea, button { font-size: 16px !important; }
+  @media (max-width: 640px) {
+    .header-nav { gap: 0.25rem; }
+    .header-nav a { font-size: 0.75rem; padding: 0.4rem 0.5rem; }
+    .mobile-stack { flex-direction: column !important; }
+    .mobile-grid-3 { grid-template-columns: 1fr !important; }
+    .mobile-grid-2 { grid-template-columns: 1fr !important; }
+    .mobile-full { width: 100% !important; }
+    .mobile-p { padding: 1rem !important; }
+    h1.text-4xl { font-size: 1.75rem !important; }
+    .mobile-hide { display: none !important; }
+    .mobile-gap-2 { gap: 0.5rem !important; }
+    .glass-card { padding: 1rem !important; }
+    .sora-ring { width: 72px !important; height: 72px !important; }
+    .sora-ring-icon { font-size: 20px !important; }
+    .sora-ambient { width: 250px !important; height: 250px !important; }
+    .mobile-pseudo-popover { right: auto !important; left: 0 !important; }
+  }
+  @media (max-width: 380px) {
+    .header-title { font-size: 1rem !important; }
+    .header-nav a { font-size: 0.7rem !important; padding: 0.3rem 0.4rem !important; }
+  }
+  /* ═══════ Galerie — Feed plein écran (style Reels/TikTok) ═══════ */
+  .feed-scroll {
+    height: 100dvh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+    background: #000;
+  }
+  .feed-scroll::-webkit-scrollbar { display: none; }
+  .feed-slide {
+    position: relative;
+    height: 100dvh;
+    scroll-snap-align: start;
+    background: #000;
+    overflow: hidden;
+  }
+  .feed-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+  }
+  .feed-gradient {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 45%;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    pointer-events: none;
+    z-index: 5;
+  }
+  .feed-prompt {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.35;
+  }
+  .feed-actions {
+    position: absolute;
+    right: 10px;
+    bottom: 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    z-index: 10;
+  }
+  .feed-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: #fff;
+    font-size: 10px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    min-width: 52px;
+    min-height: 40px;
+    cursor: pointer;
+  }
+  .feed-action-icon {
+    font-size: 24px;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7));
+  }
+  .feed-play-badge {
+    width: 64px; height: 64px;
+    border-radius: 9999px;
+    background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+  .feed-comments-panel {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: min(380px, 92vw);
+    background: rgba(10,10,14,0.97);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+  }
+  .feed-comments-panel.open { transform: translateX(0); }
+</style>
+</head>
+<body class="text-gray-100 min-h-screen font-sans overflow-x-hidden" style="touch-action: manipulation; background: radial-gradient(ellipse at 50% 0%, rgba(30,64,175,0.12) 0%, transparent 60%), radial-gradient(ellipse at 80% 100%, rgba(245,158,11,0.06) 0%, transparent 50%), #030712;">
+
+<!-- Header -->
+<header class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-gray-950/80 backdrop-blur-xl border-b border-white/[0.06] shadow-lg shadow-blue-900/10">
+  <div class="max-w-6xl mx-auto px-3 sm:px-6">
+    <div class="flex items-center justify-between h-14 sm:h-16">
+      <a class="flex items-center gap-2 group shrink-0" href="/">
+        <span class="header-title text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-400 via-cyan-300 to-amber-400 bg-clip-text text-transparent">Agnes Video</span>
+      </a>
+      <nav class="header-nav flex items-center gap-1 sm:gap-1">
+        <a href="/" onclick="switchMode('video');return false;" class="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors text-cyan-300/90 hover:text-cyan-100 hover:bg-cyan-500/10">Accueil</a>
+        <a href="#" onclick="switchMode('gallery');return false;" class="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors text-cyan-300/90 hover:text-cyan-100 hover:bg-cyan-500/10">Galerie</a>
+        <!-- Pseudo popover -->
+        <div class="relative ml-1 sm:ml-2" id="pseudo-container">
+          <button id="pseudo-btn" onclick="togglePseudoPopover()" class="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors bg-white/5 border border-white/10 text-gray-400 hover:text-gray-200 hover:bg-white/10 whitespace-nowrap">
+            <span id="pseudo-display" class="truncate max-w-[60px] sm:max-w-none">👤</span>
+          </button>
+          <div id="pseudo-popover" class="absolute right-0 sm:right-0 left-auto sm:left-auto top-full mt-2 hidden w-56 p-3 rounded-xl bg-gray-900 border border-white/10 shadow-xl backdrop-blur-xl z-50 mobile-pseudo-popover">
+            <label class="block text-[11px] text-gray-500 mb-1.5">Ton pseudo ou prénom</label>
+            <input id="pseudo-input" type="text" maxlength="30" placeholder="ex: JeanDupont" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500/50 mb-2">
+            <button onclick="savePseudo()" class="w-full py-2.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition">Enregistrer</button>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<main class="pt-20 sm:pt-24 pb-12 sm:pb-16 px-3 sm:px-4">
+  <div class="max-w-2xl mx-auto">
+
+    <!-- Title -->
+    <div class="text-center mb-5 sm:mb-8">
+      <h1 class="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-blue-400 via-cyan-300 to-amber-400 bg-clip-text text-transparent mb-2 sm:mb-3">Accueil</h1>
+      <p class="text-gray-400 text-sm sm:text-lg">Générez des vidéos et images IA en un instant</p>
+    </div>
+
+    <!-- API Key -->
+    <div id="apikey-section" class="glass-card rounded-2xl mb-4 sm:mb-6 overflow-hidden">
+      <div class="p-3 sm:p-4">
+        <div class="flex items-center justify-between mb-2 sm:mb-3">
+          <div class="flex items-center gap-2">
+            <span class="text-base sm:text-lg">🔑</span>
+            <span class="text-xs sm:text-sm font-medium text-gray-300">Paramètres API Key</span>
+          </div>
+          <span id="apikey-status" class="text-[10px] sm:text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400 whitespace-nowrap">Non configuré</span>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <input id="apikey-input" type="password" placeholder="Entrez votre clé API Agnes" class="w-full sm:flex-1 glass-input rounded-lg px-4 py-3 sm:py-2.5 text-sm text-gray-100 placeholder-gray-500">
+          <div class="flex gap-2">
+            <button id="apikey-save" class="flex-1 sm:flex-none px-5 py-3 sm:py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition shadow-lg shadow-blue-600/20">Enregistrer</button>
+            <button id="apikey-clear" class="hidden flex-1 sm:flex-none px-5 py-3 sm:py-2.5 bg-red-600/80 hover:bg-red-500 rounded-lg text-sm font-medium transition">Effacer</button>
+          </div>
+        </div>
+        <p class="text-[11px] sm:text-xs text-gray-500 mt-2">Obtenez votre clé API gratuite sur : <a href="https://platform.agnes-ai.com" target="_blank" class="text-blue-400 hover:underline">platform.agnes-ai.com</a></p>
+      </div>
+    </div>
+
+    <!-- Mode Tabs -->
+    <div class="flex gap-2 mb-4 sm:mb-6">
+      <button onclick="switchMode('video')" id="tab-video" class="flex-1 px-3 sm:px-4 py-3 sm:py-3 rounded-xl text-xs sm:text-sm font-medium bg-blue-600/20 border border-blue-500/30 text-blue-300 transition hover:bg-blue-600/30 min-h-[48px]">
+        <span class="text-base sm:text-lg">🎬</span><br><span class="hidden sm:inline">Vidéo</span><span class="sm:hidden">Vidéo</span>
+      </button>
+      <button onclick="switchMode('image')" id="tab-image" class="flex-1 px-3 sm:px-4 py-3 sm:py-3 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/50 border border-gray-700/50 text-gray-400 transition hover:bg-gray-700/50 min-h-[48px]">
+        <span class="text-base sm:text-lg">🖼️</span><br><span class="hidden sm:inline">Image</span><span class="sm:hidden">Image</span>
+      </button>
+    </div>
+
+    <!-- Video Form -->
+    <div id="form-video" class="sora-form-collapse">
+      <div class="glass-card rounded-2xl p-4 sm:p-6 mb-4">
+        <div class="mb-3 sm:mb-4">
+          <label class="block text-xs sm:text-sm text-gray-400 mb-1 sm:mb-1.5">Description vidéo (prompt) <span class="text-red-400">*</span></label>
+          <textarea id="s_prompt" rows="3" placeholder="Décrivez la vidéo souhaitée..." class="w-full glass-input rounded-lg px-4 py-3 sm:py-2.5 text-sm resize-y text-gray-100 placeholder-gray-500"></textarea>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
+          <div>
+            <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Mode</label>
+            <select id="s_mode" onchange="onSimpleModeChange()" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+              <option value="t2v">Texte → vidéo</option>
+              <option value="i2v">Image → vidéo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Durée</label>
+            <select id="s_duration" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+              <option value="5">5s (rapide)</option>
+              <option value="7">7s</option>
+              <option value="10" selected>10s</option>
+              <option value="12">12s</option>
+              <option value="15">15s (max)</option>
+            </select>
+            <p id="s_duration_note" class="hidden text-[10px] sm:text-[11px] text-amber-400/90 mt-1.5">⚠️ En Full HD, la durée maxi réelle est d'environ 11 s (limite API) : la vidéo sera raccourcie.</p>
+          </div>
+          <div>
+            <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Résolution</label>
+            <select id="s_resolution" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+              <option value="768x1152">Portrait 9:16 (720p)</option>
+              <option value="1152x768">Paysage 16:9 (720p)</option>
+              <option value="1024x1024">Carré 1:1 (1024)</option>
+              <option value="1080x1920">Portrait Full HD</option>
+              <option value="1920x1080">Paysage Full HD</option>
+            </select>
+          </div>
+        </div>
+        <!-- Reference Image (i2v) -->
+        <div id="s_ref_section" class="hidden mb-3 sm:mb-4">
+          <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Image de référence</label>
+          <input id="s_ref_image" type="file" accept="image/*" class="w-full text-sm text-gray-400 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600 file:min-h-[44px]">
+        </div>
+        <!-- Advanced -->
+        <details class="border-t border-white/5 pt-2 sm:pt-3 mt-2 sm:mt-3">
+          <summary class="text-[11px] sm:text-xs text-gray-500 cursor-pointer hover:text-gray-300 py-1">Paramètres avancés</summary>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <div>
+              <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Seed (optionnel)</label>
+              <input id="s_seed" type="number" placeholder="Aléatoire si vide" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+            </div>
+            <div>
+              <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Negative prompt</label>
+              <input id="s_negative" placeholder="Éléments à exclure" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+            </div>
+          </div>
+          <div class="mt-3">
+            <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Prompt système (optionnel)</label>
+            <textarea id="s_system" rows="2" placeholder="Instructions supplémentaires..." class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm resize-y text-gray-100 placeholder-gray-500"></textarea>
+          </div>
+          <!-- v7.0: Audio + Qualité -->
+          <div class="border-t border-white/5 pt-3 mt-3">
+            <p class="text-[11px] sm:text-xs text-gray-500 mb-2 font-medium">🔊 Narration audio (TTS)</p>
+            <div class="flex items-center gap-2 mb-3">
+              <label class="relative inline-flex items-center cursor-pointer min-h-[44px]">
+                <input id="s_audio_enabled" type="checkbox" class="sr-only peer">
+                <div class="w-10 sm:w-9 h-6 sm:h-5 bg-gray-700 rounded-full peer peer-checked:bg-blue-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-1 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              </label>
+              <span class="text-[11px] sm:text-xs text-gray-400">Ajouter une narration vocale</span>
+            </div>
+            <div id="s_audio_options" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Voix</label>
+                <select id="s_audio_voice" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                  <option value="fr-FR-VivienneMultilingualNeural">Vivienne (Multilingue)</option>
+                  <option value="fr-FR-DeniseNeural">Denise (Féminin)</option>
+                  <option value="fr-FR-HenriNeural">Henri (Masculin)</option>
+                  <option value="fr-FR-EloiseNeural">Éloïse (Féminin)</option>
+                  <option value="fr-FR-ClaudeNeural">Claude (Masculin)</option>
+                  <option value="fr-CA-SylvieNeural">Sylvie (Canadien)</option>
+                  <option value="fr-CA-JeanNeural">Jean (Canadien)</option>
+                  <option value="fr-BE-CharlineNeural">Charline (Belge)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Vitesse</label>
+                <select id="s_audio_rate" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                  <option value="-20%">Lent (-20%)</option>
+                  <option value="-10%">Modéré (-10%)</option>
+                  <option value="+0%" selected>Normal</option>
+                  <option value="+10%">Rapide (+10%)</option>
+                  <option value="+20%">Très rapide (+20%)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="border-t border-white/5 pt-3 mt-3">
+            <div class="flex items-center gap-2 min-h-[44px]">
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input id="s_quality_boost" type="checkbox" class="sr-only peer" checked>
+                <div class="w-10 sm:w-9 h-6 sm:h-5 bg-gray-700 rounded-full peer peer-checked:bg-purple-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-1 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              </label>
+              <span class="text-[11px] sm:text-xs text-gray-400">✨ Amélioration qualité HD (1080p + audio)</span>
+            </div>
+           </div>
+         </details>
+
+         <!-- v8.0: Mode avancé -->
+         <div class="border-t border-white/5 pt-3 mt-3">
+           <div class="flex items-center gap-2 min-h-[44px]">
+             <label class="relative inline-flex items-center cursor-pointer">
+               <input id="s_advanced_mode" type="checkbox" class="sr-only peer">
+               <div class="w-10 sm:w-9 h-6 sm:h-5 bg-gray-700 rounded-full peer peer-checked:bg-purple-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-1 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+             </label>
+             <span class="text-[11px] sm:text-xs text-gray-400">🚀 Mode avancé (pipeline IA complet : upscaling, débruitage, amélioration visage, HDR)</span>
+           </div>
+           <div id="s_advanced_options" class="hidden mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+             <div>
+               <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Qualité</label>
+               <select id="s_quality" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                 <option value="standard">Standard (480p)</option>
+                 <option value="hd">HD (720p)</option>
+                 <option value="full_hd" selected>Full HD (1080p)</option>
+                 <option value="2k">2K (1440p)</option>
+                 <option value="4k">4K Ultra (2160p)</option>
+               </select>
+             </div>
+             <div>
+               <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Style</label>
+               <select id="s_style" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                 <option value="ultra_realistic" selected>Ultra Realistic</option>
+                 <option value="cinema">Cinema</option>
+                 <option value="anime">Anime</option>
+                 <option value="photorealistic">Photorealistic</option>
+                 <option value="hyper_realistic">Hyper Realistic</option>
+               </select>
+             </div>
+             <div>
+               <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Débruitage</label>
+               <select id="s_denoise" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                 <option value="true" selected>Oui</option>
+                 <option value="false">Non</option>
+               </select>
+             </div>
+             <div>
+               <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Amélioration visage</label>
+               <select id="s_face_enhance" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                 <option value="true" selected>Oui</option>
+                 <option value="false">Non</option>
+               </select>
+             </div>
+             <div>
+               <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">HDR</label>
+               <select id="s_hdr" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                 <option value="false" selected>Non</option>
+                 <option value="true">Oui</option>
+               </select>
+             </div>
+             <div>
+               <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Optimisation prompt IA</label>
+               <select id="s_optimize_prompt" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+                 <option value="true" selected>Oui</option>
+                 <option value="false">Non</option>
+               </select>
+             </div>
+           </div>
+         </div>
+       </div>
+       <button id="btn-simple" onclick="submitSimple()" class="w-full py-4 sm:py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn min-h-[50px]">
+         🎬 Générer la vidéo
+       </button>
+    </div>
+
+    <!-- Image Form -->
+    <div id="form-image" class="hidden sora-form-collapse">
+      <div class="glass-card rounded-2xl p-4 sm:p-6 mb-4">
+        <div class="mb-3 sm:mb-4">
+          <label class="block text-xs sm:text-sm text-gray-400 mb-1 sm:mb-1.5">Description image (prompt) <span class="text-red-400">*</span></label>
+          <textarea id="i_prompt" rows="3" placeholder="Décrivez l'image souhaitée..." class="w-full glass-input rounded-lg px-4 py-3 sm:py-2.5 text-sm resize-y text-gray-100 placeholder-gray-500"></textarea>
+        </div>
+        <div class="mb-3 sm:mb-4">
+          <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Taille</label>
+            <select id="i_size" class="w-full glass-input rounded-lg px-3 py-3 sm:py-2 text-sm text-gray-100 min-h-[44px]">
+              <option value="1024x1024">Carré 1:1 (1024x1024)</option>
+              <option value="768x1152">Portrait 9:16 (768x1152)</option>
+              <option value="1152x768">Paysage 16:9 (1152x768)</option>
+              <option value="1080x1920">Portrait Full HD</option>
+              <option value="1920x1080">Paysage Full HD</option>
+            </select>
+        </div>
+        <div>
+          <label class="block text-[11px] sm:text-xs text-gray-500 mb-1">Image de référence (optionnel)</label>
+          <input id="i_ref_image" type="file" accept="image/*" class="w-full text-sm text-gray-400 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600 file:min-h-[44px]">
+        </div>
+      </div>
+      <button id="btn-image" onclick="submitImage()" class="w-full py-4 sm:py-3.5 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 rounded-xl text-base font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed glow-btn min-h-[50px]">
+        🖼️ Générer l'image
+      </button>
+      <div id="image-result" class="hidden mt-4 p-4 glass-card rounded-lg">
+        <p class="text-green-400 text-sm font-medium mb-2">Image générée !</p>
+        <img id="result-image" class="w-full rounded-lg max-h-72 sm:max-h-96 object-contain">
+      </div>
+    </div>
+
+    <!-- Sora 2 Inspired Progress Panel -->
+    <div id="progress-panel" class="hidden mt-4 sm:mt-6 relative overflow-hidden">
+      <!-- Ambient glow background -->
+      <div class="sora-ambient"></div>
+
+      <div class="relative z-10 rounded-2xl p-4 sm:p-6 md:p-8" style="background: rgba(17,24,39,0.8); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06);">
+
+        <!-- Header row -->
+        <div class="flex items-center justify-between mb-4 sm:mb-7">
+          <div class="flex items-center gap-2 sm:gap-3">
+            <div class="generation-badge text-[10px] sm:text-xs" style="background: rgba(59,130,246,0.15); color: #93bbfc;">
+              <span id="progress-state-dot" class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+              <span id="progress-state-label">Génération en cours</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 sm:gap-3">
+            <span id="progress-pct" class="text-base sm:text-lg font-mono font-bold tabular-nums" style="background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">0%</span>
+            <button id="btn-stop" onclick="stopTask()" class="hidden text-xs px-3 py-2 sm:py-1.5 rounded-lg transition font-medium min-h-[36px]" style="background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.2);">Arrêter</button>
+          </div>
+        </div>
+
+        <!-- Center ring + status -->
+        <div class="flex flex-col items-center mb-4 sm:mb-7">
+          <!-- Animated ring -->
+          <div class="sora-ring mb-3 sm:mb-4">
+            <div class="sora-ring-pulse"></div>
+            <div class="sora-ring-inner"></div>
+            <div class="sora-ring-inner-2"></div>
+            <div class="sora-ring-icon">
+              <span id="progress-ring-icon">🎬</span>
+            </div>
+          </div>
+          <!-- Current step name -->
+          <div id="progress-step-name" class="text-xs sm:text-sm font-medium text-gray-200 mb-1.5 text-center">Initialisation...</div>
+          <!-- Animated dots -->
+          <div class="flex gap-1.5 items-center h-4">
+            <span class="w-1 h-1 rounded-full bg-blue-400 sora-dot-1" style="animation: dots-pulse 1.4s ease-in-out infinite;"></span>
+            <span class="w-1 h-1 rounded-full bg-purple-400 sora-dot-2" style="animation: dots-pulse 1.4s ease-in-out 0.15s infinite;"></span>
+            <span class="w-1 h-1 rounded-full bg-blue-400 sora-dot-3" style="animation: dots-pulse 1.4s ease-in-out 0.3s infinite;"></span>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="sora-progress-track mb-3 sm:mb-5">
+          <div id="progress-bar" class="sora-progress-bar" style="width:0%"></div>
+        </div>
+
+        <!-- Time info -->
+        <div class="flex justify-between text-[11px] sm:text-xs mb-4 sm:mb-6" style="color: rgba(156,163,175,0.7);">
+          <span id="progress-elapsed" class="tabular-nums">0s écoulé</span>
+          <span id="progress-remaining" class="tabular-nums">~calcul...</span>
+        </div>
+
+        <!-- Steps flow -->
+        <div id="steps-container" class="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4"></div>
+
+        <!-- Status message -->
+        <div id="progress-message" class="mt-3 sm:mt-4">
+          <div class="sora-status-text text-xs sm:text-sm" style="color: rgba(156,163,175,0.6);">Préparation...</div>
+        </div>
+
+        <!-- Artifacts -->
+        <div id="artifacts-area" class="hidden mt-4 sm:mt-5 p-3 sm:p-4 rounded-xl" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.04);">
+          <div class="flex items-center justify-between mb-2 sm:mb-3">
+            <span class="text-[11px] sm:text-xs font-medium" style="color: rgba(156,163,175,0.5);">Produits intermédiaires</span>
+            <button onclick="loadArtifacts()" class="text-xs transition min-h-[36px] min-w-[36px]" style="color: rgba(156,163,175,0.4);">↻</button>
+          </div>
+          <div id="artifacts-container" class="space-y-2 max-h-48 sm:max-h-72 overflow-y-auto"></div>
+        </div>
+
+        <!-- Result reveal -->
+        <div id="result-area" class="hidden mt-4 sm:mt-6 sora-result">
+          <div class="rounded-xl overflow-hidden mb-3" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06);">
+            <video id="result-video" controls class="w-full max-h-72 sm:max-h-96" style="background: #000;"></video>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center text-xs text-white font-bold sora-check shrink-0">✓</span>
+            <span class="text-xs sm:text-sm font-medium text-green-400">Vidéo générée avec succès</span>
+          </div>
+          <button id="btn-publish" onclick="publishVideo()" class="mt-3 w-full py-3 sm:py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 text-white transition-all hidden min-h-[44px]">
+            📤 Publier dans la Galerie
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task List Button -->
+    <div class="text-center mt-4 sm:mt-6">
+      <button onclick="switchMode('list')" id="tab-list" class="px-5 sm:px-6 py-3 sm:py-2.5 rounded-lg text-sm font-medium bg-gray-800/50 border border-gray-700/50 text-gray-400 transition hover:bg-gray-700/50 min-h-[44px]">
+        📋 Voir les tâches
+      </button>
+    </div>
+
+    <!-- Task List Panel -->
+    <div id="panel-list" class="hidden mt-4">
+      <div id="task-list-container" class="space-y-2 sm:space-y-3">
+        <p class="text-gray-500 text-xs sm:text-sm">Chargement...</p>
+      </div>
+      <button onclick="switchMode('video')" class="mt-4 w-full py-3 sm:py-2.5 rounded-lg text-sm font-medium bg-gray-800/50 border border-gray-700/50 text-gray-400 transition hover:bg-gray-700/50 min-h-[44px]">← Retour</button>
+    </div>
+
+    <!-- Gallery Panel — Feed plein écran (style Reels/TikTok) -->
+    <div id="panel-gallery" class="hidden fixed inset-0 z-40 bg-black">
+      <!-- Header du feed -->
+      <div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+        <h2 class="text-sm font-semibold text-white drop-shadow pointer-events-auto">✨ Galerie</h2>
+        <button onclick="switchMode('video')" class="pointer-events-auto px-3 py-2 rounded-xl text-xs font-medium bg-white/10 border border-white/15 text-gray-200 hover:bg-white/20 transition min-h-[40px]">+ Créer</button>
+      </div>
+      <!-- Liste des slides (scroll vertical plein écran) -->
+      <div id="feed-container" class="feed-scroll"></div>
+      <!-- Panneau commentaires (glisse depuis la droite) -->
+      <div id="feed-comments-panel" class="feed-comments-panel">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <h3 id="feed-comments-title" class="text-sm font-semibold text-gray-100">💬 Commentaires</h3>
+          <button onclick="closeFeedComments()" class="text-gray-400 hover:text-white text-2xl px-2 min-h-[40px]">&times;</button>
+        </div>
+        <div id="feed-comments-list" class="flex-1 overflow-y-auto px-4 py-3 space-y-3"></div>
+        <div class="flex gap-2 p-3 border-t border-white/10">
+          <input id="feed-comment-input" type="text" placeholder="Ajouter un commentaire..." class="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500/50 min-h-[44px]">
+          <button id="feed-comment-btn" onclick="addFeedComment(feedCommentsOpen)" class="px-4 rounded-lg text-xs font-medium bg-blue-600/80 text-white hover:bg-blue-500 transition disabled:opacity-40 min-h-[44px]">Envoyer</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="text-center pb-6 sm:pb-8">
+  <div class="border-t border-white/[0.04] pt-6 sm:pt-8 mt-3 sm:mt-4">
+    <p class="text-[10px] sm:text-xs text-gray-600">Agnes Video Generator &copy; 2026</p>
+  </div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════
+// Configuration — URL de l'API backend
+// En production (GitHub Pages), l'API est sur Render
+// ═══════════════════════════════════════════════════
+const API_BASE = window.location.hostname.endsWith('github.io')
+  ? 'https://agnes-ia.onrender.com'
+  : '';
+
+// ═══════════════════════════════════════════════════
+// Confidentialité — session utilisateur (header X-User-Id)
+// ID opaque généré une fois et stocké dans localStorage.
+// Chaque visiteur ne voit / ne contrôle que ses propres tâches.
+// ═══════════════════════════════════════════════════
+let agnesUserId = '';
+
+function initUserSession() {
+  let uid = localStorage.getItem('agnes_user_id');
+  if (!uid) {
+    uid = crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+    localStorage.setItem('agnes_user_id', uid);
+  }
+  agnesUserId = uid;
+}
+
+async function fetchWithAuth(url, opts = {}) {
+  const headers = new Headers(opts.headers || {});
+  headers.set('X-User-Id', agnesUserId);
+  return fetch(url, Object.assign({}, opts, { headers }));
+}
+
+// Les balises <video>/<img> ne peuvent pas envoyer de header : on charge le
+// fichier via fetchWithAuth puis on l'expose en URL blob.
+async function setMediaSrc(elId, url) {
+  try {
+    const res = await fetchWithAuth(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const el = document.getElementById(elId);
+    if (el) {
+      if (el.dataset.blobUrl) URL.revokeObjectURL(el.dataset.blobUrl);
+      el.dataset.blobUrl = objUrl;
+      el.src = objUrl;
+    }
+  } catch (e) {
+    console.warn('Média inaccessible:', url, e);
+  }
+}
+
+initUserSession();
+
+// ═══════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════
+let currentTaskId = null;
+let currentDirName = null;
+let pollTimer = null;
+let isTaskRunning = false;
+let taskListTimer = null;
+let currentMode = 'video';
+
+const POLL_INTERVAL = 2000;
+let _lastPolledStep = '';
+let _progressStartTime = 0;
+let _prevPct = 0;
+let _prevTime = 0;
+let _smoothedRemaining = null;
+let _elapsedTicker = null;
+
+// Steps
+const STEPS = {
+  simple: [
+    { key: 'submit', label: 'Soumettre' },
+    { key: 'video_gen', label: 'Génération vidéo' },
+  ],
+  creative: [
+    { key: 'init', label: 'Initialisation' },
+    { key: 'scene_config', label: 'Configuration scènes' },
+    { key: 'image_analysis', label: 'Analyse image' },
+    { key: 'story', label: 'Histoire' },
+    { key: 'character_ref', label: 'Réf personnage' },
+    { key: 'script', label: 'Script' },
+    { key: 'end_frame_prompts', label: 'Prompts image finale' },
+    { key: 'end_frame_gen', label: 'Génération image finale' },
+    { key: 'video_gen', label: 'Génération vidéo' },
+    { key: 'audio', label: 'Audio' },
+    { key: 'subtitle', label: 'Sous-titres' },
+    { key: 'concatenate', label: 'Concaténation' },
+  ],
+  manuscript: [
+    { key: 'split_text', label: 'Division texte' },
+    { key: 'scene_prompts', label: 'Prompts scènes' },
+    { key: 'video_gen', label: 'Génération vidéo' },
+    { key: 'audio', label: 'Audio' },
+    { key: 'subtitle', label: 'Sous-titres' },
+    { key: 'concatenate', label: 'Concaténation' },
+  ],
+  advanced: [
+    { key: 'submit', label: 'Soumettre' },
+    { key: 'prompt_analysis', label: 'Analyse IA' },
+    { key: 'prompt_optimization', label: 'Optimisation prompt' },
+    { key: 'video_gen', label: 'Génération vidéo' },
+    { key: 'upscaling', label: 'Upscaling IA' },
+    { key: 'face_enhance', label: 'Amélioration visage' },
+    { key: 'motion_enhance', label: 'Amélioration mouvement' },
+    { key: 'hdr', label: 'Correction HDR' },
+    { key: 'audio', label: 'Audio' },
+    { key: 'compression', label: 'Compression' },
+    { key: 'done', label: 'Terminé' },
+  ],
+};
+
+// ═══════════════════════════════════════════════════
+// Mode switching
+// ═══════════════════════════════════════════════════
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('form-video').classList.toggle('hidden', mode !== 'video');
+  document.getElementById('form-image').classList.toggle('hidden', mode !== 'image');
+  document.getElementById('panel-list').classList.toggle('hidden', mode !== 'list');
+  document.getElementById('panel-gallery').classList.toggle('hidden', mode !== 'gallery');
+  document.getElementById('progress-panel').classList.toggle('hidden', mode === 'list' || mode === 'gallery');
+  // Uncollapse form if no task running when switching to video/image
+  if (!isTaskRunning && (mode === 'video' || mode === 'image')) {
+    document.querySelectorAll('.sora-form-collapse').forEach(el => el.classList.remove('collapsed'));
+  }
+  // Tab styles
+  ['video', 'image', 'list'].forEach(m => {
+    const tab = document.getElementById('tab-' + m);
+    if (!tab) return;
+    if (m === mode) {
+      tab.className = tab.className.replace(/bg-gray-800\/50 border-gray-700\/50 text-gray-400/g, 'bg-blue-600\/20 border-blue-500\/30 text-blue-300');
+    } else {
+      tab.className = tab.className.replace(/bg-blue-600\/20 border-blue-500\/30 text-blue-300/g, 'bg-gray-800\/50 border-gray-700\/50 text-gray-400');
+    }
+  });
+  if (mode === 'list') loadTaskList();
+  if (mode !== 'list' && taskListTimer) { clearInterval(taskListTimer); taskListTimer = null; }
+  if (mode === 'list' && !taskListTimer) taskListTimer = setInterval(loadTaskList, 5000);
+  if (mode === 'gallery') openGalleryFeed(); else closeGalleryFeed();
+}
+
+function onSimpleModeChange() {
+  const mode = document.getElementById('s_mode').value;
+  document.getElementById('s_ref_section').classList.toggle('hidden', mode === 't2v');
+}
+
+// ═══════════════════════════════════════════════════
+// API Key
+// ═══════════════════════════════════════════════════
+function setApiKeyConfiguredUI(source, canClear) {
+  const input = document.getElementById('apikey-input');
+  const saveBtn = document.getElementById('apikey-save');
+  const clearBtn = document.getElementById('apikey-clear');
+  const statusEl = document.getElementById('apikey-status');
+  input.placeholder = 'Configuré (●●●)';
+  input.value = '';
+  input.disabled = true;
+  input.classList.add('opacity-50', 'cursor-not-allowed');
+  saveBtn.disabled = true;
+  saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+  const label = source === 'env' ? 'Configuré (env)' : source === 'fallback' ? 'Configuré (intégré)' : 'Configuré';
+  statusEl.textContent = label;
+  statusEl.className = 'text-xs px-2 py-1 rounded-full bg-green-900 text-green-300';
+  clearBtn.classList.remove('hidden');
+  clearBtn.dataset.source = source;
+}
+
+function resetApiKeyUI() {
+  const input = document.getElementById('apikey-input');
+  const saveBtn = document.getElementById('apikey-save');
+  const clearBtn = document.getElementById('apikey-clear');
+  const statusEl = document.getElementById('apikey-status');
+  input.placeholder = 'Entrez votre clé API Agnes';
+  input.value = '';
+  input.disabled = false;
+  input.classList.remove('opacity-50', 'cursor-not-allowed');
+  saveBtn.disabled = false;
+  saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+  statusEl.textContent = 'Non configuré';
+  statusEl.className = 'text-xs px-2 py-1 rounded-full bg-gray-800 text-gray-400';
+  clearBtn.classList.add('hidden');
+}
+
+document.getElementById('apikey-save').onclick = async () => {
+  const key = document.getElementById('apikey-input').value.trim();
+  if (!key) return alert('Veuillez entrer votre clé API');
+  const form = new FormData();
+  form.append('api_key', key);
+  const r = await fetchWithAuth(API_BASE + '/api/config', { method: 'POST', body: form });
+  if (r.ok) setApiKeyConfiguredUI('config', true);
+};
+
+document.getElementById('apikey-clear').onclick = async () => {
+  const s = document.getElementById('apikey-clear').dataset.source;
+  if (s === 'env' || s === 'fallback') {
+    alert('La clé API est intégrée au service et ne peut pas être supprimée.');
+    return;
+  }
+  if (!confirm('Voulez-vous vraiment supprimer la clé API ?')) return;
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/config', { method: 'DELETE' });
+    if (r.ok) resetApiKeyUI();
+    else { const d = await r.json(); alert(d.detail || 'Erreur'); }
+  } catch(e) { alert('Erreur réseau'); }
+};
+
+// ═══════════════════════════════════════════════════
+// Submit Functions
+// ═══════════════════════════════════════════════════
+function setRunning(taskId) {
+  isTaskRunning = true;
+  currentTaskId = taskId;
+}
+
+function clearRunning() {
+  isTaskRunning = false;
+  stopPolling();
+  // Uncollapse form
+  document.querySelectorAll('.sora-form-collapse').forEach(el => el.classList.remove('collapsed'));
+  ['btn-simple', 'btn-image'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) { btn.disabled = false; }
+  });
+  document.getElementById('btn-stop').classList.add('hidden');
+  document.getElementById('progress-state-label').textContent = 'Terminé';
+  document.getElementById('progress-state-dot').className = 'w-1.5 h-1.5 rounded-full bg-green-400';
+}
+
+function parseResolution(val) {
+  const [w, h] = val.split('x').map(Number);
+  return { width: w, height: h };
+}
+
+async function submitSimple() {
+  const prompt = document.getElementById('s_prompt').value.trim();
+  if (!prompt) return alert('Veuillez décrire la vidéo');
+  const btn = document.getElementById('btn-simple');
+  btn.disabled = true;
+
+  const form = new FormData();
+  form.append('prompt', prompt);
+  form.append('mode', document.getElementById('s_mode').value);
+  form.append('duration', document.getElementById('s_duration').value);
+  const res = parseResolution(document.getElementById('s_resolution').value);
+  form.append('video_width', res.width);
+  form.append('video_height', res.height);
+  const seed = document.getElementById('s_seed').value;
+  if (seed) form.append('seed', seed);
+  const neg = document.getElementById('s_negative').value;
+  if (neg) form.append('negative_prompt', neg);
+  const sp = document.getElementById('s_system').value.trim();
+  if (sp) form.append('system_prompt', sp);
+  const refFile = document.getElementById('s_ref_image').files[0];
+  if (refFile) form.append('reference_image', refFile);
+
+  // v7.0: Audio params
+  form.append('audio_enabled', document.getElementById('s_audio_enabled').checked ? 'true' : 'false');
+  form.append('audio_voice', document.getElementById('s_audio_voice').value);
+  form.append('audio_rate', document.getElementById('s_audio_rate').value);
+  // v7.0: Quality boost
+  form.append('quality_boost', document.getElementById('s_quality_boost').checked ? 'true' : 'false');
+
+  // v8.0: Mode avancé — envoie vers /api/tasks/advanced avec paramètres IA
+  const advancedMode = document.getElementById('s_advanced_mode') && document.getElementById('s_advanced_mode').checked;
+  const endpoint = advancedMode ? '/api/tasks/advanced' : '/api/tasks/simple';
+
+  if (advancedMode) {
+    form.append('quality', document.getElementById('s_quality').value);
+    form.append('style', document.getElementById('s_style').value);
+    form.append('denoise', document.getElementById('s_denoise').value);
+    form.append('face_enhance', document.getElementById('s_face_enhance').value);
+    form.append('hdr', document.getElementById('s_hdr').value);
+    form.append('color_correct', 'true');
+    form.append('compress', 'true');
+    form.append('optimize_prompt', document.getElementById('s_optimize_prompt').value);
+    form.append('priority', 'free');
+  }
+
+  try {
+    const r = await fetchWithAuth(API_BASE + endpoint, { method: 'POST', body: form });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || 'Échec de la création');
+    setRunning(d.task_id);
+    currentDirName = d.dir_name;
+    await showProgress(d.task_id, d.dir_name);
+    await startPolling(d.task_id);
+    showToast('Tâche soumise, veuillez patienter', 5000);
+  } catch(e) {
+    alert('Échec : ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+async function submitImage() {
+  const prompt = document.getElementById('i_prompt').value.trim();
+  if (!prompt) return alert('Veuillez décrire l\'image');
+  const btn = document.getElementById('btn-image');
+  btn.disabled = true;
+  document.getElementById('image-result').classList.add('hidden');
+
+  const form = new FormData();
+  form.append('prompt', prompt);
+  form.append('size', document.getElementById('i_size').value);
+  const refFile = document.getElementById('i_ref_image').files[0];
+  if (refFile) form.append('reference_image', refFile);
+
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/image/generate', { method: 'POST', body: form });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || 'Échec');
+    setMediaSrc('result-image', API_BASE + '/api/image/' + d.task_id);
+    document.getElementById('image-result').classList.remove('hidden');
+    showToast('Image générée !', 5000);
+  } catch(e) {
+    alert('Échec : ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Progress
+// ═══════════════════════════════════════════════════
+async function showProgress(taskId, dirName) {
+  const panel = document.getElementById('progress-panel');
+  panel.classList.remove('hidden');
+  // Collapse form with animation
+  document.querySelectorAll('.sora-form-collapse').forEach(el => el.classList.add('collapsed'));
+  document.getElementById('result-area').classList.add('hidden');
+  document.getElementById('btn-stop').classList.remove('hidden');
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('progress-pct').textContent = '0%';
+  document.getElementById('progress-elapsed').textContent = '0s écoulé';
+  document.getElementById('progress-remaining').textContent = '~calcul...';
+  document.getElementById('progress-step-name').textContent = 'Initialisation...';
+  document.getElementById('progress-state-label').textContent = 'Génération en cours';
+  document.getElementById('progress-ring-icon').textContent = '🎬';
+  _progressStartTime = Date.now();
+
+  let state = null;
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks/' + taskId);
+    state = await r.json();
+  } catch(e) {}
+
+  const steps = STEPS.simple; // simple for now
+  document.getElementById('steps-container').innerHTML = steps.map((s, i) => {
+    const isDone = state ? isStepDoneInState(state, s.key) : false;
+    return `<div class="sora-step flex items-center gap-3 text-sm" data-step="${s.key}" style="animation-delay:${i * 0.1}s;">
+      <span class="sora-step-dot ${isDone ? '' : ''}" style="background: ${isDone ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.08)'};"></span>
+      <span class="step-label" style="color: ${isDone ? 'rgba(34,197,94,0.5)' : 'rgba(156,163,175,0.4)'};">${s.label}</span>
+    </div>`;
+  }).join('');
+
+  // Make steps visible with stagger
+  setTimeout(() => {
+    document.querySelectorAll('.sora-step').forEach(el => { el.style.opacity = '1'; });
+  }, 100);
+
+  if (state) {
+    markCompletedStepsFromState(state);
+    const step = (state.current_step || '').replace(/^step_/, '');
+    const status = state.current_status || '';
+    if (step && status === 'running') {
+      const stepEl = document.querySelector(`.sora-step[data-step="${step}"]`);
+      if (stepEl) {
+        stepEl.querySelector('.sora-step-dot').style.cssText = 'background: #3b82f6; box-shadow: 0 0 8px rgba(59,130,246,0.5);';
+        stepEl.querySelector('.step-label').style.color = '#93bbfc';
+      }
+    }
+  }
+
+  const dirInfo = dirName ? `<span style="color:rgba(156,163,175,0.4);">Dossier: <span class="font-mono">${dirName}</span></span>` : '';
+  document.getElementById('progress-message').innerHTML = `<div class="sora-status-text" style="color:rgba(156,163,175,0.5); font-size:12px;">Tâche: ${taskId} ${dirInfo}</div>`;
+  currentArtifactsTaskId = taskId;
+  loadArtifacts();
+  // Smooth scroll to progress panel
+  setTimeout(() => {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
+}
+
+function isStepDoneInState(state, stepKey) {
+  const stepMap = {
+    scene_config: 'step_scene_config', image_analysis: 'step_image_analysis',
+    story: 'step_story', character_ref: 'step_character_ref', script: 'step_script',
+    end_frame_prompts: 'step_end_frame_prompts', end_frame_gen: 'step_end_frame_generation',
+    video_gen: 'step_video_generation', audio: 'step_audio',
+    subtitle: 'step_subtitle', concatenate: 'step_concatenation',
+    split_text: 'step_split', scene_prompts: 'step_scene_prompts',
+    submit: 'step_submit',
+    // v8.0: pipeline avancé
+    prompt_analysis: 'step_prompt_analysis',
+    prompt_optimization: 'step_prompt_optimization',
+    upscaling: 'step_upscaling',
+    face_enhance: 'step_face_enhance',
+    motion_enhance: 'step_motion_enhance',
+    hdr: 'step_hdr',
+    compression: 'step_compression',
+    done: 'step_done',
+  };
+  const field = stepMap[stepKey];
+  return field && state[field] === 'completed';
+}
+
+function markCompletedStepsFromState(state) {
+  const steps = STEPS.simple;
+  const stepMap = {
+    submit: 'step_submit', video_gen: 'step_video_generation',
+    split_text: 'step_split', scene_prompts: 'step_scene_prompts',
+  };
+  steps.forEach(s => {
+    const field = stepMap[s.key];
+    if (field && state[field] === 'completed') markStepCompleted(s.key);
+  });
+}
+
+function markStepCompleted(stepKey) {
+  const el = document.querySelector(`.sora-step[data-step="${stepKey}"]`);
+  if (el) {
+    el.querySelector('.sora-step-dot').style.cssText = 'background: rgba(34,197,94,0.8); box-shadow: 0 0 8px rgba(34,197,94,0.4);';
+    el.querySelector('.step-label').style.color = 'rgba(34,197,94,0.7)';
+    el.classList.add('completed');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Polling
+// ═══════════════════════════════════════════════════
+async function startPolling(taskId) {
+  stopPolling();
+  _lastPolledStep = '';
+  _progressStartTime = Date.now();
+  _prevPct = 0;
+  _prevTime = Date.now();
+  _smoothedRemaining = null;
+  await pollTaskProgress(taskId);
+  pollTimer = setInterval(() => pollTaskProgress(taskId), POLL_INTERVAL);
+  // Ticker d'élapsed à 1s : le compteur reste vivant même si le % ne bouge pas
+  if (_elapsedTicker) clearInterval(_elapsedTicker);
+  _elapsedTicker = setInterval(() => {
+    if (!isTaskRunning || !_progressStartTime) return;
+    const el = document.getElementById('progress-elapsed');
+    if (!el) return;
+    const s = Math.floor((Date.now() - _progressStartTime) / 1000);
+    const m = Math.floor(s / 60);
+    el.textContent = (m > 0 ? m + 'min ' : '') + (s % 60) + 's écoulé';
+  }, 1000);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (_elapsedTicker) { clearInterval(_elapsedTicker); _elapsedTicker = null; }
+}
+
+async function pollTaskProgress(taskId) {
+  if (!isTaskRunning || !taskId) return;
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks/' + taskId);
+    const state = await r.json();
+    const pct = Math.round((state.current_progress || 0) * 100);
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = pct + '%';
+
+    if (_progressStartTime > 0 && pct > 0) {
+      const now = Date.now();
+      const elapsed = Math.floor((now - _progressStartTime) / 1000);
+      const elapsedMin = Math.floor(elapsed / 60);
+      const elapsedSec = elapsed % 60;
+      document.getElementById('progress-elapsed').textContent = (elapsedMin > 0 ? elapsedMin + 'min ' : '') + elapsedSec + 's écoulé';
+
+      const timeSincePrev = (now - _prevTime) / 1000;
+      const pctDelta = pct - _prevPct;
+      if (pctDelta > 0 && timeSincePrev > 1 && pct > 5) {
+        const ratePerSec = pctDelta / timeSincePrev;
+        const remainingPct = 100 - pct;
+        const rawRemaining = remainingPct / ratePerSec;
+        if (_smoothedRemaining === null) _smoothedRemaining = rawRemaining;
+        else _smoothedRemaining = rawRemaining * 0.7 + _smoothedRemaining * 0.3;
+        const rem = Math.max(0, Math.floor(_smoothedRemaining));
+        const remMin = Math.floor(rem / 60);
+        const remSec = rem % 60;
+        document.getElementById('progress-remaining').textContent = '~' + (remMin > 0 ? remMin + 'min ' : '') + remSec + 's restant';
+      }
+      _prevPct = pct;
+      _prevTime = now;
+    }
+
+    if (state.current_message) {
+      document.getElementById('progress-message').innerHTML = `<div class="sora-status-text" style="color:rgba(156,163,175,0.6); font-size:13px;">${state.current_message}</div>`;
+    }
+
+    // Update step name
+    const step = (state.current_step || '').replace(/^step_/, '');
+    const status = state.current_status || '';
+    // Tant que l'ETA ne peut pas être calculé (progrès gelé), afficher "en cours"
+    if (_smoothedRemaining === null && status === 'running' && pct > 0) {
+      document.getElementById('progress-remaining').textContent = '— en cours...';
+    }
+    if (step) {
+      const stepLabel = STEPS.simple.find(s => s.key === step);
+      if (stepLabel) {
+        document.getElementById('progress-step-name').textContent = stepLabel.label;
+      }
+    }
+
+    markCompletedStepsFromState(state);
+
+    if (step && status === 'running') {
+      const stepEl = document.querySelector(`.sora-step[data-step="${step}"]`);
+      if (stepEl) {
+        stepEl.querySelector('.sora-step-dot').style.cssText = 'background: #3b82f6; box-shadow: 0 0 8px rgba(59,130,246,0.5);';
+        stepEl.querySelector('.step-label').style.color = '#93bbfc';
+      }
+    }
+
+    if (step && step !== _lastPolledStep) {
+      _lastPolledStep = step;
+      scheduleArtifactRefresh();
+    }
+
+    if (state.status === 'completed') {
+      showResult(state.final_video_file);
+      clearRunning();
+      scheduleArtifactRefresh();
+    }
+
+    if (state.status === 'failed' || (step === 'error' && status === 'failed')) {
+      clearRunning();
+      document.getElementById('progress-state-label').textContent = 'Échoué';
+      document.getElementById('progress-state-dot').className = 'w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse';
+      document.getElementById('progress-ring-icon').textContent = '❌';
+      document.getElementById('progress-message').innerHTML = `
+        <div class="sora-status-text p-4 rounded-xl" style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15);">
+          <p style="color: #fca5a5; font-weight: 500; font-size: 13px; margin-bottom: 4px;">Tâche échouée</p>
+          <p style="color: rgba(156,163,175,0.5); font-size: 12px;">${state.current_message || 'Vérifiez les logs console, puis reprenez depuis la liste.'}</p>
+        </div>`;
+    }
+  } catch(e) {}
+}
+
+function showResult(videoPath) {
+  document.getElementById('result-area').classList.remove('hidden');
+  document.getElementById('progress-ring-icon').textContent = '✅';
+  document.getElementById('progress-step-name').textContent = 'Terminé !';
+  document.getElementById('progress-state-label').textContent = 'Terminé';
+  document.getElementById('progress-state-dot').className = 'w-1.5 h-1.5 rounded-full bg-green-400';
+  document.getElementById('progress-bar').style.width = '100%';
+  document.getElementById('progress-pct').textContent = '100%';
+  document.getElementById('progress-remaining').textContent = 'Terminé ✓';
+  if (videoPath && currentTaskId) {
+    setMediaSrc('result-video', API_BASE + '/api/video/' + currentTaskId);
+  }
+  // Show publish button
+  document.getElementById('btn-publish').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════
+// Artifacts
+// ═══════════════════════════════════════════════════
+let currentArtifactsTaskId = null;
+let _artifactRefreshTimer = null;
+
+function scheduleArtifactRefresh() {
+  if (_artifactRefreshTimer) clearTimeout(_artifactRefreshTimer);
+  _artifactRefreshTimer = setTimeout(() => {
+    if (currentArtifactsTaskId) loadArtifacts();
+    _artifactRefreshTimer = null;
+  }, 800);
+}
+
+async function loadArtifacts() {
+  const taskId = currentArtifactsTaskId;
+  if (!taskId) return;
+  const area = document.getElementById('artifacts-area');
+  const container = document.getElementById('artifacts-container');
+  try {
+    const resp = await fetchWithAuth(API_BASE + '/api/tasks/' + taskId + '/artifacts');
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.detail);
+    const existing = (data.artifacts || []).filter(a => a.exists);
+    if (existing.length === 0) { area.classList.add('hidden'); return; }
+    area.classList.remove('hidden');
+    const groups = {};
+    existing.forEach(a => { if (!groups[a.step_key]) groups[a.step_key] = []; groups[a.step_key].push(a); });
+    let html = '';
+    for (const [stepKey, arts] of Object.entries(groups)) {
+      html += '<div class="mb-3"><div class="text-xs text-gray-500 mb-1">' + stepKey + '</div><div class="space-y-1.5">';
+      for (const art of arts) {
+        const icons = {text:'📄', image:'🖼️', video:'🎬', audio:'🔊', json:'📋', subtitle:'💬'};
+        const icon = icons[art.category] || '📄';
+        const fileUrl = '/api/tasks/' + taskId + '/artifacts/' + encodeURIComponent(art.artifact_id) + '/file';
+        let preview = '';
+        if (art.category === 'image') preview = '<img src="' + fileUrl + '" class="max-h-32 rounded border border-gray-700/50" loading="lazy">';
+        else if (art.category === 'video') preview = '<video src="' + fileUrl + '" controls playsinline preload="metadata" class="w-full rounded border border-gray-700/50 bg-black" style="max-height:200px"></video>';
+        else if (art.category === 'audio') preview = '<audio src="' + fileUrl + '" controls class="w-full" preload="metadata"></audio>';
+        html += '<div class="flex items-start gap-2 p-2 bg-gray-800/30 rounded"><span class="text-sm mt-0.5">' + icon + '</span><div class="flex-1 min-w-0"><span class="text-xs text-gray-300">' + art.label_key + '</span>' + preview + '</div></div>';
+      }
+      html += '</div></div>';
+    }
+    container.innerHTML = html;
+  } catch(e) { area.classList.add('hidden'); }
+}
+
+// ═══════════════════════════════════════════════════
+// Task List
+// ═══════════════════════════════════════════════════
+async function loadTaskList() {
+  const container = document.getElementById('task-list-container');
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks');
+    const d = await r.json();
+    const tasks = d.tasks || [];
+    if (!tasks.length) { container.innerHTML = '<p class="text-gray-500 text-sm">Aucune tâche</p>'; return; }
+    container.innerHTML = tasks.map(task => {
+      const sc = { completed: 'text-green-400', running: 'text-yellow-400', failed: 'text-red-400', pending: 'text-gray-400', queued: 'text-cyan-400' };
+      const sl = { completed: 'Terminé', running: 'En cours', failed: 'Échoué', pending: 'En attente', queued: 'En file' };
+      const isCompleted = task.status === 'completed';
+      const isRunning = task.status === 'running' || task.status === 'queued';
+      const desc = task.prompt || task.idea || '';
+      return `<div class="glass-card rounded-xl p-4 flex items-center justify-between">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium truncate">${task.creative_name || task.task_id}</p>
+          <p class="text-xs text-gray-500 mt-0.5">${task.task_id}</p>
+          ${desc ? `<p class="text-xs text-gray-600 mt-1 truncate max-w-xs">${desc}</p>` : ''}
+        </div>
+        <div class="flex items-center gap-3 ml-3">
+          <span class="text-xs ${sc[task.status] || 'text-gray-400'}">${sl[task.status] || task.status}</span>
+          ${isCompleted ? `<button onclick="viewTask('${task.task_id}')" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg transition">Voir</button>` : ''}
+          ${isRunning ? `<button onclick="viewRunningTask('${task.task_id}')" class="text-xs px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded-lg transition">Progression</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { container.innerHTML = '<p class="text-red-400 text-sm">Erreur de chargement</p>'; }
+}
+
+async function viewTask(taskId) {
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks/' + taskId);
+    const state = await r.json();
+    showTaskDetail(taskId, state);
+  } catch(e) { alert('Erreur : ' + e.message); }
+}
+
+async function viewRunningTask(taskId) {
+  setRunning(taskId);
+  await showProgress(taskId, null);
+  await startPolling(taskId);
+  restoreProgressFromTask(taskId);
+}
+
+async function restoreProgressFromTask(taskId) {
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks/' + taskId);
+    const state = await r.json();
+    if (state.status === 'completed') {
+      document.getElementById('progress-bar').style.width = '100%';
+      document.getElementById('progress-pct').textContent = '100%';
+      document.getElementById('progress-remaining').textContent = 'Terminé ✓';
+      document.getElementById('progress-step-name').textContent = 'Terminé';
+      document.getElementById('progress-ring-icon').textContent = '✅';
+      showResult(state.final_video_file);
+    }
+  } catch(e) {}
+}
+
+function showTaskDetail(taskId, state) {
+  const panel = document.getElementById('progress-panel');
+  panel.classList.remove('hidden');
+  document.querySelectorAll('.sora-form-collapse').forEach(el => el.classList.add('collapsed'));
+  document.getElementById('result-area').classList.add('hidden');
+  document.getElementById('progress-bar').style.width = '100%';
+  document.getElementById('progress-pct').textContent = '100%';
+  document.getElementById('progress-remaining').textContent = 'Terminé ✓';
+  document.getElementById('progress-step-name').textContent = 'Terminé';
+  document.getElementById('progress-ring-icon').textContent = '✅';
+  document.getElementById('progress-state-label').textContent = 'Terminé';
+  document.getElementById('progress-state-dot').className = 'w-1.5 h-1.5 rounded-full bg-green-400';
+  document.getElementById('progress-message').innerHTML = `
+    <div class="sora-status-text" style="padding: 12px; border-radius: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.04);">
+      <p style="color: rgba(34,197,94,0.7); font-weight: 500; font-size: 13px;">Tâche terminée</p>
+      <p style="color: rgba(156,163,175,0.4); font-size: 12px; margin-top: 4px;">ID: ${taskId}</p>
+      ${state.final_video_file ? `<p style="color: rgba(156,163,175,0.4); font-size: 12px; margin-top: 2px;">Fichier: <code style="background: rgba(0,0,0,0.4); padding: 1px 6px; border-radius: 4px; font-size: 11px;">${state.final_video_file}</code></p>` : ''}
+    </div>`;
+  if (state.final_video_file) {
+    document.getElementById('result-area').classList.remove('hidden');
+    setMediaSrc('result-video', API_BASE + '/api/video/' + taskId);
+  }
+  currentArtifactsTaskId = taskId;
+  loadArtifacts();
+}
+
+// ═══════════════════════════════════════════════════
+// Stop
+// ═══════════════════════════════════════════════════
+async function stopTask() {
+  if (!currentTaskId) return;
+  if (!confirm('Arrêter la tâche en cours ?')) return;
+  const btn = document.getElementById('btn-stop');
+  btn.disabled = true; btn.textContent = 'Arrêt...';
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks/' + currentTaskId + '/stop', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || 'Erreur');
+    showToast('Tâche arrêtée', 4000);
+  } catch(e) { alert('Erreur : ' + e.message); btn.disabled = false; btn.textContent = 'Arrêter'; }
+}
+
+// ═══════════════════════════════════════════════════
+// Auto-reconnect
+// ═══════════════════════════════════════════════════
+async function autoReconnectRunningTask() {
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks');
+    const d = await r.json();
+    const running = (d.tasks || []).find(t => t.status === 'running' || t.status === 'queued');
+    if (running) {
+      setRunning(running.task_id);
+      currentDirName = running.dir_name || running.task_id;
+      await showProgress(running.task_id, currentDirName);
+      await startPolling(running.task_id);
+    }
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════════
+function showToast(msg, duration = 2500) {
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-xl text-sm font-medium shadow-lg transition-all duration-300 opacity-0 translate-y-4 z-50 bg-yellow-600 text-white';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.className = el.className.replace(/opacity-0 translate-y-4/, 'opacity-100 translate-y-0');
+  clearTimeout(el._timeout);
+  el._timeout = setTimeout(() => {
+    el.className = el.className.replace(/opacity-100 translate-y-0/, 'opacity-0 translate-y-4');
+  }, duration);
+}
+
+// ═══════════════════════════════════════════════════
+// Pseudo utilisateur
+// ═══════════════════════════════════════════════════
+
+function getPseudo() {
+  return localStorage.getItem('agnes_pseudo') || 'Anonyme';
+}
+
+function togglePseudoPopover() {
+  const pop = document.getElementById('pseudo-popover');
+  const isHidden = pop.classList.contains('hidden');
+  pop.classList.toggle('hidden');
+  if (isHidden) {
+    document.getElementById('pseudo-input').value = getPseudo() === 'Anonyme' ? '' : getPseudo();
+    document.getElementById('pseudo-input').focus();
+  }
+}
+function savePseudo() {
+  const val = document.getElementById('pseudo-input').value.trim();
+  if (val) {
+    localStorage.setItem('agnes_pseudo', val);
+    document.getElementById('pseudo-display').textContent = '👤 ' + val;
+  } else {
+    localStorage.removeItem('agnes_pseudo');
+    document.getElementById('pseudo-display').textContent = '👤 Pseudo';
+  }
+  document.getElementById('pseudo-popover').classList.add('hidden');
+  showToast(val ? '✅ Pseudo enregistré : ' + val : '👤 Pseudo réinitialisé', 2000);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('agnes_pseudo');
+  if (saved) document.getElementById('pseudo-display').textContent = '👤 ' + saved;
+  // Close popover on outside click
+  document.addEventListener('click', (e) => {
+    const container = document.getElementById('pseudo-container');
+    const pop = document.getElementById('pseudo-popover');
+    if (container && !container.contains(e.target) && !pop.classList.contains('hidden')) {
+      pop.classList.add('hidden');
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════
+// Galerie communautaire
+// ═══════════════════════════════════════════════════
+
+async function publishVideo() {
+  if (!currentTaskId) return;
+  const btn = document.getElementById('btn-publish');
+  btn.disabled = true;
+  btn.textContent = 'Publication en cours...';
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/tasks/' + currentTaskId + '/publish', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({author: getPseudo()})
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || 'Échec');
+    showToast('🎉 Vidéo publiée dans la galerie !', 4000);
+    btn.textContent = '✅ Publié !';
+    btn.className = btn.className.replace(/from-amber-600 to-orange-500/, 'from-green-600 to-green-500').replace(/hover:from-amber-500 hover:to-orange-400/, '');
+    btn.disabled = true;
+    // Auto-refresh gallery if open
+    if (currentMode === 'gallery') loadGallery();
+  } catch(e) {
+    showToast('Erreur : ' + e.message, 4000);
+    btn.disabled = false;
+    btn.textContent = '📤 Publier dans la Galerie';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Galerie — Feed plein écran (style Reels/TikTok)
+// ═══════════════════════════════════════════════════
+let feedObserver = null;
+let feedVideos = [];         // dernière liste de vidéos chargée
+let feedCommentsOpen = null; // video_id du panneau commentaires ouvert
+let feedUserInteracted = false; // le navigateur autorise le son (interaction requise)
+
+// Active la lecture d'une vidéo avec le son. Le navigateur bloque l'autoplay
+// audio sans interaction récente : on tente le son, et si refusé on joue quand
+// même en muet (le son reprend au prochain clic/tap).
+function feedActivateVideo(video) {
+  if (!video) return;
+  if (feedUserInteracted) {
+    video.muted = false;
+    video.play().catch(() => {
+      video.muted = true;
+      video.play().catch(() => {});
+    });
+  } else {
+    video.muted = true;
+    video.play().catch(() => {});
+  }
+}
+
+// Dès la première interaction (clic/tap n'importe où), activer le son de la
+// vidéo en cours (elle a pu démarrer en repli muet avant l'autorisation).
+document.addEventListener('pointerdown', () => {
+  if (!feedUserInteracted) {
+    feedUserInteracted = true;
+    const active = Array.from(document.querySelectorAll('.feed-video')).find(v => !v.paused && !v.ended);
+    if (active && active.muted) { active.muted = false; active.play().catch(() => {}); }
+  }
+}, { passive: true });
+
+function openGalleryFeed() {
+  feedUserInteracted = true; // l'ouverture se fait par un clic sur « Galerie » → son autorisé
+  const panel = document.getElementById('panel-gallery');
+  panel.classList.remove('hidden');
+  panel.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  loadGallery();
+}
+
+function closeGalleryFeed() {
+  if (feedObserver) { feedObserver.disconnect(); feedObserver = null; }
+  document.querySelectorAll('.feed-video').forEach(v => { v.pause(); v.removeAttribute('src'); });
+  const panel = document.getElementById('panel-gallery');
+  panel.classList.add('hidden');
+  panel.style.display = 'none';
+  document.body.style.overflow = '';
+  closeFeedComments();
+}
+
+async function loadGallery() {
+  const container = document.getElementById('feed-container');
+  container.innerHTML = '<div class="flex items-center justify-center h-full"><p class="text-gray-400 text-sm">Chargement...</p></div>';
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/community/videos?per_page=50');
+    const d = await r.json();
+    if (!d.videos || d.videos.length === 0) {
+      container.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-center px-6"><p class="text-gray-400 text-sm mb-2">Aucune vidéo publiée pour le moment.</p><p class="text-gray-600 text-xs">Soyez le premier à partager votre création !</p><button onclick="closeGalleryFeed()" class="mt-6 px-4 py-2 rounded-lg text-xs font-medium bg-white/10 text-gray-200 hover:bg-white/20 min-h-[44px]">✕ Fermer</button></div>';
+      return;
+    }
+    container.innerHTML = '';
+    feedVideos = d.videos;
+    d.videos.forEach(v => container.appendChild(buildFeedSlide(v)));
+    setupFeedObserver();
+  } catch(e) {
+    container.innerHTML = '<div class="flex flex-col items-center justify-center h-full"><p class="text-gray-400 text-sm">Erreur de chargement : ' + escapeHtml(e.message) + '</p></div>';
+  }
+}
+
+function buildFeedSlide(v) {
+  const slide = document.createElement('div');
+  slide.className = 'feed-slide';
+  slide.dataset.videoId = v.id;
+
+  // Vidéo plein écran (object-fit: contain)
+  const video = document.createElement('video');
+  video.className = 'feed-video';
+  video.src = v.video_url;
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  video.preload = 'metadata';
+  slide.appendChild(video);
+
+  // Dégradé bas
+  const grad = document.createElement('div');
+  grad.className = 'feed-gradient';
+  slide.appendChild(grad);
+
+  // Info bas-gauche (auteur + prompt + temps)
+  const info = document.createElement('div');
+  info.className = 'absolute bottom-0 left-0 right-0 p-4 pb-6 z-10';
+  info.innerHTML = '<div class="flex items-center gap-2 mb-1.5"><span class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xs text-white font-bold flex-shrink-0">' + escapeHtml((v.author || 'A').charAt(0).toUpperCase()) + '</span><span class="text-sm font-semibold text-white drop-shadow">' + escapeHtml(v.author || 'Anonyme') + '</span><span class="text-[10px] text-gray-400 ml-1">' + timeAgo(v.published_at) + '</span></div>' +
+    (v.prompt ? '<p class="feed-prompt text-[11px] text-gray-200/90 max-w-[60%] drop-shadow" title="' + escapeHtml(v.prompt) + '">' + escapeHtml(v.prompt) + '</p>' : '');
+  slide.appendChild(info);
+
+  // Barre d'actions droite (side rail, comme Reels/TikTok)
+  const actions = document.createElement('div');
+  actions.className = 'feed-actions';
+
+  const likeBtn = document.createElement('button');
+  likeBtn.className = 'feed-action';
+  likeBtn.id = 'feed-like-btn-' + v.id;
+  likeBtn.innerHTML = '<div class="feed-action-icon">' + (v.liked ? '❤️' : '🤍') + '</div><span id="feed-like-count-' + v.id + '">' + (v.likes || 0) + '</span>';
+  likeBtn.onclick = (e) => { e.stopPropagation(); toggleFeedLike(v.id); };
+  actions.appendChild(likeBtn);
+
+  const commentBtn = document.createElement('button');
+  commentBtn.className = 'feed-action';
+  commentBtn.innerHTML = '<div class="feed-action-icon">💬</div><span id="feed-comment-count-' + v.id + '">' + (v.comments_count || 0) + '</span>';
+  commentBtn.onclick = (e) => { e.stopPropagation(); openFeedComments(v); };
+  actions.appendChild(commentBtn);
+
+  if (v.duration && v.duration > 0) {
+    const dur = document.createElement('div');
+    dur.className = 'feed-action';
+    dur.innerHTML = '<div class="feed-action-icon">⏱️</div><span>' + fmtDuration(v.duration) + '</span>';
+    actions.appendChild(dur);
+  }
+
+  // Suppression réservée au créateur de la publication (user_id)
+  if (v.user_id && v.user_id === agnesUserId) {
+    const delBtn = document.createElement('button');
+    delBtn.className = 'feed-action';
+    delBtn.title = 'Supprimer (créateur)';
+    delBtn.innerHTML = '<div class="feed-action-icon">🗑</div><span>Suppr.</span>';
+    delBtn.onclick = (e) => { e.stopPropagation(); deleteGalleryVideo(v.id); };
+    actions.appendChild(delBtn);
+  }
+  slide.appendChild(actions);
+
+  // Badge lecture/pause au tap
+  const playBadge = document.createElement('div');
+  playBadge.className = 'absolute inset-0 z-[6] flex items-center justify-center pointer-events-none';
+  playBadge.innerHTML = '<div class="feed-play-badge hidden">▶</div>';
+  slide.appendChild(playBadge);
+
+  // Tap = lecture / pause ; actions = stopPropagation
+  slide.addEventListener('click', (e) => {
+    if (e.target.closest('.feed-actions')) return;
+    if (video.paused) { feedActivateVideo(video); } else { video.pause(); }
+  });
+  video.addEventListener('play', () => { const b = playBadge.querySelector('.feed-play-badge'); if (b) b.classList.add('hidden'); });
+  video.addEventListener('pause', () => { const b = playBadge.querySelector('.feed-play-badge'); if (b) b.classList.remove('hidden'); });
+  // Première frame comme vignette
+  video.addEventListener('loadedmetadata', () => { if (video.paused) video.currentTime = 0.5; });
+
+  return slide;
+}
+
+function setupFeedObserver() {
+  if (feedObserver) feedObserver.disconnect();
+  feedObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const video = entry.target.querySelector('.feed-video');
+      if (!video) return;
+      if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+        feedActivateVideo(video);
+      } else {
+        video.pause();
+        video.muted = true;
+      }
+    });
+  }, { threshold: 0.55 });
+  document.querySelectorAll('.feed-slide').forEach(s => feedObserver.observe(s));
+}
+
+// Panneau de commentaires du feed (glisse depuis la droite)
+function openFeedComments(v) {
+  feedCommentsOpen = v.id;
+  document.getElementById('feed-comments-title').textContent = '💬 Commentaires (' + (v.comments_count || 0) + ')';
+  document.getElementById('feed-comments-panel').classList.add('open');
+  loadFeedComments(v.id);
+}
+
+function closeFeedComments() {
+  feedCommentsOpen = null;
+  const panel = document.getElementById('feed-comments-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+async function loadFeedComments(videoId) {
+  const list = document.getElementById('feed-comments-list');
+  list.innerHTML = '<div class="text-center py-3"><div class="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin mx-auto"></div></div>';
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/community/videos/' + videoId + '/comments');
+    const d = await r.json();
+    if (!d.comments || d.comments.length === 0) {
+      list.innerHTML = '<p class="text-xs text-gray-600 text-center py-2">Aucun commentaire pour le moment.</p>';
+      return;
+    }
+    list.innerHTML = '';
+    d.comments.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'flex gap-2 items-start';
+      div.innerHTML = '<span class="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0 mt-0.5">' + (c.author || 'A').charAt(0).toUpperCase() + '</span>' +
+        '<div><p class="text-xs text-gray-300"><strong>' + escapeHtml(c.author || 'Anonyme') + '</strong> <span class="text-gray-600">· ' + timeAgo(c.created_at || 0) + '</span></p><p class="text-xs text-gray-400">' + escapeHtml(c.text || c.content || '') + '</p></div>';
+      list.appendChild(div);
+    });
+  } catch(e) {
+    list.innerHTML = '<p class="text-xs text-red-400 text-center py-2">Erreur: ' + e.message + '</p>';
+  }
+}
+
+async function addFeedComment(videoId) {
+  if (!videoId) return;
+  const input = document.getElementById('feed-comment-input');
+  const btn = document.getElementById('feed-comment-btn');
+  const text = input.value.trim();
+  if (!text) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/community/videos/' + videoId + '/comments', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({author: getPseudo(), text: text}) });
+    const d = await r.json();
+    if (d.ok) {
+      input.value = '';
+      loadFeedComments(videoId);
+      const countEl = document.getElementById('feed-comment-count-' + videoId);
+      if (countEl) countEl.textContent = (parseInt(countEl.textContent) || 0) + 1;
+    }
+  } catch(e) {
+    showToast('Erreur: ' + e.message, 3000);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Envoyer';
+}
+
+async function toggleFeedLike(videoId) {
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/community/videos/' + videoId + '/like', {method: 'POST'});
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || 'Échec');
+    const btn = document.getElementById('feed-like-btn-' + videoId);
+    if (btn) {
+      btn.innerHTML = '<div class="feed-action-icon">' + (d.liked ? '❤️' : '🤍') + '</div><span id="feed-like-count-' + videoId + '">' + d.likes + '</span>';
+    }
+  } catch(e) {
+    showToast('Erreur like : ' + e.message, 3000);
+  }
+}
+
+async function toggleComments(videoId) {
+  const div = document.getElementById('comments-' + videoId);
+  const isHidden = div.classList.contains('hidden');
+  if (isHidden) {
+    div.classList.remove('hidden');
+    await loadComments(videoId);
+  } else {
+    div.classList.add('hidden');
+  }
+}
+
+async function loadComments(videoId) {
+  const div = document.getElementById('comments-' + videoId);
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/community/videos/' + videoId + '/comments');
+    const d = await r.json();
+    if (!d.comments) throw new Error('Réponse invalide');
+
+    div.innerHTML = '';
+
+    if (d.comments.length === 0) {
+      div.innerHTML = '<p class="text-xs text-gray-600 text-center py-2">Aucun commentaire. Soyez le premier !</p>';
+    } else {
+      d.comments.forEach(c => {
+        const cEl = document.createElement('div');
+        cEl.className = 'flex gap-2 items-start py-1.5';
+        cEl.innerHTML = '<span class="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center text-xs text-gray-300 font-bold shrink-0 mt-0.5">' + c.author.charAt(0).toUpperCase() + '</span>' +
+          '<div><p class="text-xs"><span class="font-medium text-gray-300">' + escapeHtml(c.author) + '</span> <span class="text-gray-600">' + timeAgo(c.created_at) + '</span></p>' +
+          '<p class="text-xs text-gray-400">' + escapeHtml(c.text) + '</p></div>';
+        div.appendChild(cEl);
+      });
+    }
+
+    // Add comment form
+    const form = document.createElement('div');
+    form.className = 'flex gap-2 mt-3 pt-3 border-t border-white/5';
+    form.innerHTML = '<input id="comment-input-' + videoId + '" type="text" placeholder="Votre commentaire..." class="flex-1 glass-input rounded-lg px-3 py-1.5 text-xs text-gray-100 placeholder-gray-500">' +
+      '<button onclick="addComment(\'' + videoId + '\')" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition">Envoyer</button>';
+    div.appendChild(form);
+
+  } catch(e) {
+    div.innerHTML = '<p class="text-xs text-red-400 text-center py-2">Erreur: ' + e.message + '</p>';
+  }
+}
+
+async function addComment(videoId) {
+  const input = document.getElementById('comment-input-' + videoId);
+  const text = input.value.trim();
+  if (!text) return;
+  input.disabled = true;
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/community/videos/' + videoId + '/comments', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({author: getPseudo(), text: text})
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || 'Échec');
+    input.value = '';
+    await loadComments(videoId);
+    // Update comment count in toggle link (le backend renvoie comments_count)
+    const link = document.getElementById('toggle-comments-' + videoId);
+    if (link) link.textContent = '💬 ' + (d.comments_count || 0) + ' commentaire(s)';
+  } catch(e) {
+    showToast('Erreur commentaire: ' + e.message, 3000);
+  }
+  input.disabled = false;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function timeAgo(ts) {
+  const now = Date.now() / 1000;
+  const diff = Math.floor(now - ts);
+  if (diff < 60) return 'à l\'instant';
+  if (diff < 3600) return 'il y a ' + Math.floor(diff / 60) + 'min';
+  if (diff < 86400) return 'il y a ' + Math.floor(diff / 3600) + 'h';
+  return 'il y a ' + Math.floor(diff / 86400) + 'j';
+}
+
+function fmtDuration(sec) {
+  sec = Math.round(sec || 0);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m > 0 ? m + ':' + String(s).padStart(2, '0') : '0:' + String(s).padStart(2, '0');
+}
+
+async function deleteGalleryVideo(videoId) {
+  if (!confirm('Supprimer cette vidéo de la galerie ?')) return;
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/community/videos/' + videoId, {method: 'DELETE'});
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.detail || 'Échec');
+    showToast('🗑️ Vidéo supprimée de la galerie', 3000);
+    if (feedCommentsOpen === videoId) closeFeedComments();
+    const slide = document.querySelector('.feed-slide[data-video-id="' + videoId + '"]');
+    if (slide) slide.remove();
+    const container = document.getElementById('feed-container');
+    if (container && !container.querySelector('.feed-slide')) loadGallery();
+  } catch(e) {
+    showToast('Erreur : ' + e.message, 3000);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Audio toggle
+// ═══════════════════════════════════════════════════
+function toggleAudioOptions() {
+  const enabled = document.getElementById('s_audio_enabled').checked;
+  const opts = document.getElementById('s_audio_options');
+  opts.style.opacity = enabled ? '1' : '0.4';
+  opts.style.pointerEvents = enabled ? 'auto' : 'none';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  toggleAudioOptions();
+  document.getElementById('s_audio_enabled').addEventListener('change', toggleAudioOptions);
+
+  // Qualité HD par défaut : synchronise la résolution et la note de durée réelle
+  function syncResolutionToBoost() {
+    const boost = document.getElementById('s_quality_boost').checked;
+    const sel = document.getElementById('s_resolution');
+    if (boost) {
+      if (sel.value === '768x1152') sel.value = '1080x1920';
+      else if (sel.value === '1152x768') sel.value = '1920x1080';
+    } else {
+      if (sel.value === '1080x1920') sel.value = '768x1152';
+      else if (sel.value === '1920x1080') sel.value = '1152x768';
+    }
+    updateDurationNote();
+  }
+  function updateDurationNote() {
+    const boost = document.getElementById('s_quality_boost').checked;
+    const res = document.getElementById('s_resolution').value;
+    // En tier 1080p (pixels > 720p), l'API plafonne à 169 images ≈ 11 s
+    const hd = boost || res === '1080x1920' || res === '1920x1080' || res === '1024x1024';
+    const dur = parseInt(document.getElementById('s_duration').value, 10);
+    const note = document.getElementById('s_duration_note');
+    note.classList.toggle('hidden', !(hd && (dur === 12 || dur === 15)));
+  }
+  document.getElementById('s_quality_boost').addEventListener('change', syncResolutionToBoost);
+  document.getElementById('s_resolution').addEventListener('change', updateDurationNote);
+  document.getElementById('s_duration').addEventListener('change', updateDurationNote);
+  syncResolutionToBoost();
+
+  // v8.0: Mode avancé — affiche/masque les options avancées
+  const advancedToggle = document.getElementById('s_advanced_mode');
+  const advancedOptions = document.getElementById('s_advanced_options');
+  if (advancedToggle && advancedOptions) {
+    advancedToggle.addEventListener('change', () => {
+      advancedOptions.classList.toggle('hidden', !advancedToggle.checked);
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════
+(async function init() {
+  try {
+    const r = await fetchWithAuth(API_BASE + '/api/config');
+    const d = await r.json();
+    if (d.api_key) setApiKeyConfiguredUI(d.source, d.can_clear);
+  } catch(e) {}
+  autoReconnectRunningTask();
+})();
+</script>
+</body>
+</html>

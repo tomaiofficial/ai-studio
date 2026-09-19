@@ -1,0 +1,7 @@
+{
+  "agnes_domain": "com",
+  "api_key": "VOTRE_CLE_API_ICI",
+  "watermark": {
+    "enabled": false
+  }
+}

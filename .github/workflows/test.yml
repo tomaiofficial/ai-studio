@@ -1,0 +1,126 @@
+name: Unit Tests & Coverage
+
+# ════════════════════════════════════════════════════════════
+# 单元测试 + 覆盖度分析
+#
+# 为什么适合 CI：
+#   1. tests/mock_regression 在「API 协议边界」处把 AgnesVideo/Image/Chat API、
+#      EdgeTTS、限流器全部替换成 Mock，测试不发起任何网络请求、不需要 AGNES_API_KEY。
+#   2. 测试依赖的素材（tests/mock_regression/assets/*.mp4|*.png）与
+#      fixture 文本（tests/mock_regression/fixture_data/*）已提交进仓库，
+#      checkout 后即可用，无需额外生成步骤。
+#   3. 唯一外部二进制依赖是 ffmpeg（视频拼接），由 apt 安装；
+#      moviepy 也自带 imageio-ffmpeg 静态二进制作为兜底。
+#   4. tests/test_core.py 为纯单元（模型/字幕/配置/拼接器），无任何外部依赖。
+#
+# 触发：push 到任意分支、所有 PR、以及手动触发。
+# ════════════════════════════════════════════════════════════
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # 如需验证多版本兼容性，把 python-version 改为矩阵即可，例如：
+    # strategy:
+    #   fail-fast: false
+    #   matrix:
+    #     python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Verify Python
+        run: |
+          python --version
+          which python
+          pip --version
+
+      - name: Install ffmpeg + CJK font (moviepy 视频拼接 / 字幕中文渲染依赖)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        # --cov-fail-under=55：覆盖率跌破当前基线（58%）即判红，防静默退化。
+        # 补完 server.py / config.py 等单测后可逐步上调（目标 65）。
+        run: |
+          python -m pytest tests/ \
+            --cov=core --cov=models --cov=utils \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-fail-under=55
+
+      - name: Publish coverage to job summary
+        # 即使 --cov-fail-under 判红（上一步非零退出），本步仍运行，
+        # 保证 summary 页面始终展示覆盖率，便于一眼看到退化幅度。
+        if: always()
+        run: |
+          python -m coverage json -o coverage.json
+          python - <<'PY'
+          import json, os
+          data = json.load(open('coverage.json'))
+          t = data['totals']
+          pct = t['percent_covered']
+          covered = t['covered_lines']
+          total = t['num_statements']
+          missing = t['missing_lines']
+          color = 'green' if pct >= 80 else ('yellow' if pct >= 50 else 'red')
+          badge = f"https://img.shields.io/badge/coverage-{pct:.1f}%25-{color}"
+          lines = []
+          lines.append("## 🧪 单元测试覆盖率")
+          lines.append("")
+          lines.append(f"![coverage]({badge})")
+          lines.append("")
+          lines.append(f"**总计 {pct:.1f}%** —— 覆盖 {covered}/{total} 条语句，未覆盖 {missing} 条。")
+          lines.append("")
+          lines.append("| 模块 | 覆盖率 | 语句 | 未覆盖 |")
+          lines.append("| --- | --- | --- | --- |")
+          for f, info in sorted(data['files'].items(),
+                                key=lambda kv: kv[1]['summary']['percent_covered']):
+              s = info['summary']
+              lines.append(f"| `{f}` | {s['percent_covered']:.1f}% | {s['num_statements']} | {s['missing_lines']} |")
+          lines.append("")
+          lines.append("> 详细逐行覆盖见上方 `coverage-html` / `coverage-xml` artifact。")
+          lines.append("")
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as fh:
+              fh.write("\n".join(lines) + "\n")
+          PY
+
+      - name: Upload HTML coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: htmlcov/
+          retention-days: 14
+
+      - name: Upload coverage.xml
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 14

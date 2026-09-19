@@ -1,257 +1,29 @@
-<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0f0f1a">
-<title>Assistant IA</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0a12">
+<meta name="description" content="Assistant Vocal IA — parle naturellement avec une vraie voix : rappels, calendrier, météo, localisation, minuteur, calculs, notes.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Assistant Vocal IA</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
-body{
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  background:#0f0f1a;color:#e8e8f0;
-  display:flex;flex-direction:column;
-  overflow:hidden;text-size-adjust:100%;
-}
-/* ===== BARRE DU HAUT ===== */
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 16px;background:rgba(15,15,26,.92);backdrop-filter:blur(10px);
-  border-bottom:1px solid #1e1e33;z-index:10;flex-shrink:0;
-}
-.topbar-title{font-size:17px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
-.topbar-title .dot{width:10px;height:10px;border-radius:50%;background:#3cdca0;box-shadow:0 0 8px #3cdca0}
-.topbar-actions{display:flex;gap:8px}
-.icon-btn{
-  width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08);
-  border:none;color:#c8c8dd;font-size:18px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-}
-.icon-btn:active{transform:scale(.92)}
-/* ===== ZONE DE CHAT ===== */
-.chat{
-  flex:1;overflow-y:auto;padding:16px 12px;
-  display:flex;flex-direction:column;gap:8px;
-  width:100%;max-width:760px;margin:0 auto;
-  scroll-behavior:smooth;
-}
-.msg{
-  max-width:82%;padding:10px 14px;border-radius:16px;
-  font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word;
-  animation:msgIn .25s ease;
-}
-.msg.user{
-  align-self:flex-end;background:linear-gradient(135deg,#7c5cff,#5a3fd6);
-  color:#fff;border-bottom-right-radius:4px;
-}
-.msg.ai{
-  align-self:flex-start;background:#1e1e33;color:#e8e8f0;border-bottom-left-radius:4px;
-}
-.msg.agent{
-  align-self:flex-start;background:#14202e;color:#8fd0ff;border-bottom-left-radius:4px;
-  font-size:13px;border:1px solid #1e3a52;
-}
-@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.chat-empty{
-  margin:auto;text-align:center;color:#5a5a75;font-size:14px;line-height:1.6;
-  padding:0 24px;
-}
-/* ===== BARRE DE SAISIE ===== */
-.composer{
-  width:100%;max-width:760px;margin:0 auto;padding:8px 12px 16px;
-  display:flex;flex-direction:column;gap:6px;flex-shrink:0;
-}
-.status{font-size:13px;color:#9a9ab5;text-align:center;min-height:18px}
-.status.active{color:#7c5cff;font-weight:600}
-.composer-row{display:flex;align-items:center;justify-content:center;gap:8px}
-.chat-input{
-  flex:1;padding:13px 16px;border-radius:24px;border:1px solid #2a2a45;
-  background:#10101e;color:#fff;font-size:16px;outline:none;min-width:0;
-}
-.chat-input:focus{border-color:#7c5cff}
-.chat-input::placeholder{color:#6a6a85}
-.mic-btn{
-  width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;
-  background:radial-gradient(circle at 35% 30%,#7c5cff,#3a2a8f 60%,#1a1245);
-  box-shadow:0 0 20px rgba(124,92,255,.4);
-  display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;
-  transition:transform .15s ease;
-}
-.mic-btn:active{transform:scale(.92)}
-.mic-btn.listening{animation:orbPulse 1.2s ease-in-out infinite;box-shadow:0 0 30px rgba(124,92,255,.8)}
-.mic-btn.thinking{animation:orbSpin 2.5s linear infinite;box-shadow:0 0 24px rgba(255,170,60,.5)}
-.mic-btn.speaking{animation:orbPulse .8s ease-in-out infinite;box-shadow:0 0 30px rgba(60,220,160,.7)}
-@keyframes orbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
-@keyframes orbSpin{0%{transform:rotate(0) scale(1)}50%{transform:rotate(180deg) scale(1.05)}100%{transform:rotate(360deg) scale(1)}}
-.send-btn{
-  width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;
-  background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;font-size:20px;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  transition:transform .15s ease;
-}
-.send-btn:active{transform:scale(.92)}
-/* ===== RÉGLAGES / MODALS ===== */
-.modal{
-  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;
-  display:flex;align-items:flex-end;justify-content:center;
-}
-.modal.hidden{display:none}
-.modal-card{
-  background:#171728;width:100%;max-width:480px;border-radius:20px 20px 0 0;
-  padding:24px;max-height:85vh;overflow-y:auto;
-}
-.modal-close{
-  position:absolute;top:14px;right:14px;background:none;border:none;
-  color:#9a9ab5;font-size:22px;cursor:pointer;
-}
-.modal-card h3{font-size:18px;margin-bottom:16px;color:#fff}
-.settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
-.version-tag{
-  font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
-  pointer-events:none;
-}
-.muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
-.wide-input{
-  width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
-  background:#10101e;color:#fff;font-size:16px;margin-bottom:10px;outline:none;
-}
-.wide-input:focus{border-color:#7c5cff}
-select.wide-input{appearance:none}
-.primary{
-  width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;
-  background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;
-  font-size:16px;font-weight:600;margin-top:6px;
-}
-.primary:active{transform:scale(.98)}
-.secondary{
-  display:block;width:100%;padding:12px;border-radius:12px;border:1px solid #2a2a45;
-  background:#10101e;color:#c8c8dd;text-align:center;text-decoration:none;
-  font-size:14px;margin-top:8px;
-}
-.toast{
-  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-  background:#2a2a45;color:#fff;padding:12px 20px;border-radius:30px;
-  font-size:14px;z-index:50;opacity:0;transition:opacity .3s;pointer-events:none;
-  max-width:90%;text-align:center;
-}
-.toast.show{opacity:1}
-#updateBanner{
-  position:fixed;top:0;left:0;right:0;background:#ff9f2e;color:#1a1245;
-  text-align:center;padding:12px;font-size:14px;font-weight:600;z-index:60;
-  cursor:pointer;display:none;
-}
-#updateBanner.show{display:block}
-/* ===== HISTORIQUE ===== */
-.conv-item{
-  background:rgba(255,255,255,.05);border-radius:14px;padding:12px 14px;
-  margin-bottom:10px;cursor:pointer;border-left:3px solid #7c5cff;
-}
-.conv-item:active{background:rgba(255,255,255,.1)}
-.conv-date{font-size:11px;color:#6a6a85;margin-bottom:4px}
-.conv-preview{font-size:14px;color:#c8c8dd;line-height:1.4}
-.conv-msg{
-  background:rgba(255,255,255,.05);border-radius:14px;padding:10px 14px;
-  font-size:14px;line-height:1.45;color:#c8c8dd;margin-bottom:8px;
-  border-left:3px solid #7c5cff;white-space:pre-wrap;word-break:break-word;
-}
-.conv-msg.user{border-left-color:#ff9f2e}
-.conv-msg.ai{border-left-color:#3cdca0}
-</style>
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
-
-<header class="topbar">
-  <div class="topbar-title"><span class="dot"></span> Assistant IA</div>
-  <div class="topbar-actions">
-    <button class="icon-btn" id="historyBtn" aria-label="Historique">📜</button>
-    <button class="icon-btn" id="settingsBtn" aria-label="Réglages">⚙️</button>
-  </div>
-</header>
-
-<div class="chat" id="chat">
-  <div class="chat-empty" id="chatEmpty">Appuie sur le micro 🎙️ et parle.</div>
-</div>
-
-<div class="composer">
-  <div class="status" id="status">Appuie sur le micro et parle</div>
-  <div class="composer-row">
-    <button class="mic-btn" id="orb" role="button" aria-label="Parler">
-      <span class="orb-icon" id="orbIcon">🎙️</span>
-    </button>
-  </div>
-  <div class="version-tag" id="versionTag"></div>
-</div>
-
-<!-- MODAL HISTORIQUE -->
-<div id="historyModal" class="modal hidden">
-  <div class="modal-card">
-    <button class="modal-close" id="closeHistory">✕</button>
-    <h3>📜 Conversations</h3>
-    <p class="muted">Elle se souvient de tout ce que tu lui dis. Appuie sur une conversation pour la relire.</p>
-    <button class="primary" id="newConvBtn" style="margin-bottom:14px">➕ Nouvelle conversation</button>
-    <div id="convList"></div>
-    <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
-  </div>
-</div>
-
-<!-- MODAL RÉGLAGES -->
-<div id="settingsModal" class="modal hidden">
-  <div class="modal-card">
-    <button class="modal-close" id="closeSettings">✕</button>
-    <h3>⚙️ Réglages</h3>
-
-    <h4 class="settings-title">🧠 Cerveau IA</h4>
-    <p class="muted">✅ <b>Aucune clé requise</b> : l'IA fonctionne gratuitement et <b>sans limite, pour tout le monde</b>, dès l'ouverture (Pollinations.ai). Les clés ci-dessous sont <b>optionnelles</b> pour un cerveau plus rapide.</p>
-
-    <h4 class="settings-title">🧠 Clé Groq (optionnel — cerveau plus rapide)</h4>
-    <p class="muted">Optionnel. Gratuite (14400 requêtes/jour). Sur <b>console.groq.com</b> → API Keys → Create.</p>
-    <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq</a>
-    <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq (gsk_...) — optionnel" autocomplete="off">
-
-    <h4 class="settings-title">🗣️ Clé Mistral (optionnel — secours cerveau)</h4>
-    <p class="muted">Optionnel, si Groq en limite.</p>
-    <a class="secondary" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral</a>
-    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici… — optionnel" autocomplete="off">
-
-    <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Voix système du navigateur</b> — fiable à 100%, aucune clé, aucun serveur, marche même hors ligne. Voix locales (Piper/VITS) en secours automatique.</p>
-    <select id="ttsVoice" class="wide-input">
-      <option value="edge" selected>🎙️ Voix IA femme réelle (Edge Neural Lea) — par défaut</option>
-      <option value="vits">🎙️ Voix système (fiable à 100%)</option>
-    </select>
-    <button class="primary" id="testVoice">🔊 Tester la voix</button>
-    <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
-  </div>
-</div>
-
-<div id="toast" class="toast"></div>
-
-<script type="module">
-(async () => {
-  try {
-    const m = await import("https://esm.sh/@huggingface/transformers@3.5.1");
-    window.TransformersPipeline = m.pipeline;
-  } catch (e) {
-    try {
-      const m = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/+esm");
-      window.TransformersPipeline = m.pipeline;
-    } catch (e2) {
-      console.warn('[VOIX] Transformers indisponible:', e2);
-    }
-  }
-  try {
-    const m = await import("https://esm.sh/piper-tts-web@1.1.2");
-    window.PiperWeb = m;
-  } catch (e3) {
-    console.warn('[VOIX] Piper indisponible:', e3);
-  }
-})();
-</script>
-<script src="app.js"></script>
-</body>
-</html>
+<header class="top"><div class="brand"><div class="logo">VA</div><div class="brand-txt"><b>Assistant Vocal</b><small id="status">Prêt · dis quelque chose</small></div></div><div class="top-actions"><button id="settingsBtn" class="icon" title="Réglages">⚙️</button><button id="themeBtn" class="icon" title="Thème">◐</button></div></header>
+<main>
+<section id="view-assistant" class="view active"><div class="orb-wrap"><div class="orb" id="orb"><span class="orb-icon">🎙️</span></div><div class="orb-ring" id="orbRing"></div></div><div class="chat-log" id="chatLog"></div><div class="quick"><button data-cmd="rappelle-moi de boire de l'eau dans 1 heure">💧 Rappel eau</button><button data-cmd="ajoute un événement réunion demain à 10h">📅 Réunion demain</button><button data-cmd="quel temps fait-il">🌤️ Météo</button><button data-cmd="où suis-je">📍 Où suis-je ?</button><button data-cmd="minuteur de 5 minutes">⏱️ Minuteur 5 min</button><button data-cmd="combien font 15 + 27">🧮 Calcul</button><button data-cmd="note que je dois acheter du pain">📝 Note</button><button data-cmd="raconte une blague">😂 Blague</button><button data-cmd="quelle heure est-il">🕐 L'heure</button><button data-cmd="aide">❓ Aide</button></div><div class="text-input-row"><input type="text" id="textInput" placeholder="Écris ta demande… (si le micro ne marche pas)" autocomplete="off" enterkeyhint="send"><button id="sendText" title="Envoyer">➤</button></div></section>
+<section id="view-reminders" class="view"><div class="view-head"><h2>⏰ Rappels</h2><span class="muted" id="reminderCount"></span></div><div id="reminderList" class="list"></div></section>
+<section id="view-calendar" class="view"><div class="view-head"><h2>📅 Calendrier</h2><span class="muted" id="eventCount"></span></div><div id="eventList" class="list"></div></section>
+<section id="view-notes" class="view"><div class="view-head"><h2>📝 Notes</h2><span class="muted" id="noteCount"></span></div><div id="noteList" class="list"></div></section>
+</main>
+<nav class="tabbar"><button class="tab active" data-view="assistant"><span>🎙️</span>Assistant</button><button class="tab" data-view="reminders"><span>⏰</span>Rappels</button><button class="tab" data-view="calendar"><span>📅</span>Agenda</button><button class="tab" data-view="notes"><span>📝</span>Notes</button></nav>
+<div id="mapModal" class="modal hidden"><div class="modal-bg" onclick="closeMap()"></div><div class="modal-card"><button class="modal-close" onclick="closeMap()">✕</button><h3>📍 Ta position</h3><p class="muted" id="mapCoords"></p><div class="map-frame" id="mapFrame"></div><div class="map-actions"><button class="primary" id="shareLoc">📤 Partager</button><a class="secondary" id="openMaps" target="_blank" rel="noopener">🗺️ Ouvrir dans Maps</a></div></div></div>
+<div id="settingsModal" class="modal hidden"><div class="modal-bg" id="settingsBg"></div><div class="modal-card"><button class="modal-close" id="closeSettings">✕</button><h3>⚙️ Réglages</h3><h4 class="settings-title">🤖 Mode IA (ChatGPT)</h4><p class="muted">Choisis un fournisseur et colle ta clé. La clé reste uniquement sur ton appareil.</p><select id="aiProvider" class="wide-input"></select><input type="password" id="apiKey" class="wide-input" placeholder="Colle ta clé ici…" autocomplete="off"><div class="map-actions"><button class="primary" id="saveApiKey">💾 Enregistrer</button><a class="secondary" id="keyLink" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">Obtenir une clé</a></div><h4 class="settings-title">🧠 Modèle IA</h4><select id="aiModel" class="wide-input"></select><h4 class="settings-title">🗣️ Voix IA réaliste (Gemini)</h4><p class="muted">Pour une vraie voix naturelle (et non une voix de synthèse), colle une clé Google AI Studio (gratuite). Sans clé, la voix gratuite du navigateur est utilisée.</p><a class="secondary full" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">🔑 Obtenir une clé Google AI Studio (gratuit)</a><input type="password" id="ttsKey" class="wide-input" placeholder="Clé Google AI Studio (AIza…)" autocomplete="off"><label style="display:block;margin-top:10px">Voix</label><select id="ttsVoice" class="wide-input"><option value="Kore">Kore — femme, chaleureuse</option></select><label style="display:block;margin-top:10px">Style de la voix</label><select id="ttsStyle" class="wide-input"><option value="naturel">Naturel &amp; chaleureux (recommandé)</option><option value="calme">Calme &amp; posé</option><option value="energique">Dynamique &amp; expressif</option><option value="narrateur">Narrateur / présentateur</option><option value="proche">Proche, comme un ami</option></select><button class="primary full" id="testVoice">🔊 Tester la voix</button><h4 class="settings-title">💬 Conversation</h4><button class="secondary full" id="clearChat">🗑️ Effacer la conversation</button><p class="muted settings-version" id="appVersion"></p></div></div>
+<div id="toast" class="toast"></div><div id="updateBanner" class="update-banner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js"></script><script src="cloud-memory.js"></script><script src="app.js"></script>
+</body></html>
