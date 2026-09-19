@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.80';
+const APP_VERSION = '7.81';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -746,6 +746,8 @@ async function runAgent(question){
     ];
     const r = await askBrain(stepMsgs);
     results.push('Etape ' + (i + 1) + ' (' + steps[i] + ') : ' + (r.text || 'Rien trouve'));
+    /* YIELD : rend la main au thread principal entre les etapes pour eviter le gel */
+    await new Promise(res => setTimeout(res, 0));
   }
   /* 3. SYNTHESE : reponse finale */
   setStatus('🤖 Mode agent : synthese...');
@@ -1246,15 +1248,13 @@ function speak(text){
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* Desktop : Systeme -> VITS -> GoogleTTS -> Edge -> Piper (Piper EN DERNIER :
-       son inference WASM bloque le thread principal, chunks longs = site gele.
-       Chunks courts + timeout court + dernier recours uniquement).
-       Mobile : GoogleTTS -> Edge -> VITS -> Systeme. GoogleTTS/Edge = HTMLAudio -> audible
-       meme en mode silencieux iOS (VITS/Web Audio est COUPE par le bouton silencieux).
-       VITS = voix FEMININE locale en secours. Systeme = dernier recours. */
+    /* Desktop : Systeme -> VITS -> GoogleTTS -> Edge.
+       Piper RETIRE de la chaine par defaut : son inference WASM bloque le thread
+       principal et gelait la page. Dispo en option dans les reglages si besoin.
+       Mobile : GoogleTTS -> Edge -> VITS -> Systeme. */
     const chain = IS_MOBILE
       ? [['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural], ['VITS', speakVits], ['Systeme', speakSystem]]
-      : [['Systeme', speakSystem], ['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural], ['Piper', speakPiper]];
+      : [['Systeme', speakSystem], ['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
@@ -1270,12 +1270,14 @@ function speak(text){
 }
 let currentAudios = [];
 function stopAudio(){
-  currentAudios.forEach(a => { try { a.pause(); a.src = ''; } catch {} });
+  currentAudios.forEach(a => { try { a.pause(); a.src = ''; a.remove(); } catch {} });
   currentAudios = [];
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
+  try { audioCtx && audioCtx.close(); } catch {}
 }
 async function handleQuestion(question){
   if (isProcessing) return;
+  stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   isProcessing = true;
   manualStop = true;
   try{ recog && recog.stop(); }catch{}
