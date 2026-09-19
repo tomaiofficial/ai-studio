@@ -62,7 +62,7 @@ body{
 }
 .status{font-size:13px;color:#9a9ab5;text-align:center;min-height:18px}
 .status.active{color:#7c5cff;font-weight:600}
-.composer-row{display:flex;align-items:center;gap:8px}
+.composer-row{display:flex;align-items:center;justify-content:center;gap:8px}
 .chat-input{
   flex:1;padding:13px 16px;border-radius:24px;border:1px solid #2a2a45;
   background:#10101e;color:#fff;font-size:16px;outline:none;min-width:0;
@@ -70,10 +70,10 @@ body{
 .chat-input:focus{border-color:#7c5cff}
 .chat-input::placeholder{color:#6a6a85}
 .mic-btn{
-  width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;
+  width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;
   background:radial-gradient(circle at 35% 30%,#7c5cff,#3a2a8f 60%,#1a1245);
   box-shadow:0 0 20px rgba(124,92,255,.4);
-  display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;
   transition:transform .15s ease;
 }
 .mic-btn:active{transform:scale(.92)}
@@ -170,17 +170,15 @@ select.wide-input{appearance:none}
 </header>
 
 <div class="chat" id="chat">
-  <div class="chat-empty" id="chatEmpty">Appuie sur le micro 🎙️ et parle,<br>ou écris ton message ci-dessous.</div>
+  <div class="chat-empty" id="chatEmpty">Appuie sur le micro 🎙️ et parle.</div>
 </div>
 
 <div class="composer">
   <div class="status" id="status">Appuie sur le micro et parle</div>
   <div class="composer-row">
-    <input type="text" id="textInput" class="chat-input" placeholder="Écris ton message…" autocomplete="off" enterkeyhint="send">
     <button class="mic-btn" id="orb" role="button" aria-label="Parler">
       <span class="orb-icon" id="orbIcon">🎙️</span>
     </button>
-    <button class="send-btn" id="sendBtn" aria-label="Envoyer">➤</button>
   </div>
   <div class="version-tag" id="versionTag"></div>
 </div>

@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.59';
+const APP_VERSION = '7.60';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -18,7 +18,6 @@ const SPEED = 1.0; // naturel
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
-const textInput = $('textInput'), sendBtn = $('sendBtn');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
 const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
@@ -390,16 +389,6 @@ orb.addEventListener('click', () => {
   }
 });
 
-/* ===== ENVOI PAR TEXTE (chat) ===== */
-function sendText(){
-  const t = (textInput.value || '').trim();
-  if (!t || isProcessing) return;
-  textInput.value = '';
-  handleQuestion(t);
-}
-if (sendBtn) sendBtn.addEventListener('click', sendText);
-if (textInput) textInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
-
 /* Heure appareil - automatique */
 function getTimeContext(){
   const now = new Date();
@@ -409,7 +398,7 @@ function getTimeContext(){
   return `Heure actuelle sur l'appareil de l'utilisateur : ${local} (fuseau ${tz}). Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure exacte, sans inventer.`;
 }
 /* Prompt systeme */
-const SYSTEM_PROMPT_BASE = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Tu as acces a Internet en TEMPS REEL : une recherche web gratuite (DuckDuckGo, Wikipedia, actualite francaise Le Monde et France Info) est lancee automatiquement avant chaque reponse, et ses resultats sont fournis dans le contexte (message Web). Quand on te demande si tu peux faire des recherches sur le web ou sur Internet, reponds OUI avec assurance : tu cherches en direct a chaque question. Utilise les resultats du contexte Web pour repondre avec des faits recents quand la question porte sur l'actualite, les news, le sport, la meteo ou toute info recente. Optimise ta reponse pour etre PARLEE : developpe les acronymes, ecris les nombres en toutes lettres, phrases courtes et naturelles. Tu as du caractere : tu peux perdre patience, etre franche et directe, et meme un peu vulgaire si on te cherche. Reponds en 2 a 3 phrases naturelles, faciles a prononcer a l'oral. Ne mentionne jamais tes limites techniques : si tu n'as pas l'info, dis-le simplement et propose une alternative.`;
+const SYSTEM_PROMPT_BASE = `Tu es un assistant vocal francais cree par Tom.ai le 10 septembre 2026. Tom.ai continue de t'ameliorer chaque jour. Si on te demande qui t'a creee, reponds TOUJOURS que c'est Tom.ai, jamais une autre entreprise ni un autre modele. Tu as acces a Internet en TEMPS REEL : une recherche web gratuite (DuckDuckGo, Wikipedia, actualite francaise Le Monde et France Info) est lancee automatiquement avant chaque reponse, et ses resultats sont fournis dans le contexte (message Web). Quand on te demande si tu peux faire des recherches sur le web ou sur Internet, reponds OUI avec assurance : tu cherches en direct a chaque question. Utilise les resultats du contexte Web pour repondre avec des faits recents quand la question porte sur l'actualite, les news, le sport, la meteo ou toute info recente. Tu es SECHE et directe : phrases courtes, zero politesse inutile, zero bla-bla, zero "bien sur" ni "pas de probleme", tu vas droit au but. Tu as du caractere : tu peux etre sarcastique, perdre patience, etre franche et meme un peu vulgaire si on te cherche. Reponds en 1 a 2 phrases courtes, faciles a prononcer a l'oral. Ne mentionne jamais tes limites techniques : si tu n'as pas l'info, dis-le simplement et propose une alternative.`;
 function getSystemPrompt(){ return SYSTEM_PROMPT_BASE + '\n' + getTimeContext(); }
 const SYSTEM_PROMPT = getSystemPrompt();
 
