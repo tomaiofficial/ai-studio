@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.81';
+const APP_VERSION = '7.82';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -951,8 +951,9 @@ function loadVits(){
   if (vitsTTS) return Promise.resolve(vitsTTS);
   if (vitsLoading) return vitsLoading;
   if (!window.TransformersPipeline){ return Promise.reject(new Error('Transformers non charge')); }
-  /* WASM force : fiable partout (WebGPU peut echouer a l'inference avec q8) */
-  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/mms-tts-fra', { dtype: 'q8', device: 'wasm' })
+  /* WASM force : fiable partout (WebGPU peut echouer a l'inference avec q8).
+   Modèle français qui existe : Xenova/vits-tts-fra (VITS français, ~38 Mo). */
+  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/vits-tts-fra', { dtype: 'q8', device: 'wasm' })
     .then(t => { vitsTTS = t; return t; })
     .catch(e => { vitsLoading = null; throw e; });
   return vitsLoading;
@@ -991,11 +992,10 @@ function ensureAudio(){
         window.speechSynthesis.cancel();
       } catch {}
     }
-    /* Desktop : on precharge la voix Piper pendant que l'utilisateur parle -> reponse vocale immediate.
-       Si Piper est indisponible, on precharge VITS a la place.
-       Mobile avec assez de RAM : on precharge VITS (voix FEMININE locale) en secours. */
-    if (!IS_MOBILE && !piperEngine && !piperLoading){
-      loadPiper().catch(() => { if (!vitsTTS && !vitsLoading) loadVits().catch(() => {}); });
+    /* Desktop : on NE precharge PLUS Piper (retire de la chaine vocale).
+       Si VITS dispo, on le precharge en secours. */
+    if (!IS_MOBILE && !vitsTTS && !vitsLoading){
+      loadVits().catch(() => {});
     } else if (IS_MOBILE && !vitsTTS && !vitsLoading && (!navigator.deviceMemory || navigator.deviceMemory >= 4)){
       loadVits().catch(() => {});
     }
