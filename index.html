@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>Assistant IA Vocal</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+        :root{--bg:#050a14;--card:rgba(12,18,32,0.85);--accent:#00bfff;--accent2:#00ffaa;--text:#d0daf0;--dim:#556688;--danger:#ff4466}
+        body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100dvh;overflow:hidden;-webkit-user-select:none;user-select:none}
+        .page{display:none;position:fixed;inset:0;flex-direction:column;z-index:10}
+        .page.on{display:flex}
+        #welcome{background:radial-gradient(ellipse at 50% 40%,#0d1a30 0%,#050a14 70%);align-items:center;justify-content:center;gap:20px;padding:20px}
+        .w-orb{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#00ddff,#0066cc 55%,#001a33 80%,transparent);box-shadow:0 0 50px #00aaff44,0 0 100px #0066cc22;animation:breathe 3s ease-in-out infinite}
+        @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+        .w-title{font-size:26px;font-weight:700;letter-spacing:.5px;margin-top:8px}
+        .w-sub{font-size:13px;color:var(--dim);text-align:center;line-height:1.6}
+        .w-features{display:flex;gap:18px;font-size:11px;color:var(--dim);margin:12px 0 28px;flex-wrap:wrap;justify-content:center}
+        .w-features span{display:flex;align-items:center;gap:4px}
+        .w-btn{padding:18px 64px;border:none;border-radius:14px;background:linear-gradient(135deg,#0088ee,#0055aa);color:#fff;font-size:19px;font-weight:600;cursor:pointer;transition:all .15s;touch-action:manipulation;min-width:200px;min-height:56px}
+        .w-btn:active{transform:scale(.95)}
+        #active{background:#000}
+        #cam{position:absolute;inset:0;object-fit:cover;width:100%;height:100%;opacity:.3;z-index:1}
+        .dim{position:absolute;inset:0;z-index:2;background:linear-gradient(180deg,rgba(5,10,20,.85) 0%,rgba(5,10,20,.2) 35%,rgba(5,10,20,.5) 100%)}
+        .top{position:absolute;top:0;left:0;right:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:10px 14px}
+        .top-left{display:flex;align-items:center;gap:8px}
+        .top-right{display:flex;align-items:center;gap:6px}
+        .dot{width:8px;height:8px;border-radius:50%;background:#333;transition:all .3s}
+        .dot.on{background:#00ff88;box-shadow:0 0 6px #00ff88}
+        .dot.talk{background:var(--accent2);box-shadow:0 0 6px var(--accent2)}
+        .lbl{font-size:11px;color:var(--dim)}
+        .btn-icon{background:none;border:none;color:var(--dim);font-size:22px;padding:6px 10px;line-height:1;cursor:pointer;touch-action:manipulation}
+        .btn-icon:active{opacity:.5}
+        .btn-icon.on{color:var(--accent2)}
+        #orb-wrap{position:absolute;top:0;left:0;right:0;bottom:0;z-index:15;display:flex;align-items:center;justify-content:center;pointer-events:none}
+        #orb{width:100px;height:100px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--accent2),#007755 55%,transparent 70%);opacity:0;transition:all .4s;cursor:pointer;pointer-events:auto;-webkit-tap-highlight-color:transparent}
+        #orb.idle{opacity:.7;animation:breathe 3s ease-in-out infinite}
+        #orb.rec{opacity:1;animation:rec 1.2s ease-in-out infinite;box-shadow:0 0 40px #00ffaa44}
+        #orb.speaking{opacity:1;animation:speak 1.2s ease-in-out infinite;box-shadow:0 0 50px #00ffaa66}
+        @keyframes rec{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+        @keyframes speak{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+        #chat-area{position:absolute;bottom:80px;left:10px;right:10px;z-index:20;max-height:40%;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+        .chat-bubble{padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;max-width:85%;word-wrap:break-word}
+        .chat-user{align-self:flex-end;background:var(--accent);color:#000;border-bottom-right-radius:4px}
+        .chat-ai{align-self:flex-start;background:rgba(255,255,255,0.1);color:var(--text);border-bottom-left-radius:4px}
+        #input-area{position:absolute;bottom:0;left:0;right:0;z-index:20;padding:10px 14px 20px;background:linear-gradient(0deg,rgba(5,10,20,.95) 70%,transparent)}
+        #chat-input{width:100%;padding:14px 20px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:24px;color:var(--text);font-size:15px;font-family:inherit;outline:none}
+        #chat-input:focus{border-color:var(--accent)}
+        #send-btn{position:absolute;right:24px;bottom:34px;background:var(--accent);border:none;color:#000;width:44px;height:44px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+        #status-bar{position:absolute;top:44px;left:50%;transform:translateX(-50%);z-index:25;font-size:11px;color:var(--dim);background:rgba(0,0,0,.5);padding:4px 12px;border-radius:8px;display:none}
+    </style>
+</head>
+<body>
+
+<div id="welcome" class="page on">
+    <div class="w-orb"></div>
+    <div class="w-title">Assistant IA Vocal</div>
+    <div class="w-sub">Voix réaliste gratuite.<br>Parle-moi, je te réponds.</div>
+    <div class="w-features">
+        <span>🗣️ Voix naturelle</span>
+        <span>🧠 IA en local</span>
+        <span>📷 Caméra optionnelle</span>
+    </div>
+    <button class="w-btn" id="go">▶ Démarrer</button>
+</div>
+
+<div id="active" class="page">
+    <video id="cam" autoplay playsinline muted></video>
+    <div class="dim"></div>
+    <div class="top">
+        <div class="top-left">
+            <div class="dot" id="dot"></div>
+            <span class="lbl" id="lbl">Prêt</span>
+        </div>
+        <div class="top-right">
+            <button class="btn-icon" id="btn-cam" title="Caméra">📷</button>
+            <button class="btn-icon" id="quit">✕</button>
+        </div>
+    </div>
+    <div id="orb-wrap"><div id="orb"></div></div>
+    <div id="status-bar">Prêt</div>
+    <div id="chat-area"></div>
+    <div id="input-area">
+        <input type="text" id="chat-input" placeholder="Écris ou parle..." autocomplete="off">
+        <button id="send-btn">➤</button>
+    </div>
+</div>
+
+<script>
+(function(){
+var $=function(id){return document.getElementById(id)};
+var camEl=$('cam'),orbEl=$('orb'),dotEl=$('dot'),lblEl=$('lbl'),chatArea=$('chat-area'),chatInput=$('chat-input'),sendBtn=$('send-btn'),statusBar=$('status-bar');
+var stream=null,active=false,speaking=false,listening=false,history=[];
+var speechRec=null;
+var IS_LOCAL=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+
+// ---- Audio Unlock ----
+var audioCtx=null;
+function unlockAudio(){
+    try{
+        audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        var buf=audioCtx.createBuffer(1,1,22050);
+        var src=audioCtx.createBufferSource();
+        src.buffer=buf;src.connect(audioCtx.destination);src.start(0);
+    }catch(e){}
+}
+
+// ---- Speak (Browser TTS - free, no server needed) ----
+function speak(text,callback){
+    if(!('speechSynthesis' in window)){
+        if(callback)callback(false);
+        return;
+    }
+    window.speechSynthesis.cancel();
+    var u=new SpeechSynthesisUtterance(text);
+    u.lang='fr-FR';
+    u.rate=0.9;
+    u.volume=1;
+    var voices=window.speechSynthesis.getVoices();
+    var fr=voices.find(v=>v.lang.startsWith('fr'));
+    if(fr)u.voice=fr;
+    u.onend=function(){
+        speaking=false;
+        orbEl.className=active?'idle':'';
+        if(callback)callback(true);
+    };
+    u.onerror=function(){
+        speaking=false;
+        orbEl.className=active?'idle':'';
+        if(callback)callback(false);
+    };
+    speaking=true;
+    orbEl.className='speaking';
+    setStatus('Parle...','talk');
+    window.speechSynthesis.speak(u);
+}
+
+// ---- Speech Recognition ----
+function startListening(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){
+        setStatus('Reconnaissance non supportée','on');
+        addChat('Désolé, la reconnaissance vocale n\'est pas supportée dans ce navigateur.','ai');
+        return;
+    }
+    speechRec=new SR();
+    speechRec.continuous=false;
+    speechRec.interimResults=false;
+    speechRec.lang='fr-FR';
+    speechRec.onresult=function(e){
+        for(var i=e.resultIndex;i<e.results.length;i++){
+            if(e.results[i].isFinal){
+                var t=e.results[i][0].transcript.trim();
+                if(t){
+                    addChat(t,'user');
+                    processUserMessage(t);
+                }
+            }
+        }
+    };
+    speechRec.onend=function(){
+        listening=false;
+        setStatus(active?'Connecté':'En attente','on');
+        orbEl.className=active?'idle':'';
+    };
+    speechRec.onerror=function(e){
+        listening=false;
+        if(e.error!=='no-speech'&&e.error!=='aborted'){
+            addChat('Erreur de reconnaissance vocale.','ai');
+        }
+        setStatus(active?'Connecté':'En attente','on');
+        orbEl.className=active?'idle':'';
+    };
+    listening=true;
+    setStatus('Écoute...','rec');
+    orbEl.className='rec';
+    try{
+        speechRec.start();
+    }catch(e){
+        listening=false;
+        setStatus(active?'Connecté':'En attente','on');
+        orbEl.className=active?'idle':'';
+    }
+}
+
+function stopListening(){
+    if(speechRec){
+        speechRec.abort();
+        speechRec=null;
+    }
+    listening=false;
+    setStatus(active?'Connecté':'En attente','on');
+    orbEl.className=active?'idle':'';
+}
+
+// ---- Chat ----
+function addChat(text,sender){
+    var bubble=document.createElement('div');
+    bubble.className='chat-bubble chat-'+sender;
+    bubble.textContent=text;
+    chatArea.appendChild(bubble);
+    chatArea.scrollTop=chatArea.scrollHeight;
+}
+
+function setStatus(text,type){
+    statusBar.style.display='block';
+    statusBar.textContent=text;
+    dotEl.className='dot';
+    if(type==='on')dotEl.classList.add('on');
+    else if(type==='talk')dotEl.classList.add('talk');
+    else if(type==='rec')dotEl.classList.add('rec');
+    setTimeout(function(){if(!speaking&&!listening)statusBar.style.display='none';},5000);
+}
+
+function processUserMessage(text){
+    if(!text)return;
+    history.push({role:'user',content:text});
+    if(history.length>20)history=history.slice(-20);
+
+    // Simple AI response (local, no API needed)
+    var reply=getLocalResponse(text);
+    addChat(reply,'ai');
+    speak(reply,function(){
+        history.push({role:'assistant',content:reply});
+    });
+}
+
+function getLocalResponse(text){
+    var t=text.toLowerCase();
+    // Greetings
+    if(/bonjour|salut|hey|hello|hi|coucou/.test(t)){
+        return 'Bonjour ! Comment puis-je t\'aider aujourd\'hui ?';
+    }
+    // How are you
+    if(/comment tu vas|comment vas-tu|comment ça va/.test(t)){
+        return 'Je vais très bien, merci ! Prêt à t\'aider avec n\'importe quelle question.';
+    }
+    // Time
+    if(/quelle heure|l'heure|heure qu'il/.test(t)){
+        var now=new Date();
+        return 'Il est '+(now.getHours()<10?'0':'')+now.getHours()+':'+(now.getMinutes()<10?'0':'')+now.getMinutes()+'.';
+    }
+    // Date
+    if(/quelle date|quel jour|aujourd\'hui/.test(t)){
+        var now=new Date();
+        var days=['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+        return 'Nous sommes '+(days[now.getDay()])+' '+now.getDate()+' '+(now.getMonth()+1)+' '+now.getFullYear()+'.';
+    }
+    // Weather
+    if(/météo|temps|pluie|soleil/.test(t)){
+        return 'Je ne peux pas accéder à la météo en temps réel, mais je te souhaite une belle journée !';
+    }
+    // Calculator
+    if(/calcule|calcul|combien font|plus moins fois/.test(t)){
+        try{
+            var expr=t.replace(/[^0-9+\-*/().\s]/g,'');
+            var result=eval(expr);
+            return 'Le résultat est : '+(typeof result==='number'?result.toString():'impossible de calculer');
+        }catch(e){
+            return 'Je ne peux pas calculer ça. Peux-tu reformuler ?';
+        }
+    }
+    // Thank you
+    if(/merci|merci beaucoup|gracias/.test(t)){
+        return 'De rien ! N\'hésite pas si tu as d\'autres questions.';
+    }
+    // Goodbye
+    if(/au revoir|bye|à bientôt|d\'accord/.test(t)){
+        return 'À bientôt ! Passe une excellente journée !';
+    }
+    // Help
+    if(/aide|help|que peux-tu/.test(t)){
+        return 'Je peux : répondre à tes questions, calculer, te dire l\'heure et la date, discuter, et plus encore. Pose-moi n\'importe quelle question !';
+    }
+    // Default
+    return 'Je suis un assistant vocal IA. Je peux répondre à vos questions, faire des calculs, vous donner l\'heure et la date. Dites-moi ce que je peux faire pour vous !';
+}
+
+// ---- Camera ----
+function startCam(){
+    return navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}},audio:false})
+    .then(function(s){stream=s;camEl.srcObject=s;return true;})
+    .catch(function(){return false});
+}
+function stopCam(){
+    if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}
+}
+
+// ---- Screens ----
+function show(id){
+    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('on')});
+    $(id).classList.add('on');
+}
+
+// ---- Start ----
+function start(){
+    show('active');
+    active=true;
+    unlockAudio();
+    setStatus('Connecté','on');
+    orbEl.className='idle';
+    startCam().then(function(ok){
+        if(!ok)show('no-cam');
+    }).catch(function(){
+        show('no-cam');
+    });
+    setInterval(function(){
+        var frame=document.createElement('canvas');
+        frame.width=320;frame.height=240;
+        var ctx=frame.getContext('2d');
+        ctx.save();ctx.translate(320,0);ctx.scale(-1,1);
+        if(camEl&&camEl.videoWidth)ctx.drawImage(camEl,0,0,320,240);
+        ctx.restore();
+        // Process camera frame for context (optional)
+    },3000);
+}
+
+function quit(){
+    active=false;
+    stopListening();
+    stopCam();
+    window.speechSynthesis.cancel();
+    history=[];
+    orbEl.className='';
+    show('welcome');
+    setStatus('En attente','');
+}
+
+// ---- Event Listeners ----
+$('go').addEventListener('click',function(){
+    unlockAudio();
+    start();
+});
+$('quit').addEventListener('click',quit);
+$('btn-cam').addEventListener('click',function(){
+    if(stream){
+        stopCam();
+        camEl.srcObject=null;
+        $('btn-cam').style.opacity='.4';
+    }else{
+        startCam().then(function(ok){
+            if(ok)$('btn-cam').style.opacity='1';
+        });
+    }
+});
+
+// Click orb to start voice input
+orbEl.addEventListener('click',function(){
+    if(!active)return;
+    if(listening){
+        stopListening();
+    }else{
+        startListening();
+    }
+});
+
+// Send text message
+function sendText(){
+    var text=chatInput.value.trim();
+    if(!text)return;
+    chatInput.value='';
+    addChat(text,'user');
+    processUserMessage(text);
+}
+sendBtn.addEventListener('click',sendText);
+chatInput.addEventListener('keypress',function(e){
+    if(e.key==='Enter')sendText();
+});
+
+// Auto-load voices
+if('speechSynthesis' in window){
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged=function(){
+        window.speechSynthesis.getVoices();
+    };
+}
+})();
+</script>
+</body>
+</html>
