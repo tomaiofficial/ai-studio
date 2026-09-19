@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.79';
+const APP_VERSION = '7.80';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -464,23 +464,25 @@ function extractReply(msg){
 }
 
 /* ===== IA (cerveau) ===== */
-async function askGroq(question, webCtx){
+async function askGroq(question, webCtx, msgs){
   const key = getGroqKey();
   if (!key) return { error: 'nokey' };
-  let messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
-  /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
-  const mem = buildMemoryContext(currentConvId);
-  if (mem){
-    messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
-  }
-  /* INTERNET GRATUIT INCLUS A VIE : si la question porte sur l'actualite/l'info fraiche,
-     on cherche le web en direct (DuckDuckGo, zero cle, zero limite) et on colle les
-     resultats dans le contexte pour que l'assistante reponde avec des faits recents.
-     webCtx est calcule UNE SEULE fois dans askAI et partage entre tous les cerveaux. */
-  if (webCtx === undefined) webCtx = await webSearch(question);
-  if (webCtx){
-    messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
-    messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
+    }
+    /* INTERNET GRATUIT INCLUS A VIE : si la question porte sur l'actualite/l'info fraiche,
+       on cherche le web en direct (DuckDuckGo, zero cle, zero limite) et on colle les
+       resultats dans le contexte pour que l'assistante reponde avec des faits recents.
+       webCtx est calcule UNE SEULE fois dans askAI et partage entre tous les cerveaux. */
+    if (webCtx === undefined) webCtx = await webSearch(question);
+    if (webCtx){
+      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
+      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+    }
   }
   try {
     let reply = '';
@@ -509,19 +511,21 @@ async function askGroq(question, webCtx){
     return { text: reply };
   } catch { return { error: 'net' }; }
 }
-async function askMistral(question, webCtx){
+async function askMistral(question, webCtx, msgs){
   const key = getMistralKey();
   if (!key) return { error: 'nokey' };
-  let messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
-  /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
-  const mem = buildMemoryContext(currentConvId);
-  if (mem){
-    messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
-  }
-  if (webCtx === undefined) webCtx = await webSearch(question);
-  if (webCtx){
-    messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
-    messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
+    }
+    if (webCtx === undefined) webCtx = await webSearch(question);
+    if (webCtx){
+      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
+      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+    }
   }
   try {
     /* timeout 25s : sinon un fetch bloque = orbe qui tourne pour toujours */
@@ -626,16 +630,18 @@ async function webSearch(question){
    et en secours silencieux quand Groq/Mistral sont en limite.
    Plusieurs modeles dispo ('openai', 'mistral', 'llama'...) : si un backend
    est en panne, on bascule sur un autre. */
-async function askPollinations(question, webCtx, model){
+async function askPollinations(question, webCtx, model, msgs){
   try {
     const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-    const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-    }
-    if (webCtx){
-      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
+    let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+    if (!msgs){
+      const mem = buildMemoryContext(currentConvId);
+      if (mem){
+        messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+      }
+      if (webCtx){
+        messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
+      }
     }
     const res = await withTimeout(fetch('https://text.pollinations.ai/', {
       method: 'POST',
@@ -648,24 +654,16 @@ async function askPollinations(question, webCtx, model){
     return { text: text.trim() };
   } catch { return { error: 'limit' }; }
 }
-async function askAI(question){
-  session.push({ role: 'user', content: question });
-  if (session.length > 12) session = session.slice(-12);
-  /* recherche web UNE SEULE fois, partagee entre tous les cerveaux (sinon relancee
-     a chaque tentative = lenteur) */
-  const webCtx = await webSearch(question);
-  /* JAMAIS de message "limite atteinte" ni "mon cerveau a bugge" : on essaie TOUS
-     les cerveaux en silence jusqu'a ce que l'un reponde. Filtre PRECIS : vraies
-     phrases de limite/refus, pas le mot "limite" seul. */
+/* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
+   reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
+async function askBrain(messages){
   const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole|desole, mais/i.test(x.text || ''));
-  /* Liste des cerveaux dans l'ordre : cles configurees d'abord, puis Pollinations
-     gratuit (plusieurs modeles = plusieurs backends independants). */
   const brains = [];
-  if (getGroqKey()) brains.push(() => askGroq(question, webCtx));
-  if (getMistralKey()) brains.push(() => askMistral(question, webCtx));
-  brains.push(() => askPollinations(question, webCtx, 'openai'));
-  brains.push(() => askPollinations(question, webCtx, 'mistral'));
-  brains.push(() => askPollinations(question, webCtx, 'llama'));
+  if (getGroqKey()) brains.push(() => askGroq(null, null, messages));
+  if (getMistralKey()) brains.push(() => askMistral(null, null, messages));
+  brains.push(() => askPollinations(null, null, 'openai', messages));
+  brains.push(() => askPollinations(null, null, 'mistral', messages));
+  brains.push(() => askPollinations(null, null, 'llama', messages));
   let r = null;
   for (const b of brains){
     r = await b();
@@ -674,20 +672,94 @@ async function askAI(question){
   /* Dernier recours : retry Pollinations avec backoff (2s puis 5s) */
   if (bad(r)){
     await new Promise(res => setTimeout(res, 2000));
-    r = await askPollinations(question, webCtx, 'openai');
+    r = await askPollinations(null, null, 'openai', messages);
   }
   if (bad(r)){
     await new Promise(res => setTimeout(res, 5000));
-    r = await askPollinations(question, webCtx, 'mistral');
+    r = await askPollinations(null, null, 'mistral', messages);
   }
-  if (!bad(r)){
+  return r;
+}
+async function askAI(question){
+  session.push({ role: 'user', content: question });
+  if (session.length > 12) session = session.slice(-12);
+  /* recherche web UNE SEULE fois, partagee entre tous les cerveaux (sinon relancee
+     a chaque tentative = lenteur) */
+  const webCtx = await webSearch(question);
+  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  const mem = buildMemoryContext(currentConvId);
+  if (mem){
+    messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+  }
+  if (webCtx){
+    messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
+  }
+  const r = await askBrain(messages);
+  if (!r.error){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
     saveConversation();
-  } else {
-    r = { error: 'limit' };
   }
   return r;
+}
+/* ===== MODE AGENT AUTONOME =====
+   Astra decoupe la tache en etapes, execute chaque etape (recherche web + analyse),
+   montre son travail en direct, puis fait une synthese.
+   SECURITE : lecture seule UNIQUEMENT - elle ne peut RIEN envoyer, acheter,
+   supprimer ou modifier, et son prompt lui interdit de pretendre le contraire.
+   Validation humaine : tu peux l'interrompre a tout moment (touche la bulle micro). */
+function isAgentQuestion(q){
+  return /mode agent|agent autonome/i.test(q) ||
+    /^(planifie|organise|compare|analyse|prepare|elabore|enquete|etudie|fais un rapport|fais des recherches|recherche sur)/i.test(q.trim()) ||
+    q.trim().length > 100;
+}
+function addAgentStep(i, total, label){
+  if (chatEmpty) chatEmpty.style.display = 'none';
+  const d = document.createElement('div');
+  d.className = 'msg agent';
+  d.textContent = '🤖 Étape ' + i + '/' + total + ' : ' + label;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+async function runAgent(question){
+  setStatus('🤖 Mode agent : je planifie...');
+  /* 1. PLAN : decoupage de la tache en 2-4 etapes */
+  const planMsgs = [
+    { role: 'system', content: 'Tu es un agent autonome de RECHERCHE et d ANALYSE uniquement. Tu es en LECTURE SEULE : tu ne peux PAS envoyer, acheter, supprimer, modifier ou payer quoi que ce soit. Ne dis jamais que tu as fait une action reelle. Decoupe la tache de l utilisateur en 2 a 4 etapes simples et independantes. Reponds UNIQUEMENT avec la liste, une etape par ligne, chacune commencant par "ETAPE: ". Tache : ' + question }
+  ];
+  const plan = await askBrain(planMsgs);
+  const steps = (plan.text || '').split('\n').map(l => l.replace(/^ETAPE:\s*/i, '').trim()).filter(l => l.length > 3).slice(0, 4);
+  if (!steps.length){
+    /* pas de plan exploitable -> reponse normale */
+    return askAI(question);
+  }
+  /* 2. EXECUTION : chaque etape = recherche web + analyse */
+  const results = [];
+  for (let i = 0; i < steps.length; i++){
+    if (manualStop) break;
+    addAgentStep(i + 1, steps.length, steps[i]);
+    setStatus('🤖 Étape ' + (i + 1) + '/' + steps.length);
+    const web = await webSearch(steps[i]);
+    const stepMsgs = [
+      { role: 'system', content: 'Tu es un agent autonome en LECTURE SEULE (tu ne peux rien envoyer, acheter, supprimer ou modifier). Tu travailles sur une etape d une tache. Reponds en 1 a 2 phrases courtes : ce que tu as trouve pour cette etape.' },
+      { role: 'user', content: 'Etape : ' + steps[i] + (web ? '\nResultats web : ' + web : '') }
+    ];
+    const r = await askBrain(stepMsgs);
+    results.push('Etape ' + (i + 1) + ' (' + steps[i] + ') : ' + (r.text || 'Rien trouve'));
+  }
+  /* 3. SYNTHESE : reponse finale */
+  setStatus('🤖 Mode agent : synthese...');
+  const finalMsgs = [
+    { role: 'system', content: getSystemPrompt() },
+    { role: 'user', content: 'Voici les resultats de tes etapes de recherche :\n' + results.join('\n') + '\n\nFais la synthese finale pour l utilisateur, en 2 a 4 phrases, avec ton caractere habituel. Ne dis jamais que tu as fait une action reelle : tu es en lecture seule.' }
+  ];
+  const final = await askBrain(finalMsgs);
+  const clean = enforceIdentity(final.text || 'Voila ce que j ai trouve.');
+  session.push({ role: 'user', content: question });
+  if (session.length > 12) session = session.slice(-12);
+  session.push({ role: 'assistant', content: clean });
+  saveConversation();
+  return { text: clean };
 }
 function enforceIdentity(reply){
   if (/developpe par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cree par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modele (d'IA|de langage) (developpe|cree|fait) par|je suis (un modele|une IA) (de|d')|developpe par OpenAI/i.test(reply)){
@@ -1213,10 +1285,15 @@ async function handleQuestion(question){
   else addUserMsg(question);
   setState('thinking');
   setStatus('...');
+  /* MODE AGENT : si la question demande une tache multi-etapes (planifie, compare,
+     analyse, recherche sur...), Astra passe en agent autonome : plan -> etapes ->
+     synthese, avec son travail affiche en direct. Plus de temps (90s) car elle
+     fait plusieurs recherches. Validation humaine : interruption a tout moment. */
+  const agentMode = isAgentQuestion(question);
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente) */
   const r = await Promise.race([
-    askAI(question),
-    new Promise(res => setTimeout(() => res({ error: 'timeout' }), 50000))
+    agentMode ? runAgent(question) : askAI(question),
+    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 90000 : 50000))
   ]);
   if (r.error){
     setState('idle');
