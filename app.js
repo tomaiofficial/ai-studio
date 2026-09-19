@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.70';
+const APP_VERSION = '7.71';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -944,7 +944,7 @@ function loadPiper(){
        sinon son etat interne peut rester bloque (Busy) et plus aucun son ne sort jamais */
     const test = await Promise.race([
       engine.generate('Bonjour, je suis prete.', 'fr_FR-siwis-medium', 0),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Piper test timeout')), 90000))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Piper test timeout')), 30000))
     ]);
     if (!test || !test.file) throw new Error('Piper test KO');
     piperEngine = engine;
@@ -973,12 +973,14 @@ function splitPiper(text, max){
 async function speakPiper(text){
   try {
     const engine = await loadPiper();
-    const chunks = splitPiper(text, 500);
+    /* chunks COURTS (120) : l'inference WASM bloque le thread principal,
+       un gros chunk = site gele pendant 20-60s. Petit chunk = rapide. */
+    const chunks = splitPiper(text, 120);
     for (const c of chunks){
-      /* timeout : si Piper bloque (etat Busy), on abandonne -> repli VITS */
+      /* timeout court : si Piper bloque (etat Busy ou inference trop lente), on abandonne -> repli */
       const response = await Promise.race([
         engine.generate(c, 'fr_FR-siwis-medium', 0),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('Piper timeout')), 60000))
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Piper timeout')), 15000))
       ]);
       if (!response || !response.file) return false;
       const objUrl = URL.createObjectURL(response.file);
@@ -1101,13 +1103,15 @@ function speak(text){
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* Desktop : Systeme -> Piper -> VITS -> GoogleTTS -> Edge.
+    /* Desktop : Systeme -> VITS -> GoogleTTS -> Edge -> Piper (Piper EN DERNIER :
+       son inference WASM bloque le thread principal, chunks longs = site gele.
+       Chunks courts + timeout court + dernier recours uniquement).
        Mobile : GoogleTTS -> Edge -> VITS -> Systeme. GoogleTTS/Edge = HTMLAudio -> audible
        meme en mode silencieux iOS (VITS/Web Audio est COUPE par le bouton silencieux).
        VITS = voix FEMININE locale en secours. Systeme = dernier recours. */
     const chain = IS_MOBILE
       ? [['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural], ['VITS', speakVits], ['Systeme', speakSystem]]
-      : [['Systeme', speakSystem], ['Piper', speakPiper], ['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural]];
+      : [['Systeme', speakSystem], ['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural], ['Piper', speakPiper]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
