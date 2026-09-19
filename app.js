@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.51';
+const APP_VERSION = '7.52';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -729,11 +729,13 @@ function loadPiper(){
   if (!window.PiperWeb){ return Promise.reject(new Error('Piper non charge')); }
   piperLoading = (async () => {
     const P = window.PiperWeb;
-    const ort = await import('https://esm.sh/onnxruntime-web@1.20.1');
+    /* 1.18.0 : seule version avec WASM non-threaded (ort-wasm-simd.wasm) -> pas besoin
+       des headers COOP/COEP (impossibles sur GitHub Pages). 1.19+ = threaded uniquement -> 404. */
+    const ort = await import('https://esm.sh/onnxruntime-web@1.18.0');
     const engine = new P.PiperWebEngine({
       onnxRuntime: new P.OnnxWebRuntime({
         ort,
-        basePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/',
+        basePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/',
         numThreads: 1
       }),
       phonemizeRuntime: new P.PhonemizeWebRuntime({
@@ -741,9 +743,21 @@ function loadPiper(){
       }),
       voiceProvider: new P.HuggingFaceVoiceProvider()
     });
+    /* test reel au chargement (modele + phonemize + inference). Si KO -> Piper desactive :
+       sinon son etat interne peut rester bloque (Busy) et plus aucun son ne sort jamais */
+    const test = await Promise.race([
+      engine.generate('Bonjour, je suis prete.', 'fr_FR-siwis-medium', 0),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Piper test timeout')), 90000))
+    ]);
+    if (!test || !test.file) throw new Error('Piper test KO');
     piperEngine = engine;
     return engine;
-  })().catch(e => { piperLoading = null; throw e; });
+  })().catch(e => {
+    piperLoading = null;
+    try { piperEngine && piperEngine.destroy(); } catch {}
+    piperEngine = null;
+    throw e;
+  });
   return piperLoading;
 }
 /* Decoupe aux fins de phrases (prosodie naturelle), max ~500 caracteres par chunk */
@@ -764,7 +778,11 @@ async function speakPiper(text){
     const engine = await loadPiper();
     const chunks = splitPiper(text, 500);
     for (const c of chunks){
-      const response = await engine.generate(c, 'fr_FR-siwis-medium', 0);
+      /* timeout : si Piper bloque (etat Busy), on abandonne -> repli VITS */
+      const response = await Promise.race([
+        engine.generate(c, 'fr_FR-siwis-medium', 0),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Piper timeout')), 60000))
+      ]);
       if (!response || !response.file) return false;
       const objUrl = URL.createObjectURL(response.file);
       const audio = new Audio(objUrl);
@@ -782,7 +800,13 @@ async function speakPiper(text){
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.warn('[VOIX] Piper echec:', e.message); return false; }
+  } catch(e){
+    console.warn('[VOIX] Piper echec:', e.message);
+    /* reset : l'etat interne peut rester bloque (Busy) -> on recharge proprement la prochaine fois */
+    try { piperEngine && piperEngine.destroy(); } catch {}
+    piperEngine = null;
+    return false;
+  }
 }
 /* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
    pas de fetch -> pas de blocage CORS) */
