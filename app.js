@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.60';
+const APP_VERSION = '7.61';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -265,6 +265,16 @@ async function startRecorder(){
   try {
     setState('listening');
     setStatus('Parle maintenant...');
+    /* AudioContext cree AVANT le await getUserMedia : il reste dans le geste utilisateur
+       -> il demarre sur iOS (sinon il reste suspendu et aucun son n'est detecte) */
+    let ac = null;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC){
+        ac = new AC();
+        if (ac.state === 'suspended'){ try { ac.resume(); } catch {} }
+      }
+    } catch {}
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaChunks = [];
     if (mediaRec && mediaRec.state !== 'inactive'){ try { mediaRec.stop(); } catch {} }
@@ -297,13 +307,13 @@ async function startRecorder(){
     };
     mediaRec.onerror = () => { cleanupRecorder(); recorderBusy = false; setState('idle'); setStatus('Erreur micro - reessaie'); };
     mediaRec.start();
-    /* DETECTION DE SILENCE : arrete l'enregistrement 1.5s apres la fin de la parole
-       (au lieu d'un temps fixe -> l'utilisateur n'a pas a reparler) */
+    /* DETECTION DE SILENCE : arrete l'enregistrement 2.5s apres la fin de la parole.
+       Seuil bas (5) + fenetre large (2.5s) -> ne coupe JAMAIS pendant qu'on parle,
+       meme avec une pause ou une voix douce. */
     recHasSpeech = false;
     try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC){
-        recCtx = new AC();
+      if (ac){
+        recCtx = ac;
         const src = recCtx.createMediaStreamSource(stream);
         const analyser = recCtx.createAnalyser();
         analyser.fftSize = 512;
@@ -314,26 +324,26 @@ async function startRecorder(){
           analyser.getByteFrequencyData(dataArr);
           let sum = 0;
           for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
-          if (sum / dataArr.length > 10){
+          if (sum / dataArr.length > 5){
             recHasSpeech = true;
             clearTimeout(recSilenceTimer);
-            recSilenceTimer = setTimeout(() => { try { mediaRec.stop(); } catch {} }, 1500);
+            recSilenceTimer = setTimeout(() => { try { mediaRec.stop(); } catch {} }, 2500);
           }
-        }, 250);
+        }, 200);
       }
     } catch {}
-    /* AUTO-STOP apres 8 secondes max (phrase longue) */
+    /* AUTO-STOP apres 12 secondes max (phrase longue) */
     recorderTimer = setTimeout(() => {
       clearInterval(recVolInt);
       if (mediaRec && mediaRec.state === 'recording') mediaRec.stop();
-    }, 8000);
-    /* si aucun son detecte apres 5s, on arrete */
+    }, 12000);
+    /* si aucun son detecte apres 6s, on arrete (personne ne parle) */
     recNoSpeechTimer = setTimeout(() => {
       if (!recHasSpeech && mediaRec && mediaRec.state === 'recording'){ clearInterval(recVolInt); try { mediaRec.stop(); } catch {} }
-    }, 5000);
+    }, 6000);
   } catch {
+    cleanupRecorder();
     recorderBusy = false;
-    clearTimeout(recorderTimer);
     setState('idle');
     setStatus('Micro bloque - autorise le micro');
   }
