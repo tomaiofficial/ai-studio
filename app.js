@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.64';
+const APP_VERSION = '7.65';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -699,6 +699,11 @@ function speakEdgeNeural(text){
 }
 function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
 
+/* Nombres en toutes lettres pour la voix (perdus dans une refonte -> la voix plantait
+   des que la reponse contenait un chiffre : '2027', 'GPT-5'...) */
+const UNITS = ['zero','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+const TENS = ['','dix','vingt','trente','quarante','cinquante','soixante','soixante-dix','quatre-vingt','quatre-vingt-dix'];
+
 function numToFr(n){
   if (n < 20) return UNITS[n];
   if (n < 100){
@@ -1037,7 +1042,8 @@ function speakSystem(text){
 
 function speak(text){
   return new Promise(resolve => {
-    const clean = normalizeForTTS(text);
+    let clean = text;
+    try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); }
     setState('speaking');
     setStatus('...');
     let settled = false;
