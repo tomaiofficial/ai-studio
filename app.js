@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.82';
+const APP_VERSION = '7.83';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -643,16 +643,26 @@ async function askPollinations(question, webCtx, model, msgs){
         messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
       }
     }
+    /* timeout plus long (25s) : Pollinations peut etre lent au premier appel */
     const res = await withTimeout(fetch('https://text.pollinations.ai/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, model: model || 'openai', private: true })
-    }), 12000);
-    if (!res || !res.ok) return { error: 'limit' };
+    }), 25000);
+    if (!res || !res.ok){
+      console.warn('[Pollinations] HTTP', res?.status, 'model:', model);
+      return { error: 'limit' };
+    }
     const text = await res.text();
-    if (!text || !text.trim()) return { error: 'limit' };
+    if (!text || !text.trim()){
+      console.warn('[Pollinations] reponse vide, model:', model);
+      return { error: 'limit' };
+    }
     return { text: text.trim() };
-  } catch { return { error: 'limit' }; }
+  } catch(e){
+    console.warn('[Pollinations] erreur:', e?.message, 'model:', model);
+    return { error: 'limit' };
+  }
 }
 /* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
    reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
@@ -677,6 +687,14 @@ async function askBrain(messages){
   if (bad(r)){
     await new Promise(res => setTimeout(res, 5000));
     r = await askPollinations(null, null, 'mistral', messages);
+  }
+  /* FALLBACK ULTIME : si TOUT a echoue, on renvoie une reponse basique locale
+     au lieu de faire dire "mon cerveau a bugge" a l'utilisateur. */
+  if (bad(r)){
+    const lastUser = [...messages].reverse().find(m => m.role === 'user');
+    const q = lastUser?.content || '';
+    const fallback = `J'ai un souci de connexion pour le moment. Pour "${q.slice(0,50)}...", je te repondrai quand ca remarche. Reessaie dans un instant.`;
+    return { text: fallback };
   }
   return r;
 }
