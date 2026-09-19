@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.52';
+const APP_VERSION = '7.53';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -832,6 +832,38 @@ async function speakGoogleTTS(text){
   } catch(e){ console.warn('[VOIX] GoogleTTS echec:', e.message); return false; }
 }
 
+/* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
+   aucun CDN -> fonctionne TOUJOURS (voix francaise du systeme) */
+function speakSystem(text){
+  return new Promise(resolve => {
+    try {
+      if (!('speechSynthesis' in window)) return resolve(false);
+      const chunks = splitPiper(text, 200);
+      let i = 0;
+      let done = false;
+      const finish = ok => { if (done) return; done = true; resolve(ok); };
+      const speakNext = () => {
+        if (i >= chunks.length) return finish(true);
+        const u = new SpeechSynthesisUtterance(chunks[i++]);
+        u.lang = 'fr-FR';
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        const voices = window.speechSynthesis.getVoices();
+        const fr = voices.find(v => (v.lang || '').toLowerCase().startsWith('fr'));
+        if (fr) u.voice = fr;
+        u.onend = () => speakNext();
+        u.onerror = () => finish(false);
+        window.speechSynthesis.speak(u);
+      };
+      /* garde-fou : si rien ne parle apres 3s (voix indisponible), on passe au repli */
+      setTimeout(() => { if (!done && !window.speechSynthesis.speaking) finish(false); }, 3000);
+      speakNext();
+      /* timeout global (phrases longues) */
+      setTimeout(() => finish(true), chunks.length * 20000 + 10000);
+    } catch(e){ resolve(false); }
+  });
+}
+
 function speak(text){
   return new Promise(resolve => {
     const clean = normalizeForTTS(text);
@@ -849,8 +881,15 @@ function speak(text){
     const tryGoogle = () => speakGoogleTTS(clean).then(ok2 => {
       if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
       else {
-        console.warn('[VOIX] GoogleTTS bloque -> Edge');
-        speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
+        console.warn('[VOIX] GoogleTTS bloque -> Systeme');
+        trySystem();
+      }
+    });
+    const trySystem = () => speakSystem(clean).then(ok3 => {
+      if (ok3) { console.log('[VOIX] Systeme OK'); done(true); }
+      else {
+        console.warn('[VOIX] Systeme bloque -> Edge');
+        speakEdgeNeural(clean).then(ok4 => { if (ok4) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok4); });
       }
     });
     /* Mobile : voix legere d'abord (pas de crash memoire). Desktop : Piper locale d'abord. */
@@ -861,6 +900,7 @@ let currentAudios = [];
 function stopAudio(){
   currentAudios.forEach(a => { try { a.pause(); a.src = ''; } catch {} });
   currentAudios = [];
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
 }
 async function handleQuestion(question){
   if (isProcessing) return;
