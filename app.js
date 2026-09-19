@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.85';
+const APP_VERSION = '7.86';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -632,7 +632,7 @@ async function webSearch(question){
    est en panne, on bascule sur un autre. */
 /* ===== CERVEAUX GRATUITS SANS CLE (multi-endpoints) =====
    On essaie plusieurs services gratuits sans cle jusqu'a ce qu'un reponde.
-   Ordre : HuggingFace (gratuit, rate limited) -> Pollinations GET -> Pollinations POST -> endpoints communautaires. */
+   AUCUN service qui demande des credits/compte. */
 async function askFreeLLM(question, webCtx, msgs){
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
@@ -663,7 +663,7 @@ async function askFreeLLM(question, webCtx, msgs){
     console.warn('[HF] rate limited ou erreur');
   } catch(e){ console.warn('[HF] erreur:', e?.message); }
 
-  /* 2. POLLINATIONS GET (gratuit, sans cle, pas de credits) */
+  /* 2. POLLINATIONS GET ONLY (gratuit, sans cle, PAS de credits) */
   try {
     const getUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai&private=true';
     const res = await withTimeout(fetch(getUrl), 25000);
@@ -674,25 +674,13 @@ async function askFreeLLM(question, webCtx, msgs){
     console.warn('[Pollinations GET] echoue');
   } catch(e){ console.warn('[Pollinations GET] erreur:', e?.message); }
 
-  /* 3. POLLINATIONS POST (peut demander credits) */
-  try {
-    const res = await withTimeout(fetch('https://text.pollinations.ai/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: openaiMessages, model: 'openai', private: true })
-    }), 25000);
-    if (res && res.ok){
-      const text = await res.text();
-      if (text && text.trim()) return { text: text.trim() };
-    }
-    console.warn('[Pollinations POST] echoue');
-  } catch(e){ console.warn('[Pollinations POST] erreur:', e?.message); }
-
-  /* 4. ENDPOINTS COMMUNAUTAIRES GRATUITS (OpenAI-compatible, sans cle) */
+  /* 3. ENDPOINTS COMMUNAUTAIRES GRATUITS (OpenAI-compatible, sans cle, sans credits) */
   const communityEndpoints = [
     'https://free.churchless.tech/v1/chat/completions',
     'https://llama.freeopenai.com/v1/chat/completions',
-    'https://api.llama-api.com/v1/chat/completions'
+    'https://api.llama-api.com/v1/chat/completions',
+    'https://api.gpt4free.io/v1/chat/completions',
+    'https://free.gpt.ge/v1/chat/completions'
   ];
   for (const ep of communityEndpoints){
     try {
