@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.78';
+const APP_VERSION = '7.79';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -623,8 +623,10 @@ async function webSearch(question){
 /* Cerveau GRATUIT SANS LIMITE A VIE POUR TOUT LE MONDE : Pollinations.ai.
    AUCUNE cle, AUCUNE limite, marche pour tout le monde des l'ouverture.
    Utilise par defaut quand aucune cle Groq/Mistral n'est configuree,
-   et en secours silencieux quand Groq/Mistral sont en limite. */
-async function askPollinations(question, webCtx){
+   et en secours silencieux quand Groq/Mistral sont en limite.
+   Plusieurs modeles dispo ('openai', 'mistral', 'llama'...) : si un backend
+   est en panne, on bascule sur un autre. */
+async function askPollinations(question, webCtx, model){
   try {
     const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
     const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
@@ -638,7 +640,7 @@ async function askPollinations(question, webCtx){
     const res = await withTimeout(fetch('https://text.pollinations.ai/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, model: 'openai', private: true })
+      body: JSON.stringify({ messages, model: model || 'openai', private: true })
     }), 12000);
     if (!res || !res.ok) return { error: 'limit' };
     const text = await res.text();
@@ -652,28 +654,31 @@ async function askAI(question){
   /* recherche web UNE SEULE fois, partagee entre tous les cerveaux (sinon relancee
      a chaque tentative = lenteur) */
   const webCtx = await webSearch(question);
-  /* AUCUNE cle requise : sans cle Groq/Mistral, Pollinations repond direct
-     (gratuit, sans limite, pour tout le monde). Avec une cle, on l'utilise en 1er. */
-  let r;
-  if (getGroqKey()) r = await askGroq(question, webCtx);
-  else if (getMistralKey()) r = await askMistral(question, webCtx);
-  else r = await askPollinations(question, webCtx);
-  /* JAMAIS de message "limite atteinte" : on bascule de cerveau en silence
-     (Mistral -> Pollinations gratuit sans cle ni limite), puis retry Groq.
-     Filtre PRECIS : uniquement les vraies phrases de limite, pas le mot "limite"
-     seul (sinon une reponse normale comme "sans limite" declenche tout le secours). */
+  /* JAMAIS de message "limite atteinte" ni "mon cerveau a bugge" : on essaie TOUS
+     les cerveaux en silence jusqu'a ce que l'un reponde. Filtre PRECIS : vraies
+     phrases de limite/refus, pas le mot "limite" seul. */
   const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole|desole, mais/i.test(x.text || ''));
+  /* Liste des cerveaux dans l'ordre : cles configurees d'abord, puis Pollinations
+     gratuit (plusieurs modeles = plusieurs backends independants). */
+  const brains = [];
+  if (getGroqKey()) brains.push(() => askGroq(question, webCtx));
+  if (getMistralKey()) brains.push(() => askMistral(question, webCtx));
+  brains.push(() => askPollinations(question, webCtx, 'openai'));
+  brains.push(() => askPollinations(question, webCtx, 'mistral'));
+  brains.push(() => askPollinations(question, webCtx, 'llama'));
+  let r = null;
+  for (const b of brains){
+    r = await b();
+    if (!bad(r)) break;
+  }
+  /* Dernier recours : retry Pollinations avec backoff (2s puis 5s) */
   if (bad(r)){
-    if (getMistralKey()) r = await askMistral(question, webCtx);
-    if (bad(r)) r = await askPollinations(question, webCtx);
-    if (bad(r) && getGroqKey()){
-      await new Promise(res => setTimeout(res, 2000));
-      r = await askGroq(question, webCtx);
-    }
-    if (bad(r) && getGroqKey()){
-      await new Promise(res => setTimeout(res, 5000));
-      r = await askGroq(question, webCtx);
-    }
+    await new Promise(res => setTimeout(res, 2000));
+    r = await askPollinations(question, webCtx, 'openai');
+  }
+  if (bad(r)){
+    await new Promise(res => setTimeout(res, 5000));
+    r = await askPollinations(question, webCtx, 'mistral');
   }
   if (!bad(r)){
     r.text = enforceIdentity(r.text);
