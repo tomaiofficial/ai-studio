@@ -1,5 +1,5 @@
 /* Assistant Vocal IA — Service Worker */
-const CACHE = 'assistvocal-v45';
+const CACHE = 'assistvocal-v46';
 const STATIC = [
   './manifest.webmanifest',
   './icon-192.png',
