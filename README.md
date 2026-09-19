@@ -1,96 +1,86 @@
-# 🎬 Agnes Video Generator — Completely Free AI Video Generator
+﻿# 🎙️ Assistant Vocal IA
 
-[![中文](https://img.shields.io/badge/CN-中文-red)](/README_ZH.md)
-[![GitHub Stars](https://img.shields.io/github/stars/lcy362/agnes-video-generator?style=social)](https://github.com/lcy362/agnes-video-generator)
-[![License](https://img.shields.io/github/license/lcy362/agnes-video-generator)](https://github.com/lcy362/agnes-video-generator/blob/main/LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-blue)](https://www.python.org/)
-[![Website](https://img.shields.io/badge/website-video.lichuanyang.top-8A2BE2)](https://video.lichuanyang.top)
-[![Docker Hub](https://img.shields.io/docker/pulls/lcy362/free-short-video?label=docker%20pulls)](https://hub.docker.com/r/lcy362/free-short-video)
-[![npm](https://img.shields.io/npm/v/free-short-video?label=npm)](https://www.npmjs.com/package/free-short-video)
+**Ton assistant vocal sur mobile** — parle-lui naturellement comme avec ChatGPT, avec une vraie voix. Rappels, calendrier, météo, localisation, minuteurs, calculs, notes…
 
-> **Completely free AI video generator** — Built on Agnes AI's free models, no subscription, no high-end GPU, no usage limits. Type in a text idea and automatically generate multi-scene AI videos with narration and subtitles. Supports text-to-video, image-to-video, keyframes animation, digital anchor, and more. All AI compute runs in the cloud — a regular laptop is all you need. **[Try it online →](https://video.lichuanyang.top)**
+🌐 **En ligne** : https://tomaiofficial.github.io/ai-studio/
 
-> "The solution is not to suppress AI, but to make it a more equitable capability, so that everyone knows how to create more with AI. This is a very important vision for our company — to make world-class AI belong to everyone. What we can do may be insignificant, but this vision is very long-term and enduring."
->
-> — Bruce Yang, Founder of Agnes AI
+## ✨ Fonctionnalités
 
-**[🌐 Official Website](https://video.lichuanyang.top)** | **[📝 Blog (中文)](https://lichuanyang.top/posts/22470/)** | **[📝 Blog (English)](https://lichuanyang.top/en/posts/22470/)**
+- 🎙️ **Reconnaissance vocale** en français (gratuite, via le navigateur — Chrome Android recommandé)
+- 🤖 **Mode IA (ChatGPT)** : discussion libre et naturelle — **répond à tout** comme Claude AI (connaissances, explications, conseils, rédaction, actualité…) et agit (rappels, calendrier, météo, position…) via des outils automatiques
+- 🔎 **Recherche web intégrée** : l'IA cherche sur le web pour répondre aux questions d'actualité et aux faits récents
+- 🧠 **4 fournisseurs IA au choix** : OpenAI (GPT-4o), Groq (gratuit), Google Gemini (gratuit), OpenRouter (gratuit)
+- 🗣️ **Vraie voix IA naturelle** : Google Gemini TTS (gemini-2.5-flash-preview-tts) — voix humaines avec **instruction de style** (naturel, calme, dynamique, narrateur, proche). Ce n'est **pas** de la synthèse vocale robotique.
+- ⏰ **Rappels** avec notifications + voix (« rappelle-moi de X dans 2 heures »)
+- 📅 **Calendrier** (« ajoute un événement réunion demain à 10h »)
+- 🌤️ **Météo** en temps réel, aujourd'hui et demain (Open-Meteo, sans clé API)
+- 📍 **Localisation GPS** avec carte OpenStreetMap + adresse + partage (« où suis-je »)
+- ⏱️ **Minuteur** (« minuteur de 5 minutes »)
+- 🧮 **Calculs** (« combien font 15 + 27 ») et **conversions** (« convertir 10 km en miles »)
+- 📝 **Notes** vocales (« note que je dois acheter du pain »)
+- 🎲 **Pile ou face, dé, choix** (« choisis entre A et B »)
+- 🔎 **Recherche web** (« cherche X ») et **ouverture de sites** (« ouvre youtube »)
+- ⏰ **Alarme / réveil** (« réveille-moi à 7h »)
+- 📱 **PWA installable** : fonctionne hors-ligne, ajoutable à l'écran d'accueil
+- 🌗 Thème sombre / clair
 
-> **🖥️ Try it now — no install needed:** Visit [video.lichuanyang.top](https://video.lichuanyang.top) and experience **Simple Video** mode directly in your browser. Just enter a prompt and generate a free AI video instantly.
+## 🤖 Mode IA (optionnel, recommandé)
 
-## ⭐ Support & Contribute
+Sans configuration, l'assistant fonctionne en **mode local** (commandes vocales). Pour discuter **librement comme avec ChatGPT** — répondre à **tout** — ajoute une clé IA :
 
-If you find this project useful, please **star the [GitHub repository](https://github.com/lcy362/agnes-video-generator)** ⭐ — your support helps more people discover this free and open-source AI video generator.
+1. Ouvre les **réglages ⚙️** dans l'app
+2. Choisis un **fournisseur** :
+   - **Groq** — gratuit, ultra rapide (https://console.groq.com/keys)
+   - **Google Gemini** — gratuit (https://aistudio.google.com/apikey)
+   - **OpenRouter** — modèles gratuits (https://openrouter.ai/keys)
+   - **OpenAI** — qualité max + voix OpenAI (https://platform.openai.com/api-keys)
+3. Colle ta **clé** — elle reste **uniquement sur ton appareil**, jamais envoyée sur le site
+4. Choisis ton **modèle** et ta **voix**, puis teste 🔊
 
-Bug reports and feature suggestions are welcome via [GitHub Issues](https://github.com/lcy362/agnes-video-generator/issues).
+> 💡 **Groq, Gemini et OpenRouter sont gratuits** (sans carte bancaire). Pour la voix naturelle, la clé **Google AI Studio** (gratuite) est la solution recommandée.
 
-### 💝 Support the Developer
+En mode IA, tu peux dire n'importe quoi : « rappelle-moi de prendre mes médicaments demain à 8h », « quel temps fait-il ce week-end ? », « explique-moi la photosynthèse », « écris un poème sur la mer », « qui a gagné la coupe du monde 2026 ? » (recherche web automatique), « ajoute un rendez-vous chez le dentiste vendredi à 15h », « quels sont mes rappels ? »… L'IA répond à tout et utilise automatiquement les bons outils.
 
-Agnes Video Generator is and will always remain completely free and open-source. There will be **no paid plans, no premium features, and no subscription services** — now or in the future.
+> 💡 Sans clé API, l'app reste 100 % fonctionnelle en mode local (gratuit, sans compte).
 
-If you find this project helpful, here are a few ways to support its continued development:
+## 🛠️ Structure
 
-- **⭐ Star on GitHub** — Star the [repository](https://github.com/lcy362/agnes-video-generator) to help others discover this project.
-- **🌐 Whitelist the official website** — Turn off your ad blocker on [video.lichuanyang.top](https://video.lichuanyang.top) and click on an ad if something catches your eye. A small gesture that makes a real difference.
-- **📢 Share your creations** — Post videos made with Agnes Video Generator on social media (Douyin, YouTube, Xiaohongshu, etc.) and tag the project. More exposure means more users, more feedback, and a better tool for everyone.
+```
+index.html            → interface mobile
+style.css             → design (sombre, cyan/rouge)
+app.js                → voix, IA (ChatGPT + TTS), commandes, rappels, calendrier, météo, notes…
+manifest.webmanifest  → installation PWA
+sw.js                 → service worker (hors-ligne)
+icon-192.png / icon-512.png → icônes
+_backup-techhelp/     → ancien site TechHelp (sauvegarde)
+```
 
-## 🎥 Demo
+## 🗣️ Exemples de commandes (mode local)
 
-### 1. Creative Video — No Narration
+| Tu dis… | Il fait… |
+|---|---|
+| « Rappelle-moi d'arroser les plantes dans 2 heures » | ⏰ Rappel + notification |
+| « Ajoute un événement réunion demain à 10h » | 📅 Événement au calendrier |
+| « Quel temps fait-il ? » / « Demain il fait quel temps ? » | 🌤️ Météo |
+| « Où suis-je ? » | 📍 Position + carte |
+| « Minuteur de 5 minutes » | ⏱️ Minuteur |
+| « Combien font 15 + 27 ? » | 🧮 Calcul |
+| « Convertir 10 km en miles » | 🔄 Conversion |
+| « Note que je dois acheter du pain » | 📝 Note |
+| « Pile ou face » / « Lance un dé » / « Choisis entre A et B » | 🎲 Hasard |
+| « Réveille-moi à 7h » | ⏰ Alarme |
+| « Cherche recette de crêpes » / « Ouvre youtube » | 🔎 Web |
+| « Quelle heure est-il ? » / « Quel jour sommes-nous ? » | 🕐 Heure/date |
+| « Aide » | ❓ Liste des commandes |
 
-> A dark-twist fairytale — *The Frog Prince*, 5 scenes, keyframes chaining, fully auto-generated.
+## 📱 Installer sur ton téléphone
 
-[![The Frog Prince — Demo Video](https://img.shields.io/badge/▶%20Watch%20Demo-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/L4F6KdGnD6U/)
+1. Ouvre https://tomaiofficial.github.io/ai-studio/ dans **Chrome** (Android)
+2. Menu ⋮ → **« Ajouter à l'écran d'accueil »** (ou « Installer l'application »)
+3. Autorise le **micro** et les **notifications** à la première utilisation
 
-### 2. Creative Video — With TTS Narration
+> ⚠️ Les notifications ne s'affichent que si l'app est ouverte (ou récemment utilisée). Pour des rappels fiables en arrière-plan, il faudrait un serveur de push (hors scope de cette version).
 
-> Same *Frog Prince* story, now with AI-generated TTS narration and auto subtitles.
+## 🗂️ Sauvegarde
 
-[![The Frog Prince with Narration — Demo](https://img.shields.io/badge/▶%20Watch%20Demo-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/l2FlbF1Jdz0/)
-
-### 3. Manuscript Video — Text-to-Video
-
-> Paste a long article or script → auto-split into segments → AI video per segment → unified TTS narration + subtitles → final video.
-
-[![Manuscript Video Demo](https://img.shields.io/badge/▶%20Watch%20Demo-FF0050?style=for-the-badge&logo=tiktok&logoColor=white)](https://v.douyin.com/eSGE9KENWVU/)
-
-<sub>Click to watch on Douyin</sub>
-
-## Why Agnes Video Generator?
-
-Making AI videos today has an absurdly high barrier. Overseas services like Runway and Pika charge monthly subscriptions of tens of dollars. Domestic platforms like Jimeng and Keling charge by the second once their free quotas run out. Want to run open-source models locally? A GPU capable of video generation easily costs over ten thousand RMB. For most people who want to try AI video creation, the door is essentially closed.
-
-We believe what Bruce Yang said — AI should be a more equitable capability. World-class AI should belong to everyone, not just those who can afford the bill.
-
-To be honest, Agnes's video model isn't perfect yet. The generated frames are sometimes unstable, and complex actions occasionally deform. But it is **completely free with no usage limits**, and it iterates fast. We choose to grow with it rather than wait for a "perfect" commercial solution. If you share this mindset, then this project is for you — all you need is a free [Agnes AI](https://platform.agnes-ai.com) API key and an ordinary computer that can run Python to start creating AI videos at zero cost.
-
-### Comparison: Agnes vs. Commercial AI Video Tools
-
-| Feature | Agnes Video Generator | Runway Gen-3 | Pika 2.0 | OpenAI Sora | Kling 1.6 |
-|---------|:---:|:---:|:---:|:---:|:---:|
-| **Price** | Free | $15–$95/month | $10–$95/month | $20+/month (limited) | Free quota, then pay-per-second |
-| **Open Source** | ✅ Yes (MIT) | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Self-Hosted** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Max Video Length** | 20s per clip, unlimited scenes | 10s per clip | 10s per clip | 20s per clip | 10s per clip |
-| **Multi-Scene Pipeline** | ✅ Built-in (Creative/Manuscript) | ❌ Manual editing | ❌ Manual editing | ❌ Manual editing | ❌ Manual editing |
-| **AI Narration (TTS)** | ✅ Free, built-in | ❌ Third-party | ❌ Third-party | ❌ Not available | ❌ Not available |
-| **Auto Subtitles** | ✅ Word-level SRT | ❌ Not available | ❌ Not available | ❌ Not available | ❌ Not available |
-| **Digital Anchor** | ✅ Built-in | ❌ No | ❌ No | ❌ No | ❌ No |
-| **Resolution Options** | 9:16 / 16:9 / 1:1 | Multiple | Multiple | Multiple | Multiple |
-| **Image-to-Video** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Image inputs | ✅ Yes |
-| **Keyframes Animation** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ Not available | ❌ Not available |
-| **Local GPU Required** | ❌ No (cloud API) | ❌ No (cloud) | ❌ No (cloud) | ❌ No (cloud) | ❌ No (cloud) |
-| **Watermark** | No watermark | Built-in watermark | Built-in watermark | C2PA metadata | Built-in watermark |
-| **Usage Limit** | No limit (16 req/min rate limit) | Billed by compute | Billed by generation | Billed by generation | Billed by generation |
-
-## 📚 Documentation
-
-- **[Features](docs/features.md)** — Creation modes, the completely free AI model chain, AI narration & smart subtitles, flexible creative controls, production-grade reliability, and the multilingual Web UI.
-- **[Getting Started](docs/getting-started.md)** — Install and deploy in 4 ways: Manual (`start.sh`), Docker, npm (`npx free-short-video`), or AI-Agent assisted.
-- **[Usage Guide](docs/usage.md)** — Configure your API key, pick a video mode, resume from checkpoints, the three chaining modes, and logs & output layout.
-- **[Architecture](docs/architecture.md)** — Project structure and tech stack.
-- **[API Reference](docs/api.md)** — Full REST + WebSocket endpoint list.
-- **[FAQ](docs/faq.md)** — Frequently asked questions.
-- **[About & License](docs/about.md)** — Acknowledgments and the MIT license.
-
-**Keywords**: free AI video generator, AI video generation tool, text to video AI, free AI video maker, AI video creator, open source video generator, Agnes AI, text-to-video, image-to-video, keyframes video, AI narration, auto subtitles, multi-scene video, zero cost AI video, no subscription AI video tool, digital anchor, self-hosted AI video generator, open source alternative to Runway
+L'ancien site **TechHelp** est conservé dans `_backup-techhelp/`.
