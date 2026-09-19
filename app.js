@@ -38,7 +38,7 @@ const PROVIDERS = {
   }
 };
 const TTS_MODEL  = 'gpt-4o-mini-tts';
-const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']; // nova = femme reelle par defaut
 const hasAI = () => !!localStorage.getItem('va_apikey');
 const getProviderId = () => localStorage.getItem('va_provider') || 'openai';
 const getProvider = () => PROVIDERS[getProviderId()] || PROVIDERS.openai;
