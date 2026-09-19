@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.55';
+const APP_VERSION = '7.56';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -343,8 +343,10 @@ orb.addEventListener('click', () => {
     setStatus('Ecoute... parle maintenant');
     recog.start();
   } catch {
+    /* Sur mobile recog.start() peut jeter (permission, etat) -> on bascule
+       sur l'enregistrement + Whisper au lieu d'abandonner */
     setState('idle');
-    setStatus('Reessaie - appuie sur le micro');
+    startRecorder();
   }
 });
 
@@ -708,6 +710,16 @@ function ensureAudio(){
 ['pointerdown','touchstart','click','keydown'].forEach(ev => {
   window.addEventListener(ev, () => {
     ensureAudio();
+    /* iOS : reveille la synthese vocale avec un speak() silencieux dans le geste
+       utilisateur (sinon speechSynthesis reste bloque hors geste) */
+    if ('speechSynthesis' in window){
+      try {
+        const u = new SpeechSynthesisUtterance(' ');
+        u.volume = 0;
+        window.speechSynthesis.speak(u);
+        window.speechSynthesis.cancel();
+      } catch {}
+    }
     /* Desktop : on precharge la voix Piper pendant que l'utilisateur parle -> reponse vocale immediate.
        Si Piper est indisponible, on precharge VITS a la place. */
     if (!IS_MOBILE && !piperEngine && !piperLoading){
@@ -938,12 +950,21 @@ function speak(text){
       if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
       else {
         console.warn('[VOIX] GoogleTTS bloque -> Edge');
-        speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
+        speakEdgeNeural(clean).then(ok3 => {
+          if (ok3) { console.log('[VOIX] Edge OK'); done(true); }
+          else {
+            console.warn('[VOIX] Edge bloque -> Systeme');
+            speakSystem(clean).then(ok4 => {
+              if (ok4) { console.log('[VOIX] Systeme OK (secours)'); done(true); }
+              else { console.warn('[VOIX] Systeme bloque'); setStatus("Voix indisponible - verifie ta connexion"); done(false); }
+            });
+          }
+        });
       }
     });
-    /* VOIX SYSTEME D'ABORD : fiable a 100% (aucun reseau, aucun CDN). Les voix locales
-       (Piper/VITS) et GoogleTTS ne servent que de secours. */
-    trySystem();
+    /* MOBILE : GoogleTTS d'abord (audio element = fiable apres interaction, la voix
+       systeme est bloquee sur iOS hors geste utilisateur). Desktop : voix systeme. */
+    if (IS_MOBILE) tryGoogle(); else trySystem();
   });
 }
 let currentAudios = [];
