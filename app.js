@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.76';
+const APP_VERSION = '7.77';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -828,6 +828,13 @@ function numToFr(n){
 function normalizeForTTS(text){
   return text.normalize('NFC')
     .replace(/\u2011/g, '-').replace(/[\u2010-\u2015]/g, '-')
+    /* apostrophes normalisees en ASCII (les moteurs TTS les lisent mal en Unicode) */
+    .replace(/[\u2018\u2019]/g, "'")
+    /* guillemets « » " " et doubles quotes SUPPRIMES : les TTS les prononcent
+       bizarrement ("guillemet gauche", pause bizarre...) -> on les vire */
+    .replace(/[\u201C\u201D\u201E\u00AB\u00BB"]/g, ' ')
+    /* liens web : jamais lus lettre par lettre */
+    .replace(/https?:\/\/\S+/gi, ' lien ')
     .replace(/Tom\.ai/gi, 'Tom point ai')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
