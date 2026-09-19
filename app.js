@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.65';
+const APP_VERSION = '7.66';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -459,11 +459,18 @@ async function askGroq(question){
   try {
     let reply = '';
     for (const model of [GROQ_MODEL, 'groq/compound-mini']){
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model, messages, max_tokens: 600, temperature: 0.8 })
-      });
+      /* timeout 30s : sinon un fetch bloque = orbe qui tourne pour toujours */
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 30000);
+      let res;
+      try {
+        res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model, messages, max_tokens: 600, temperature: 0.8 }),
+          signal: ctrl.signal
+        });
+      } finally { clearTimeout(timer); }
       if (res.status === 429) return { error: 'limit' };
       if (!res.ok) return { error: 'api' };
       const j = await res.json();
@@ -481,11 +488,18 @@ async function askMistral(question){
   if (!key) return { error: 'nokey' };
   const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
   try {
-    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 400, temperature: 0.7 })
-    });
+    /* timeout 25s : sinon un fetch bloque = orbe qui tourne pour toujours */
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    let res;
+    try {
+      res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 400, temperature: 0.7 }),
+        signal: ctrl.signal
+      });
+    } finally { clearTimeout(timer); }
     if (res.status === 429) return { error: 'limit' };
     if (!res.ok) return { error: 'api' };
     const j = await res.json();
@@ -1095,7 +1109,11 @@ async function handleQuestion(question){
   else addUserMsg(question);
   setState('thinking');
   setStatus('...');
-  const r = await askAI(question);
+  /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente) */
+  const r = await Promise.race([
+    askAI(question),
+    new Promise(res => setTimeout(() => res({ error: 'timeout' }), 50000))
+  ]);
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
@@ -1105,6 +1123,9 @@ async function handleQuestion(question){
     } else if (r.error === 'limit'){
       setStatus('Limite atteinte - reessaie dans une minute');
       await speak("J'ai atteint ma limite. Attends quelques secondes et reessaie.");
+    } else if (r.error === 'timeout'){
+      setStatus('L\'IA met trop de temps - verifie ta connexion');
+      await speak("Je n'arrive pas a repondre, ma connexion est lente. Reessaie dans un instant.");
     } else {
       setStatus('Erreur IA - verifie ta cle');
       await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
