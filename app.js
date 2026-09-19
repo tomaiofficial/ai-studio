@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.72';
+const APP_VERSION = '7.73';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -618,6 +618,20 @@ async function askAI(question){
   if (session.length > 12) session = session.slice(-12);
   let r = await askGroq(question);
   if (r.error === 'nokey') r = await askMistral(question);
+  /* LIMITE (429) : on ne dit JAMAIS "limite atteinte" a l'utilisateur.
+     On reessaie automatiquement en silence (backoff 3s puis 8s),
+     et on bascule sur Mistral si une cle est configuree. */
+  if (r.error === 'limit'){
+    if (getMistralKey()) r = await askMistral(question);
+    if (r.error === 'limit'){
+      await new Promise(res => setTimeout(res, 3000));
+      r = await askGroq(question);
+    }
+    if (r.error === 'limit'){
+      await new Promise(res => setTimeout(res, 8000));
+      r = await askGroq(question);
+    }
+  }
   if (!r.error){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
@@ -1154,8 +1168,8 @@ async function handleQuestion(question){
       toast('Va dans les reglages et colle ta cle Groq');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit'){
-      setStatus('Limite atteinte - reessaie dans une minute');
-      await speak("J'ai atteint ma limite. Attends quelques secondes et reessaie.");
+      setStatus('Mon cerveau est surcharge - reessaie dans un instant');
+      await speak("Mon cerveau est surcharge, reessaie dans un instant.");
     } else if (r.error === 'timeout'){
       setStatus('L\'IA met trop de temps - verifie ta connexion');
       await speak("Je n'arrive pas a repondre, ma connexion est lente. Reessaie dans un instant.");
