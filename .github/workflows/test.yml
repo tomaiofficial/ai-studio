@@ -46,6 +46,12 @@ jobs:
             requirements.txt
             requirements-dev.txt
 
+      - name: Verify Python
+        run: |
+          python --version
+          which python
+          pip --version
+
       - name: Install ffmpeg + CJK font (moviepy 视频拼接 / 字幕中文渲染依赖)
         run: |
           sudo apt-get update

@@ -164,8 +164,15 @@ function speak(text,callback){
 function startListening(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){
-        setStatus('Reconnaissance non supportée','on');
-        addChat('Désolé, la reconnaissance vocale n\'est pas supportée dans ce navigateur.','ai');
+        setStatus('Non supporté','on');
+        addChat('🔇 Reconnaissance vocale non supportée. Utilisez le clavier à la place.','ai');
+        chatInput.focus();
+        return;
+    }
+    if(location.protocol==='http:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+        setStatus('HTTPS requis','on');
+        addChat('🔇 La reconnaissance vocale nécessite HTTPS. Essayez en HTTPS.','ai');
+        chatInput.focus();
         return;
     }
     speechRec=new SR();
@@ -190,8 +197,14 @@ function startListening(){
     };
     speechRec.onerror=function(e){
         listening=false;
-        if(e.error!=='no-speech'&&e.error!=='aborted'){
-            addChat('Erreur de reconnaissance vocale.','ai');
+        if(e.error==='not-allowed'){
+            addChat('🔇 Microphone bloqué. Autorisez l\'accès dans les paramètres du navigateur, puis réessayez.','ai');
+            chatInput.focus();
+        }else if(e.error==='no-speech'){
+            // Silence, rien à faire
+        }else if(e.error!=='aborted'){
+            addChat('🔇 Erreur vocal. Utilisez le clavier.','ai');
+            chatInput.focus();
         }
         setStatus(active?'Connecté':'En attente','on');
         orbEl.className=active?'idle':'';
@@ -203,6 +216,8 @@ function startListening(){
         speechRec.start();
     }catch(e){
         listening=false;
+        addChat('🔇 Vocale indisponible. Tapez dans le champ ci-dessous.','ai');
+        chatInput.focus();
         setStatus(active?'Connecté':'En attente','on');
         orbEl.className=active?'idle':'';
     }
