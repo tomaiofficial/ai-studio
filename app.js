@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.56';
+const APP_VERSION = '7.57';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -721,9 +721,12 @@ function ensureAudio(){
       } catch {}
     }
     /* Desktop : on precharge la voix Piper pendant que l'utilisateur parle -> reponse vocale immediate.
-       Si Piper est indisponible, on precharge VITS a la place. */
+       Si Piper est indisponible, on precharge VITS a la place.
+       Mobile avec assez de RAM : on precharge VITS (voix FEMININE locale) en secours. */
     if (!IS_MOBILE && !piperEngine && !piperLoading){
       loadPiper().catch(() => { if (!vitsTTS && !vitsLoading) loadVits().catch(() => {}); });
+    } else if (IS_MOBILE && !vitsTTS && !vitsLoading && (!navigator.deviceMemory || navigator.deviceMemory >= 4)){
+      loadVits().catch(() => {});
     }
   }, { passive: true });
 });
@@ -881,12 +884,19 @@ async function speakGoogleTTS(text){
         const finish = v => { if (done) return; done = true; res(v); };
         audio.onended = () => finish(true);
         audio.onerror = () => finish(false);
-        audio.play().catch(() => finish(false));
+        /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
+        const tryPlay = n => {
+          audio.play().then(() => {}).catch(() => {
+            if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+            else finish(false);
+          });
+        };
+        tryPlay(0);
         /* verifier que les donnees arrivent vraiment (sinon faux succes -> muet) */
         setTimeout(() => {
           if (!done && audio.readyState < 2) finish(false);
           else if (!done) finish(true);
-        }, 15000);
+        }, 25000);
       });
       if (!ok) return false;
     }
@@ -934,37 +944,24 @@ function speak(text){
     setState('speaking');
     setStatus('...');
     const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur le micro et parle"); resolve(ok); };
-    const trySystem = () => speakSystem(clean).then(ok => {
-      if (ok) { console.log('[VOIX] Systeme OK'); done(true); }
-      else { console.warn('[VOIX] Systeme bloque -> locale'); if (IS_MOBILE) tryGoogle(); else tryPiper(); }
-    });
-    const tryPiper = () => speakPiper(clean).then(ok => {
-      if (ok) { console.log('[VOIX] Piper OK (locale haute qualite)'); done(true); }
-      else { console.warn('[VOIX] Piper bloque -> VITS'); tryVits(); }
-    });
-    const tryVits = () => speakVits(clean).then(ok => {
-      if (ok) { console.log('[VOIX] VITS OK (locale gratuite a vie)'); done(true); }
-      else { console.warn('[VOIX] VITS bloque -> GoogleTTS'); tryGoogle(); }
-    });
-    const tryGoogle = () => speakGoogleTTS(clean).then(ok2 => {
-      if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
-      else {
-        console.warn('[VOIX] GoogleTTS bloque -> Edge');
-        speakEdgeNeural(clean).then(ok3 => {
-          if (ok3) { console.log('[VOIX] Edge OK'); done(true); }
-          else {
-            console.warn('[VOIX] Edge bloque -> Systeme');
-            speakSystem(clean).then(ok4 => {
-              if (ok4) { console.log('[VOIX] Systeme OK (secours)'); done(true); }
-              else { console.warn('[VOIX] Systeme bloque'); setStatus("Voix indisponible - verifie ta connexion"); done(false); }
-            });
-          }
-        });
-      }
-    });
-    /* MOBILE : GoogleTTS d'abord (audio element = fiable apres interaction, la voix
-       systeme est bloquee sur iOS hors geste utilisateur). Desktop : voix systeme. */
-    if (IS_MOBILE) tryGoogle(); else trySystem();
+    const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
+    /* Desktop : Systeme -> Piper -> VITS -> GoogleTTS -> Edge.
+       Mobile : GoogleTTS -> Edge -> VITS -> Systeme. La voix systeme mobile est souvent
+       masculine et bloquee sur iOS hors geste -> dernier recours. VITS = voix FEMININE
+       locale (fiable une fois chargee). */
+    const chain = IS_MOBILE
+      ? [['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural], ['VITS', speakVits], ['Systeme', speakSystem]]
+      : [['Systeme', speakSystem], ['Piper', speakPiper], ['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural]];
+    let i = 0;
+    const next = () => {
+      if (i >= chain.length) return fail();
+      const [name, fn] = chain[i++];
+      fn(clean).then(ok => {
+        if (ok) { console.log('[VOIX] ' + name + ' OK'); done(true); }
+        else { console.warn('[VOIX] ' + name + ' bloque'); next(); }
+      });
+    };
+    next();
   });
 }
 let currentAudios = [];
