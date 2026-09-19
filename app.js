@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.84';
+const APP_VERSION = '7.85';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -630,39 +630,86 @@ async function webSearch(question){
    et en secours silencieux quand Groq/Mistral sont en limite.
    Plusieurs modeles dispo ('openai', 'mistral', 'llama'...) : si un backend
    est en panne, on bascule sur un autre. */
-async function askPollinations(question, webCtx, model, msgs){
-  try {
-    const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-    let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-    if (!msgs){
-      const mem = buildMemoryContext(currentConvId);
-      if (mem){
-        messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-      }
-      if (webCtx){
-        messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
-      }
+/* ===== CERVEAUX GRATUITS SANS CLE (multi-endpoints) =====
+   On essaie plusieurs services gratuits sans cle jusqu'a ce qu'un reponde.
+   Ordre : HuggingFace (gratuit, rate limited) -> Pollinations GET -> Pollinations POST -> endpoints communautaires. */
+async function askFreeLLM(question, webCtx, msgs){
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
     }
-    /* timeout plus long (25s) : Pollinations peut etre lent au premier appel */
+    if (webCtx){
+      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
+    }
+  }
+  const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+  const openaiMessages = messages;
+
+  /* 1. HUGGINGFACE INFERENCE API (gratuit, sans cle, mais tres rate limited) */
+  try {
+    const hfRes = await withTimeout(fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 150, temperature: 0.7, return_full_text: false } })
+    }), 20000);
+    if (hfRes && hfRes.ok){
+      const data = await hfRes.json();
+      const text = data?.[0]?.generated_text || (Array.isArray(data) ? data[0]?.generated_text : '');
+      if (text && text.trim()) return { text: text.trim() };
+    }
+    console.warn('[HF] rate limited ou erreur');
+  } catch(e){ console.warn('[HF] erreur:', e?.message); }
+
+  /* 2. POLLINATIONS GET (gratuit, sans cle, pas de credits) */
+  try {
+    const getUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai&private=true';
+    const res = await withTimeout(fetch(getUrl), 25000);
+    if (res && res.ok){
+      const text = await res.text();
+      if (text && text.trim()) return { text: text.trim() };
+    }
+    console.warn('[Pollinations GET] echoue');
+  } catch(e){ console.warn('[Pollinations GET] erreur:', e?.message); }
+
+  /* 3. POLLINATIONS POST (peut demander credits) */
+  try {
     const res = await withTimeout(fetch('https://text.pollinations.ai/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, model: model || 'openai', private: true })
+      body: JSON.stringify({ messages: openaiMessages, model: 'openai', private: true })
     }), 25000);
-    if (!res || !res.ok){
-      console.warn('[Pollinations] HTTP', res?.status, 'model:', model);
-      return { error: 'limit' };
+    if (res && res.ok){
+      const text = await res.text();
+      if (text && text.trim()) return { text: text.trim() };
     }
-    const text = await res.text();
-    if (!text || !text.trim()){
-      console.warn('[Pollinations] reponse vide, model:', model);
-      return { error: 'limit' };
-    }
-    return { text: text.trim() };
-  } catch(e){
-    console.warn('[Pollinations] erreur:', e?.message, 'model:', model);
-    return { error: 'limit' };
+    console.warn('[Pollinations POST] echoue');
+  } catch(e){ console.warn('[Pollinations POST] erreur:', e?.message); }
+
+  /* 4. ENDPOINTS COMMUNAUTAIRES GRATUITS (OpenAI-compatible, sans cle) */
+  const communityEndpoints = [
+    'https://free.churchless.tech/v1/chat/completions',
+    'https://llama.freeopenai.com/v1/chat/completions',
+    'https://api.llama-api.com/v1/chat/completions'
+  ];
+  for (const ep of communityEndpoints){
+    try {
+      const res = await withTimeout(fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama-3.1-8b', messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
+      }), 20000);
+      if (res && res.ok){
+        const data = await res.json();
+        const text = data?.choices?.[0]?.message?.content;
+        if (text && text.trim()) return { text: text.trim() };
+      }
+    } catch(e){ console.warn('[Community]', ep, 'erreur:', e?.message); }
   }
+
+  return { error: 'limit' };
 }
 /* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
    reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
@@ -671,25 +718,14 @@ async function askBrain(messages){
   const brains = [];
   if (getGroqKey()) brains.push(() => askGroq(null, null, messages));
   if (getMistralKey()) brains.push(() => askMistral(null, null, messages));
-  brains.push(() => askPollinations(null, null, 'openai', messages));
-  brains.push(() => askPollinations(null, null, 'mistral', messages));
-  brains.push(() => askPollinations(null, null, 'llama', messages));
+  /* Cerveaux gratuits sans cle (multi-endpoints internes) */
+  brains.push(() => askFreeLLM(null, null, messages));
   let r = null;
   for (const b of brains){
     r = await b();
     if (!bad(r)) break;
   }
-  /* Dernier recours : retry Pollinations avec backoff (2s puis 5s) */
-  if (bad(r)){
-    await new Promise(res => setTimeout(res, 2000));
-    r = await askPollinations(null, null, 'openai', messages);
-  }
-  if (bad(r)){
-    await new Promise(res => setTimeout(res, 5000));
-    r = await askPollinations(null, null, 'mistral', messages);
-  }
-  /* FALLBACK ULTIME : si TOUT a echoue, on renvoie une reponse basique locale
-     au lieu de faire dire "mon cerveau a bugge" a l'utilisateur. */
+  /* FALLBACK ULTIME : si TOUT a echoue, reponse locale au lieu de "mon cerveau a bugge" */
   if (bad(r)){
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
     const q = lastUser?.content || '';
