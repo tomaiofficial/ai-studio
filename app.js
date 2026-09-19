@@ -1,10 +1,11 @@
 /* ============================================================
    ASSISTANT VOCAL IA � 100% vocal, sans chat
-   Groq = cerveau (texte, gratuit sans limite)
-   Mistral = voix r�aliste (Voxtral TTS)
+   Cerveau par defaut : Pollinations.ai = GRATUIT, AUCUNE cle,
+   AUCUNE limite, pour tout le monde, a vie.
+   Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.75';
+const APP_VERSION = '7.76';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -619,16 +620,20 @@ async function webSearch(question){
   }
   return parts.join(' | ').slice(0, 2600).trim();
 }
-/* 3e cerveau : Pollinations.ai — GRATUIT, AUCUNE cle, AUCUNE limite.
-   Utilise quand Groq/Mistral sont en limite : l'utilisateur ne doit JAMAIS
-   entendre parler de limite, on bascule de cerveau en silence. */
-async function askPollinations(question){
+/* Cerveau GRATUIT SANS LIMITE A VIE POUR TOUT LE MONDE : Pollinations.ai.
+   AUCUNE cle, AUCUNE limite, marche pour tout le monde des l'ouverture.
+   Utilise par defaut quand aucune cle Groq/Mistral n'est configuree,
+   et en secours silencieux quand Groq/Mistral sont en limite. */
+async function askPollinations(question, webCtx){
   try {
     const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
     const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
     const mem = buildMemoryContext(currentConvId);
     if (mem){
       messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+    }
+    if (webCtx){
+      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
     }
     const res = await withTimeout(fetch('https://text.pollinations.ai/', {
       method: 'POST',
@@ -647,8 +652,12 @@ async function askAI(question){
   /* recherche web UNE SEULE fois, partagee entre tous les cerveaux (sinon relancee
      a chaque tentative = lenteur) */
   const webCtx = await webSearch(question);
-  let r = await askGroq(question, webCtx);
-  if (r.error === 'nokey') r = await askMistral(question, webCtx);
+  /* AUCUNE cle requise : sans cle Groq/Mistral, Pollinations repond direct
+     (gratuit, sans limite, pour tout le monde). Avec une cle, on l'utilise en 1er. */
+  let r;
+  if (getGroqKey()) r = await askGroq(question, webCtx);
+  else if (getMistralKey()) r = await askMistral(question, webCtx);
+  else r = await askPollinations(question, webCtx);
   /* JAMAIS de message "limite atteinte" : on bascule de cerveau en silence
      (Mistral -> Pollinations gratuit sans cle ni limite), puis retry Groq.
      Filtre PRECIS : uniquement les vraies phrases de limite, pas le mot "limite"
@@ -656,12 +665,12 @@ async function askAI(question){
   const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || ''));
   if (bad(r)){
     if (getMistralKey()) r = await askMistral(question, webCtx);
-    if (bad(r)) r = await askPollinations(question);
-    if (bad(r)){
+    if (bad(r)) r = await askPollinations(question, webCtx);
+    if (bad(r) && getGroqKey()){
       await new Promise(res => setTimeout(res, 2000));
       r = await askGroq(question, webCtx);
     }
-    if (bad(r)){
+    if (bad(r) && getGroqKey()){
       await new Promise(res => setTimeout(res, 5000));
       r = await askGroq(question, webCtx);
     }

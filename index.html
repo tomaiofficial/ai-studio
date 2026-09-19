@@ -201,15 +201,18 @@ select.wide-input{appearance:none}
     <button class="modal-close" id="closeSettings">✕</button>
     <h3>⚙️ Réglages</h3>
 
-    <h4 class="settings-title">🧠 Clé Groq (cerveau — texte)</h4>
-    <p class="muted">Gratuite et <b>sans limite</b> (14400 requêtes/jour). Sur <b>console.groq.com</b> → API Keys → Create.</p>
-    <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq</a>
-    <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq (gsk_...)" autocomplete="off">
+    <h4 class="settings-title">🧠 Cerveau IA</h4>
+    <p class="muted">✅ <b>Aucune clé requise</b> : l'IA fonctionne gratuitement et <b>sans limite, pour tout le monde</b>, dès l'ouverture (Pollinations.ai). Les clés ci-dessous sont <b>optionnelles</b> pour un cerveau plus rapide.</p>
 
-    <h4 class="settings-title">🗣️ Clé Mistral (secours cerveau)</h4>
+    <h4 class="settings-title">🧠 Clé Groq (optionnel — cerveau plus rapide)</h4>
+    <p class="muted">Optionnel. Gratuite (14400 requêtes/jour). Sur <b>console.groq.com</b> → API Keys → Create.</p>
+    <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq</a>
+    <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq (gsk_...) — optionnel" autocomplete="off">
+
+    <h4 class="settings-title">🗣️ Clé Mistral (optionnel — secours cerveau)</h4>
     <p class="muted">Optionnel, si Groq en limite.</p>
     <a class="secondary" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral</a>
-    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici…" autocomplete="off">
+    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici… — optionnel" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
     <p class="muted">🎙️ <b>Voix système du navigateur</b> — fiable à 100%, aucune clé, aucun serveur, marche même hors ligne. Voix locales (Piper/VITS) en secours automatique.</p>
