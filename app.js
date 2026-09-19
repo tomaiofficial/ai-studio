@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.58';
+const APP_VERSION = '7.59';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -251,19 +251,28 @@ if (SR){
 /* ===== 2E OREILLE : ENREGISTREMENT + WHISPER ===== */
 let mediaRec = null, mediaChunks = [], recorderBusy = false;
 let recorderTimer = null;
+let recCtx = null, recVolInt = null, recSilenceTimer = null, recNoSpeechTimer = null, recHasSpeech = false;
+function cleanupRecorder(){
+  clearTimeout(recorderTimer);
+  clearInterval(recVolInt);
+  clearTimeout(recSilenceTimer);
+  clearTimeout(recNoSpeechTimer);
+  try { if (recCtx) recCtx.close(); } catch {}
+  recCtx = null; recVolInt = null; recSilenceTimer = null; recNoSpeechTimer = null;
+}
 async function startRecorder(){
   if (recorderBusy) return;
   recorderBusy = true;
   try {
     setState('listening');
-    setStatus('Parle maintenant... (enregistrement)');
+    setStatus('Parle maintenant...');
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaChunks = [];
     if (mediaRec && mediaRec.state !== 'inactive'){ try { mediaRec.stop(); } catch {} }
     mediaRec = new MediaRecorder(stream);
     mediaRec.ondataavailable = e => { if (e.data && e.data.size) mediaChunks.push(e.data); };
     mediaRec.onstop = async () => {
-      clearTimeout(recorderTimer);
+      cleanupRecorder();
       try { stream.getTracks().forEach(t => t.stop()); } catch {}
       setState('thinking');
       setStatus('Je t\'ecoute...');
@@ -287,12 +296,42 @@ async function startRecorder(){
         handleQuestion(txt);
       } catch { setState('idle'); setStatus('Reseau coupe - reessaie'); recorderBusy=false; }
     };
-    mediaRec.onerror = () => { clearTimeout(recorderTimer); recorderBusy = false; setState('idle'); setStatus('Erreur micro - reessaie'); };
+    mediaRec.onerror = () => { cleanupRecorder(); recorderBusy = false; setState('idle'); setStatus('Erreur micro - reessaie'); };
     mediaRec.start();
-    // AUTO-STOP apres 5 secondes : corrige "quand je parle ca fait rien"
+    /* DETECTION DE SILENCE : arrete l'enregistrement 1.5s apres la fin de la parole
+       (au lieu d'un temps fixe -> l'utilisateur n'a pas a reparler) */
+    recHasSpeech = false;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC){
+        recCtx = new AC();
+        const src = recCtx.createMediaStreamSource(stream);
+        const analyser = recCtx.createAnalyser();
+        analyser.fftSize = 512;
+        src.connect(analyser);
+        const dataArr = new Uint8Array(analyser.frequencyBinCount);
+        recVolInt = setInterval(() => {
+          if (!mediaRec || mediaRec.state !== 'recording') return;
+          analyser.getByteFrequencyData(dataArr);
+          let sum = 0;
+          for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
+          if (sum / dataArr.length > 10){
+            recHasSpeech = true;
+            clearTimeout(recSilenceTimer);
+            recSilenceTimer = setTimeout(() => { try { mediaRec.stop(); } catch {} }, 1500);
+          }
+        }, 250);
+      }
+    } catch {}
+    /* AUTO-STOP apres 8 secondes max (phrase longue) */
     recorderTimer = setTimeout(() => {
+      clearInterval(recVolInt);
       if (mediaRec && mediaRec.state === 'recording') mediaRec.stop();
-    }, 5500);
+    }, 8000);
+    /* si aucun son detecte apres 5s, on arrete */
+    recNoSpeechTimer = setTimeout(() => {
+      if (!recHasSpeech && mediaRec && mediaRec.state === 'recording'){ clearInterval(recVolInt); try { mediaRec.stop(); } catch {} }
+    }, 5000);
   } catch {
     recorderBusy = false;
     clearTimeout(recorderTimer);
@@ -301,7 +340,7 @@ async function startRecorder(){
   }
 }
 function stopRecorder(){
-  clearTimeout(recorderTimer);
+  cleanupRecorder();
   if (mediaRec && mediaRec.state === 'recording'){ try { mediaRec.stop(); } catch {} }
   else { recorderBusy = false; setState('idle'); }
 }
@@ -337,14 +376,15 @@ orb.addEventListener('click', () => {
   if (welcomePlaying){ stopAudio(); welcomePlaying = false; setState('idle'); setStatus("Appuie sur le micro et parle"); return; }
   if (state === 'thinking' || state === 'speaking') return;
   if (!welcomeDone){ playWelcome(); return; }
-  if (!recog){ startRecorder(); return; }
+  /* MOBILE : enregistrement + Whisper DIRECTEMENT (un seul flux fiable). La reconnaissance
+     vocale du navigateur (recog) echoue souvent sur mobile -> bascule confuse. */
+  if (!recog || IS_MOBILE){ startRecorder(); return; }
   try {
     setState('listening');
     setStatus('Ecoute... parle maintenant');
     recog.start();
   } catch {
-    /* Sur mobile recog.start() peut jeter (permission, etat) -> on bascule
-       sur l'enregistrement + Whisper au lieu d'abandonner */
+    /* Si recog.start() jette (permission, etat) -> on bascule sur l'enregistrement + Whisper */
     setState('idle');
     startRecorder();
   }
