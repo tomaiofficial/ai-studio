@@ -11,7 +11,7 @@ const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 const GROQ_MODEL = 'openai/gpt-oss-120b';
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'vits'; // Voix systeme (fiable a 100%) par defaut
+const DEFAULT_VOICE = 'edge'; // Voix IA femme reelle (Edge Neural Lea) par defaut - toujours
 const SPEED = 1.0; // naturel
 
 
