@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.68';
+const APP_VERSION = '7.69';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -58,6 +58,24 @@ function newConversation(){
   clearChat();
   setStatus("Appuie sur le micro et parle");
   toast('Nouvelle conversation');
+}
+/* MEMOIRE GLOBALE : l'IA se souvient de TOUTES les conversations passees,
+   meme quand on ouvre une nouvelle conversation. Cap ~4000 caracteres (le plus recent). */
+function buildMemoryContext(excludeId){
+  try {
+    const all = [];
+    for (const conv of conversations){
+      if (conv.id === excludeId) continue;
+      if (!conv.messages || !conv.messages.length) continue;
+      for (const m of conv.messages){
+        all.push((m.role === 'user' ? 'Utilisateur : ' : 'Toi : ') + m.content);
+      }
+    }
+    if (!all.length) return '';
+    let txt = all.join('\n');
+    if (txt.length > 4000) txt = '...' + txt.slice(-4000);
+    return txt;
+  } catch { return ''; }
 }
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -449,6 +467,11 @@ async function askGroq(question){
   const key = getGroqKey();
   if (!key) return { error: 'nokey' };
   let messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
+  const mem = buildMemoryContext(currentConvId);
+  if (mem){
+    messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de tout, meme dans une nouvelle conversation. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
+  }
   /* INTERNET GRATUIT INCLUS A VIE : si la question porte sur l'actualite/l'info fraiche,
      on cherche le web en direct (DuckDuckGo, zero cle, zero limite) et on colle les
      resultats dans le contexte pour que l'assistante reponde avec des faits recents. */
@@ -487,7 +510,12 @@ async function askGroq(question){
 async function askMistral(question){
   const key = getMistralKey();
   if (!key) return { error: 'nokey' };
-  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  let messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
+  const mem = buildMemoryContext(currentConvId);
+  if (mem){
+    messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de tout, meme dans une nouvelle conversation. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
+  }
   try {
     /* timeout 25s : sinon un fetch bloque = orbe qui tourne pour toujours */
     const ctrl = new AbortController();
