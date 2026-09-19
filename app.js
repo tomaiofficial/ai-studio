@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.66';
+const APP_VERSION = '7.67';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -295,6 +295,8 @@ async function startRecorder(){
         fd.append('file', blob, 'voix.webm');
         fd.append('model', 'whisper-large-v3-turbo');
         fd.append('language', 'fr');
+        /* guide Whisper : garde le francais parle tel quel (familier, verlan, mots dits) */
+        fd.append('prompt', 'Transcription en francais parle, garde les mots exactement comme ils sont dits.');
         const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
           method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd
         });
@@ -307,9 +309,9 @@ async function startRecorder(){
     };
     mediaRec.onerror = () => { cleanupRecorder(); recorderBusy = false; setState('idle'); setStatus('Erreur micro - reessaie'); };
     mediaRec.start();
-    /* DETECTION DE SILENCE : arrete l'enregistrement 2.5s apres la fin de la parole.
-       Seuil bas (5) + fenetre large (2.5s) -> ne coupe JAMAIS pendant qu'on parle,
-       meme avec une pause ou une voix douce. */
+    /* DETECTION DE SILENCE : arrete l'enregistrement 3.5s apres la fin de la parole.
+       Seuil bas (3) + fenetre large (3.5s) -> ne coupe JAMAIS pendant qu'on parle,
+       meme avec une pause, une voix douce ou un mot cherche. */
     recHasSpeech = false;
     try {
       if (ac){
@@ -324,23 +326,23 @@ async function startRecorder(){
           analyser.getByteFrequencyData(dataArr);
           let sum = 0;
           for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
-          if (sum / dataArr.length > 5){
+          if (sum / dataArr.length > 3){
             recHasSpeech = true;
             clearTimeout(recSilenceTimer);
-            recSilenceTimer = setTimeout(() => { try { mediaRec.stop(); } catch {} }, 2500);
+            recSilenceTimer = setTimeout(() => { try { mediaRec.stop(); } catch {} }, 3500);
           }
         }, 200);
       }
     } catch {}
-    /* AUTO-STOP apres 12 secondes max (phrase longue) */
+    /* AUTO-STOP apres 15 secondes max (phrase longue) */
     recorderTimer = setTimeout(() => {
       clearInterval(recVolInt);
       if (mediaRec && mediaRec.state === 'recording') mediaRec.stop();
-    }, 12000);
-    /* si aucun son detecte apres 6s, on arrete (personne ne parle) */
+    }, 15000);
+    /* si aucun son detecte apres 7s, on arrete (personne ne parle) */
     recNoSpeechTimer = setTimeout(() => {
       if (!recHasSpeech && mediaRec && mediaRec.state === 'recording'){ clearInterval(recVolInt); try { mediaRec.stop(); } catch {} }
-    }, 6000);
+    }, 7000);
   } catch {
     cleanupRecorder();
     recorderBusy = false;
