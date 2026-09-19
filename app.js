@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.63';
+const APP_VERSION = '7.64';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -855,9 +855,13 @@ async function speakVits(text){
         new Promise((_, rej) => setTimeout(() => rej(new Error('VITS trop lent')), 8000))
       ]);
     }
-    const chunks = splitVits(text, 400);
+    /* morceaux courts (200) : 1er son rapide, generation limitee par morceau */
+    const chunks = splitVits(text, 200);
     for (const c of chunks){
-      const out = await tts(c);
+      const out = await Promise.race([
+        tts(c),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('VITS generation lente')), 15000))
+      ]);
       const ok = await playRawAudio(out);
       if (!ok) return false;
     }
@@ -959,33 +963,38 @@ async function speakPiper(text){
 }
 /* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
    pas de fetch -> pas de blocage CORS) */
+function playGoogleChunk(c){
+  return new Promise(res => {
+    const url = 'https://translate.google.com/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob';
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    currentAudios.push(audio);
+    let done = false, started = false;
+    const finish = v => { if (done) return; done = true; res(v); };
+    audio.onplaying = () => { started = true; };
+    audio.onended = () => finish(true);
+    audio.onerror = () => finish(false);
+    /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
+    const tryPlay = n => {
+      audio.play().then(() => {}).catch(() => {
+        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+        else finish(false);
+      });
+    };
+    tryPlay(0);
+    /* si rien ne joue apres 6s (reseau bloque) -> voix suivante, pas 25s d'attente */
+    setTimeout(() => { if (!done && !started) finish(false); }, 6000);
+    /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
+    setTimeout(() => { if (!done) finish(true); }, 30000);
+  });
+}
 async function speakGoogleTTS(text){
   try {
-    const chunks = splitVits(text, 180);
+    /* morceaux courts (120) : URL courte, moins d'echecs, 1er son rapide */
+    const chunks = splitVits(text, 120);
     for (const c of chunks){
-      const url = 'https://translate.google.com/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob';
-      const ok = await new Promise(res => {
-        const audio = new Audio(url);
-        audio.volume = 1.0;
-        currentAudios.push(audio);
-        let done = false, started = false;
-        const finish = v => { if (done) return; done = true; res(v); };
-        audio.onplaying = () => { started = true; };
-        audio.onended = () => finish(true);
-        audio.onerror = () => finish(false);
-        /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
-        const tryPlay = n => {
-          audio.play().then(() => {}).catch(() => {
-            if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
-            else finish(false);
-          });
-        };
-        tryPlay(0);
-        /* si rien ne joue apres 6s (reseau bloque) -> voix suivante, pas 25s d'attente */
-        setTimeout(() => { if (!done && !started) finish(false); }, 6000);
-        /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
-        setTimeout(() => { if (!done) finish(true); }, 30000);
-      });
+      let ok = await playGoogleChunk(c);
+      if (!ok) ok = await playGoogleChunk(c); /* 1 retry par morceau (reseau instable) */
       if (!ok) return false;
     }
     return true;
@@ -1044,16 +1053,17 @@ function speak(text){
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
     /* Desktop : Systeme -> Piper -> VITS -> GoogleTTS -> Edge.
-       Mobile : VITS (si deja charge) -> GoogleTTS -> Edge -> Systeme. La voix systeme mobile
-       est souvent masculine et bloquee sur iOS hors geste -> dernier recours. VITS = voix
-       FEMININE locale (fiable une fois chargee). */
+       Mobile : GoogleTTS -> Edge -> VITS -> Systeme. GoogleTTS/Edge = HTMLAudio -> audible
+       meme en mode silencieux iOS (VITS/Web Audio est COUPE par le bouton silencieux).
+       VITS = voix FEMININE locale en secours. Systeme = dernier recours. */
     const chain = IS_MOBILE
-      ? [['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural], ['Systeme', speakSystem]]
+      ? [['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural], ['VITS', speakVits], ['Systeme', speakSystem]]
       : [['Systeme', speakSystem], ['Piper', speakPiper], ['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeNeural]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
       const [name, fn] = chain[i++];
+      setStatus('Voix ' + name + '...');
       Promise.resolve().then(() => fn(clean)).then(ok => {
         if (ok) { console.log('[VOIX] ' + name + ' OK'); done(true); }
         else { console.warn('[VOIX] ' + name + ' bloque'); next(); }
