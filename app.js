@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.74';
+const APP_VERSION = '7.75';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -463,7 +463,7 @@ function extractReply(msg){
 }
 
 /* ===== IA (cerveau) ===== */
-async function askGroq(question){
+async function askGroq(question, webCtx){
   const key = getGroqKey();
   if (!key) return { error: 'nokey' };
   let messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
@@ -474,8 +474,9 @@ async function askGroq(question){
   }
   /* INTERNET GRATUIT INCLUS A VIE : si la question porte sur l'actualite/l'info fraiche,
      on cherche le web en direct (DuckDuckGo, zero cle, zero limite) et on colle les
-     resultats dans le contexte pour que l'assistante reponde avec des faits recents. */
-  const webCtx = await webSearch(question);
+     resultats dans le contexte pour que l'assistante reponde avec des faits recents.
+     webCtx est calcule UNE SEULE fois dans askAI et partage entre tous les cerveaux. */
+  if (webCtx === undefined) webCtx = await webSearch(question);
   if (webCtx){
     messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
     messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
@@ -507,7 +508,7 @@ async function askGroq(question){
     return { text: reply };
   } catch { return { error: 'net' }; }
 }
-async function askMistral(question){
+async function askMistral(question, webCtx){
   const key = getMistralKey();
   if (!key) return { error: 'nokey' };
   let messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
@@ -515,6 +516,11 @@ async function askMistral(question){
   const mem = buildMemoryContext(currentConvId);
   if (mem){
     messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
+  }
+  if (webCtx === undefined) webCtx = await webSearch(question);
+  if (webCtx){
+    messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
+    messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
   }
   try {
     /* timeout 25s : sinon un fetch bloque = orbe qui tourne pour toujours */
@@ -628,7 +634,7 @@ async function askPollinations(question){
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, model: 'openai', private: true })
-    }), 20000);
+    }), 12000);
     if (!res || !res.ok) return { error: 'limit' };
     const text = await res.text();
     if (!text || !text.trim()) return { error: 'limit' };
@@ -638,22 +644,26 @@ async function askPollinations(question){
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
-  let r = await askGroq(question);
-  if (r.error === 'nokey') r = await askMistral(question);
+  /* recherche web UNE SEULE fois, partagee entre tous les cerveaux (sinon relancee
+     a chaque tentative = lenteur) */
+  const webCtx = await webSearch(question);
+  let r = await askGroq(question, webCtx);
+  if (r.error === 'nokey') r = await askMistral(question, webCtx);
   /* JAMAIS de message "limite atteinte" : on bascule de cerveau en silence
      (Mistral -> Pollinations gratuit sans cle ni limite), puis retry Groq.
-     Si la REPONSE elle-meme parle de limite, on la traite comme un echec. */
-  const bad = x => x.error === 'limit' || (!x.error && /limite|trop de requetes|attends quelques secondes|reesaie/i.test(x.text || ''));
+     Filtre PRECIS : uniquement les vraies phrases de limite, pas le mot "limite"
+     seul (sinon une reponse normale comme "sans limite" declenche tout le secours). */
+  const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || ''));
   if (bad(r)){
-    if (getMistralKey()) r = await askMistral(question);
+    if (getMistralKey()) r = await askMistral(question, webCtx);
     if (bad(r)) r = await askPollinations(question);
     if (bad(r)){
-      await new Promise(res => setTimeout(res, 3000));
-      r = await askGroq(question);
+      await new Promise(res => setTimeout(res, 2000));
+      r = await askGroq(question, webCtx);
     }
     if (bad(r)){
-      await new Promise(res => setTimeout(res, 8000));
-      r = await askGroq(question);
+      await new Promise(res => setTimeout(res, 5000));
+      r = await askGroq(question, webCtx);
     }
   }
   if (!bad(r)){
