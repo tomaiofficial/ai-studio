@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.73';
+const APP_VERSION = '7.74';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -613,29 +613,55 @@ async function webSearch(question){
   }
   return parts.join(' | ').slice(0, 2600).trim();
 }
+/* 3e cerveau : Pollinations.ai — GRATUIT, AUCUNE cle, AUCUNE limite.
+   Utilise quand Groq/Mistral sont en limite : l'utilisateur ne doit JAMAIS
+   entendre parler de limite, on bascule de cerveau en silence. */
+async function askPollinations(question){
+  try {
+    const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+    const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+    }
+    const res = await withTimeout(fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, model: 'openai', private: true })
+    }), 20000);
+    if (!res || !res.ok) return { error: 'limit' };
+    const text = await res.text();
+    if (!text || !text.trim()) return { error: 'limit' };
+    return { text: text.trim() };
+  } catch { return { error: 'limit' }; }
+}
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   let r = await askGroq(question);
   if (r.error === 'nokey') r = await askMistral(question);
-  /* LIMITE (429) : on ne dit JAMAIS "limite atteinte" a l'utilisateur.
-     On reessaie automatiquement en silence (backoff 3s puis 8s),
-     et on bascule sur Mistral si une cle est configuree. */
-  if (r.error === 'limit'){
+  /* JAMAIS de message "limite atteinte" : on bascule de cerveau en silence
+     (Mistral -> Pollinations gratuit sans cle ni limite), puis retry Groq.
+     Si la REPONSE elle-meme parle de limite, on la traite comme un echec. */
+  const bad = x => x.error === 'limit' || (!x.error && /limite|trop de requetes|attends quelques secondes|reesaie/i.test(x.text || ''));
+  if (bad(r)){
     if (getMistralKey()) r = await askMistral(question);
-    if (r.error === 'limit'){
+    if (bad(r)) r = await askPollinations(question);
+    if (bad(r)){
       await new Promise(res => setTimeout(res, 3000));
       r = await askGroq(question);
     }
-    if (r.error === 'limit'){
+    if (bad(r)){
       await new Promise(res => setTimeout(res, 8000));
       r = await askGroq(question);
     }
   }
-  if (!r.error){
+  if (!bad(r)){
     r.text = enforceIdentity(r.text);
     session.push({ role: 'assistant', content: r.text });
     saveConversation();
+  } else {
+    r = { error: 'limit' };
   }
   return r;
 }
@@ -1167,12 +1193,9 @@ async function handleQuestion(question){
       setStatus('Ajoute ta cle Groq dans les reglages');
       toast('Va dans les reglages et colle ta cle Groq');
       settingsModal.classList.remove('hidden');
-    } else if (r.error === 'limit'){
-      setStatus('Mon cerveau est surcharge - reessaie dans un instant');
-      await speak("Mon cerveau est surcharge, reessaie dans un instant.");
-    } else if (r.error === 'timeout'){
-      setStatus('L\'IA met trop de temps - verifie ta connexion');
-      await speak("Je n'arrive pas a repondre, ma connexion est lente. Reessaie dans un instant.");
+    } else if (r.error === 'limit' || r.error === 'timeout'){
+      setStatus('Mon cerveau a bugge - repose ta question');
+      await speak("Bordel, mon cerveau a bugge. Repose ta question.");
     } else {
       setStatus('Erreur IA - verifie ta cle');
       await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
