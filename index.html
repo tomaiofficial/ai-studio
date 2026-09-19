@@ -105,7 +105,7 @@ function unlockAudio(){
     }catch(e){}
 }
 
-// ---- Speak (Browser TTS - free, no server needed) ----
+// ---- Speak (Browser TTS - female French voice) ----
 function speak(text,callback){
     if(!('speechSynthesis' in window)){
         if(callback)callback(false);
@@ -115,10 +115,35 @@ function speak(text,callback){
     var u=new SpeechSynthesisUtterance(text);
     u.lang='fr-FR';
     u.rate=0.9;
+    u.pitch=1.0;
     u.volume=1;
+
+    // Chercher une voix féminine française
     var voices=window.speechSynthesis.getVoices();
-    var fr=voices.find(v=>v.lang.startsWith('fr'));
-    if(fr)u.voice=fr;
+    var femaleFr=null;
+    var anyFr=null;
+    for(var i=0;i<voices.length;i++){
+        var v=voices[i];
+        if(v.lang.startsWith('fr')||v.lang.startsWith('fr-CA')||v.name.includes('French')||v.name.includes('fr')){
+            if(!anyFr)anyFr=v;
+            // Priorité aux voix féminines
+            if(!femaleFr&&(v.name.includes('Henrietta')||v.name.includes('Jacqueline')||v.name.includes('Amélie')||v.name.includes('Julie')||v.name.includes('Claire')||v.name.includes('female')||v.name.includes('Woman')||v.gender==='female')){
+                femaleFr=v;
+            }
+        }
+    }
+
+    // Préférer voix féminine française
+    if(femaleFr){
+        u.voice=femaleFr;
+    }else if(anyFr){
+        u.voice=anyFr;
+    }else{
+        // Chercher toute voix française dans les voix distantes
+        var frVoice=voices.find(v=>v.lang==='fr-FR'||v.name.toLowerCase().includes('french')||v.name.toLowerCase().includes('français'));
+        if(frVoice)u.voice=frVoice;
+    }
+
     u.onend=function(){
         speaking=false;
         orbEl.className=active?'idle':'';
