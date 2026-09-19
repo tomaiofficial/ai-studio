@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.53';
+const APP_VERSION = '7.54';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -652,6 +652,11 @@ function loadVits(){
 let sharedCtx = null;
 /* Mobile : voix legere d'abord (le modele local 38 Mo peut faire planter la page en RAM) */
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+/* Precharge la liste des voix systeme (getVoices est asynchrone) */
+if ('speechSynthesis' in window){
+  try { window.speechSynthesis.getVoices(); } catch {}
+  window.speechSynthesis.onvoiceschanged = () => { try { window.speechSynthesis.getVoices(); } catch {} };
+}
 function ensureAudio(){
   try {
     if (!sharedCtx){
@@ -794,7 +799,11 @@ async function speakPiper(text){
         audio.onended = () => finish(true);
         audio.onerror = () => finish(false);
         audio.play().catch(() => finish(false));
-        setTimeout(() => finish(true), (response.duration || 10000) + 5000);
+        /* verifier que les donnees arrivent vraiment (sinon faux succes -> muet) */
+        setTimeout(() => {
+          if (!done && audio.readyState < 2) finish(false);
+          else if (!done) finish(true);
+        }, (response.duration || 10000) + 5000);
       });
       URL.revokeObjectURL(objUrl);
       if (!ok) return false;
@@ -824,7 +833,11 @@ async function speakGoogleTTS(text){
         audio.onended = () => finish(true);
         audio.onerror = () => finish(false);
         audio.play().catch(() => finish(false));
-        setTimeout(() => finish(true), 15000);
+        /* verifier que les donnees arrivent vraiment (sinon faux succes -> muet) */
+        setTimeout(() => {
+          if (!done && audio.readyState < 2) finish(false);
+          else if (!done) finish(true);
+        }, 15000);
       });
       if (!ok) return false;
     }
@@ -833,7 +846,7 @@ async function speakGoogleTTS(text){
 }
 
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
-   aucun CDN -> fonctionne TOUJOURS (voix francaise du systeme) */
+   aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
 function speakSystem(text){
   return new Promise(resolve => {
     try {
@@ -849,8 +862,10 @@ function speakSystem(text){
         u.rate = 1.0;
         u.pitch = 1.0;
         const voices = window.speechSynthesis.getVoices();
-        const fr = voices.find(v => (v.lang || '').toLowerCase().startsWith('fr'));
-        if (fr) u.voice = fr;
+        const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
+        /* meilleure voix francaise dispo : Google > Microsoft > autre */
+        const pick = fr.find(v => /google/i.test(v.name)) || fr.find(v => /microsoft/i.test(v.name)) || fr[0];
+        if (pick) u.voice = pick;
         u.onend = () => speakNext();
         u.onerror = () => finish(false);
         window.speechSynthesis.speak(u);
@@ -870,6 +885,10 @@ function speak(text){
     setState('speaking');
     setStatus('...');
     const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
+    const trySystem = () => speakSystem(clean).then(ok => {
+      if (ok) { console.log('[VOIX] Systeme OK'); done(true); }
+      else { console.warn('[VOIX] Systeme bloque -> locale'); if (IS_MOBILE) tryGoogle(); else tryPiper(); }
+    });
     const tryPiper = () => speakPiper(clean).then(ok => {
       if (ok) { console.log('[VOIX] Piper OK (locale haute qualite)'); done(true); }
       else { console.warn('[VOIX] Piper bloque -> VITS'); tryVits(); }
@@ -881,19 +900,13 @@ function speak(text){
     const tryGoogle = () => speakGoogleTTS(clean).then(ok2 => {
       if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
       else {
-        console.warn('[VOIX] GoogleTTS bloque -> Systeme');
-        trySystem();
+        console.warn('[VOIX] GoogleTTS bloque -> Edge');
+        speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
       }
     });
-    const trySystem = () => speakSystem(clean).then(ok3 => {
-      if (ok3) { console.log('[VOIX] Systeme OK'); done(true); }
-      else {
-        console.warn('[VOIX] Systeme bloque -> Edge');
-        speakEdgeNeural(clean).then(ok4 => { if (ok4) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok4); });
-      }
-    });
-    /* Mobile : voix legere d'abord (pas de crash memoire). Desktop : Piper locale d'abord. */
-    if (IS_MOBILE) tryGoogle(); else tryPiper();
+    /* VOIX SYSTEME D'ABORD : fiable a 100% (aucun reseau, aucun CDN). Les voix locales
+       (Piper/VITS) et GoogleTTS ne servent que de secours. */
+    trySystem();
   });
 }
 let currentAudios = [];
