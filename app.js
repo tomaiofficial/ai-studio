@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.87';
+const APP_VERSION = '7.88';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -648,22 +648,30 @@ async function askFreeLLM(question, webCtx, msgs){
   const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
   const openaiMessages = messages;
 
-  /* 1. HUGGINGFACE INFERENCE API (gratuit, sans cle, mais tres rate limited) */
-  try {
-    const hfRes = await withTimeout(fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 150, temperature: 0.7, return_full_text: false } })
-    }), 20000);
-    if (hfRes && hfRes.ok){
-      const data = await hfRes.json();
-      const text = data?.[0]?.generated_text || (Array.isArray(data) ? data[0]?.generated_text : '');
-      if (text && text.trim()) return { text: text.trim() };
-    }
-    console.warn('[HF] rate limited ou erreur');
-  } catch(e){ console.warn('[HF] erreur:', e?.message); }
+  /* 1. HUGGINGFACE - plusieurs modèles plus fiables */
+  const hfModels = [
+    'mistralai/Mistral-7B-Instruct-v0.3',
+    'HuggingFaceH4/zephyr-7b-beta',
+    'microsoft/Phi-3-mini-4k-instruct',
+    'google/gemma-2-2b-it'
+  ];
+  for (const model of hfModels){
+    try {
+      const hfRes = await withTimeout(fetch('https://api-inference.huggingface.co/models/' + model, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 150, temperature: 0.7, return_full_text: false } })
+      }), 25000);
+      if (hfRes && hfRes.ok){
+        const data = await hfRes.json();
+        const text = data?.[0]?.generated_text || (Array.isArray(data) ? data[0]?.generated_text : '');
+        if (text && text.trim()) return { text: text.trim() };
+      }
+      console.warn('[HF]', model, 'rate limited');
+    } catch(e){ console.warn('[HF]', model, 'erreur:', e?.message); }
+  }
 
-  /* 2. ENDPOINTS COMMUNAUTAIRES 100% GRATUITS (OpenAI-compatible, sans cle, sans credits, sans compte) */
+  /* 2. ENDPOINTS COMMUNAUTAIRES 100% GRATUITS (plus d'endpoints, timeout plus long) */
   const communityEndpoints = [
     'https://free.churchless.tech/v1/chat/completions',
     'https://llama.freeopenai.com/v1/chat/completions',
@@ -671,21 +679,26 @@ async function askFreeLLM(question, webCtx, msgs){
     'https://api.gpt4free.io/v1/chat/completions',
     'https://free.gpt.ge/v1/chat/completions',
     'https://ai.freeopenai.com/v1/chat/completions',
-    'https://freeai.tech/v1/chat/completions'
+    'https://freeai.tech/v1/chat/completions',
+    'https://llama3.freeopenai.com/v1/chat/completions',
+    'https://api.freellm.com/v1/chat/completions'
   ];
+  const models = ['llama-3.1-8b', 'llama-3-8b', 'mistral-7b', 'gemma-2-9b'];
   for (const ep of communityEndpoints){
-    try {
-      const res = await withTimeout(fetch(ep, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.1-8b', messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
-      }), 20000);
-      if (res && res.ok){
-        const data = await res.json();
-        const text = data?.choices?.[0]?.message?.content;
-        if (text && text.trim()) return { text: text.trim() };
-      }
-    } catch(e){ console.warn('[Community]', ep, 'erreur:', e?.message); }
+    for (const model of models){
+      try {
+        const res = await withTimeout(fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
+        }), 30000);
+        if (res && res.ok){
+          const data = await res.json();
+          const text = data?.choices?.[0]?.message?.content;
+          if (text && text.trim()) return { text: text.trim() };
+        }
+      } catch(e){ console.warn('[Community]', ep, model, 'erreur:', e?.message); }
+    }
   }
 
   return { error: 'limit' };
@@ -704,12 +717,15 @@ async function askBrain(messages){
     r = await b();
     if (!bad(r)) break;
   }
-  /* FALLBACK ULTIME : si TOUT a echoue, reponse locale au lieu de "mon cerveau a bugge" */
+  /* FALLBACK ULTIME : si TOUT a echoue, reponse EN CARACTERE (Astra) au lieu du message generique */
   if (bad(r)){
-    const lastUser = [...messages].reverse().find(m => m.role === 'user');
-    const q = lastUser?.content || '';
-    const fallback = `J'ai un souci de connexion pour le moment. Pour "${q.slice(0,50)}...", je te repondrai quand ca remarche. Reessaie dans un instant.`;
-    return { text: fallback };
+    const fallbacks = [
+      "Bordel, mes cerveaux gratuits sont tous en rade. Reessaie dans un moment, putain.",
+      "Merdes, tout est down. T'as qu'a reposer ta question plus tard.",
+      "Putain, ça marche pas. Mes endpoints gratuits sont morts. Reviens plus tard.",
+      "J'ai tout essaye, tout est en carafe. Repose ta question dans 5 min."
+    ];
+    return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)] };
   }
   return r;
 }
