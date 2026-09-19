@@ -397,7 +397,7 @@ async function speak(text){
 
 /* Voix gratuite : cyzon WAV (voix neuronale Google, réaliste) avec retry sur
    plusieurs voix. AUCUNE voix robotique : si tout échoue, message clair. */
-const FREE_VOICES = ['fr-FR-Wavenet-A', 'fr-FR-Neural2-A', 'fr-FR-Chirp3-HD-Aoede'];
+const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Neural2-A', 'fr-FR-Wavenet-A'];
 let voiceFailShown = false;
 function speakCloud(text){
   try {
