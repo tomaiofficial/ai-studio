@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.54';
+const APP_VERSION = '7.55';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -17,8 +17,8 @@ const SPEED = 1.0; // naturel
 /* ===== �L�MENTS ===== */
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
-const heardLine = $('heardLine'), heardText = $('heardText');
-const saidLine = $('saidLine'), saidText = $('saidText');
+const chat = $('chat'), chatEmpty = $('chatEmpty');
+const textInput = $('textInput'), sendBtn = $('sendBtn');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
 const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
@@ -56,9 +56,8 @@ function saveConversation(){
 function newConversation(){
   session = [];
   currentConvId = null;
-  heardLine.style.display = 'none';
-  saidLine.style.display = 'none';
-  setStatus("Appuie sur l'orbe et parle");
+  clearChat();
+  setStatus("Appuie sur le micro et parle");
   toast('Nouvelle conversation');
 }
 function escapeHtml(s){
@@ -133,10 +132,44 @@ function setStatus(txt, active){
 function setState(s){
   state = s;
   orb.classList.remove('listening','thinking','speaking');
-  if (s === 'listening'){ orb.classList.add('listening'); orbIcon.textContent = '?'; }
-  else if (s === 'thinking'){ orb.classList.add('thinking'); orbIcon.textContent = '?'; }
-  else if (s === 'speaking'){ orb.classList.add('speaking'); orbIcon.textContent = '?'; }
-  else { orbIcon.textContent = '?'; }
+  if (s === 'listening') orb.classList.add('listening');
+  else if (s === 'thinking') orb.classList.add('thinking');
+  else if (s === 'speaking') orb.classList.add('speaking');
+}
+
+/* ===== CHAT (bulles type ChatGPT) ===== */
+function addUserMsg(text){
+  if (chatEmpty) chatEmpty.style.display = 'none';
+  const d = document.createElement('div');
+  d.className = 'msg user';
+  d.textContent = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+function addAiMsg(text){
+  if (chatEmpty) chatEmpty.style.display = 'none';
+  const d = document.createElement('div');
+  d.className = 'msg ai';
+  d.textContent = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+/* Sous-titre temps reel : met a jour la derniere bulle utilisateur */
+function showInterim(text){
+  if (chatEmpty) chatEmpty.style.display = 'none';
+  let last = chat.lastElementChild;
+  if (last && last.classList.contains('user')) last.textContent = text;
+  else {
+    const d = document.createElement('div');
+    d.className = 'msg user';
+    d.textContent = text;
+    chat.appendChild(d);
+  }
+  chat.scrollTop = chat.scrollHeight;
+}
+function clearChat(){
+  chat.innerHTML = '';
+  if (chatEmpty) chatEmpty.style.display = '';
 }
 
 /* ===== REGLAGES ===== */
@@ -171,7 +204,7 @@ testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
-  setStatus(ok ? 'Voix OK - appuie sur l\'orbe et parle' : 'Voix en echec - verifie ta connexion', !ok);
+  setStatus(ok ? 'Voix OK - appuie sur le micro et parle' : 'Voix en echec - verifie ta connexion', !ok);
 });
 
 /* ===== RECONNAISSANCE VOCALE ===== */
@@ -198,8 +231,7 @@ if (SR){
     if (interim){
       setStatus('"' + interim.slice(0,50) + '..."');
       // Sous-titre temps reel
-      heardLine.style.display = 'block';
-      heardText.textContent = interim;
+      showInterim(interim);
     }
   };
   recog.onerror = e => {
@@ -225,8 +257,6 @@ async function startRecorder(){
   try {
     setState('listening');
     setStatus('Parle maintenant... (enregistrement)');
-    heardLine.style.display = 'block';
-    heardText.textContent = 'J\'ecoute...';
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaChunks = [];
     if (mediaRec && mediaRec.state !== 'inactive'){ try { mediaRec.stop(); } catch {} }
@@ -239,7 +269,7 @@ async function startRecorder(){
       setStatus('Je t\'ecoute...');
       const blob = new Blob(mediaChunks, { type: (mediaChunks[0] && mediaChunks[0].type) || 'audio/webm' });
       recorderBusy = false;
-      if (blob.size < 3000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); heardLine.style.display='none'; return; }
+      if (blob.size < 3000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); return; }
       const key = getGroqKey();
       if (!key){ setState('idle'); setStatus('Il faut une cle Groq dans les reglages'); return; }
       try {
@@ -285,14 +315,13 @@ async function playWelcome(){
   welcomeDone = true;
   localStorage.setItem(WELCOME_KEY, '1');
   welcomePlaying = true;
-  saidLine.style.display = 'block';
-  saidText.textContent = DEV_MESSAGE_TXT;
+  addAiMsg(DEV_MESSAGE_TXT);
   setState('speaking');
   setStatus('Bienvenue... (appuie pour passer)');
   await speak(DEV_MESSAGE);
   welcomePlaying = false;
   setState('idle');
-  setStatus("Appuie sur l'orbe et parle");
+  setStatus("Appuie sur le micro et parle");
 }
 
 orb.addEventListener('click', () => {
@@ -302,24 +331,32 @@ orb.addEventListener('click', () => {
     if (recog) try { recog.stop(); } catch {}
     stopRecorder();
     setState('idle');
-    setStatus("Appuie sur l'orbe et parle");
+    setStatus("Appuie sur le micro et parle");
     return;
   }
-  if (welcomePlaying){ stopAudio(); welcomePlaying = false; setState('idle'); setStatus("Appuie sur l'orbe et parle"); return; }
+  if (welcomePlaying){ stopAudio(); welcomePlaying = false; setState('idle'); setStatus("Appuie sur le micro et parle"); return; }
   if (state === 'thinking' || state === 'speaking') return;
   if (!welcomeDone){ playWelcome(); return; }
   if (!recog){ startRecorder(); return; }
   try {
     setState('listening');
     setStatus('Ecoute... parle maintenant');
-    heardLine.style.display = 'block';
-    heardText.textContent = '...';
     recog.start();
   } catch {
     setState('idle');
-    setStatus('Reessaie - appuie sur l\'orbe');
+    setStatus('Reessaie - appuie sur le micro');
   }
 });
+
+/* ===== ENVOI PAR TEXTE (chat) ===== */
+function sendText(){
+  const t = (textInput.value || '').trim();
+  if (!t || isProcessing) return;
+  textInput.value = '';
+  handleQuestion(t);
+}
+if (sendBtn) sendBtn.addEventListener('click', sendText);
+if (textInput) textInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
 
 /* Heure appareil - automatique */
 function getTimeContext(){
@@ -884,7 +921,7 @@ function speak(text){
     const clean = normalizeForTTS(text);
     setState('speaking');
     setStatus('...');
-    const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
+    const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur le micro et parle"); resolve(ok); };
     const trySystem = () => speakSystem(clean).then(ok => {
       if (ok) { console.log('[VOIX] Systeme OK'); done(true); }
       else { console.warn('[VOIX] Systeme bloque -> locale'); if (IS_MOBILE) tryGoogle(); else tryPiper(); }
@@ -920,8 +957,10 @@ async function handleQuestion(question){
   isProcessing = true;
   manualStop = true;
   try{ recog && recog.stop(); }catch{}
-  heardLine.style.display = 'block';
-  heardText.textContent = question;
+  /* si une bulle utilisateur existe deja (sous-titre interim), on la complete au lieu d'en creer une autre */
+  const last = chat.lastElementChild;
+  if (last && last.classList.contains('user')) last.textContent = question;
+  else addUserMsg(question);
   setState('thinking');
   setStatus('...');
   const r = await askAI(question);
@@ -942,8 +981,7 @@ async function handleQuestion(question){
     manualStop = false;
     return;
   }
-  saidLine.style.display = 'block';
-  saidText.textContent = r.text;
+  addAiMsg(r.text);
   await speak(r.text);
   isProcessing = false;
   manualStop = false;
@@ -997,9 +1035,9 @@ async function forceUpdate(){
 updateBanner.addEventListener('click', forceUpdate);
 updateBanner.addEventListener('touchend', e => { e.preventDefault(); forceUpdate(); }, {passive:false});
 updateBanner.onclick = forceUpdate;
-function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; state="idle"; setStatus("Appuie sur la bulle et parle"); setState("idle"); location.reload(true); }
+function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; state="idle"; setStatus("Appuie sur le micro et parle"); setState("idle"); location.reload(true); }
 $('appVersion').textContent = 'Assistant Vocal IA - v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
-setStatus("Appuie sur l'orbe et parle");
+setStatus("Appuie sur le micro et parle");
 // Voix Edge Neural via WebSocket uniquement
