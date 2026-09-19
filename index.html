@@ -204,7 +204,7 @@ select.wide-input{appearance:none}
 <h4 class="settings-title">🗣️ Voix</h4>
     <p class="muted">🎙️ <b>IA vocale française incluse à vie</b> — tourne dans ton navigateur, gratuite, aucune clé, aucun serveur. <b>Aucun robot.</b></p>
     <select id="ttsVoice" class="wide-input">
-      <option value="vits">🎙️ Voix IA française locale incluse à vie (Gratuite)</option>
+      <option value="vits">🎙️ Voix IA française locale (Piper) - gratuite à vie</option>
       <option value="edge">🎙️ Voix Edge (repli)</option>
     </select>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
@@ -226,6 +226,12 @@ select.wide-input{appearance:none}
     } catch (e2) {
       console.warn('[VOIX] Transformers indisponible:', e2);
     }
+  }
+  try {
+    const m = await import("https://esm.sh/piper-tts-web@1.1.2");
+    window.PiperWeb = m;
+  } catch (e3) {
+    console.warn('[VOIX] Piper indisponible:', e3);
   }
 })();
 </script>

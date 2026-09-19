@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.50';
+const APP_VERSION = '7.51';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -666,8 +666,11 @@ function ensureAudio(){
 ['pointerdown','touchstart','click','keydown'].forEach(ev => {
   window.addEventListener(ev, () => {
     ensureAudio();
-    /* Desktop : on precharge la voix locale pendant que l'utilisateur parle -> reponse vocale immediate */
-    if (!IS_MOBILE && !vitsTTS && !vitsLoading) loadVits().catch(() => {});
+    /* Desktop : on precharge la voix Piper pendant que l'utilisateur parle -> reponse vocale immediate.
+       Si Piper est indisponible, on precharge VITS a la place. */
+    if (!IS_MOBILE && !piperEngine && !piperLoading){
+      loadPiper().catch(() => { if (!vitsTTS && !vitsLoading) loadVits().catch(() => {}); });
+    }
   }, { passive: true });
 });
 function playRawAudio(rawAudio){
@@ -716,6 +719,71 @@ async function speakVits(text){
     return true;
   } catch(e){ console.warn('[VOIX] VITS echec:', e.message); return false; }
 }
+/* ===== VOIX PIPER (fr_FR-siwis-medium) : locale, gratuite a vie, prononciation naturelle
+   (meilleure que VITS). WASM charges depuis CDN, modele depuis HuggingFace (cache interne). ===== */
+let piperEngine = null;
+let piperLoading = null;
+function loadPiper(){
+  if (piperEngine) return Promise.resolve(piperEngine);
+  if (piperLoading) return piperLoading;
+  if (!window.PiperWeb){ return Promise.reject(new Error('Piper non charge')); }
+  piperLoading = (async () => {
+    const P = window.PiperWeb;
+    const ort = await import('https://esm.sh/onnxruntime-web@1.20.1');
+    const engine = new P.PiperWebEngine({
+      onnxRuntime: new P.OnnxWebRuntime({
+        ort,
+        basePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/',
+        numThreads: 1
+      }),
+      phonemizeRuntime: new P.PhonemizeWebRuntime({
+        basePath: 'https://unpkg.com/piper-tts-web@1.1.2/dist/piper/'
+      }),
+      voiceProvider: new P.HuggingFaceVoiceProvider()
+    });
+    piperEngine = engine;
+    return engine;
+  })().catch(e => { piperLoading = null; throw e; });
+  return piperLoading;
+}
+/* Decoupe aux fins de phrases (prosodie naturelle), max ~500 caracteres par chunk */
+function splitPiper(text, max){
+  const out = [];
+  let cur = '';
+  const sentences = text.split(/(?<=[.!?…])\s+/);
+  for (const s of sentences){
+    const next = (cur + ' ' + s).trim();
+    if (next.length > max && cur){ out.push(cur.trim()); cur = s; }
+    else cur = next;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.length ? out : [text];
+}
+async function speakPiper(text){
+  try {
+    const engine = await loadPiper();
+    const chunks = splitPiper(text, 500);
+    for (const c of chunks){
+      const response = await engine.generate(c, 'fr_FR-siwis-medium', 0);
+      if (!response || !response.file) return false;
+      const objUrl = URL.createObjectURL(response.file);
+      const audio = new Audio(objUrl);
+      audio.volume = 1.0;
+      currentAudios.push(audio);
+      const ok = await new Promise(res => {
+        let done = false;
+        const finish = v => { if (done) return; done = true; res(v); };
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(false);
+        audio.play().catch(() => finish(false));
+        setTimeout(() => finish(true), (response.duration || 10000) + 5000);
+      });
+      URL.revokeObjectURL(objUrl);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] Piper echec:', e.message); return false; }
+}
 /* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
    pas de fetch -> pas de blocage CORS) */
 async function speakGoogleTTS(text){
@@ -746,6 +814,10 @@ function speak(text){
     setState('speaking');
     setStatus('...');
     const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
+    const tryPiper = () => speakPiper(clean).then(ok => {
+      if (ok) { console.log('[VOIX] Piper OK (locale haute qualite)'); done(true); }
+      else { console.warn('[VOIX] Piper bloque -> VITS'); tryVits(); }
+    });
     const tryVits = () => speakVits(clean).then(ok => {
       if (ok) { console.log('[VOIX] VITS OK (locale gratuite a vie)'); done(true); }
       else { console.warn('[VOIX] VITS bloque -> GoogleTTS'); tryGoogle(); }
@@ -757,8 +829,8 @@ function speak(text){
         speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
       }
     });
-    /* Mobile : voix legere d'abord (pas de crash memoire). Desktop : voix locale d'abord. */
-    if (IS_MOBILE) tryGoogle(); else tryVits();
+    /* Mobile : voix legere d'abord (pas de crash memoire). Desktop : Piper locale d'abord. */
+    if (IS_MOBILE) tryGoogle(); else tryPiper();
   });
 }
 let currentAudios = [];
