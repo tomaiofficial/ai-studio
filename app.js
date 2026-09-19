@@ -4,7 +4,7 @@
    Mistral = voix r�aliste (Voxtral TTS)
    Edge TTS = voix gratuite r�aliste par d�faut
    ============================================================ */
-const APP_VERSION = '7.47';
+const APP_VERSION = '7.48';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -650,6 +650,8 @@ function loadVits(){
 /* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
    et limitent le nombre de contextes -> un seul, reveille au premier toucher) */
 let sharedCtx = null;
+/* Mobile : voix legere d'abord (le modele local 38 Mo peut faire planter la page en RAM) */
+const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 function ensureAudio(){
   try {
     if (!sharedCtx){
@@ -662,7 +664,11 @@ function ensureAudio(){
   } catch(e){ return null; }
 }
 ['pointerdown','touchstart','click','keydown'].forEach(ev => {
-  window.addEventListener(ev, () => { ensureAudio(); }, { passive: true });
+  window.addEventListener(ev, () => {
+    ensureAudio();
+    /* Desktop : on precharge la voix locale pendant que l'utilisateur parle -> reponse vocale immediate */
+    if (!IS_MOBILE && !vitsTTS && !vitsLoading) loadVits().catch(() => {});
+  }, { passive: true });
 });
 function playRawAudio(rawAudio){
   return new Promise((resolve, reject) => {
@@ -740,20 +746,19 @@ function speak(text){
     setState('speaking');
     setStatus('...');
     const done = ok => { setState('idle'); if (ok) setStatus("Appuie sur l'orbe et parle"); resolve(ok); };
-    /* IA vocale locale incluse a vie -> repli GoogleTTS (universel) -> repli Edge */
-    speakVits(clean).then(ok => {
+    const tryVits = () => speakVits(clean).then(ok => {
       if (ok) { console.log('[VOIX] VITS OK (locale gratuite a vie)'); done(true); }
+      else { console.warn('[VOIX] VITS bloque -> GoogleTTS'); tryGoogle(); }
+    });
+    const tryGoogle = () => speakGoogleTTS(clean).then(ok2 => {
+      if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
       else {
-        console.warn('[VOIX] VITS bloque -> repli GoogleTTS');
-        speakGoogleTTS(clean).then(ok2 => {
-          if (ok2) { console.log('[VOIX] GoogleTTS OK'); done(true); }
-          else {
-            console.warn('[VOIX] GoogleTTS bloque -> repli Edge');
-            speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
-          }
-        });
+        console.warn('[VOIX] GoogleTTS bloque -> Edge');
+        speakEdgeNeural(clean).then(ok3 => { if (ok3) console.log('[VOIX] Edge OK'); else { console.warn('[VOIX] Edge bloque'); setStatus("Voix indisponible - verifie ta connexion"); } done(ok3); });
       }
     });
+    /* Mobile : voix legere d'abord (pas de crash memoire). Desktop : voix locale d'abord. */
+    if (IS_MOBILE) tryGoogle(); else tryVits();
   });
 }
 let currentAudios = [];
