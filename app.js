@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '7.92';
+const APP_VERSION = '7.93';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -1336,16 +1336,28 @@ function speak(text){
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* VOIX FEMME IA REELLE PAR DEFAUT : Edge Neural (Lea) en premier partout.
+    /* VOIX FEMME IA REELLE PAR DEFAUT partout.
+       PC : Edge Neural (Denise) en premier - le WebSocket fonctionne.
+       MOBILE : StreamElements Lea (HTTP simple) en premier - le WebSocket Edge
+       est souvent BLOQUE sur les reseaux mobiles, Lea marche partout.
        Piper RETIRE de la chaine par defaut : son inference WASM bloque le thread
        principal et gelait la page. Dispo en option dans les reglages si besoin.
        Repli : GoogleTTS -> VITS -> Systeme. */
-    const chain = [
-      ['Edge', speakEdgeNeural],
-      ['GoogleTTS', speakGoogleTTS],
-      ['VITS', speakVits],
-      ['Systeme', speakSystem]
-    ];
+    const chain = IS_MOBILE
+      ? [
+          ['Lea', speakRealAI],
+          ['Edge', speakEdgeNeural],
+          ['GoogleTTS', speakGoogleTTS],
+          ['VITS', speakVits],
+          ['Systeme', speakSystem]
+        ]
+      : [
+          ['Edge', speakEdgeNeural],
+          ['Lea', speakRealAI],
+          ['GoogleTTS', speakGoogleTTS],
+          ['VITS', speakVits],
+          ['Systeme', speakSystem]
+        ];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
