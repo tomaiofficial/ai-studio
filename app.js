@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.06';
+const APP_VERSION = '8.07';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', hf: 'va_hfkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'meta-llama/llama-3.3-70b-versatile'; /* RAPIDE (pas de raisonnement cache) */
@@ -636,6 +636,7 @@ async function askGroq(question, webCtx, msgs){
         });
       } finally { clearTimeout(timer); }
       if (res.status === 429) return { error: 'limit' };
+      if (res.status === 401 || res.status === 403 || res.status === 404) return { error: 'key' };
       if (!res.ok) return { error: 'api' };
       const j = await res.json();
       const msg = j.choices && j.choices[0] && j.choices[0].message || {};
@@ -689,19 +690,29 @@ async function askMistral(question, webCtx, msgs){
     }
   }
   try {
-    /* timeout 12s : reponse rapide, sinon on passe au cerveau suivant */
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
-    let res;
-    try {
-      res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 400, temperature: 0.7 }),
-        signal: ctrl.signal
-      });
-    } finally { clearTimeout(timer); }
+    /* timeout 12s : reponse rapide, sinon on passe au cerveau suivant.
+       Retry 1x sur 429 : la limite du plan gratuit Mistral est souvent
+       passagere (1 req/s) - attendre 3s suffit generalement. */
+    let res = null;
+    for (let attempt = 0; attempt < 2; attempt++){
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      try {
+        res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 400, temperature: 0.7 }),
+          signal: ctrl.signal
+        });
+      } finally { clearTimeout(timer); }
+      if (res.status === 429 && attempt === 0){
+        await new Promise(r => setTimeout(r, 3000));
+        continue;
+      }
+      break;
+    }
     if (res.status === 429) return { error: 'limit' };
+    if (res.status === 401 || res.status === 403 || res.status === 404) return { error: 'key' };
     if (!res.ok) return { error: 'api' };
     const j = await res.json();
     const msg = j.choices && j.choices[0] && j.choices[0].message || {};
@@ -981,15 +992,18 @@ async function askFreeLLM(question, webCtx, msgs){
 }
 /* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
    reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
+/* Cles invalides detectees (401/403/404) : retirees de la chaine pour la session
+   pour ne plus re-echouer a chaque question. */
+let badGroqKey = false, badMistralKey = false, badHFKey = false;
 async function askBrain(messages){
   /* bad = reponse a REJETER -> on essaie le cerveau suivant.
      TOUTE erreur (api/net/limit/nokey) est rejetee : avant, seules les erreurs
      'limit' l'etaient, donc une erreur Groq arretait tout -> "petite erreur". */
   const bad = x => !!x.error || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
   const brains = [];
-  if (getGroqKey()) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
-  if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
-  if (getHFKey()) brains.push({ name: 'HF', fn: () => askHF(null, null, messages) });
+  if (getGroqKey() && !badGroqKey) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
+  if (getMistralKey() && !badMistralKey) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
+  if (getHFKey() && !badHFKey) brains.push({ name: 'HF', fn: () => askHF(null, null, messages) });
   /* Cerveaux gratuits sans cle (multi-endpoints internes) */
   brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
   let r = null;
@@ -997,6 +1011,13 @@ async function askBrain(messages){
   for (const b of brains){
     r = await b.fn();
     if (!bad(r)) break;
+    /* Cle invalide (401/403/404) : on la desactive pour la session et on
+       previent l'utilisateur UNE fois au lieu de re-echouer a chaque question */
+    if (r.error === 'key'){
+      if (b.name === 'Groq'){ badGroqKey = true; toast('Ta cle Groq est invalide - retire-la ou remplace-la dans les reglages'); }
+      if (b.name === 'Mistral'){ badMistralKey = true; toast('Ta cle Mistral est invalide - retire-la ou remplace-la dans les reglages'); }
+      if (b.name === 'HF'){ badHFKey = true; toast('Ta cle HuggingFace est invalide - retire-la ou remplace-la dans les reglages'); }
+    }
     diag.push(b.name + ':' + (r.error || 'refus'));
     console.warn('[Brain] echec:', b.name, r.error || (r.text || '').slice(0, 60));
   }
