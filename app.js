@@ -1207,26 +1207,38 @@ let kokoroTTS = null;
 let kokoroLoading = null;
 let kokoroTokenizer = null;
 let kokoroPhonemizer = null;
+let kokoroConfig = null;
+let kokoroEmbeddings = null;
+/* Precharge config + embeddings en parallele ( leger, rapide ) */
+async function preloadKokoroAssets(){
+  if (kokoroConfig && kokoroEmbeddings) return;
+  try {
+    const [cfg, emb] = await Promise.all([
+      fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json').then(r => r.json()),
+      fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin').then(r => r.arrayBuffer()).then(b => new Float32Array(b))
+    ]);
+    kokoroConfig = cfg;
+    kokoroEmbeddings = emb;
+    console.log('[KOKORO] Assets precharges (config + embeddings)');
+  } catch(e){ console.warn('[KOKORO] Preload assets echec:', e.message); }
+}
 async function loadKokoro(){
   if (kokoroTTS) return Promise.resolve(kokoroTTS);
   if (kokoroLoading) return kokoroLoading;
   if (!window.Transformers){ console.error('[KOKORO] Transformers module manquant'); return Promise.reject(new Error('Transformers module non charge')); }
   if (!window.PiperWeb){ console.error('[KOKORO] PiperWeb manquant'); return Promise.reject(new Error('Piper phonemizer non charge')); }
-  /* Desktop seulement : le modele 92 Mo + phonemiseur WASM peut saturer la RAM mobile */
   if (IS_MOBILE){ console.error('[KOKORO] Mobile detecte -> desactive'); return Promise.reject(new Error('Kokoro desktop only')); }
   console.log('[KOKORO] Debut chargement...');
   kokoroLoading = (async () => {
     try {
-      /* 1. Phonemiseur Piper (fr) : meme runtime que loadPiper, sans le moteur TTS */
+      /* 1. Phonemiseur Piper (fr) */
       console.log('[KOKORO] Init PhonemizeWebRuntime...');
       const P = window.PiperWeb;
-      kokoroPhonemizer = new P.PhonemizeWebRuntime({
-        basePath: 'https://unpkg.com/piper-tts-web@1.1.2/dist/piper/'
-      });
+      kokoroPhonemizer = new P.PhonemizeWebRuntime({ basePath: 'https://unpkg.com/piper-tts-web@1.1.2/dist/piper/' });
       console.log('[KOKORO] PhonemizeWebRuntime OK');
-      /* 2. Modele Kokoro (StyleTextToSpeech2) + Tokenizer via transformers.js complet */
+      /* 2. Modele + Tokenizer en parallele */
       console.log('[KOKORO] Chargement StyleTextToSpeech2Model + AutoTokenizer...');
-      const { StyleTextToSpeech2Model, AutoTokenizer, Tensor } = window.Transformers;
+      const { StyleTextToSpeech2Model, AutoTokenizer } = window.Transformers;
       const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
       const [model, tokenizer] = await Promise.all([
         StyleTextToSpeech2Model.from_pretrained(MODEL, { dtype: 'q8', device: 'wasm' }),
@@ -1234,37 +1246,11 @@ async function loadKokoro(){
       ]);
       kokoroTTS = model;
       kokoroTokenizer = tokenizer;
-      console.log('[KOKORO] Modele + Tokenizer charges');
-      /* 3. Test rapide : phonemize + tokenize + generate (1 phrase courte) */
-      console.log('[KOKORO] Fetch config fr_FR-siwis-medium...');
-      const cfg = await (await fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json')).json();
-      console.log('[KOKORO] Config OK, phonemize test...');
-      const testText = 'Bonjour.';
-      const phonemeRes = await kokoroPhonemizer.phonemize(testText, [cfg]);
-      const ipa = phonemeRes.phonemes.join('');
-      console.log('[KOKORO] IPA:', ipa);
-      const { input_ids } = kokoroTokenizer(ipa, { truncation: true });
-      console.log('[KOKORO] Tokens:', input_ids.dims);
-      /* slice style embeddings (ff_siwis) comme kokoro-js */
-      console.log('[KOKORO] Fetch ff_siwis.bin...');
-      const emb = new Float32Array(await (await fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin')).arrayBuffer());
-      console.log('[KOKORO] Embeddings OK, taille:', emb.length);
-      const offset = 256 * Math.min(Math.max(input_ids.dims.at(-1) - 2, 0), 509);
-      const style = emb.slice(offset, offset + 256);
-      console.log('[KOKORO] Style slice OK, generation test...');
-      await kokoroTTS({
-        input_ids,
-        style: new Tensor('float32', style, [1, 256]),
-        speed: new Tensor('float32', [1], [1])
-      });
-      console.log('[KOKORO] Test generation OK -> PRET');
+      console.log('[KOKORO] Modele + Tokenizer charges -> PRET (pas de test generation)');
       return kokoroTTS;
     } catch(e){
       console.error('[KOKORO] ERREUR chargement:', e.message, e.stack);
-      kokoroLoading = null;
-      kokoroTTS = null;
-      kokoroTokenizer = null;
-      kokoroPhonemizer = null;
+      kokoroLoading = null; kokoroTTS = null; kokoroTokenizer = null; kokoroPhonemizer = null;
       throw e;
     }
   })();
@@ -1281,11 +1267,11 @@ async function speakKokoro(text){
       tokenizer = kokoroTokenizer;
       phonemizer = kokoroPhonemizer;
     } else {
-      /* chargement avec timeout court (12s) : si trop lent -> repli Google */
+      /* chargement avec timeout reduit (8s) : si trop lent -> repli Google */
       console.log('[KOKORO] Chargement...');
       const loaded = await Promise.race([
         loadKokoro(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro load timeout')), 12000))
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro load timeout')), 8000))
       ]);
       console.log('[KOKORO] Charge OK');
       tts = loaded;
@@ -1293,30 +1279,24 @@ async function speakKokoro(text){
       phonemizer = kokoroPhonemizer;
     }
     if (!tts || !tokenizer || !phonemizer) { console.warn('[KOKORO] Manquant tts/tokenizer/phonemizer'); return false; }
-    /* decoupage en phrases courtes (200) pour 1er son rapide + timeout generation */
-    const chunks = splitVits(text, 200);
+    /* decoupage en phrases COURTES (120) pour 1er son TRES rapide */
+    const chunks = splitVits(text, 120);
     console.log('[KOKORO] Chunks:', chunks.length);
-    const cfg = await (await fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json')).json();
-    const emb = new Float32Array(await (await fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin')).arrayBuffer());
+    /* utiliser assets precharges ou fallback fetch */
+    const cfg = kokoroConfig || await (await fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json')).json();
+    const emb = kokoroEmbeddings || new Float32Array(await (await fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin')).arrayBuffer());
     const { Tensor } = window.Transformers;
     for (const c of chunks){
       console.log('[KOKORO] Chunk:', c.substring(0, 50));
       const phonemeRes = await phonemizer.phonemize(c, [cfg]);
       const ipa = phonemeRes.phonemes.join('');
-      console.log('[KOKORO] IPA:', ipa);
       const { input_ids } = tokenizer(ipa, { truncation: true });
-      console.log('[KOKORO] Tokens:', input_ids.dims);
       const offset = 256 * Math.min(Math.max(input_ids.dims.at(-1) - 2, 0), 509);
       const style = emb.slice(offset, offset + 256);
       const out = await Promise.race([
-        tts({
-          input_ids,
-          style: new Tensor('float32', style, [1, 256]),
-          speed: new Tensor('float32', [1], [1])
-        }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro generation timeout')), 15000))
+        tts({ input_ids, style: new Tensor('float32', style, [1, 256]), speed: new Tensor('float32', [1], [1]) }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro generation timeout')), 10000))
       ]);
-      /* Kokoro retourne { waveform: Tensor } -> extraire .data (Float32Array) + sr 24000 */
       const waveform = out?.waveform?.data;
       if (!waveform || !waveform.length) { console.warn('[VOIX] Kokoro waveform vide'); return false; }
       console.log('[KOKORO] Waveform OK, samples:', waveform.length);
@@ -1335,6 +1315,11 @@ async function speakKokoro(text){
 let sharedCtx = null;
 /* Mobile : voix legere d'abord (le modele local 38 Mo peut faire planter la page en RAM) */
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+/* Precharge immediat Kokoro (desktop) : lance le telechargement du modele 92 Mo des l'ouverture */
+if (!IS_MOBILE && window.Transformers && window.PiperWeb){
+  loadKokoro().catch(() => {});
+  preloadKokoroAssets().catch(() => {});
+}
 /* Precharge la liste des voix systeme (getVoices est asynchrone) */
 if ('speechSynthesis' in window){
   try { window.speechSynthesis.getVoices(); } catch {}
@@ -1389,9 +1374,10 @@ async function playBlob(blob){
       } catch {}
     }
     /* Desktop : on NE precharge PLUS Piper (retire de la chaine vocale).
-       Precharge Kokoro (voix par defaut) puis VITS en secours. */
+       Precharge Kokoro (voix par defaut) + assets (config + embeddings) puis VITS en secours. */
     if (!IS_MOBILE){
       if (!kokoroTTS && !kokoroLoading) loadKokoro().catch(() => {});
+      preloadKokoroAssets().catch(() => {});
       if (!vitsTTS && !vitsLoading) loadVits().catch(() => {});
     } else if (IS_MOBILE && !vitsTTS && !vitsLoading && (!navigator.deviceMemory || navigator.deviceMemory >= 4)){
       loadVits().catch(() => {});
