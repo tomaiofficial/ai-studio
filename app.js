@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '7.99';
+const APP_VERSION = '8.00';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -800,17 +800,10 @@ async function askFreeLLM(question, webCtx, msgs){
     } catch(e){ console.warn('[HF]', model, 'erreur:', e?.message); }
   }
 
-  /* 2. ENDPOINTS COMMUNAUTAIRES 100% GRATUITS (plus d'endpoints, timeout plus long) */
+  /* 2. ENDPOINTS COMMUNAUTAIRES 100% GRATUITS (verifies : les autres sont morts
+     404/410/401/SSL -> retires pour ne pas perdre de temps) */
   const communityEndpoints = [
-    'https://free.churchless.tech/v1/chat/completions',
-    'https://llama.freeopenai.com/v1/chat/completions',
-    'https://api.llama-api.com/v1/chat/completions',
-    'https://api.gpt4free.io/v1/chat/completions',
-    'https://free.gpt.ge/v1/chat/completions',
-    'https://ai.freeopenai.com/v1/chat/completions',
-    'https://freeai.tech/v1/chat/completions',
-    'https://llama3.freeopenai.com/v1/chat/completions',
-    'https://api.freellm.com/v1/chat/completions'
+    'https://free.churchless.tech/v1/chat/completions'
   ];
   const models = ['llama-3.1-8b', 'llama-3-8b', 'mistral-7b', 'gemma-2-9b'];
   for (const ep of communityEndpoints){
@@ -846,13 +839,13 @@ async function askBrain(messages){
     r = await b();
     if (!bad(r)) break;
   }
-  /* FALLBACK ULTIME : si TOUT a echoue, reponse EN CARACTERE (Astra) au lieu du message generique */
+  /* FALLBACK ULTIME : si TOUT a echoue, reponse simple et naturelle (comme GPT),
+     sans drame ni "emotions" */
   if (bad(r)){
     const fallbacks = [
-      "Pff, mes cerveaux gratuits sont tous en rade. Reessaie dans un moment, je vais me remettre de mes emotions.",
-      "Bon, tout est down la. Repose ta question plus tard, je souffle un coup.",
-      "Ca marche pas, mes endpoints gratuits sont morts. Reviens plus tard, promis je fais de mon mieux.",
-      "J'ai tout essaye, tout est en carafe. Repose ta question dans 5 min, je recupere."
+      "Je n'arrive pas a joindre mes serveurs en ce moment. Reessaie dans quelques secondes.",
+      "Mes serveurs sont satures la. Repose ta question dans un instant, ca devrait repasser.",
+      "Connexion difficile avec mes serveurs. Reessaie, je suis la."
     ];
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)] };
   }
@@ -1107,11 +1100,84 @@ function normalizeForTTS(text){
     .replace(/https?:\/\/\S+/gi, ' lien ')
     .replace(/Tom\.ai/gi, 'Tom point ai')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
+    /* HEURES : 10h30 -> "dix heures trente", 10h -> "dix heures" */
+    .replace(/\b(\d{1,2})h(\d{2})\b/g, (m, h, mn) => numToFr(parseInt(h, 10)) + ' heures ' + numToFr(parseInt(mn, 10)))
+    .replace(/\b(\d{1,2})h\b/g, (m, h) => numToFr(parseInt(h, 10)) + ' heures')
+    /* UNITES avec nombre : 5 km, 10 min, 3 kg... (avant les nombres generiques) */
+    .replace(/\b(\d+)\s*km\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' kilometres')
+    .replace(/\b(\d+)\s*cm\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' centimetres')
+    .replace(/\b(\d+)\s*kg\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' kilos')
+    .replace(/\b(\d+)\s*min\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' minutes')
+    .replace(/\b(\d+)\s*Go\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' gigaoctets')
+    .replace(/\b(\d+)\s*To\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' teraoctets')
+    .replace(/\b(\d+)\s*Mo\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' megaoctets')
+    .replace(/\b(\d+)\s*Ko\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' kilooctets')
+    .replace(/\b(\d+)\s*(GB|MB)\b/g, (m, n, u) => numToFr(parseInt(n, 10)) + (u === 'GB' ? ' gigaoctets' : ' megaoctets'))
+    .replace(/\b(\d+)\s*°C\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' degres')
+    .replace(/\b(\d+)\s*m\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' metres')
+    .replace(/\b(\d+)\s*s\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' secondes')
+    .replace(/\b(\d+)\s*g\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' grammes')
+    /* ORDINAUX : 1er, 1ere, 2e, 3e */
+    .replace(/\b1er\b/gi, 'premier').replace(/\b1ere\b/gi, 'premiere')
+    .replace(/\b(\d+)e\b/g, (m, n) => numToFr(parseInt(n, 10)) + 'ieme')
+    /* DECIMAUX : 3.14 -> "trois virgule quatorze" */
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
+    /* ACRONYMES que les TTS lisent mal */
+    .replace(/\bTTS\b/g, 'te te esse')
+    .replace(/\bURL\b/g, 'u er el')
+    .replace(/\bGPS\b/g, 'je pe esse')
+    .replace(/\bIA\b/g, 'i a')
+    .replace(/\bWi-?Fi\b/gi, 'wi fi')
+    .replace(/\b(\d)G\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' G')
+    /* ARGOT / abreviations parlees : les TTS les epellent sinon (mdr -> em de er) */
+    .replace(/\bmdr\b/gi, 'mort de rire')
+    .replace(/\bp+f+\b/gi, 'bon')
+    .replace(/\bwsh\b/gi, 'wesh')
+    .replace(/\bbg\b/gi, 'beau gosse')
+    .replace(/\btkt\b/gi, "t'inquiete")
+    .replace(/\bpk\b/gi, 'pourquoi')
+    .replace(/\bdsl\b/gi, 'desole')
+    .replace(/\bstp\b/gi, "s'il te plait")
+    .replace(/\bsvp\b/gi, "s'il vous plait")
+    .replace(/\bjsp\b/gi, 'je ne sais pas')
+    .replace(/\bj'suis\b/gi, 'je suis')
+    .replace(/\bjsais\b/gi, 'je sais')
+    .replace(/\bjvais\b/gi, 'je vais')
+    .replace(/\bjpeux\b/gi, 'je peux')
+    .replace(/\bjveux\b/gi, 'je veux')
+    .replace(/\bjcrois\b/gi, 'je crois')
+    .replace(/\bt'es\b/gi, 'tu es')
+    .replace(/\bt'as\b/gi, 'tu as')
+    .replace(/\by'a\b/gi, 'il y a')
+    .replace(/\by a\b/gi, 'il y a')
+    .replace(/il il y a/gi, 'il y a')
+    .replace(/à toute\b/gi, 'a tout a l heure')
+    .replace(/a toute\b/gi, 'a tout a l heure')
+    /* DIVERS : etc, ex, vs, titres, numero */
+    .replace(/\betc\.?\b/gi, 'et cetera')
+    .replace(/\bex\s*:/gi, 'par exemple')
+    .replace(/\bex\.\b/gi, 'par exemple')
+    .replace(/\bvs\.?\b/gi, 'versus')
+    .replace(/\bM\./g, 'monsieur')
+    .replace(/\bMme\b/g, 'madame')
+    .replace(/\bMlle\b/g, 'mademoiselle')
+    .replace(/\bn°\s*(\d+)\b/g, (m, n) => 'numero ' + numToFr(parseInt(n, 10)))
+    /* SYMBOLES : & % € $ £ = + × ÷ < > ≤ ≥ ≈ ~ ≠ ° */
     .replace(/&/g, ' et ').replace(/%/g, ' pour cent ').replace(/\u20AC/g, ' euros ')
+    .replace(/\$/g, ' dollars ').replace(/\u00A3/g, ' livres ')
+    .replace(/\s*=\s*/g, ' egal ').replace(/\s*\+\s*/g, ' plus ')
+    .replace(/\s*×\s*/g, ' fois ').replace(/\s*÷\s*/g, ' divise par ')
+    .replace(/\s*<\s*/g, ' inferieur a ').replace(/\s*>\s*/g, ' superieur a ')
+    .replace(/\s*≤\s*/g, ' inferieur ou egal a ').replace(/\s*≥\s*/g, ' superieur ou egal a ')
+    .replace(/\s*≈\s*/g, ' environ ').replace(/\s*~\s*/g, ' environ ').replace(/\s*≠\s*/g, ' different de ')
+    .replace(/\b(\d+)°\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' degres')
+    /* emojis et symboles supprimes */
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, '')
-    .replace(/[#*_`]/g, '').replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
-    .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').trim();
+    .replace(/[#*_`\[\]{}|\\©™®•·]/g, ' ')
+    .replace(/!{2,}/g, '!').replace(/\?{2,}/g, '?').replace(/…/g, '...')
+    .replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
+    .replace(/—/g, ',').replace(/–/g, ',')
+    .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/\s+\./g, '.').trim();
 }
 /* Vraie voix IA web (StreamElements Polly Neural) - gratuite, ultra realiste, pas de synthese locale */
 async function speakRealAI(text){
