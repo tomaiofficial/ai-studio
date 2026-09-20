@@ -2,13 +2,12 @@
    ASSISTANT VOCAL IA � 100% vocal, sans chat
    Cerveau par defaut : HuggingFace + serveurs gratuits = GRATUIT,
    AUCUNE cle, AUCUNE limite, pour tout le monde, a vie.
-   Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
+   Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.09';
-const LS = { groq: 'va_gkey', mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.10';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
-const GROQ_MODEL = 'meta-llama/llama-3.3-70b-versatile'; /* RAPIDE (pas de raisonnement cache) */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
 const DEFAULT_VOICE = 'edge'; // Voix IA femme reelle (Edge Neural Lea) par defaut - toujours
@@ -20,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey'), cerebrasKeyInput = $('cerebrasKey'), brainSel = $('brainSel');
+const closeSettings = $('closeSettings'), mistralKeyInput = $('mistralKey'), cerebrasKeyInput = $('cerebrasKey'), brainSel = $('brainSel');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
@@ -203,14 +202,12 @@ function clearChat(){
 }
 
 /* ===== REGLAGES ===== */
-function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
-  groqKeyInput.value = getGroqKey();
   mistralKeyInput.value = getMistralKey();
   cerebrasKeyInput.value = getCerebrasKey();
   brainSel.value = getBrain();
@@ -220,10 +217,6 @@ settingsBtn.addEventListener('click', () => {
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
-groqKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.groq, groqKeyInput.value.trim());
-  toast('Cle Groq enregistree');
-});
 mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   toast('Cle Mistral enregistree');
@@ -242,7 +235,6 @@ ttsVoiceSel.addEventListener('change', () => {
   toast('Voix choisie');
 });
 testVoiceBtn.addEventListener('click', async () => {
-  localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   localStorage.setItem(LS.cerebras, cerebrasKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
@@ -337,7 +329,7 @@ function startWakeRecog(){
         setStatus('Oui ? Je t\'ecoute...');
         speak('Oui ? Je t\'ecoute.').then(() => {
           suppressWake = false;
-          if (!recog || IS_MOBILE){ startRecorder(); }
+          if (!recog){ startRecorder(); }
           else { try { setState('listening'); recog.start(); } catch { startRecorder(); } }
         });
       }
@@ -414,24 +406,12 @@ async function startRecorder(){
       const blob = new Blob(mediaChunks, { type: (mediaChunks[0] && mediaChunks[0].type) || 'audio/webm' });
       recorderBusy = false;
       if (blob.size < 3000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); return; }
-      const key = getGroqKey();
-      if (!key){ setState('idle'); setStatus('Il faut une cle Groq dans les reglages'); return; }
-      try {
-        const fd = new FormData();
-        fd.append('file', blob, 'voix.webm');
-        fd.append('model', 'whisper-large-v3-turbo');
-        fd.append('language', 'fr');
-        /* guide Whisper : garde le francais parle tel quel (familier, verlan, mots dits) */
-        fd.append('prompt', 'Transcription en francais parle, garde les mots exactement comme ils sont dits.');
-        const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-          method: 'POST', headers: { 'Authorization': 'Bearer ' + key }, body: fd
-        });
-        if (!res.ok){ setState('idle'); setStatus('Erreur transcription - reessaie'); return; }
-        const j = await res.json();
-        const txt = (j.text || '').trim();
-        if (!txt){ setState('idle'); setStatus("Je n'ai rien entendu"); return; }
-        handleQuestion(txt);
-      } catch { setState('idle'); setStatus('Reseau coupe - reessaie'); recorderBusy=false; }
+      /* Transcription : la reconnaissance vocale du navigateur (gratuite, sans cle)
+         est le seul service de transcription. Si on est arrive ici, c'est qu'elle a
+         echoue -> on invite a reessayer. */
+      setState('idle');
+      setStatus("Je n'ai pas compris - reessaie en parlant plus fort");
+      recorderBusy = false;
     };
     mediaRec.onerror = () => { cleanupRecorder(); recorderBusy = false; setState('idle'); setStatus('Erreur micro - reessaie'); };
     mediaRec.start();
@@ -542,15 +522,15 @@ orb.addEventListener('click', () => {
   if (welcomePlaying){ stopAudio(); welcomePlaying = false; setState('idle'); setStatus("Appuie sur le micro et parle"); return; }
   if (state === 'thinking' || state === 'speaking') return;
   if (!welcomeDone){ playWelcome(); return; }
-  /* MOBILE : enregistrement + Whisper DIRECTEMENT (un seul flux fiable). La reconnaissance
-     vocale du navigateur (recog) echoue souvent sur mobile -> bascule confuse. */
-  if (!recog || IS_MOBILE){ startRecorder(); return; }
+  /* Reconnaissance vocale du navigateur (gratuite, sans cle) partout, mobile inclus.
+     Le recorder n'est plus qu'un dernier recours si le navigateur n'a pas de SR. */
+  if (!recog){ startRecorder(); return; }
   try {
     setState('listening');
     setStatus('Ecoute... parle maintenant');
     recog.start();
   } catch {
-    /* Si recog.start() jette (permission, etat) -> on bascule sur l'enregistrement + Whisper */
+    /* Si recog.start() jette (permission, etat) -> on bascule sur l'enregistrement */
     setState('idle');
     startRecorder();
   }
@@ -606,79 +586,6 @@ function extractReply(msg){
 }
 
 /* ===== IA (cerveau) ===== */
-async function askGroq(question, webCtx, msgs){
-  const key = getGroqKey();
-  if (!key) return { error: 'nokey' };
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
-    }
-    /* INTERNET GRATUIT INCLUS A VIE : si la question porte sur l'actualite/l'info fraiche,
-       on cherche le web en direct (DuckDuckGo, zero cle, zero limite) et on colle les
-       resultats dans le contexte pour que l'assistante reponde avec des faits recents.
-       webCtx est calcule UNE SEULE fois dans askAI et partage entre tous les cerveaux. */
-    if (webCtx === undefined) webCtx = await webSearch(question);
-    if (webCtx){
-      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
-      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
-    }
-  }
-  try {
-    let reply = '';
-    for (const model of [GROQ_MODEL, 'openai/gpt-oss-120b']){
-      /* timeout 12s : reponse rapide, sinon on passe au cerveau suivant */
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12000);
-      let res;
-      try {
-        res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model, messages, max_tokens: 500, temperature: 0.8 }),
-          signal: ctrl.signal
-        });
-      } finally { clearTimeout(timer); }
-      if (res.status === 429) return { error: 'limit' };
-      if (res.status === 401 || res.status === 403 || res.status === 404) return { error: 'key' };
-      if (!res.ok) return { error: 'api' };
-      const j = await res.json();
-      const msg = j.choices && j.choices[0] && j.choices[0].message || {};
-      const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
-      reply = extractReply(msg);
-      /* REPONSE COUPEE (finish_reason=length) : on demande a l'IA de continuer
-         exactement la ou elle s'est arretee -> JAMAIS de phrase en suspens */
-      if (reply && fr === 'length'){
-        try {
-          const ctrl2 = new AbortController();
-          const timer2 = setTimeout(() => ctrl2.abort(), 12000);
-          let cres;
-          try {
-            cres = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-              body: JSON.stringify({ model, messages: [...messages, { role: 'assistant', content: reply }, { role: 'user', content: 'Continue ta reponse exactement la ou tu t es arretee, sans repeter ni resumer.' }], max_tokens: 500, temperature: 0.8 }),
-              signal: ctrl2.signal
-            });
-          } finally { clearTimeout(timer2); }
-          if (cres && cres.ok){
-            const cj = await cres.json();
-            const cmsg = cj.choices && cj.choices[0] && cj.choices[0].message || {};
-            const contText = extractReply(cmsg);
-            if (contText) reply += ' ' + contText;
-          }
-        } catch {}
-      }
-      /* PAS de filtre de ponctuation : une reponse valide peut finir sans point
-         (ex: "C'est fait" ou ":)") - la jeter faisait echouer tout le cerveau */
-      if (reply) break;
-    }
-    if (!reply) return { error: 'api' };
-    return { text: reply };
-  } catch { return { error: 'net' }; }
-}
 async function askMistral(question, webCtx, msgs){
   const key = getMistralKey();
   if (!key) return { error: 'nokey' };
@@ -696,13 +603,13 @@ async function askMistral(question, webCtx, msgs){
     }
   }
   try {
-    /* timeout 12s : reponse rapide, sinon on passe au cerveau suivant.
+    /* timeout 8s : reponse rapide, sinon on passe au cerveau suivant.
        Retry 1x sur 429 : la limite du plan gratuit Mistral est souvent
-       passagere (1 req/s) - attendre 3s suffit generalement. */
+       passagere (1 req/s) - attendre 2s suffit generalement. */
     let res = null;
     for (let attempt = 0; attempt < 2; attempt++){
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12000);
+      const timer = setTimeout(() => ctrl.abort(), 8000);
       try {
         res = await fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
@@ -712,7 +619,7 @@ async function askMistral(question, webCtx, msgs){
         });
       } finally { clearTimeout(timer); }
       if (res.status === 429 && attempt === 0){
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 2000));
         continue;
       }
       break;
@@ -729,7 +636,7 @@ async function askMistral(question, webCtx, msgs){
     if (reply && fr === 'length'){
       try {
         const ctrl2 = new AbortController();
-        const timer2 = setTimeout(() => ctrl2.abort(), 12000);
+        const timer2 = setTimeout(() => ctrl2.abort(), 8000);
         let cres;
         try {
           cres = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -829,8 +736,8 @@ async function webSearch(question){
 }
 /* Cerveau GRATUIT SANS LIMITE A VIE POUR TOUT LE MONDE.
    AUCUNE cle, AUCUNE limite, marche pour tout le monde des l'ouverture.
-   Utilise par defaut quand aucune cle Groq/Mistral n'est configuree,
-   et en secours silencieux quand Groq/Mistral sont en limite.
+   Utilise par defaut quand aucune cle Cerebras/Mistral n'est configuree,
+   et en secours silencieux quand Cerebras/Mistral sont en limite.
    Plusieurs modeles dispo : si un backend est en panne, on bascule
    sur un autre. */
 /* ===== CERVEAUX GRATUITS SANS CLE (multi-endpoints) =====
@@ -861,13 +768,13 @@ async function askCerebras(question, webCtx, msgs){
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
           body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
-        }), 12000);
+        }), 8000);
         if (res && res.ok){
           const data = await res.json();
           const t = (data?.choices?.[0]?.message?.content || '').trim();
           if (t) return { text: t };
         } else if (res && res.status === 429 && attempt === 0){
-          await new Promise(r => setTimeout(r, 3000));
+          await new Promise(r => setTimeout(r, 2000));
           continue;
         } else if (res && res.status === 429){
           break; /* limite -> modele suivant */
@@ -973,58 +880,60 @@ async function askFreeLLM(question, webCtx, msgs){
     })());
   }
 
-  /* Premier succes gagne ; timeout global 12s si tout est mort */
+  /* Premier succes gagne ; timeout global 8s si tout est mort */
   let winner = null;
   const done = new Promise(res => {
     attempts.forEach(p => p.then(r => { if (r && !winner){ winner = r; res(); } }).catch(() => {}));
   });
-  await Promise.race([done, new Promise(res => setTimeout(res, 12000))]);
+  await Promise.race([done, new Promise(res => setTimeout(res, 8000))]);
   if (winner) return { text: winner };
   return { error: 'limit' };
 }
-/* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
-   reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
+/* Chaine de cerveaux : TOUS les cerveaux partent EN PARALLELE, le premier qui
+   repond gagne -> reponse en ~2-8s au lieu de ~40s en sequentiel.
+   Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
 /* Cles invalides detectees (401/403/404) : retirees de la chaine pour la session
    pour ne plus re-echouer a chaque question. */
-let badGroqKey = false, badMistralKey = false, badCerebrasKey = false;
+let badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages){
   /* bad = reponse a REJETER -> on essaie le cerveau suivant.
      TOUTE erreur (api/net/limit/nokey) est rejetee : avant, seules les erreurs
-     'limit' l'etaient, donc une erreur Groq arretait tout -> "petite erreur". */
+     'limit' l'etaient, donc une erreur arretait tout -> "petite erreur". */
   const bad = x => !!x.error || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
-  /* UN SEUL cerveau choisi dans les reglages, ou AUTO = le meilleur dispo */
+  /* UN SEUL cerveau choisi dans les reglages, ou AUTO = tous en parallele */
   const mode = getBrain();
   const brains = [];
   if (mode === 'cerebras'){ if (getCerebrasKey()) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) }); }
-  else if (mode === 'groq'){ if (getGroqKey()) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) }); }
   else if (mode === 'mistral'){ if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) }); }
   else if (mode === 'gratuit'){ brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) }); }
-  else { /* AUTO : Cerebras -> Groq -> Mistral -> Gratuit */
+  else { /* AUTO : Cerebras + Mistral + Gratuit EN PARALLELE, 1er succes gagne */
     if (getCerebrasKey() && !badCerebrasKey) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) });
-    if (getGroqKey() && !badGroqKey) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
     if (getMistralKey() && !badMistralKey) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
     brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
   }
-  let r = null;
+  /* PARALLELE : chaque cerveau tourne en meme temps ; des qu'un succes arrive,
+     on rend sa reponse SANS attendre les autres. */
+  const entries = brains.map((b, i) => ({ i, p: b.fn().then(val => ({ i, name: b.name, val })).catch(() => ({ i, name: b.name, val: { error: 'net' } })) }));
+  let r = { error: 'limit' }; /* si tout echoue, r reste une erreur -> retry puis fallback */
   const diag = [];
-  for (const b of brains){
-    r = await b.fn();
-    if (!bad(r)) break;
+  while (entries.length > 0 && r.error){
+    const first = await Promise.race(entries.map(e => e.p));
+    entries.splice(entries.findIndex(e => e.i === first.i), 1);
     /* Cle invalide (401/403/404) : on la desactive pour la session et on
        previent l'utilisateur UNE fois au lieu de re-echouer a chaque question */
-    if (r.error === 'key'){
-      if (b.name === 'Groq'){ badGroqKey = true; toast('Ta cle Groq est invalide - retire-la ou remplace-la dans les reglages'); }
-      if (b.name === 'Mistral'){ badMistralKey = true; toast('Ta cle Mistral est invalide - retire-la ou remplace-la dans les reglages'); }
-      if (b.name === 'Cerebras'){ badCerebrasKey = true; toast('Ta cle Cerebras est invalide - retire-la ou remplace-la dans les reglages'); }
+    if (first.val.error === 'key'){
+      if (first.name === 'Mistral'){ badMistralKey = true; toast('Ta cle Mistral est invalide - retire-la ou remplace-la dans les reglages'); }
+      if (first.name === 'Cerebras'){ badCerebrasKey = true; toast('Ta cle Cerebras est invalide - retire-la ou remplace-la dans les reglages'); }
     }
-    diag.push(b.name + ':' + (r.error || 'refus'));
-    console.warn('[Brain] echec:', b.name, r.error || (r.text || '').slice(0, 60));
+    if (!bad(first.val)){ r = first.val; break; }
+    diag.push(first.name + ':' + (first.val.error || 'refus'));
+    console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
-     souvent passageres (par minute). On attend 4s et on retente le pool gratuit
+     souvent passageres (par minute). On attend 3s et on retente le pool gratuit
      UNE fois avant de rendre le fallback. */
   if (bad(r)){
-    await new Promise(res => setTimeout(res, 4000));
+    await new Promise(res => setTimeout(res, 3000));
     const retry = await askFreeLLM(null, null, messages);
     if (!bad(retry)) return retry;
     diag.push('Retry:' + (retry.error || 'refus'));
@@ -1777,8 +1686,8 @@ async function handleQuestion(question){
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('Ajoute ta cle Groq dans les reglages');
-      toast('Va dans les reglages et colle ta cle Groq');
+      setStatus('Ajoute une cle Cerebras ou Mistral dans les reglages');
+      toast('Va dans les reglages et colle une cle Cerebras ou Mistral');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit' || r.error === 'timeout'){
       setStatus('Mon cerveau a bugge - repose ta question');
