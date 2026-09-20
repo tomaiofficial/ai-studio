@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '7.93';
+const APP_VERSION = '7.94';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -950,13 +950,8 @@ function speakEdgeNeural(text){
         const out = new Uint8Array(total); let off=0;
         for (const c of audioChunks){ out.set(c, off); off+=c.length; }
         const blob = new Blob([out], {type:'audio/mpeg'});
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.volume = 1.0; audio.playbackRate = SPEED;
-        currentAudios.push(audio);
-        audio.onended = () => { URL.revokeObjectURL(url); finish(true); };
-        audio.onerror = () => finish(false);
-        audio.play().catch(()=> finish(false));
+        /* playBlob : joue via le contexte audio debloque au toucher -> marche sur mobile */
+        playBlob(blob).then(ok => finish(ok));
       };
     } catch { finish(false); }
   });
@@ -1020,16 +1015,8 @@ async function speakRealAI(text){
     if (!res.ok) return false;
     const blob = await res.blob();
     if (!blob || blob.size < 1000) return false;
-    const objUrl = URL.createObjectURL(blob);
-    const audio = new Audio(objUrl);
-    audio.volume = 1.0; audio.playbackRate = SPEED;
-    if ('preservePitch' in audio) audio.preservePitch = true;
-    currentAudios.push(audio);
-    return await new Promise(resolve => {
-      audio.onended = () => { URL.revokeObjectURL(objUrl); resolve(true); };
-      audio.onerror = () => resolve(false);
-      audio.play().catch(()=> resolve(false));
-    });
+    /* playBlob : joue via le contexte audio debloque au toucher -> marche sur mobile */
+    return await playBlob(blob);
   } catch { return false; }
 }
 /* ===== VOIX IA LOCALE (VITS Meta MMS) : incluse a vie, aucune cle, aucun serveur ===== */
@@ -1066,6 +1053,30 @@ function ensureAudio(){
     if (sharedCtx.state === 'suspended'){ try { sharedCtx.resume(); } catch {} }
     return sharedCtx;
   } catch(e){ return null; }
+}
+/* Joue un blob audio via le contexte partage (debloque au 1er toucher sur mobile).
+   Contourne le blocage autoplay mobile qui empeche new Audio().play() hors geste
+   utilisateur (c'est pour ca que la voix femme ne marchait pas sur telephone). */
+let currentSources = [];
+async function playBlob(blob){
+  try {
+    const ctx = ensureAudio();
+    if (!ctx) return false;
+    if (ctx.state !== 'running'){ try { await ctx.resume(); } catch {} }
+    if (ctx.state !== 'running') return false;
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    currentSources.push(src);
+    return await new Promise(resolve => {
+      let done = false;
+      const finish = ok => { if (done) return; done = true; resolve(ok); };
+      src.onended = () => finish(true);
+      src.onerror = () => finish(false);
+      try { src.start(); } catch { finish(false); }
+    });
+  } catch { return false; }
 }
 ['pointerdown','touchstart','click','keydown'].forEach(ev => {
   window.addEventListener(ev, () => {
@@ -1302,8 +1313,12 @@ function speakSystem(text){
         u.pitch = 1.0;
         const voices = window.speechSynthesis.getVoices();
         const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
-        /* meilleure voix francaise dispo : Google > Microsoft > autre */
-        const pick = fr.find(v => /google/i.test(v.name)) || fr.find(v => /microsoft/i.test(v.name)) || fr[0];
+        /* meilleure voix francaise dispo : FEMININE d'abord (Google fr, Amelie,
+           Denise, Hortense...), puis Microsoft, puis n'importe quelle voix fr */
+        const pick = fr.find(v => /google/i.test(v.name))
+          || fr.find(v => /amelie|amélie|denise|hortense|jacqueline|cecile|cécile|female|femme/i.test(v.name))
+          || fr.find(v => /microsoft/i.test(v.name))
+          || fr[0];
         if (pick) u.voice = pick;
         u.onend = () => speakNext();
         u.onerror = () => finish(false);
@@ -1336,28 +1351,19 @@ function speak(text){
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* VOIX FEMME IA REELLE PAR DEFAUT partout.
-       PC : Edge Neural (Denise) en premier - le WebSocket fonctionne.
-       MOBILE : StreamElements Lea (HTTP simple) en premier - le WebSocket Edge
-       est souvent BLOQUE sur les reseaux mobiles, Lea marche partout.
+    /* VOIX FEMME IA REELLE PAR DEFAUT partout : Edge Neural (Denise) en premier.
+       Le son passe par le contexte audio debloque au toucher (playBlob) -> marche
+       AUSSI sur mobile (avant, new Audio().play() etait bloque par l'autoplay).
+       StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
        Piper RETIRE de la chaine par defaut : son inference WASM bloque le thread
        principal et gelait la page. Dispo en option dans les reglages si besoin.
        Repli : GoogleTTS -> VITS -> Systeme. */
-    const chain = IS_MOBILE
-      ? [
-          ['Lea', speakRealAI],
-          ['Edge', speakEdgeNeural],
-          ['GoogleTTS', speakGoogleTTS],
-          ['VITS', speakVits],
-          ['Systeme', speakSystem]
-        ]
-      : [
-          ['Edge', speakEdgeNeural],
-          ['Lea', speakRealAI],
-          ['GoogleTTS', speakGoogleTTS],
-          ['VITS', speakVits],
-          ['Systeme', speakSystem]
-        ];
+    const chain = [
+      ['Edge', speakEdgeNeural],
+      ['GoogleTTS', speakGoogleTTS],
+      ['VITS', speakVits],
+      ['Systeme', speakSystem]
+    ];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
@@ -1375,6 +1381,8 @@ let currentAudios = [];
 function stopAudio(){
   currentAudios.forEach(a => { try { a.pause(); a.src = ''; a.remove(); } catch {} });
   currentAudios = [];
+  currentSources.forEach(s => { try { s.stop(); s.disconnect(); } catch {} });
+  currentSources = [];
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
   try { audioCtx && audioCtx.close(); } catch {}
 }
