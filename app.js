@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.11';
+const APP_VERSION = '8.12';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -777,6 +777,8 @@ async function askCerebras(question, webCtx, msgs){
           continue;
         } else if (res && res.status === 429){
           break; /* limite -> modele suivant */
+        } else if (res && (res.status === 401 || res.status === 403 || res.status === 404)){
+          return { error: 'key' }; /* cle invalide -> toast + desactivation session */
         } else if (res){
           return { error: 'api' };
         }
@@ -945,7 +947,11 @@ async function askBrain(messages){
       "Mes serveurs sont satures la. Repose ta question dans un instant, ca devrait repasser.",
       "Connexion difficile avec mes serveurs. Reessaie, je suis la."
     ];
-    return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: diag.join(' | ') };
+    /* DIAGNOSTIC : UNE seule raison claire. 'limit' = transitoire (reessaie plus
+       tard) -> ignore si une vraie erreur existe (api/key/net/refus). */
+    const useful = diag.filter(d => !d.endsWith(':limit'));
+    const finalDiag = (useful.length > 0 ? useful : diag).slice(0, 1);
+    return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: finalDiag.join(' | ') };
   }
   return r;
 }
