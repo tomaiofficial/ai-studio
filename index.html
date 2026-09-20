@@ -274,6 +274,11 @@ select.wide-input{appearance:none}
     <a class="secondary" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral</a>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici… — optionnel" autocomplete="off">
 
+    <h4 class="settings-title">🤗 Clé HuggingFace (optionnel — secours fiable)</h4>
+    <p class="muted">Optionnel. Gratuite (~1000 requêtes/jour), fiable même sur mobile car liée à ta clé, pas à ton IP. Sur <b>huggingface.co</b> → Settings → Access Tokens → Create (read).</p>
+    <a class="secondary" href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">🔑 Obtenir une clé HuggingFace</a>
+    <input type="password" id="hfKey" class="wide-input" placeholder="Colle ta clé HuggingFace (hf_...) — optionnel" autocomplete="off">
+
     <h4 class="settings-title">🗣️ Voix</h4>
     <p class="muted">🎙️ <b>Voix système du navigateur</b> — fiable à 100%, aucune clé, aucun serveur, marche même hors ligne. Voix locales (Piper/VITS) en secours automatique.</p>
     <select id="ttsVoice" class="wide-input">

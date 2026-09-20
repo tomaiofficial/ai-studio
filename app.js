@@ -5,8 +5,8 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.05';
-const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.06';
+const LS = { groq: 'va_gkey', mistral: 'va_mkey', hf: 'va_hfkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'meta-llama/llama-3.3-70b-versatile'; /* RAPIDE (pas de raisonnement cache) */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -20,7 +20,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey');
+const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey'), hfKeyInput = $('hfKey');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
@@ -205,11 +205,13 @@ function clearChat(){
 /* ===== REGLAGES ===== */
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
+function getHFKey(){ return (localStorage.getItem(LS.hf) || '').trim(); }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
   mistralKeyInput.value = getMistralKey();
+  hfKeyInput.value = getHFKey();
   ttsVoiceSel.value = getVoice();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
@@ -224,6 +226,10 @@ mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   toast('Cle Mistral enregistree');
 });
+hfKeyInput.addEventListener('change', () => {
+  localStorage.setItem(LS.hf, hfKeyInput.value.trim());
+  toast('Cle HuggingFace enregistree');
+});
 
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
@@ -232,6 +238,7 @@ ttsVoiceSel.addEventListener('change', () => {
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
+  localStorage.setItem(LS.hf, hfKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
@@ -812,6 +819,44 @@ async function webSearch(question){
 /* ===== CERVEAUX GRATUITS SANS CLE (multi-endpoints) =====
    On essaie plusieurs services 100% gratuits sans cle, sans credits, sans compte.
    AUCUN Pollinations, AUCUN service qui demande des credits. */
+/* Cerveau HuggingFace ROUTER (cle gratuite hf_..., ~1000 req/jour, fiable meme
+   sur mobile car lie a ta cle, pas a ton IP partagee) */
+async function askHF(question, webCtx, msgs){
+  const key = getHFKey();
+  if (!key) return { error: 'nokey' };
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+    }
+    if (webCtx){
+      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
+    }
+  }
+  const hfModels = ['qwen2-5-7b-instruct', 'meta-llama-3-1-8b-instruct'];
+  for (const model of hfModels){
+    try {
+      const res = await withTimeout(fetch('https://router.huggingface.co/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
+      }), 12000);
+      if (res && res.ok){
+        const data = await res.json();
+        const t = (data?.choices?.[0]?.message?.content || '').trim();
+        if (t) return { text: t };
+      } else if (res && res.status === 429){
+        continue; /* limite -> essaie le modele suivant */
+      } else if (res){
+        return { error: 'api' };
+      }
+    } catch(e){ console.warn('[HF-router]', model, 'erreur:', e?.message); }
+  }
+  return { error: 'limit' };
+}
+
 async function askFreeLLM(question, webCtx, msgs){
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
@@ -875,23 +920,30 @@ async function askFreeLLM(question, webCtx, msgs){
     }
   }
 
-  /* 3. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h) */
-  const llm7Models = ['mistral-Nemo-Instruct-2407'];
+  /* 3. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
+     GLM-5.3-Flash : teste 200 OK, repond bien en francais.
+     Retry 1x apres 800ms : les 429 sont souvent passagers. */
+  const llm7Models = ['mistral-Nemo-Instruct-2407', 'GLM-5.3-Flash'];
   for (const model of llm7Models){
     attempts.push((async () => {
-      try {
-        const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-        }), 10000);
-        if (res && res.ok){
-          const data = await res.json();
-          const msg = data?.choices?.[0]?.message || {};
-          const text = extractReply(msg);
-          if (text && text.trim()) return text.trim();
-        }
-      } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
+      for (let attempt = 0; attempt < 2; attempt++){
+        try {
+          const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
+          }), 10000);
+          if (res && res.ok){
+            const data = await res.json();
+            const msg = data?.choices?.[0]?.message || {};
+            /* contenu DIRECT : extractReply etait trop strict pour les petits
+               modeles et rejetait des reponses valides -> Gratuit:limit */
+            const text = (msg.content || '').trim();
+            if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+          }
+        } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
+        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
+      }
       return null;
     })());
   }
@@ -909,8 +961,9 @@ async function askFreeLLM(question, webCtx, msgs){
         if (res && res.ok){
           const data = await res.json();
           const msg = data?.choices?.[0]?.message || {};
-          const text = extractReply(msg);
-          if (text && text.trim()) return text.trim();
+          /* contenu direct (extractReply trop strict pour les petits modeles) */
+          const text = (msg.content || '').trim();
+          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
         }
       } catch(e){ console.warn('[OVH]', model, 'erreur:', e?.message); }
       return null;
@@ -936,6 +989,7 @@ async function askBrain(messages){
   const brains = [];
   if (getGroqKey()) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
   if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
+  if (getHFKey()) brains.push({ name: 'HF', fn: () => askHF(null, null, messages) });
   /* Cerveaux gratuits sans cle (multi-endpoints internes) */
   brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
   let r = null;
