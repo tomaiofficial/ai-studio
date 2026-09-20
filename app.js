@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.12';
+const APP_VERSION = '8.13';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'google'; // Voix IA femme (Google Translate TTS) par defaut - gratuite, sans cle
+const DEFAULT_VOICE = 'kokoro'; // Voix IA ultra-realiste (Kokoro, locale) par defaut - gratuite, sans cle
 const SPEED = 1.0; // naturel
 
 
@@ -758,7 +758,7 @@ async function askCerebras(question, webCtx, msgs){
       messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
     }
   }
-  const cbModels = ['llama-3.3-70b', 'gpt-oss-120b'];
+  const cbModels = ['llama-3.3-70b', 'gpt-oss-120b', 'qwen-3-32b'];
   for (const model of cbModels){
     /* retry 1x sur 429 : limite 30 req/min, souvent passagere */
     for (let attempt = 0; attempt < 2; attempt++){
@@ -834,7 +834,7 @@ async function askFreeLLM(question, webCtx, msgs){
   /* 2. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
      GLM-5.3-Flash : teste 200 OK, repond bien en francais.
      Retry 1x apres 800ms : les 429 sont souvent passagers. */
-  const llm7Models = ['mistral-Nemo-Instruct-2407', 'GLM-5.3-Flash'];
+  const llm7Models = ['mistral-Nemo-Instruct-2407', 'GLM-5.3-Flash', 'minimax-m2.7'];
   for (const model of llm7Models){
     attempts.push((async () => {
       for (let attempt = 0; attempt < 2; attempt++){
@@ -1202,6 +1202,107 @@ function loadVits(){
     .catch(e => { vitsLoading = null; throw e; });
   return vitsLoading;
 }
+/* ===== VOIX IA ULTRA-REALISTE (Kokoro 82M) : francaise, locale, 92 Mo q8, aucune cle ===== */
+let kokoroTTS = null;
+let kokoroLoading = null;
+let kokoroTokenizer = null;
+let kokoroPhonemizer = null;
+async function loadKokoro(){
+  if (kokoroTTS) return Promise.resolve(kokoroTTS);
+  if (kokoroLoading) return kokoroLoading;
+  if (!window.Transformers){ return Promise.reject(new Error('Transformers module non charge')); }
+  if (!window.PiperWeb){ return Promise.reject(new Error('Piper phonemizer non charge')); }
+  /* Desktop seulement : le modele 92 Mo + phonemiseur WASM peut saturer la RAM mobile */
+  if (IS_MOBILE) return Promise.reject(new Error('Kokoro desktop only'));
+  kokoroLoading = (async () => {
+    try {
+      /* 1. Phonemiseur Piper (fr) : meme runtime que loadPiper, sans le moteur TTS */
+      const P = window.PiperWeb;
+      kokoroPhonemizer = new P.PhonemizeWebRuntime({
+        basePath: 'https://unpkg.com/piper-tts-web@1.1.2/dist/piper/'
+      });
+      /* 2. Modele Kokoro (StyleTextToSpeech2) + Tokenizer via transformers.js complet */
+      const { StyleTextToSpeech2Model, AutoTokenizer, Tensor } = window.Transformers;
+      const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
+      const [model, tokenizer] = await Promise.all([
+        StyleTextToSpeech2Model.from_pretrained(MODEL, { dtype: 'q8', device: 'wasm' }),
+        AutoTokenizer.from_pretrained(MODEL)
+      ]);
+      kokoroTTS = model;
+      kokoroTokenizer = tokenizer;
+      /* 3. Test rapide : phonemize + tokenize + generate (1 phrase courte) */
+      const testText = 'Bonjour.';
+      const cfg = await (await fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json')).json();
+      const phonemeRes = await kokoroPhonemizer.phonemize(testText, [cfg]);
+      const ipa = phonemeRes.phonemes.join('');
+      const { input_ids } = kokoroTokenizer(ipa, { truncation: true });
+      /* slice style embeddings (ff_siwis) comme kokoro-js */
+      const emb = new Float32Array(await (await fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin')).arrayBuffer());
+      const offset = 256 * Math.min(Math.max(input_ids.dims.at(-1) - 2, 0), 509);
+      const style = emb.slice(offset, offset + 256);
+      await kokoroTTS({
+        input_ids,
+        style: new Tensor('float32', style, [1, 256]),
+        speed: new Tensor('float32', [1], [1])
+      });
+      return kokoroTTS;
+    } catch(e){
+      kokoroLoading = null;
+      kokoroTTS = null;
+      kokoroTokenizer = null;
+      kokoroPhonemizer = null;
+      throw e;
+    }
+  })();
+  return kokoroLoading;
+}
+async function speakKokoro(text){
+  try {
+    if (!kokoroTTS && !kokoroLoading) return false;
+    let tts, tokenizer, phonemizer;
+    if (kokoroTTS){
+      tts = kokoroTTS;
+      tokenizer = kokoroTokenizer;
+      phonemizer = kokoroPhonemizer;
+    } else {
+      /* chargement avec timeout court (12s) : si trop lent -> repli Google */
+      const loaded = await Promise.race([
+        loadKokoro(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro load timeout')), 12000))
+      ]);
+      tts = loaded;
+      tokenizer = kokoroTokenizer;
+      phonemizer = kokoroPhonemizer;
+    }
+    if (!tts || !tokenizer || !phonemizer) return false;
+    /* decoupage en phrases courtes (200) pour 1er son rapide + timeout generation */
+    const chunks = splitVits(text, 200);
+    const cfg = await (await fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json')).json();
+    const emb = new Float32Array(await (await fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin')).arrayBuffer());
+    const { Tensor } = window.Transformers;
+    for (const c of chunks){
+      const phonemeRes = await phonemizer.phonemize(c, [cfg]);
+      const ipa = phonemeRes.phonemes.join('');
+      const { input_ids } = tokenizer(ipa, { truncation: true });
+      const offset = 256 * Math.min(Math.max(input_ids.dims.at(-1) - 2, 0), 509);
+      const style = emb.slice(offset, offset + 256);
+      const out = await Promise.race([
+        tts({
+          input_ids,
+          style: new Tensor('float32', style, [1, 256]),
+          speed: new Tensor('float32', [1], [1])
+        }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro generation timeout')), 15000))
+      ]);
+      const ok = await playRawAudio(out);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){
+    console.warn('[VOIX] Kokoro echec:', e.message);
+    return false;
+  }
+}
 /* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
    et limitent le nombre de contextes -> un seul, reveille au premier toucher) */
 let sharedCtx = null;
@@ -1261,9 +1362,10 @@ async function playBlob(blob){
       } catch {}
     }
     /* Desktop : on NE precharge PLUS Piper (retire de la chaine vocale).
-       Si VITS dispo, on le precharge en secours. */
-    if (!IS_MOBILE && !vitsTTS && !vitsLoading){
-      loadVits().catch(() => {});
+       Precharge Kokoro (voix par defaut) puis VITS en secours. */
+    if (!IS_MOBILE){
+      if (!kokoroTTS && !kokoroLoading) loadKokoro().catch(() => {});
+      if (!vitsTTS && !vitsLoading) loadVits().catch(() => {});
     } else if (IS_MOBILE && !vitsTTS && !vitsLoading && (!navigator.deviceMemory || navigator.deviceMemory >= 4)){
       loadVits().catch(() => {});
     }
@@ -1521,16 +1623,17 @@ function speak(text){
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* VOIX IA FEMME PAR DEFAUT : Google Translate TTS (femme, gratuite, sans cle,
-       marche partout, pas de telechargement). Edge TTS RETIRE : le WebSocket Bing
-       est bloque sur ce reseau (et l'utilisateur veut la femme, pas Edge).
+    /* VOIX IA FEMME PAR DEFAUT : Kokoro (ultra-realiste, locale, 92 Mo, francaise).
+       Secours : Google Translate TTS (femme, gratuite, sans cle, marche partout).
+       Edge TTS RETIRE : le WebSocket Bing est bloque sur ce reseau.
        StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
-       Le choix du selecteur de voix est RESPECTE (avant, il etait ignore). */
+       Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'vits') chain = [['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS], ['VITS', speakVits]];
-    else chain = [['GoogleTTS', speakGoogleTTS], ['VITS', speakVits], ['Systeme', speakSystem]];
+    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['VITS', speakVits], ['Systeme', speakSystem]];
+    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['VITS', speakVits], ['Systeme', speakSystem]];
+    else if (voiceMode === 'vits') chain = [['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['Systeme', speakSystem]];
+    else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['VITS', speakVits]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
