@@ -1294,7 +1294,10 @@ async function speakKokoro(text){
         }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro generation timeout')), 15000))
       ]);
-      const ok = await playRawAudio(out);
+      /* Kokoro retourne { waveform: Tensor } -> extraire .data (Float32Array) + sr 24000 */
+      const waveform = out?.waveform?.data;
+      if (!waveform || !waveform.length) { console.warn('[VOIX] Kokoro waveform vide'); return false; }
+      const ok = await playRawAudio({ audio: waveform, sampling_rate: 24000 });
       if (!ok) return false;
     }
     return true;
