@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.00';
+const APP_VERSION = '8.01';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -615,7 +615,7 @@ async function askGroq(question, webCtx, msgs){
   }
   try {
     let reply = '';
-    for (const model of [GROQ_MODEL, 'groq/compound-mini']){
+    for (const model of [GROQ_MODEL, 'meta-llama/llama-3.3-70b-versatile']){
       /* timeout 30s : sinon un fetch bloque = orbe qui tourne pour toujours */
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 30000);
@@ -633,7 +633,8 @@ async function askGroq(question, webCtx, msgs){
       const j = await res.json();
       const msg = j.choices && j.choices[0] && j.choices[0].message || {};
       reply = extractReply(msg);
-      if (reply && !/[.!?]$/.test(reply.trim())) reply = '';
+      /* PAS de filtre de ponctuation : une reponse valide peut finir sans point
+         (ex: "C'est fait" ou ":)") - la jeter faisait echouer tout le cerveau */
       if (reply) break;
     }
     if (!reply) return { error: 'api' };
@@ -828,7 +829,7 @@ async function askFreeLLM(question, webCtx, msgs){
 /* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
    reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
 async function askBrain(messages){
-  const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole|desole, mais/i.test(x.text || ''));
+  const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
   const brains = [];
   if (getGroqKey()) brains.push(() => askGroq(null, null, messages));
   if (getMistralKey()) brains.push(() => askMistral(null, null, messages));
@@ -838,6 +839,7 @@ async function askBrain(messages){
   for (const b of brains){
     r = await b();
     if (!bad(r)) break;
+    console.warn('[Brain] echec:', r.error || (r.text || '').slice(0, 60));
   }
   /* FALLBACK ULTIME : si TOUT a echoue, reponse simple et naturelle (comme GPT),
      sans drame ni "emotions" */
