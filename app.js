@@ -778,7 +778,8 @@ async function askCerebras(question, webCtx, msgs){
         } else if (res && res.status === 429){
           break; /* limite -> modele suivant */
         } else if (res && (res.status === 401 || res.status === 403 || res.status === 404)){
-          return { error: 'key' }; /* cle invalide -> toast + desactivation session */
+          console.warn('[Cerebras] Cle invalide (401/403/404) -> on passe au cerveau suivant sans bloquer');
+          return { error: 'limit' }; /* cle invalide -> on continue silencieusement vers Mistral/Gratuit */
         } else if (res){
           return { error: 'api' };
         }
@@ -1227,8 +1228,10 @@ async function loadKokoro(){
   if (kokoroLoading) return kokoroLoading;
   if (!window.Transformers){ console.error('[KOKORO] Transformers module manquant'); return Promise.reject(new Error('Transformers module non charge')); }
   if (!window.PiperWeb){ console.error('[KOKORO] PiperWeb manquant'); return Promise.reject(new Error('Piper phonemizer non charge')); }
-  if (IS_MOBILE){ console.error('[KOKORO] Mobile detecte -> desactive'); return Promise.reject(new Error('Kokoro desktop only')); }
-  console.log('[KOKORO] Debut chargement...');
+  /* Mobile OK : on utilise q4 (plus leger, ~45 Mo) au lieu de q8 (92 Mo) */
+  const isMobile = IS_MOBILE;
+  const dtype = isMobile ? 'q4' : 'q8';
+  console.log('[KOKORO] Debut chargement', isMobile ? '(mobile q4)' : '(desktop q8)');
   kokoroLoading = (async () => {
     try {
       /* 1. Phonemiseur Piper (fr) */
@@ -1241,12 +1244,12 @@ async function loadKokoro(){
       const { StyleTextToSpeech2Model, AutoTokenizer } = window.Transformers;
       const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
       const [model, tokenizer] = await Promise.all([
-        StyleTextToSpeech2Model.from_pretrained(MODEL, { dtype: 'q8', device: 'wasm' }),
+        StyleTextToSpeech2Model.from_pretrained(MODEL, { dtype, device: 'wasm' }),
         AutoTokenizer.from_pretrained(MODEL)
       ]);
       kokoroTTS = model;
       kokoroTokenizer = tokenizer;
-      console.log('[KOKORO] Modele + Tokenizer charges -> PRET (pas de test generation)');
+      console.log('[KOKORO] Modele + Tokenizer charges -> PRET');
       return kokoroTTS;
     } catch(e){
       console.error('[KOKORO] ERREUR chargement:', e.message, e.stack);
@@ -1279,8 +1282,8 @@ async function speakKokoro(text){
       phonemizer = kokoroPhonemizer;
     }
     if (!tts || !tokenizer || !phonemizer) { console.warn('[KOKORO] Manquant tts/tokenizer/phonemizer'); return false; }
-    /* decoupage en phrases COURTES (120) pour 1er son TRES rapide */
-    const chunks = splitVits(text, 120);
+    /* decoupage en phrases COURTES (120) par FIN DE PHRASE pour 1er son TRES rapide + pas de coupure */
+    const chunks = splitKokoro(text, 120);
     console.log('[KOKORO] Chunks:', chunks.length);
     /* utiliser assets precharges ou fallback fetch */
     const cfg = kokoroConfig || await (await fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json')).json();
@@ -1315,8 +1318,8 @@ async function speakKokoro(text){
 let sharedCtx = null;
 /* Mobile : voix legere d'abord (le modele local 38 Mo peut faire planter la page en RAM) */
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-/* Precharge immediat Kokoro (desktop) : lance le telechargement du modele 92 Mo des l'ouverture */
-if (!IS_MOBILE && window.Transformers && window.PiperWeb){
+/* Precharge immediat Kokoro (desktop + mobile) : lance le telechargement du modele des l'ouverture */
+if (window.Transformers && window.PiperWeb){
   loadKokoro().catch(() => {});
   preloadKokoroAssets().catch(() => {});
 }
@@ -1373,14 +1376,12 @@ async function playBlob(blob){
         window.speechSynthesis.cancel();
       } catch {}
     }
-    /* Desktop : on NE precharge PLUS Piper (retire de la chaine vocale).
-       Precharge Kokoro (voix par defaut) + assets (config + embeddings) puis VITS en secours. */
-    if (!IS_MOBILE){
-      if (!kokoroTTS && !kokoroLoading) loadKokoro().catch(() => {});
-      preloadKokoroAssets().catch(() => {});
+    /* Precharge Kokoro (voix par defaut) + assets (config + embeddings) sur TOUS appareils.
+       VITS en secours seulement si RAM suffisante (mobile). */
+    if (!kokoroTTS && !kokoroLoading) loadKokoro().catch(() => {});
+    preloadKokoroAssets().catch(() => {});
+    if (!IS_MOBILE || (!navigator.deviceMemory || navigator.deviceMemory >= 4)){
       if (!vitsTTS && !vitsLoading) loadVits().catch(() => {});
-    } else if (IS_MOBILE && !vitsTTS && !vitsLoading && (!navigator.deviceMemory || navigator.deviceMemory >= 4)){
-      loadVits().catch(() => {});
     }
   }, { passive: true });
 });
@@ -1408,15 +1409,17 @@ function playRawAudio(rawAudio){
     } catch(e){ reject(e); }
   });
 }
-function splitVits(text, max){
+function splitKokoro(text, max){
   const out = [];
   let cur = '';
-  for (const word of text.split(/(\s+)/)){
-    if ((cur + word).length > max && cur){ out.push(cur.trim()); cur = word; }
-    else cur += word;
+  const sentences = text.split(/(?<=[.!?…])\s+/);
+  for (const s of sentences){
+    const next = (cur + ' ' + s).trim();
+    if (next.length > max && cur){ out.push(cur.trim()); cur = s; }
+    else cur = next;
   }
   if (cur.trim()) out.push(cur.trim());
-  return out;
+  return out.length ? out : [text];
 }
 async function speakVits(text){
   try {
