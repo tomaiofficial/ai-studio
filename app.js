@@ -809,8 +809,8 @@ async function askFreeLLM(question, webCtx, msgs){
      tentatives = jusqu'a 6 min !). Maintenant : reponse en ~2-4s. */
   const attempts = [];
 
-  /* 1. ENDPOINTS COMMUNAUTAIRES */
-  const communityEndpoints = ['https://free.churchless.tech/v1/chat/completions'];
+  /* 1. ENDPOINTS COMMUNAUTAIRES (Churchless retire : CORS bloque navigateur) */
+  const communityEndpoints = [];
   const models = ['llama-3.1-8b', 'mistral-7b'];
   for (const ep of communityEndpoints){
     for (const model of models){
@@ -1318,9 +1318,9 @@ async function speakKokoro(text){
 let sharedCtx = null;
 /* Mobile : voix legere d'abord (le modele local 38 Mo peut faire planter la page en RAM) */
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-/* Precharge immediat Kokoro (desktop + mobile) : lance le telechargement du modele des l'ouverture */
+/* Precharge immediat assets legers Kokoro (config + embeddings ~0.5 Mo) des l'ouverture.
+   Le modele lourd (92 Mo q8 / 45 Mo q4) sera charge au 1er geste utilisateur pour ne pas bloquer la page. */
 if (window.Transformers && window.PiperWeb){
-  loadKokoro().catch(() => {});
   preloadKokoroAssets().catch(() => {});
 }
 /* Precharge la liste des voix systeme (getVoices est asynchrone) */
@@ -1377,12 +1377,9 @@ async function playBlob(blob){
       } catch {}
     }
     /* Precharge Kokoro (voix par defaut) + assets (config + embeddings) sur TOUS appareils.
-       VITS en secours seulement si RAM suffisante (mobile). */
+       VITS retire (401 sur Xenova) -> sera charge a la demande si necessaire. */
     if (!kokoroTTS && !kokoroLoading) loadKokoro().catch(() => {});
     preloadKokoroAssets().catch(() => {});
-    if (!IS_MOBILE || (!navigator.deviceMemory || navigator.deviceMemory >= 4)){
-      if (!vitsTTS && !vitsLoading) loadVits().catch(() => {});
-    }
   }, { passive: true });
 });
 function playRawAudio(rawAudio){
@@ -1641,15 +1638,16 @@ function speak(text){
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
     /* VOIX IA FEMME PAR DEFAUT : Kokoro (ultra-realiste, locale, 92 Mo, francaise).
        Secours : Google Translate TTS (femme, gratuite, sans cle, marche partout).
+       VITS RETIRE : Xenova/vits-tts-fra 401 sur HuggingFace.
        Edge TTS RETIRE : le WebSocket Bing est bloque sur ce reseau.
        StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['VITS', speakVits], ['Systeme', speakSystem]];
-    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['VITS', speakVits], ['Systeme', speakSystem]];
-    else if (voiceMode === 'vits') chain = [['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['Systeme', speakSystem]];
-    else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['VITS', speakVits]];
+    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['Systeme', speakSystem]];
+    else if (voiceMode === 'vits') chain = [['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['Systeme', speakSystem]];
+    else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
