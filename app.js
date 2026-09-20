@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.04';
+const APP_VERSION = '8.05';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'meta-llama/llama-3.3-70b-versatile'; /* RAPIDE (pas de raisonnement cache) */
@@ -929,7 +929,10 @@ async function askFreeLLM(question, webCtx, msgs){
 /* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
    reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
 async function askBrain(messages){
-  const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
+  /* bad = reponse a REJETER -> on essaie le cerveau suivant.
+     TOUTE erreur (api/net/limit/nokey) est rejetee : avant, seules les erreurs
+     'limit' l'etaient, donc une erreur Groq arretait tout -> "petite erreur". */
+  const bad = x => !!x.error || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
   const brains = [];
   if (getGroqKey()) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
   if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
