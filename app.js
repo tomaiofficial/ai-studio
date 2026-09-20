@@ -5,8 +5,8 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.08';
-const LS = { groq: 'va_gkey', mistral: 'va_mkey', hf: 'va_hfkey', cerebras: 'va_ckey', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.09';
+const LS = { groq: 'va_gkey', mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'meta-llama/llama-3.3-70b-versatile'; /* RAPIDE (pas de raisonnement cache) */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -20,7 +20,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey'), hfKeyInput = $('hfKey'), cerebrasKeyInput = $('cerebrasKey');
+const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey'), cerebrasKeyInput = $('cerebrasKey'), brainSel = $('brainSel');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
@@ -205,15 +205,15 @@ function clearChat(){
 /* ===== REGLAGES ===== */
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
-function getHFKey(){ return (localStorage.getItem(LS.hf) || '').trim(); }
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
+function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
   mistralKeyInput.value = getMistralKey();
-  hfKeyInput.value = getHFKey();
   cerebrasKeyInput.value = getCerebrasKey();
+  brainSel.value = getBrain();
   ttsVoiceSel.value = getVoice();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
@@ -228,9 +228,9 @@ mistralKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
   toast('Cle Mistral enregistree');
 });
-hfKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.hf, hfKeyInput.value.trim());
-  toast('Cle HuggingFace enregistree');
+brainSel.addEventListener('change', () => {
+  localStorage.setItem(LS.brain, brainSel.value);
+  toast('Cerveau choisi : ' + brainSel.value);
 });
 cerebrasKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.cerebras, cerebrasKeyInput.value.trim());
@@ -244,7 +244,6 @@ ttsVoiceSel.addEventListener('change', () => {
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  localStorage.setItem(LS.hf, hfKeyInput.value.trim());
   localStorage.setItem(LS.cerebras, cerebrasKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
@@ -837,44 +836,6 @@ async function webSearch(question){
 /* ===== CERVEAUX GRATUITS SANS CLE (multi-endpoints) =====
    On essaie plusieurs services 100% gratuits sans cle, sans credits, sans compte.
    AUCUN Pollinations, AUCUN service qui demande des credits. */
-/* Cerveau HuggingFace ROUTER (cle gratuite hf_..., ~1000 req/jour, fiable meme
-   sur mobile car lie a ta cle, pas a ton IP partagee) */
-async function askHF(question, webCtx, msgs){
-  const key = getHFKey();
-  if (!key) return { error: 'nokey' };
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-    }
-    if (webCtx){
-      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
-    }
-  }
-  const hfModels = ['qwen2-5-7b-instruct', 'meta-llama-3-1-8b-instruct'];
-  for (const model of hfModels){
-    try {
-      const res = await withTimeout(fetch('https://router.huggingface.co/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
-      }), 12000);
-      if (res && res.ok){
-        const data = await res.json();
-        const t = (data?.choices?.[0]?.message?.content || '').trim();
-        if (t) return { text: t };
-      } else if (res && res.status === 429){
-        continue; /* limite -> essaie le modele suivant */
-      } else if (res){
-        return { error: 'api' };
-      }
-    } catch(e){ console.warn('[HF-router]', model, 'erreur:', e?.message); }
-  }
-  return { error: 'limit' };
-}
-
 /* Cerveau CEREBRAS (cle gratuite : 1M tokens/jour, sans carte bancaire,
    ultra rapide - le plan gratuit le plus genereux du marche) */
 async function askCerebras(question, webCtx, msgs){
@@ -1025,19 +986,25 @@ async function askFreeLLM(question, webCtx, msgs){
    reponde. Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
 /* Cles invalides detectees (401/403/404) : retirees de la chaine pour la session
    pour ne plus re-echouer a chaque question. */
-let badGroqKey = false, badMistralKey = false, badHFKey = false, badCerebrasKey = false;
+let badGroqKey = false, badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages){
   /* bad = reponse a REJETER -> on essaie le cerveau suivant.
      TOUTE erreur (api/net/limit/nokey) est rejetee : avant, seules les erreurs
      'limit' l'etaient, donc une erreur Groq arretait tout -> "petite erreur". */
   const bad = x => !!x.error || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
+  /* UN SEUL cerveau choisi dans les reglages, ou AUTO = le meilleur dispo */
+  const mode = getBrain();
   const brains = [];
-  if (getGroqKey() && !badGroqKey) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
-  if (getMistralKey() && !badMistralKey) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
-  if (getHFKey() && !badHFKey) brains.push({ name: 'HF', fn: () => askHF(null, null, messages) });
-  if (getCerebrasKey() && !badCerebrasKey) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) });
-  /* Cerveaux gratuits sans cle (multi-endpoints internes) */
-  brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
+  if (mode === 'cerebras'){ if (getCerebrasKey()) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) }); }
+  else if (mode === 'groq'){ if (getGroqKey()) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) }); }
+  else if (mode === 'mistral'){ if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) }); }
+  else if (mode === 'gratuit'){ brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) }); }
+  else { /* AUTO : Cerebras -> Groq -> Mistral -> Gratuit */
+    if (getCerebrasKey() && !badCerebrasKey) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) });
+    if (getGroqKey() && !badGroqKey) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
+    if (getMistralKey() && !badMistralKey) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
+    brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
+  }
   let r = null;
   const diag = [];
   for (const b of brains){
@@ -1048,7 +1015,6 @@ async function askBrain(messages){
     if (r.error === 'key'){
       if (b.name === 'Groq'){ badGroqKey = true; toast('Ta cle Groq est invalide - retire-la ou remplace-la dans les reglages'); }
       if (b.name === 'Mistral'){ badMistralKey = true; toast('Ta cle Mistral est invalide - retire-la ou remplace-la dans les reglages'); }
-      if (b.name === 'HF'){ badHFKey = true; toast('Ta cle HuggingFace est invalide - retire-la ou remplace-la dans les reglages'); }
       if (b.name === 'Cerebras'){ badCerebrasKey = true; toast('Ta cle Cerebras est invalide - retire-la ou remplace-la dans les reglages'); }
     }
     diag.push(b.name + ':' + (r.error || 'refus'));

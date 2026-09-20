@@ -262,27 +262,29 @@ select.wide-input{appearance:none}
     <h3>⚙️ Réglages</h3>
 
     <h4 class="settings-title">🧠 Cerveau IA</h4>
-    <p class="muted">✅ <b>Aucune clé requise</b> : l'IA fonctionne gratuitement et <b>sans limite, pour tout le monde</b>, dès l'ouverture (HuggingFace + serveurs gratuits). Les clés ci-dessous sont <b>optionnelles</b> pour un cerveau plus rapide.</p>
+    <p class="muted">Choisis <b>UN</b> cerveau. « Auto » = le meilleur dispo (Cerebras → Groq → Mistral → Gratuit).</p>
+    <select id="brainSel" class="wide-input">
+      <option value="auto" selected>🤖 Auto (recommandé)</option>
+      <option value="cerebras">⚡ Cerebras (1M tokens/jour gratuit)</option>
+      <option value="groq">Groq (rapide)</option>
+      <option value="mistral">Mistral</option>
+      <option value="gratuit">Gratuit (aucune clé)</option>
+    </select>
 
-    <h4 class="settings-title">🧠 Clé Groq (optionnel — cerveau plus rapide)</h4>
+    <h4 class="settings-title">⚡ Clé Cerebras (le plus généreux)</h4>
+    <p class="muted">GRATUIT : 1 million de tokens/jour, sans carte bancaire, ultra rapide. Sur <b>cloud.cerebras.ai</b> → API Keys → Create.</p>
+    <a class="secondary" href="https://cloud.cerebras.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Cerebras</a>
+    <input type="password" id="cerebrasKey" class="wide-input" placeholder="Colle ta clé Cerebras ici… — optionnel" autocomplete="off">
+
+    <h4 class="settings-title">🧠 Clé Groq (optionnel — rapide)</h4>
     <p class="muted">Optionnel. Gratuite (14400 requêtes/jour). Sur <b>console.groq.com</b> → API Keys → Create.</p>
     <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq</a>
     <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq (gsk_...) — optionnel" autocomplete="off">
 
-    <h4 class="settings-title">🗣️ Clé Mistral (optionnel — secours cerveau)</h4>
-    <p class="muted">Optionnel, si Groq en limite.</p>
+    <h4 class="settings-title">🗣️ Clé Mistral (optionnel)</h4>
+    <p class="muted">Optionnel, si tu préfères Mistral.</p>
     <a class="secondary" href="https://console.mistral.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral</a>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici… — optionnel" autocomplete="off">
-
-    <h4 class="settings-title">🤗 Clé HuggingFace (optionnel — secours fiable)</h4>
-    <p class="muted">Optionnel. Gratuite (~1000 requêtes/jour), fiable même sur mobile car liée à ta clé, pas à ton IP. Sur <b>huggingface.co</b> → Settings → Access Tokens → Create (read).</p>
-    <a class="secondary" href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">🔑 Obtenir une clé HuggingFace</a>
-    <input type="password" id="hfKey" class="wide-input" placeholder="Colle ta clé HuggingFace (hf_...) — optionnel" autocomplete="off">
-
-    <h4 class="settings-title">⚡ Clé Cerebras (optionnel — le plus généreux)</h4>
-    <p class="muted">Optionnel. GRATUIT : 1 million de tokens/jour, sans carte bancaire, ultra rapide. Sur <b>cloud.cerebras.ai</b> → API Keys → Create.</p>
-    <a class="secondary" href="https://cloud.cerebras.ai" target="_blank" rel="noopener">🔑 Obtenir une clé Cerebras</a>
-    <input type="password" id="cerebrasKey" class="wide-input" placeholder="Colle ta clé Cerebras ici… — optionnel" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
     <p class="muted">🎙️ <b>Voix système du navigateur</b> — fiable à 100%, aucune clé, aucun serveur, marche même hors ligne. Voix locales (Piper/VITS) en secours automatique.</p>
