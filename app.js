@@ -5,10 +5,10 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.03';
+const APP_VERSION = '8.04';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
-const GROQ_MODEL = 'openai/gpt-oss-120b';
+const GROQ_MODEL = 'meta-llama/llama-3.3-70b-versatile'; /* RAPIDE (pas de raisonnement cache) */
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
 const DEFAULT_VOICE = 'edge'; // Voix IA femme reelle (Edge Neural Lea) par defaut - toujours
@@ -615,10 +615,10 @@ async function askGroq(question, webCtx, msgs){
   }
   try {
     let reply = '';
-    for (const model of [GROQ_MODEL, 'meta-llama/llama-3.3-70b-versatile']){
-      /* timeout 30s : sinon un fetch bloque = orbe qui tourne pour toujours */
+    for (const model of [GROQ_MODEL, 'openai/gpt-oss-120b']){
+      /* timeout 12s : reponse rapide, sinon on passe au cerveau suivant */
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 30000);
+      const timer = setTimeout(() => ctrl.abort(), 12000);
       let res;
       try {
         res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -639,7 +639,7 @@ async function askGroq(question, webCtx, msgs){
       if (reply && fr === 'length'){
         try {
           const ctrl2 = new AbortController();
-          const timer2 = setTimeout(() => ctrl2.abort(), 25000);
+          const timer2 = setTimeout(() => ctrl2.abort(), 12000);
           let cres;
           try {
             cres = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -682,9 +682,9 @@ async function askMistral(question, webCtx, msgs){
     }
   }
   try {
-    /* timeout 25s : sinon un fetch bloque = orbe qui tourne pour toujours */
+    /* timeout 12s : reponse rapide, sinon on passe au cerveau suivant */
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 25000);
+    const timer = setTimeout(() => ctrl.abort(), 12000);
     let res;
     try {
       res = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -705,7 +705,7 @@ async function askMistral(question, webCtx, msgs){
     if (reply && fr === 'length'){
       try {
         const ctrl2 = new AbortController();
-        const timer2 = setTimeout(() => ctrl2.abort(), 20000);
+        const timer2 = setTimeout(() => ctrl2.abort(), 12000);
         let cres;
         try {
           cres = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -741,7 +741,7 @@ async function webSearch(question){
   const [ddg, wiki] = await Promise.all([
     (async () => {
       try {
-        const res = await withTimeout(fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' }), 3500);
+        const res = await withTimeout(fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' }), 2500);
         if (!res || !res.ok) return '';
         const j = await res.json();
         const p = [];
@@ -759,7 +759,7 @@ async function webSearch(question){
     })(),
     (async () => {
       try {
-        const res = await withTimeout(fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + q + '&format=json&srlimit=3&origin=*'), 3500);
+        const res = await withTimeout(fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + q + '&format=json&srlimit=3&origin=*'), 2500);
         if (!res || !res.ok) return '';
         const j = await res.json();
         const hits = (j.query && j.query.search || []).map(s => s.title + ' : ' + s.snippet.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' '));
@@ -769,15 +769,16 @@ async function webSearch(question){
   ]);
   if (ddg) parts.push(ddg);
   if (wiki) parts.push(wiki);
-  /* 2) ACTUALITE EN TEMPS REEL : flux francais si question d'actu ou rien trouve */
-  if (isNews || parts.length === 0){
+  /* 2) ACTUALITE EN TEMPS REEL : flux francais UNIQUEMENT si question d'actu
+     (sinon ca ajoute 5s a CHAQUE question pour rien) */
+  if (isNews){
     const feeds = [
       ['https://www.lemonde.fr/rss/une.xml', 'Le Monde'],
       ['https://www.francetvinfo.fr/titres.rss', 'France Info']
     ];
     const feedResults = await Promise.all(feeds.map(async ([feed, name]) => {
       try {
-        const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feed)), 5000);
+        const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feed)), 3000);
         if (!res || !res.ok) return '';
         const j = await res.json();
         if (j.status !== 'ok' || !j.items || !j.items.length) return '';
@@ -790,7 +791,7 @@ async function webSearch(question){
   /* 3) Recherche ciblee Bing News si question specifique d'actu */
   if (isNews){
     try {
-      const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.bing.com/news/search?q=' + q + '&format=rss')), 5000);
+      const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.bing.com/news/search?q=' + q + '&format=rss')), 3000);
       if (res && res.ok){
         const j = await res.json();
         if (j.status === 'ok' && j.items && j.items.length){
@@ -826,88 +827,103 @@ async function askFreeLLM(question, webCtx, msgs){
   const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
   const openaiMessages = messages;
 
-  /* 1. HUGGINGFACE - plusieurs modèles plus fiables */
-  const hfModels = [
-    'mistralai/Mistral-7B-Instruct-v0.3',
-    'HuggingFaceH4/zephyr-7b-beta',
-    'microsoft/Phi-3-mini-4k-instruct',
-    'google/gemma-2-2b-it'
-  ];
-  for (const model of hfModels){
-    try {
-      const hfRes = await withTimeout(fetch('https://api-inference.huggingface.co/models/' + model, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 300, temperature: 0.7, return_full_text: false } })
-      }), 25000);
-      if (hfRes && hfRes.ok){
-        const data = await hfRes.json();
-        const text = data?.[0]?.generated_text || (Array.isArray(data) ? data[0]?.generated_text : '');
-        if (text && text.trim()) return { text: text.trim() };
-      }
-      console.warn('[HF]', model, 'rate limited');
-    } catch(e){ console.warn('[HF]', model, 'erreur:', e?.message); }
-  }
+  /* TOUS les endpoints gratuits en PARALLELE : le premier qui repond gagne.
+     Avant : boucle sequentielle = chaque echec attendait son timeout (30s x 12
+     tentatives = jusqu'a 6 min !). Maintenant : reponse en ~2-4s. */
+  const attempts = [];
 
-  /* 2. ENDPOINTS COMMUNAUTAIRES 100% GRATUITS (verifies : les autres sont morts
-     404/410/401/SSL -> retires pour ne pas perdre de temps) */
-  const communityEndpoints = [
-    'https://free.churchless.tech/v1/chat/completions'
-  ];
-  const models = ['llama-3.1-8b', 'llama-3-8b', 'mistral-7b', 'gemma-2-9b'];
-  for (const ep of communityEndpoints){
-    for (const model of models){
+  /* 1. HUGGINGFACE */
+  const hfModels = ['mistralai/Mistral-7B-Instruct-v0.3', 'HuggingFaceH4/zephyr-7b-beta'];
+  for (const model of hfModels){
+    attempts.push((async () => {
       try {
-        const res = await withTimeout(fetch(ep, {
+        const hfRes = await withTimeout(fetch('https://api-inference.huggingface.co/models/' + model, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-        }), 30000);
-        if (res && res.ok){
-          const data = await res.json();
-          const text = data?.choices?.[0]?.message?.content;
-          if (text && text.trim()) return { text: text.trim() };
+          body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 300, temperature: 0.7, return_full_text: false } })
+        }), 10000);
+        if (hfRes && hfRes.ok){
+          const data = await hfRes.json();
+          const text = data?.[0]?.generated_text || (Array.isArray(data) ? data[0]?.generated_text : '');
+          if (text && text.trim()) return text.trim();
         }
-      } catch(e){ console.warn('[Community]', ep, model, 'erreur:', e?.message); }
+      } catch(e){ console.warn('[HF]', model, 'erreur:', e?.message); }
+      return null;
+    })());
+  }
+
+  /* 2. ENDPOINTS COMMUNAUTAIRES */
+  const communityEndpoints = ['https://free.churchless.tech/v1/chat/completions'];
+  const models = ['llama-3.1-8b', 'mistral-7b'];
+  for (const ep of communityEndpoints){
+    for (const model of models){
+      attempts.push((async () => {
+        try {
+          const res = await withTimeout(fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
+          }), 10000);
+          if (res && res.ok){
+            const data = await res.json();
+            const text = data?.choices?.[0]?.message?.content;
+            if (text && text.trim()) return text.trim();
+          }
+        } catch(e){ console.warn('[Community]', ep, model, 'erreur:', e?.message); }
+        return null;
+      })());
     }
   }
 
   /* 3. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h) */
-  const llm7Models = ['mistral-Nemo-Instruct-2407', 'minimax-m2.7'];
+  const llm7Models = ['mistral-Nemo-Instruct-2407'];
   for (const model of llm7Models){
-    try {
-      const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-      }), 30000);
-      if (res && res.ok){
-        const data = await res.json();
-        const msg = data?.choices?.[0]?.message || {};
-        const text = extractReply(msg);
-        if (text && text.trim()) return { text: text.trim() };
-      }
-    } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
+    attempts.push((async () => {
+      try {
+        const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
+        }), 10000);
+        if (res && res.ok){
+          const data = await res.json();
+          const msg = data?.choices?.[0]?.message || {};
+          const text = extractReply(msg);
+          if (text && text.trim()) return text.trim();
+        }
+      } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
+      return null;
+    })());
   }
 
   /* 4. OVHCLOUD AI ENDPOINTS - anonyme (2 req/min) */
-  const ovhModels = ['qwen3.5-397b-a17b', 'meta-llama-3_3-70b-instruct'];
+  const ovhModels = ['qwen3.5-397b-a17b'];
   for (const model of ovhModels){
-    try {
-      const res = await withTimeout(fetch('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-      }), 30000);
-      if (res && res.ok){
-        const data = await res.json();
-        const msg = data?.choices?.[0]?.message || {};
-        const text = extractReply(msg);
-        if (text && text.trim()) return { text: text.trim() };
-      }
-    } catch(e){ console.warn('[OVH]', model, 'erreur:', e?.message); }
+    attempts.push((async () => {
+      try {
+        const res = await withTimeout(fetch('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
+        }), 10000);
+        if (res && res.ok){
+          const data = await res.json();
+          const msg = data?.choices?.[0]?.message || {};
+          const text = extractReply(msg);
+          if (text && text.trim()) return text.trim();
+        }
+      } catch(e){ console.warn('[OVH]', model, 'erreur:', e?.message); }
+      return null;
+    })());
   }
 
+  /* Premier succes gagne ; timeout global 12s si tout est mort */
+  let winner = null;
+  const done = new Promise(res => {
+    attempts.forEach(p => p.then(r => { if (r && !winner){ winner = r; res(); } }).catch(() => {}));
+  });
+  await Promise.race([done, new Promise(res => setTimeout(res, 12000))]);
+  if (winner) return { text: winner };
   return { error: 'limit' };
 }
 /* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
@@ -1670,7 +1686,7 @@ async function handleQuestion(question){
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente) */
   const r = await Promise.race([
     agentMode ? runAgent(question) : askAI(question),
-    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 90000 : 50000))
+    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 60000 : 30000))
   ]);
   if (r.error){
     setState('idle');
