@@ -103,6 +103,16 @@ body{
 .mic-btn.speaking{animation:orbPulse .8s ease-in-out infinite;box-shadow:0 0 50px rgba(60,220,160,.8),0 0 130px rgba(60,220,160,.35)}
 @keyframes orbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 @keyframes orbSpin{0%{transform:rotate(0) scale(1)}50%{transform:rotate(180deg) scale(1.04)}100%{transform:rotate(360deg) scale(1)}}
+/* ===== SOUS-TITRES : ce que dit l'IA, affiche sous la bulle ===== */
+.subtitle{
+  max-width:88%;text-align:center;font-size:17px;line-height:1.5;color:#e8e8f0;
+  background:rgba(15,15,26,.65);backdrop-filter:blur(8px);
+  border:1px solid rgba(124,92,255,.18);border-radius:14px;
+  padding:10px 16px;white-space:pre-wrap;word-break:break-word;
+  animation:subIn .3s ease;
+}
+.subtitle:empty{display:none}
+@keyframes subIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 /* ===== RÉGLAGES / MODALS ===== */
 .modal{
   position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;
@@ -210,6 +220,7 @@ select.wide-input{appearance:none}
   <button class="mic-btn" id="orb" role="button" aria-label="Parler">
     <span class="orb-icon" id="orbIcon">🎙️</span>
   </button>
+  <div class="subtitle" id="subtitle"></div>
   <div class="version-tag" id="versionTag"></div>
 </div>
 

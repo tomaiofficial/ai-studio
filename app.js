@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '7.97';
+const APP_VERSION = '7.98';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -168,6 +168,9 @@ function addUserMsg(text){
   d.textContent = text;
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
+  /* nouvelle question -> on efface les sous-titres de la reponse precedente */
+  const sub = document.getElementById('subtitle');
+  if (sub) sub.textContent = '';
 }
 function addAiMsg(text){
   if (chatEmpty) chatEmpty.style.display = 'none';
@@ -176,6 +179,9 @@ function addAiMsg(text){
   d.textContent = text;
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
+  /* SOUS-TITRES : affiche ce que dit l'IA sous la bulle (interface vocale) */
+  const sub = document.getElementById('subtitle');
+  if (sub) sub.textContent = text;
 }
 /* Sous-titre temps reel : met a jour la derniere bulle utilisateur */
 function showInterim(text){
