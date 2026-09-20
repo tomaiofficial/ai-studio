@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.01';
+const APP_VERSION = '8.02';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -824,6 +824,42 @@ async function askFreeLLM(question, webCtx, msgs){
     }
   }
 
+  /* 3. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h) */
+  const llm7Models = ['mistral-Nemo-Instruct-2407', 'minimax-m2.7'];
+  for (const model of llm7Models){
+    try {
+      const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
+      }), 30000);
+      if (res && res.ok){
+        const data = await res.json();
+        const msg = data?.choices?.[0]?.message || {};
+        const text = extractReply(msg);
+        if (text && text.trim()) return { text: text.trim() };
+      }
+    } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
+  }
+
+  /* 4. OVHCLOUD AI ENDPOINTS - anonyme (2 req/min) */
+  const ovhModels = ['qwen3.5-397b-a17b', 'meta-llama-3_3-70b-instruct'];
+  for (const model of ovhModels){
+    try {
+      const res = await withTimeout(fetch('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
+      }), 30000);
+      if (res && res.ok){
+        const data = await res.json();
+        const msg = data?.choices?.[0]?.message || {};
+        const text = extractReply(msg);
+        if (text && text.trim()) return { text: text.trim() };
+      }
+    } catch(e){ console.warn('[OVH]', model, 'erreur:', e?.message); }
+  }
+
   return { error: 'limit' };
 }
 /* Chaine de cerveaux : essaie TOUS les cerveaux en silence jusqu'a ce que l'un
@@ -831,25 +867,27 @@ async function askFreeLLM(question, webCtx, msgs){
 async function askBrain(messages){
   const bad = x => x.error === 'limit' || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
   const brains = [];
-  if (getGroqKey()) brains.push(() => askGroq(null, null, messages));
-  if (getMistralKey()) brains.push(() => askMistral(null, null, messages));
+  if (getGroqKey()) brains.push({ name: 'Groq', fn: () => askGroq(null, null, messages) });
+  if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
   /* Cerveaux gratuits sans cle (multi-endpoints internes) */
-  brains.push(() => askFreeLLM(null, null, messages));
+  brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
   let r = null;
+  const diag = [];
   for (const b of brains){
-    r = await b();
+    r = await b.fn();
     if (!bad(r)) break;
-    console.warn('[Brain] echec:', r.error || (r.text || '').slice(0, 60));
+    diag.push(b.name + ':' + (r.error || 'refus'));
+    console.warn('[Brain] echec:', b.name, r.error || (r.text || '').slice(0, 60));
   }
   /* FALLBACK ULTIME : si TOUT a echoue, reponse simple et naturelle (comme GPT),
-     sans drame ni "emotions" */
+     sans drame ni "emotions". diag = raison exacte, affichee en sous-titre. */
   if (bad(r)){
     const fallbacks = [
       "Je n'arrive pas a joindre mes serveurs en ce moment. Reessaie dans quelques secondes.",
       "Mes serveurs sont satures la. Repose ta question dans un instant, ca devrait repasser.",
       "Connexion difficile avec mes serveurs. Reessaie, je suis la."
     ];
-    return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)] };
+    return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: diag.join(' | ') };
   }
   return r;
 }
@@ -1604,6 +1642,12 @@ async function handleQuestion(question){
     return;
   }
   addAiMsg(r.text);
+  /* DIAGNOSTIC : si tous les cerveaux ont echoue, on affiche la raison exacte
+     en sous-titre (petit texte sous la bulle) pour pouvoir corriger vite */
+  if (r.diag){
+    const sub = document.getElementById('subtitle');
+    if (sub) sub.textContent = 'Diagnostic: ' + r.diag;
+  }
   await speak(r.text);
   isProcessing = false;
   manualStop = false;
