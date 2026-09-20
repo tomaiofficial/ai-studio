@@ -309,21 +309,33 @@ select.wide-input{appearance:none}
     const m = await import("https://esm.sh/@huggingface/transformers@3.5.1");
     window.TransformersPipeline = m.pipeline;
     window.Transformers = m; // expose complet: StyleTextToSpeech2Model, AutoTokenizer, Tensor, RawAudio
+    console.log('[INIT] Transformers OK');
   } catch (e) {
     try {
       const m = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/+esm");
       window.TransformersPipeline = m.pipeline;
       window.Transformers = m;
+      console.log('[INIT] Transformers OK (jsdelivr)');
     } catch (e2) {
-      console.warn('[VOIX] Transformers indisponible:', e2);
+      console.error('[INIT] Transformers ECHEC:', e2);
     }
   }
-  try {
-    const m = await import("https://esm.sh/piper-tts-web@1.1.2");
-    window.PiperWeb = m;
-  } catch (e3) {
-    console.warn('[VOIX] Piper indisponible:', e3);
+  // PiperWeb : essayer plusieurs CDN (esm.sh peut echouer)
+  let piperLoaded = false;
+  for (const url of [
+    "https://cdn.jsdelivr.net/npm/piper-tts-web@1.1.2/+esm",
+    "https://unpkg.com/piper-tts-web@1.1.2/dist/piper-tts-web.js",
+    "https://esm.sh/piper-tts-web@1.1.2"
+  ]){
+    try {
+      const m = await import(url);
+      window.PiperWeb = m;
+      console.log('[INIT] PiperWeb OK depuis', url);
+      piperLoaded = true;
+      break;
+    } catch(e){ console.warn('[INIT] PiperWeb echec', url, e.message); }
   }
+  if (!piperLoaded) console.error('[INIT] PiperWeb INDISPONIBLE sur tous CDN');
 })();
 </script>
 <script src="app.js"></script>
