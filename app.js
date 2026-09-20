@@ -5,7 +5,7 @@
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '7.98';
+const APP_VERSION = '7.99';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -22,6 +22,7 @@ const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
 const closeSettings = $('closeSettings'), groqKeyInput = $('groqKey'), mistralKeyInput = $('mistralKey');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
+const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
@@ -210,6 +211,7 @@ settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
   mistralKeyInput.value = getMistralKey();
   ttsVoiceSel.value = getVoice();
+  wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -276,6 +278,87 @@ if (SR){
     }
   };
 }
+
+/* ===== REVEIL "HEY ASTRA" =====
+   Une 2e oreille en continu : quand l'app est inactive, on ecoute en arriere-plan
+   et on se reveille si l'utilisateur dit "hey astra" (ou juste "astra").
+   - "hey astra quelle heure il est" -> la commande est traitee directement
+   - "hey astra" seul -> elle repond "Oui ? Je t'ecoute" puis ecoute la suite */
+const WAKE_KEY = 'va_wake';
+let wakeEnabled = localStorage.getItem(WAKE_KEY) === '1';
+let wakeRecog = null, wakeRestartTimer = null, suppressWake = false;
+function stopWakeRecog(){
+  clearTimeout(wakeRestartTimer);
+  if (wakeRecog){
+    try { wakeRecog.abort(); } catch {}
+    try { wakeRecog.stop(); } catch {}
+    wakeRecog = null;
+  }
+}
+function startWakeRecog(){
+  if (!wakeEnabled || suppressWake || !SR || wakeRecog || state !== 'idle' || !welcomeDone) return;
+  try {
+    const w = new SR();
+    w.lang = 'fr-FR';
+    w.interimResults = true;
+    w.maxAlternatives = 1;
+    w.continuous = true;
+    w.onresult = e => {
+      let txt = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript + ' ';
+      txt = txt.trim();
+      if (!txt) return;
+      const m = txt.match(/(?:hey|ok|okay|salut|allo|dis|ecoute|écoute)?\s*astra\b/i);
+      if (!m) return;
+      /* reveil detecte -> on coupe l'oreille et on traite */
+      stopWakeRecog();
+      const rest = txt.slice(m.index + m[0].length).replace(/^[^a-zà-ÿ0-9]+/i, '').trim();
+      if (rest){
+        /* commande directe : "hey astra quelle heure il est" */
+        setStatus('"' + rest.slice(0, 40) + '..."');
+        handleQuestion(rest);
+      } else {
+        /* juste "hey astra" -> elle repond puis ecoute la suite */
+        suppressWake = true;
+        setState('listening');
+        setStatus('Oui ? Je t\'ecoute...');
+        speak('Oui ? Je t\'ecoute.').then(() => {
+          suppressWake = false;
+          if (!recog || IS_MOBILE){ startRecorder(); }
+          else { try { setState('listening'); recog.start(); } catch { startRecorder(); } }
+        });
+      }
+    };
+    w.onend = () => {
+      wakeRecog = null;
+      if (wakeEnabled && !suppressWake && state === 'idle' && welcomeDone){
+        clearTimeout(wakeRestartTimer);
+        wakeRestartTimer = setTimeout(startWakeRecog, 700);
+      }
+    };
+    w.onerror = e => {
+      if (e.error === 'not-allowed'){
+        wakeEnabled = false;
+        try { localStorage.setItem(WAKE_KEY, '0'); } catch {}
+        if (wakeToggle) wakeToggle.checked = false;
+        toast('Réveil désactivé : micro non autorisé');
+      }
+    };
+    w.start();
+    wakeRecog = w;
+  } catch { wakeRecog = null; }
+}
+function maybeRestartWake(){
+  if (!wakeEnabled || suppressWake || !welcomeDone || state !== 'idle') return;
+  startWakeRecog();
+}
+function setWakeEnabled(on){
+  wakeEnabled = on;
+  try { localStorage.setItem(WAKE_KEY, on ? '1' : '0'); } catch {}
+  if (on){ suppressWake = false; maybeRestartWake(); }
+  else stopWakeRecog();
+}
+wakeToggle.addEventListener('change', () => setWakeEnabled(wakeToggle.checked));
 
 /* ===== 2E OREILLE : ENREGISTREMENT + WHISPER ===== */
 let mediaRec = null, mediaChunks = [], recorderBusy = false;
@@ -433,6 +516,7 @@ userNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') welcomeO
 userAgeInput.addEventListener('keydown', e => { if (e.key === 'Enter') welcomeOkBtn.click(); });
 
 orb.addEventListener('click', () => {
+  stopWakeRecog(); /* interaction manuelle -> on coupe l'oreille de reveil */
   if (state === 'listening'){
     // Si enregistrement en cours -> on l'arrete et on transcrit
     if (recorderBusy && mediaRec && mediaRec.state === 'recording'){ stopRecorder(); return; }
@@ -1370,6 +1454,7 @@ function speak(text){
       clearTimeout(globalTimer);
       setState('idle');
       if (ok) setStatus("Appuie sur le micro et parle");
+      maybeRestartWake(); /* app inactive -> l'oreille "hey astra" se rallume */
       resolve(ok);
     };
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
@@ -1416,6 +1501,7 @@ async function handleQuestion(question){
   isProcessing = true;
   manualStop = true;
   try{ recog && recog.stop(); }catch{}
+  stopWakeRecog(); /* question en cours -> plus besoin de l'oreille de reveil */
   /* si une bulle utilisateur existe deja (sous-titre interim), on la complete au lieu d'en creer une autre */
   const last = chat.lastElementChild;
   if (last && last.classList.contains('user')) last.textContent = question;
@@ -1453,6 +1539,7 @@ async function handleQuestion(question){
   await speak(r.text);
   isProcessing = false;
   manualStop = false;
+  maybeRestartWake();
 }
 function versionCompare(a, b){
   const pa = String(a).split('.').map(Number);
@@ -1514,4 +1601,6 @@ if (!profile){
 } else if (chatEmpty){
   chatEmpty.textContent = 'Salut ' + profile.name + ' ! Appuie sur le micro 🎙️ et parle.';
 }
+/* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
+if (wakeEnabled && welcomeDone) startWakeRecog();
 // Voix Edge Neural via WebSocket uniquement
