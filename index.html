@@ -281,10 +281,11 @@ select.wide-input{appearance:none}
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral ici… — optionnel" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Voix système du navigateur</b> — fiable à 100%, aucune clé, aucun serveur, marche même hors ligne. Voix locales (Piper/VITS) en secours automatique.</p>
+    <p class="muted">🎙️ <b>Voix IA femme (Google)</b> — gratuite, sans clé, aucun téléchargement. Secours automatique : voix locale VITS puis voix système.</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="edge" selected>🎙️ Voix IA femme réelle (Edge Neural Lea) — par défaut</option>
-      <option value="vits">🎙️ Voix système (fiable à 100%)</option>
+      <option value="google" selected>🎙️ Voix IA femme (Google) — par défaut</option>
+      <option value="vits">🎙️ Voix locale VITS (hors ligne)</option>
+      <option value="systeme">🎙️ Voix système du navigateur</option>
     </select>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
 

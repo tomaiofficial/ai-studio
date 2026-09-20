@@ -3,14 +3,14 @@
    Cerveau par defaut : HuggingFace + serveurs gratuits = GRATUIT,
    AUCUNE cle, AUCUNE limite, pour tout le monde, a vie.
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
-   Edge TTS = voix femme IA reelle (Lea) par defaut
+   Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.10';
+const APP_VERSION = '8.11';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'edge'; // Voix IA femme reelle (Edge Neural Lea) par defaut - toujours
+const DEFAULT_VOICE = 'google'; // Voix IA femme (Google Translate TTS) par defaut - gratuite, sans cle
 const SPEED = 1.0; // naturel
 
 
@@ -37,7 +37,6 @@ let session = [];
 let toastTimer = null;
 let isProcessing = false;
 let manualStop = false;
-let edgeTried = false;
 
 /* ===== CONVERSATIONS ===== */
 const CONV_KEY = 'va_convs';
@@ -1066,102 +1065,7 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
   session.push({ role: 'assistant', content: "Compris, je m appelle Astra et c est Tom.ai qui m a creee le 10 septembre 2026." });
 }
 
-/* ===== VOIX EDGE TTS NEURAL (vraie voix IA Microsoft DeniseNeural) ===== */
-async function speakEdge(text){
-  // Voix Edge Neural uniquement - aucune synthese locale robot
-  const neuralOk = await speakEdgeNeural(text);
-  return neuralOk;
-}
-/* ---- DiFy Sec-MS-GEC : jeton anti-bot officiel Microsoft (algo edge-tts v143.x) ----
-   Microsoft exige depuis 2023 le header/sec Sec-MS-GEC dans la poignee de main Edge TTS,
-   sinon le WebSocket Bing renvoie 403 et la voix retombe sur la synthese locale (robot).
-   Portage JS de l'algo officiel rany2/edge-tts drm.DRM.generate_sec_ms_gec :
-     ticks = unix(now) + WIN_EPOCH        (epoch Windows 1601-01-01)
-     ticks -= ticks % 300                  (fenetre 5 minutes)
-     ticks *= 1e7                          (intervalle 100 ns)
-     str = f"{ticks:.0f}{TRUSTED_CLIENT_TOKEN}"
-     return sha256(str).hexdigest().toUpperCase()
------------------------------------------------------------------------------- */
-const EDGE_TRUSTED_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4"; // edge-tts constants.py
-const EDGE_WIN_EPOCH = 11644473600;   // 1601-01-01 00:00:00 UTC en secondes Unix
-async function generateSecMsGec(){
-  try {
-    // Algo officiel edge-tts (drm.py) : sha256(ticks + TRUSTED_CLIENT_TOKEN) en HEX UPPERCASE
-    let ticks = Date.now() / 1000;          // unix secondes
-    ticks += EDGE_WIN_EPOCH;                // -> Windows file time (secondes)
-    ticks -= ticks % 300;                   // arrondi inferieur a la fenetre 5 min
-    ticks *= 1e7;                           // -> intervalles de 100 ns
-    const str = `${ticks.toFixed(0)}${EDGE_TRUSTED_CLIENT_TOKEN}`;
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('').toUpperCase();
-  } catch { return ''; }
-}
-
-function edgeDateToString(){
-  // Format edge-tts date_to_string() : "Fri Sep 18 2026 12:34:56 GMT+0000 (Coordinated Universal Time)"
-  const d = new Date();
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const p = n => String(n).padStart(2,'0');
-  return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${p(d.getUTCDate())} ${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`;
-}
-
-function speakEdgeNeural(text){
-  const tryOnce = (gec, gecVer) => new Promise(resolve => {
-    let done = false;
-    const finish = ok => { if (!done){ done=true; resolve(ok); } };
-    try {
-      const voice = 'fr-FR-DeniseNeural';
-      const TRUSTED = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
-      const connId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-      const baseUrl = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=' + TRUSTED;
-      const url = gec ? baseUrl + '&Sec-MS-GEC=' + gec + '&Sec-MS-GEC-Version=' + gecVer + '&ConnectionId=' + connId : baseUrl;
-      const ws = new WebSocket(url);
-      const audioChunks = [];
-      let timeout = setTimeout(() => { try{ ws.close(); }catch{} finish(false); }, 6000);
-      ws.onopen = () => {
-        const ts = edgeDateToString();
-        const config = 'X-Timestamp:' + ts + '\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n';
-        ws.send(config);
-        const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voice}'><prosody pitch='+0Hz' rate='+0%' volume='+0%'>${escapeXml(text)}</prosody></voice></speak>`;
-        const msg = 'X-RequestId:' + connId + '\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:' + ts + 'Z\r\nPath:ssml\r\n\r\n' + ssml;
-        ws.send(msg);
-      };
-      ws.onmessage = async e => {
-        if (typeof e.data === 'string'){
-          if (e.data.includes('Path:turn.end')){ try{ ws.close(); }catch{} }
-        } else {
-          // binaire edge-tts : 2 premiers octets = longueur du header (big-endian), puis header, puis audio
-          const data = e.data;
-          const buf = data instanceof Blob ? await data.arrayBuffer() : data;
-          const bytes = new Uint8Array(buf);
-          if (bytes.length < 2) return;
-          const headerLen = (bytes[0] << 8) | bytes[1];
-          if (headerLen <= 0 || 2 + headerLen > bytes.length) return;
-          const headerTxt = new TextDecoder().decode(bytes.slice(2, 2 + headerLen));
-          if (headerTxt.includes('Path:audio')) audioChunks.push(bytes.slice(2 + headerLen));
-        }
-      };
-      ws.onerror = (e) => { console.warn('[VOIX] WS error', e); clearTimeout(timeout); finish(false); };
-      ws.onclose = () => {
-        clearTimeout(timeout);
-        if (audioChunks.length === 0){ console.warn('[VOIX] WS close sans audio (GEC ou reseau)'); finish(false); return; }
-        const total = audioChunks.reduce((s,c)=>s+c.length,0);
-        const out = new Uint8Array(total); let off=0;
-        for (const c of audioChunks){ out.set(c, off); off+=c.length; }
-        const blob = new Blob([out], {type:'audio/mpeg'});
-        /* playBlob : joue via le contexte audio debloque au toucher -> marche sur mobile */
-        playBlob(blob).then(ok => finish(ok));
-      };
-    } catch { finish(false); }
-  });
-  return generateSecMsGec().then(gec => {
-    const ver = '1-143.0.3650.75';
-    if (gec) return tryOnce(gec, ver).then(ok => ok ? true : tryOnce(null, null));
-    return tryOnce(null, null);
-  });
-}
-function escapeXml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+/* ===== VOIX IA FEMME (Google Translate TTS) : gratuite, sans cle, marche partout ===== */
 
 /* Nombres en toutes lettres pour la voix (perdus dans une refonte -> la voix plantait
    des que la reponse contenait un chiffre : '2027', 'GPT-5'...) */
@@ -1277,20 +1181,6 @@ function normalizeForTTS(text){
     .replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
     .replace(/—/g, ',').replace(/–/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/\s+\./g, '.').trim();
-}
-/* Vraie voix IA web (StreamElements Polly Neural) - gratuite, ultra realiste, pas de synthese locale */
-async function speakRealAI(text){
-  try {
-    // StreamElements - voix neurale francaise Lea (Polly Neural), 100% web, pas de cle
-    const voice = 'Lea'; // alternatives: Celine, Mathieu
-    const url = 'https://api.streamelements.com/kappa/v2/speech?voice=' + voice + '&text=' + encodeURIComponent(text);
-    const res = await fetch(url);
-    if (!res.ok) return false;
-    const blob = await res.blob();
-    if (!blob || blob.size < 1000) return false;
-    /* playBlob : joue via le contexte audio debloque au toucher -> marche sur mobile */
-    return await playBlob(blob);
-  } catch { return false; }
 }
 /* ===== VOIX IA LOCALE (VITS Meta MMS) : incluse a vie, aucune cle, aucun serveur ===== */
 let vitsTTS = null;
@@ -1625,19 +1515,16 @@ function speak(text){
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* VOIX FEMME IA REELLE PAR DEFAUT partout : Edge Neural (Denise) en premier.
-       Le son passe par le contexte audio debloque au toucher (playBlob) -> marche
-       AUSSI sur mobile (avant, new Audio().play() etait bloque par l'autoplay).
+    /* VOIX IA FEMME PAR DEFAUT : Google Translate TTS (femme, gratuite, sans cle,
+       marche partout, pas de telechargement). Edge TTS RETIRE : le WebSocket Bing
+       est bloque sur ce reseau (et l'utilisateur veut la femme, pas Edge).
        StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
-       Piper RETIRE de la chaine par defaut : son inference WASM bloque le thread
-       principal et gelait la page. Dispo en option dans les reglages si besoin.
-       Repli : GoogleTTS -> VITS -> Systeme. */
-    const chain = [
-      ['Edge', speakEdgeNeural],
-      ['GoogleTTS', speakGoogleTTS],
-      ['VITS', speakVits],
-      ['Systeme', speakSystem]
-    ];
+       Le choix du selecteur de voix est RESPECTE (avant, il etait ignore). */
+    const voiceMode = getVoice();
+    let chain;
+    if (voiceMode === 'vits') chain = [['VITS', speakVits], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS], ['VITS', speakVits]];
+    else chain = [['GoogleTTS', speakGoogleTTS], ['VITS', speakVits], ['Systeme', speakSystem]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
@@ -1761,7 +1648,7 @@ async function forceUpdate(){
 updateBanner.addEventListener('click', forceUpdate);
 updateBanner.addEventListener('touchend', e => { e.preventDefault(); forceUpdate(); }, {passive:false});
 updateBanner.onclick = forceUpdate;
-function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; edgeTried=false; profile=null; state="idle"; setStatus("Appuie sur le micro et parle"); setState("idle"); location.reload(true); }
+function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; profile=null; state="idle"; setStatus("Appuie sur le micro et parle"); setState("idle"); location.reload(true); }
 $('appVersion').textContent = 'Assistant Vocal IA - v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
@@ -1774,4 +1661,3 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
-// Voix Edge Neural via WebSocket uniquement
