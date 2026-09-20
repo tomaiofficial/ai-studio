@@ -12,15 +12,37 @@
 html,body{height:100%}
 body{
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  background:#0f0f1a;color:#e8e8f0;
+  background:linear-gradient(160deg,#0b0b16 0%,#131330 45%,#0f0f1a 100%);
+  color:#e8e8f0;
   display:flex;flex-direction:column;
   overflow:hidden;text-size-adjust:100%;
 }
+/* ===== FOND ANIME (aurora + etoiles) ===== */
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg-aurora{position:absolute;border-radius:50%;filter:blur(80px);opacity:.55;animation:drift 20s ease-in-out infinite alternate}
+.bg-aurora.a1{width:65vmax;height:65vmax;left:-22vmax;top:-22vmax;background:radial-gradient(circle,rgba(124,92,255,.5),transparent 62%)}
+.bg-aurora.a2{width:55vmax;height:55vmax;right:-18vmax;bottom:-18vmax;background:radial-gradient(circle,rgba(60,220,160,.35),transparent 62%);animation-delay:-7s}
+.bg-aurora.a3{width:42vmax;height:42vmax;left:28%;top:38%;background:radial-gradient(circle,rgba(255,159,46,.22),transparent 62%);animation-delay:-13s}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(5vmax,4vmax) scale(1.12)}}
+.bg-stars{position:absolute;inset:0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 22%,rgba(255,255,255,.5),transparent 100%),
+    radial-gradient(1px 1px at 32% 68%,rgba(255,255,255,.35),transparent 100%),
+    radial-gradient(1.5px 1.5px at 55% 15%,rgba(255,255,255,.4),transparent 100%),
+    radial-gradient(1px 1px at 72% 45%,rgba(255,255,255,.3),transparent 100%),
+    radial-gradient(1.5px 1.5px at 88% 75%,rgba(255,255,255,.45),transparent 100%),
+    radial-gradient(1px 1px at 42% 88%,rgba(255,255,255,.3),transparent 100%),
+    radial-gradient(1px 1px at 8% 55%,rgba(255,255,255,.25),transparent 100%),
+    radial-gradient(1.5px 1.5px at 95% 20%,rgba(255,255,255,.35),transparent 100%);
+  animation:twinkle 6s ease-in-out infinite alternate;
+}
+@keyframes twinkle{from{opacity:.6}to{opacity:1}}
+.topbar,.chat,.composer{position:relative;z-index:1}
 /* ===== BARRE DU HAUT ===== */
 .topbar{
   display:flex;align-items:center;justify-content:space-between;
-  padding:12px 16px;background:rgba(15,15,26,.92);backdrop-filter:blur(10px);
-  border-bottom:1px solid #1e1e33;z-index:10;flex-shrink:0;
+  padding:12px 16px;background:rgba(15,15,26,.55);backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(124,92,255,.18);z-index:10;flex-shrink:0;
 }
 .topbar-title{font-size:17px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
 .topbar-title .dot{width:10px;height:10px;border-radius:50%;background:#3cdca0;box-shadow:0 0 8px #3cdca0}
@@ -48,7 +70,8 @@ body{
   color:#fff;border-bottom-right-radius:4px;
 }
 .msg.ai{
-  align-self:flex-start;background:#1e1e33;color:#e8e8f0;border-bottom-left-radius:4px;
+  align-self:flex-start;background:rgba(30,30,51,.85);backdrop-filter:blur(8px);
+  color:#e8e8f0;border-bottom-left-radius:4px;border:1px solid rgba(124,92,255,.12);
 }
 .msg.agent{
   align-self:flex-start;background:#14202e;color:#8fd0ff;border-bottom-left-radius:4px;
@@ -75,8 +98,8 @@ body{
 .chat-input::placeholder{color:#6a6a85}
 .mic-btn{
   width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;
-  background:radial-gradient(circle at 35% 30%,#7c5cff,#3a2a8f 60%,#1a1245);
-  box-shadow:0 0 20px rgba(124,92,255,.4);
+  background:radial-gradient(circle at 35% 30%,#8f6fff,#3a2a8f 60%,#1a1245);
+  box-shadow:0 0 24px rgba(124,92,255,.55),0 0 64px rgba(124,92,255,.25);
   display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;
   transition:transform .15s ease;
 }
@@ -107,6 +130,16 @@ body{
   position:absolute;top:14px;right:14px;background:none;border:none;
   color:#9a9ab5;font-size:22px;cursor:pointer;
 }
+/* ===== FENETRE D'ACCUEIL (prénom + âge, une seule fois pour la vie) ===== */
+#welcomeModal{align-items:center}
+.welcome-card{
+  border-radius:24px;text-align:center;animation:popIn .35s ease;
+  border:1px solid rgba(124,92,255,.25);
+  box-shadow:0 0 60px rgba(124,92,255,.15);
+}
+.welcome-card h3{font-size:22px;margin-bottom:6px}
+.welcome-card .wide-input{text-align:center;font-size:18px;border-radius:14px}
+@keyframes popIn{from{opacity:0;transform:scale(.88) translateY(10px)}to{opacity:1;transform:none}}
 .modal-card h3{font-size:18px;margin-bottom:16px;color:#fff}
 .settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
 .version-tag{
@@ -163,6 +196,14 @@ select.wide-input{appearance:none}
 </head>
 <body>
 
+<!-- FOND ANIME -->
+<div class="bg">
+  <div class="bg-aurora a1"></div>
+  <div class="bg-aurora a2"></div>
+  <div class="bg-aurora a3"></div>
+  <div class="bg-stars"></div>
+</div>
+
 <div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
 
 <header class="topbar">
@@ -196,6 +237,18 @@ select.wide-input{appearance:none}
     <button class="primary" id="newConvBtn" style="margin-bottom:14px">➕ Nouvelle conversation</button>
     <div id="convList"></div>
     <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
+  </div>
+</div>
+
+<!-- MODAL ACCUEIL : prénom + âge (une seule fois pour la vie) -->
+<div id="welcomeModal" class="modal hidden">
+  <div class="modal-card welcome-card">
+    <h3>👋 Salut, moi c'est Astra !</h3>
+    <p class="muted">Et toi, c'est quoi ton prénom ?</p>
+    <input type="text" id="userName" class="wide-input" placeholder="Ton prénom..." maxlength="30" autocomplete="off">
+    <p class="muted">Et ton âge ?</p>
+    <input type="number" id="userAge" class="wide-input" placeholder="Ton âge..." min="1" max="120" inputmode="numeric">
+    <button class="primary" id="welcomeOk">C'est parti 🚀</button>
   </div>
 </div>
 
