@@ -1,11 +1,11 @@
-/* ============================================================
+﻿/* ============================================================
    ASSISTANT VOCAL IA � 100% vocal, sans chat
    Cerveau par defaut : HuggingFace + serveurs gratuits = GRATUIT,
    AUCUNE cle, AUCUNE limite, pour tout le monde, a vie.
    Groq/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Edge TTS = voix femme IA reelle (Lea) par defaut
    ============================================================ */
-const APP_VERSION = '8.02';
+const APP_VERSION = '8.03';
 const LS = { groq: 'va_gkey', mistral: 'va_mkey', voice: 'va_ttsvoice' };
 
 const GROQ_MODEL = 'openai/gpt-oss-120b';
@@ -624,7 +624,7 @@ async function askGroq(question, webCtx, msgs){
         res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model, messages, max_tokens: 180, temperature: 0.8 }),
+          body: JSON.stringify({ model, messages, max_tokens: 500, temperature: 0.8 }),
           signal: ctrl.signal
         });
       } finally { clearTimeout(timer); }
@@ -632,7 +632,31 @@ async function askGroq(question, webCtx, msgs){
       if (!res.ok) return { error: 'api' };
       const j = await res.json();
       const msg = j.choices && j.choices[0] && j.choices[0].message || {};
+      const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
       reply = extractReply(msg);
+      /* REPONSE COUPEE (finish_reason=length) : on demande a l'IA de continuer
+         exactement la ou elle s'est arretee -> JAMAIS de phrase en suspens */
+      if (reply && fr === 'length'){
+        try {
+          const ctrl2 = new AbortController();
+          const timer2 = setTimeout(() => ctrl2.abort(), 25000);
+          let cres;
+          try {
+            cres = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+              body: JSON.stringify({ model, messages: [...messages, { role: 'assistant', content: reply }, { role: 'user', content: 'Continue ta reponse exactement la ou tu t es arretee, sans repeter ni resumer.' }], max_tokens: 500, temperature: 0.8 }),
+              signal: ctrl2.signal
+            });
+          } finally { clearTimeout(timer2); }
+          if (cres && cres.ok){
+            const cj = await cres.json();
+            const cmsg = cj.choices && cj.choices[0] && cj.choices[0].message || {};
+            const contText = extractReply(cmsg);
+            if (contText) reply += ' ' + contText;
+          }
+        } catch {}
+      }
       /* PAS de filtre de ponctuation : une reponse valide peut finir sans point
          (ex: "C'est fait" ou ":)") - la jeter faisait echouer tout le cerveau */
       if (reply) break;
@@ -666,7 +690,7 @@ async function askMistral(question, webCtx, msgs){
       res = await fetch('https://api.mistral.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 150, temperature: 0.7 }),
+        body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 400, temperature: 0.7 }),
         signal: ctrl.signal
       });
     } finally { clearTimeout(timer); }
@@ -674,7 +698,31 @@ async function askMistral(question, webCtx, msgs){
     if (!res.ok) return { error: 'api' };
     const j = await res.json();
     const msg = j.choices && j.choices[0] && j.choices[0].message || {};
-    const reply = extractReply(msg);
+    const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
+    let reply = extractReply(msg);
+    /* REPONSE COUPEE (finish_reason=length) : continuation pour ne jamais
+       laisser une phrase en suspens */
+    if (reply && fr === 'length'){
+      try {
+        const ctrl2 = new AbortController();
+        const timer2 = setTimeout(() => ctrl2.abort(), 20000);
+        let cres;
+        try {
+          cres = await fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages: [...messages, { role: 'assistant', content: reply }, { role: 'user', content: 'Continue ta reponse exactement la ou tu t es arretee, sans repeter ni resumer.' }], max_tokens: 400, temperature: 0.7 }),
+            signal: ctrl2.signal
+          });
+        } finally { clearTimeout(timer2); }
+        if (cres && cres.ok){
+          const cj = await cres.json();
+          const cmsg = cj.choices && cj.choices[0] && cj.choices[0].message || {};
+          const contText = extractReply(cmsg);
+          if (contText) reply += ' ' + contText;
+        }
+      } catch {}
+    }
     if (!reply) return { error: 'api' };
     return { text: reply };
   } catch { return { error: 'net' }; }
@@ -790,7 +838,7 @@ async function askFreeLLM(question, webCtx, msgs){
       const hfRes = await withTimeout(fetch('https://api-inference.huggingface.co/models/' + model, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 150, temperature: 0.7, return_full_text: false } })
+        body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 300, temperature: 0.7, return_full_text: false } })
       }), 25000);
       if (hfRes && hfRes.ok){
         const data = await hfRes.json();
@@ -813,7 +861,7 @@ async function askFreeLLM(question, webCtx, msgs){
         const res = await withTimeout(fetch(ep, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
+          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
         }), 30000);
         if (res && res.ok){
           const data = await res.json();
@@ -831,7 +879,7 @@ async function askFreeLLM(question, webCtx, msgs){
       const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
+        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
       }), 30000);
       if (res && res.ok){
         const data = await res.json();
@@ -849,7 +897,7 @@ async function askFreeLLM(question, webCtx, msgs){
       const res = await withTimeout(fetch('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 150, temperature: 0.7 })
+        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
       }), 30000);
       if (res && res.ok){
         const data = await res.json();
