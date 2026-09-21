@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.23';
+const APP_VERSION = '8.24';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -25,7 +25,7 @@ const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
-const diagBtn = $('diagBtn'), closeDiag = $('closeDiag'), diagModal = $('diagModal'), diagList = $('diagList'), clearDiagBtn = $('clearDiagBtn');
+const diagBtn = $('diagBtn'), closeDiag = $('closeDiag'), diagModal = $('diagModal'), diagList = $('diagList');
 
 /* ===== JOURNAL IA HORS CONTROLE : enregistre UNIQUEMENT les comportements
    anormaux de l'IA (actualisation auto du site, etc.), PAS les trucs en
@@ -41,7 +41,9 @@ function logDiag(type, msg){
     localStorage.setItem(DIAG_KEY, JSON.stringify(diagLog));
   } catch {}
 }
-/* SIGNALER UN COMPORTEMENT HORS CONTROLE : journal + modale auto + voix */
+/* SIGNALER UN COMPORTEMENT HORS CONTROLE : journal + modale auto + voix.
+   Phrase SIMPLE pour Google TTS (mots courts, pas de mots compliques :
+   "renforcee" et "actualisee" etaient mal prononces). */
 function signalHorsControle(msg){
   logDiag('HORS CONTROLE', msg);
   try {
@@ -52,7 +54,7 @@ function signalHorsControle(msg){
   setTimeout(() => {
     try {
       if (typeof speak === 'function' && !isProcessing){
-        speak("Desole, je suis en securite renforcee pendant une minute. Je me suis actualisee toute seule, c'est corrige.");
+        speak("Desole, je me suis mise en securite renforcee pendant une minute. Je me suis actualisee toute seule, mais c'est corrige maintenant.");
       }
     } catch {}
   }, 1500);
@@ -74,17 +76,20 @@ function renderDiag(){
 if (diagBtn) diagBtn.addEventListener('click', () => { renderDiag(); diagModal.classList.remove('hidden'); });
 if (closeDiag) closeDiag.addEventListener('click', () => diagModal.classList.add('hidden'));
 if (diagModal) diagModal.addEventListener('click', e => { if (e.target === diagModal) diagModal.classList.add('hidden'); });
-if (clearDiagBtn) clearDiagBtn.addEventListener('click', () => { diagLog = []; try { localStorage.setItem(DIAG_KEY, '[]'); } catch {} renderDiag(); toast('Journal efface'); });
 
 /* DETECTION ACTUALISATION AUTO : si la page se recharge toute seule (IA hors
    controle / ancien service worker), on le signale. On compare l'heure du
-   dernier chargement : si < 6s, c'est un refresh automatique. */
+   dernier chargement : si < 6s, c'est un refresh automatique. MAIS si c'est
+   NOUS qui avons actualise (bandeau mise a jour -> flag va_user_refresh),
+   on ne dit RIEN : la phrase de securite n'est que pour l'IA hors controle. */
 (function(){
   try {
     const LAST_LOAD_KEY = 'va_last_load';
     const now = Date.now();
     const last = parseInt(localStorage.getItem(LAST_LOAD_KEY) || '0', 10);
-    if (last && (now - last) < 6000){
+    const userRefresh = localStorage.getItem('va_user_refresh') === '1';
+    localStorage.removeItem('va_user_refresh');
+    if (last && (now - last) < 6000 && !userRefresh){
       signalHorsControle('Actualisation automatique de la page detectee - dernier chargement il y a ' + Math.round((now - last) / 1000) + 's');
     }
     localStorage.setItem(LAST_LOAD_KEY, String(now));
@@ -941,6 +946,7 @@ async function askBrain(messages){
     }
     if (!bad(first.val)){ r = first.val; break; }
     diag.push(first.name + ':' + (first.val.error || 'refus'));
+    logDiag('ERREUR', first.name + ' -> ' + (first.val.error || 'refus') + (first.val.text ? ' : ' + first.val.text.slice(0, 80) : ''));
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
@@ -965,8 +971,10 @@ async function askBrain(messages){
           const data = await res.json();
           const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
           if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
+        } else if (res){
+          logDiag('ERREUR', 'Retry ' + t.model + ' -> HTTP ' + res.status);
         }
-      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); }
+      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); logDiag('ERREUR', 'Retry ' + t.model + ' -> ' + e?.message); }
     }
     diag.push('Retry:limit');
   }
@@ -986,6 +994,7 @@ async function askBrain(messages){
     if (useful.length > 0) finalDiag = useful.slice(0, 1);
     else if (diag.length > 0) finalDiag = ['Serveurs satures - reessaie dans une minute'];
     else finalDiag = [];
+    logDiag('ERREUR', 'TOUT a echoue (' + diag.join(' | ') + ') -> reponse de secours');
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: finalDiag.join(' | ') };
   }
   return r;
@@ -1590,6 +1599,8 @@ async function checkUpdate(){
   } catch {}
 }
 async function forceUpdate(){
+  /* c'est NOUS qui actualisons -> l'IA ne doit PAS dire sa phrase de securite */
+  try { localStorage.setItem('va_user_refresh', '1'); } catch {}
   updateBanner.textContent = 'Mise a jour... patiente 2s';
   updateBanner.style.pointerEvents = 'none';
   try { sessionStorage.clear(); } catch {}
