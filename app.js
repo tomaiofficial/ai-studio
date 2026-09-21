@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.14';
+const APP_VERSION = '8.15';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'kokoro'; // Voix IA ultra-realiste (Kokoro, locale) par defaut - gratuite, sans cle
+const DEFAULT_VOICE = 'google'; // Voix IA femme Google (gratuite, sans cle) par defaut
 const SPEED = 1.0; // naturel
 
 
@@ -1197,130 +1197,6 @@ function normalizeForTTS(text){
     .replace(/—/g, ',').replace(/–/g, ',')
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/\s+\./g, '.').trim();
 }
-/* ===== VOIX IA LOCALE (VITS Meta MMS) : incluse a vie, aucune cle, aucun serveur ===== */
-let vitsTTS = null;
-let vitsLoading = null;
-function loadVits(){
-  if (vitsTTS) return Promise.resolve(vitsTTS);
-  if (vitsLoading) return vitsLoading;
-  if (!window.TransformersPipeline){ return Promise.reject(new Error('Transformers non charge')); }
-  /* WASM force : fiable partout (WebGPU peut echouer a l'inference avec q8).
-   Modèle français qui existe : Xenova/vits-tts-fra (VITS français, ~38 Mo). */
-  vitsLoading = window.TransformersPipeline('text-to-speech', 'Xenova/vits-tts-fra', { dtype: 'q8', device: 'wasm' })
-    .then(t => { vitsTTS = t; return t; })
-    .catch(e => { vitsLoading = null; throw e; });
-  return vitsLoading;
-}
-/* ===== VOIX IA ULTRA-REALISTE (Kokoro 82M) : francaise, locale, 92 Mo q8, aucune cle ===== */
-let kokoroTTS = null;
-let kokoroLoading = null;
-let kokoroTokenizer = null;
-let kokoroPhonemizer = null;
-let kokoroConfig = null;
-let kokoroEmbeddings = null;
-/* Precharge config + embeddings en parallele ( leger, rapide ) */
-async function preloadKokoroAssets(){
-  if (kokoroConfig && kokoroEmbeddings) return;
-  try {
-    const [cfg, emb] = await Promise.all([
-      fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json').then(r => r.json()),
-      fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin').then(r => r.arrayBuffer()).then(b => new Float32Array(b))
-    ]);
-    kokoroConfig = cfg;
-    kokoroEmbeddings = emb;
-    console.log('[KOKORO] Assets precharges (config + embeddings)');
-  } catch(e){ console.warn('[KOKORO] Preload assets echec:', e.message); }
-}
-async function loadKokoro(){
-  if (kokoroTTS) return Promise.resolve(kokoroTTS);
-  if (kokoroLoading) return kokoroLoading;
-  if (!window.Transformers){ console.error('[KOKORO] Transformers module manquant'); return Promise.reject(new Error('Transformers module non charge')); }
-  if (!window.PiperWeb){ console.error('[KOKORO] PiperWeb manquant'); return Promise.reject(new Error('Piper phonemizer non charge')); }
-  /* Mobile OK : on utilise q4 (plus leger, ~45 Mo) au lieu de q8 (92 Mo) */
-  const isMobile = IS_MOBILE;
-  const dtype = isMobile ? 'q4' : 'q8';
-  console.log('[KOKORO] Debut chargement', isMobile ? '(mobile q4)' : '(desktop q8)');
-  kokoroLoading = (async () => {
-    try {
-      /* 1. Phonemiseur Piper (fr) */
-      console.log('[KOKORO] Init PhonemizeWebRuntime...');
-      const P = window.PiperWeb;
-      kokoroPhonemizer = new P.PhonemizeWebRuntime({ basePath: 'https://unpkg.com/piper-tts-web@1.1.2/dist/piper/' });
-      console.log('[KOKORO] PhonemizeWebRuntime OK');
-      /* 2. Modele + Tokenizer en parallele */
-      console.log('[KOKORO] Chargement StyleTextToSpeech2Model + AutoTokenizer...');
-      const { StyleTextToSpeech2Model, AutoTokenizer } = window.Transformers;
-      const MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
-      const [model, tokenizer] = await Promise.all([
-        StyleTextToSpeech2Model.from_pretrained(MODEL, { dtype, device: 'wasm' }),
-        AutoTokenizer.from_pretrained(MODEL)
-      ]);
-      kokoroTTS = model;
-      kokoroTokenizer = tokenizer;
-      console.log('[KOKORO] Modele + Tokenizer charges -> PRET');
-      return kokoroTTS;
-    } catch(e){
-      console.error('[KOKORO] ERREUR chargement:', e.message, e.stack);
-      kokoroLoading = null; kokoroTTS = null; kokoroTokenizer = null; kokoroPhonemizer = null;
-      throw e;
-    }
-  })();
-  return kokoroLoading;
-}
-async function speakKokoro(text){
-  try {
-    console.log('[KOKORO] speakKokoro debut, text len:', text.length);
-    if (!kokoroTTS && !kokoroLoading) { console.warn('[KOKORO] Pas charge ni en cours'); return false; }
-    let tts, tokenizer, phonemizer;
-    if (kokoroTTS){
-      console.log('[KOKORO] Deja charge');
-      tts = kokoroTTS;
-      tokenizer = kokoroTokenizer;
-      phonemizer = kokoroPhonemizer;
-    } else {
-      /* chargement avec timeout reduit (8s) : si trop lent -> repli Google */
-      console.log('[KOKORO] Chargement...');
-      const loaded = await Promise.race([
-        loadKokoro(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro load timeout')), 8000))
-      ]);
-      console.log('[KOKORO] Charge OK');
-      tts = loaded;
-      tokenizer = kokoroTokenizer;
-      phonemizer = kokoroPhonemizer;
-    }
-    if (!tts || !tokenizer || !phonemizer) { console.warn('[KOKORO] Manquant tts/tokenizer/phonemizer'); return false; }
-    /* decoupage en phrases COURTES (120) par FIN DE PHRASE pour 1er son TRES rapide + pas de coupure */
-    const chunks = splitKokoro(text, 120);
-    console.log('[KOKORO] Chunks:', chunks.length);
-    /* utiliser assets precharges ou fallback fetch */
-    const cfg = kokoroConfig || await (await fetch('https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json')).json();
-    const emb = kokoroEmbeddings || new Float32Array(await (await fetch('https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices/ff_siwis.bin')).arrayBuffer());
-    const { Tensor } = window.Transformers;
-    for (const c of chunks){
-      console.log('[KOKORO] Chunk:', c.substring(0, 50));
-      const phonemeRes = await phonemizer.phonemize(c, [cfg]);
-      const ipa = phonemeRes.phonemes.join('');
-      const { input_ids } = tokenizer(ipa, { truncation: true });
-      const offset = 256 * Math.min(Math.max(input_ids.dims.at(-1) - 2, 0), 509);
-      const style = emb.slice(offset, offset + 256);
-      const out = await Promise.race([
-        tts({ input_ids, style: new Tensor('float32', style, [1, 256]), speed: new Tensor('float32', [1], [1]) }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('Kokoro generation timeout')), 10000))
-      ]);
-      const waveform = out?.waveform?.data;
-      if (!waveform || !waveform.length) { console.warn('[VOIX] Kokoro waveform vide'); return false; }
-      console.log('[KOKORO] Waveform OK, samples:', waveform.length);
-      const ok = await playRawAudio({ audio: waveform, sampling_rate: 24000 });
-      console.log('[KOKORO] playRawAudio:', ok);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){
-    console.error('[KOKORO] ERREUR speak:', e.message, e.stack);
-    return false;
-  }
-}
 /* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
    et limitent le nombre de contextes -> un seul, reveille au premier toucher) */
 let sharedCtx = null;
@@ -1340,11 +1216,6 @@ try {
     caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
   }
 } catch {}
-/* Precharge immediat assets legers Kokoro (config + embeddings ~0.5 Mo) des l'ouverture.
-   Le modele lourd (92 Mo q8 / 45 Mo q4) sera charge au 1er geste utilisateur pour ne pas bloquer la page. */
-if (window.Transformers && window.PiperWeb){
-  preloadKokoroAssets().catch(() => {});
-}
 /* Precharge la liste des voix systeme (getVoices est asynchrone) */
 if ('speechSynthesis' in window){
   try { window.speechSynthesis.getVoices(); } catch {}
@@ -1398,10 +1269,8 @@ async function playBlob(blob){
         window.speechSynthesis.cancel();
       } catch {}
     }
-    /* Precharge Kokoro (voix par defaut) + assets (config + embeddings) sur TOUS appareils.
-       VITS retire (401 sur Xenova) -> sera charge a la demande si necessaire. */
-    if (!kokoroTTS && !kokoroLoading) loadKokoro().catch(() => {});
-    preloadKokoroAssets().catch(() => {});
+    /* Plus de prechargement de modele local : la voix par defaut est Google TTS
+       (gratuite, sans cle, instantanee). */
   }, { passive: true });
 });
 function playRawAudio(rawAudio){
@@ -1427,139 +1296,6 @@ function playRawAudio(rawAudio){
       src.start();
     } catch(e){ reject(e); }
   });
-}
-function splitKokoro(text, max){
-  const out = [];
-  let cur = '';
-  const sentences = text.split(/(?<=[.!?…])\s+/);
-  for (const s of sentences){
-    const next = (cur + ' ' + s).trim();
-    if (next.length > max && cur){ out.push(cur.trim()); cur = s; }
-    else cur = next;
-  }
-  if (cur.trim()) out.push(cur.trim());
-  return out.length ? out : [text];
-}
-async function speakVits(text){
-  try {
-    /* VITS seulement si deja charge (ou en cours) : sinon on passe vite a la voix suivante
-       au lieu d'attendre un telechargement de 38 Mo en pleine reponse */
-    if (!vitsTTS && !vitsLoading) return false;
-    let tts;
-    if (vitsTTS) tts = vitsTTS;
-    else {
-      tts = await Promise.race([
-        loadVits(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('VITS trop lent')), 8000))
-      ]);
-    }
-    /* morceaux courts (200) : 1er son rapide, generation limitee par morceau */
-    const chunks = splitVits(text, 200);
-    for (const c of chunks){
-      const out = await Promise.race([
-        tts(c),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('VITS generation lente')), 15000))
-      ]);
-      const ok = await playRawAudio(out);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] VITS echec:', e.message); return false; }
-}
-/* ===== VOIX PIPER (fr_FR-siwis-medium) : locale, gratuite a vie, prononciation naturelle
-   (meilleure que VITS). WASM charges depuis CDN, modele depuis HuggingFace (cache interne). ===== */
-let piperEngine = null;
-let piperLoading = null;
-function loadPiper(){
-  if (piperEngine) return Promise.resolve(piperEngine);
-  if (piperLoading) return piperLoading;
-  if (!window.PiperWeb){ return Promise.reject(new Error('Piper non charge')); }
-  piperLoading = (async () => {
-    const P = window.PiperWeb;
-    /* 1.18.0 : seule version avec WASM non-threaded (ort-wasm-simd.wasm) -> pas besoin
-       des headers COOP/COEP (impossibles sur GitHub Pages). 1.19+ = threaded uniquement -> 404. */
-    const ort = await import('https://esm.sh/onnxruntime-web@1.18.0');
-    const engine = new P.PiperWebEngine({
-      onnxRuntime: new P.OnnxWebRuntime({
-        ort,
-        basePath: 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/',
-        numThreads: 1
-      }),
-      phonemizeRuntime: new P.PhonemizeWebRuntime({
-        basePath: 'https://unpkg.com/piper-tts-web@1.1.2/dist/piper/'
-      }),
-      voiceProvider: new P.HuggingFaceVoiceProvider()
-    });
-    /* test reel au chargement (modele + phonemize + inference). Si KO -> Piper desactive :
-       sinon son etat interne peut rester bloque (Busy) et plus aucun son ne sort jamais */
-    const test = await Promise.race([
-      engine.generate('Bonjour, je suis prete.', 'fr_FR-siwis-medium', 0),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('Piper test timeout')), 30000))
-    ]);
-    if (!test || !test.file) throw new Error('Piper test KO');
-    piperEngine = engine;
-    return engine;
-  })().catch(e => {
-    piperLoading = null;
-    try { piperEngine && piperEngine.destroy(); } catch {}
-    piperEngine = null;
-    throw e;
-  });
-  return piperLoading;
-}
-/* Decoupe aux fins de phrases (prosodie naturelle), max ~500 caracteres par chunk */
-function splitPiper(text, max){
-  const out = [];
-  let cur = '';
-  const sentences = text.split(/(?<=[.!?…])\s+/);
-  for (const s of sentences){
-    const next = (cur + ' ' + s).trim();
-    if (next.length > max && cur){ out.push(cur.trim()); cur = s; }
-    else cur = next;
-  }
-  if (cur.trim()) out.push(cur.trim());
-  return out.length ? out : [text];
-}
-async function speakPiper(text){
-  try {
-    const engine = await loadPiper();
-    /* chunks COURTS (120) : l'inference WASM bloque le thread principal,
-       un gros chunk = site gele pendant 20-60s. Petit chunk = rapide. */
-    const chunks = splitPiper(text, 120);
-    for (const c of chunks){
-      /* timeout court : si Piper bloque (etat Busy ou inference trop lente), on abandonne -> repli */
-      const response = await Promise.race([
-        engine.generate(c, 'fr_FR-siwis-medium', 0),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('Piper timeout')), 15000))
-      ]);
-      if (!response || !response.file) return false;
-      const objUrl = URL.createObjectURL(response.file);
-      const audio = new Audio(objUrl);
-      audio.volume = 1.0;
-      currentAudios.push(audio);
-      const ok = await new Promise(res => {
-        let done = false;
-        const finish = v => { if (done) return; done = true; res(v); };
-        audio.onended = () => finish(true);
-        audio.onerror = () => finish(false);
-        audio.play().catch(() => finish(false));
-        /* verifier que les donnees arrivent vraiment (sinon faux succes -> muet) */
-        setTimeout(() => {
-          if (!done && audio.readyState < 2) finish(false);
-          else if (!done) finish(true);
-        }, (response.duration || 10000) + 5000);
-      });
-      URL.revokeObjectURL(objUrl);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){
-    console.warn('[VOIX] Piper echec:', e.message);
-    /* reset : l'etat interne peut rester bloque (Busy) -> on recharge proprement la prochaine fois */
-    try { piperEngine && piperEngine.destroy(); } catch {}
-    piperEngine = null;
-    return false;
-  }
 }
 /* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
    pas de fetch -> pas de blocage CORS) */
@@ -1588,10 +1324,23 @@ function playGoogleChunk(c){
     setTimeout(() => { if (!done) finish(true); }, 30000);
   });
 }
+/* Decoupe aux fins de phrases (prosodie naturelle), max caracteres par chunk */
+function splitSentences(text, max){
+  const out = [];
+  let cur = '';
+  const sentences = text.split(/(?<=[.!?…])\s+/);
+  for (const s of sentences){
+    const next = (cur + ' ' + s).trim();
+    if (next.length > max && cur){ out.push(cur.trim()); cur = s; }
+    else cur = next;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.length ? out : [text];
+}
 async function speakGoogleTTS(text){
   try {
     /* morceaux courts (120) : URL courte, moins d'echecs, 1er son rapide */
-    const chunks = splitVits(text, 120);
+    const chunks = splitSentences(text, 120);
     for (const c of chunks){
       let ok = await playGoogleChunk(c);
       if (!ok) ok = await playGoogleChunk(c); /* 1 retry par morceau (reseau instable) */
@@ -1607,7 +1356,7 @@ function speakSystem(text){
   return new Promise(resolve => {
     try {
       if (!('speechSynthesis' in window)) return resolve(false);
-      const chunks = splitPiper(text, 200);
+      const chunks = splitSentences(text, 200);
       let i = 0;
       let done = false;
       const finish = ok => { if (done) return; done = true; resolve(ok); };
@@ -1658,18 +1407,17 @@ function speak(text){
     const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* VOIX IA FEMME PAR DEFAUT : Kokoro (ultra-realiste, locale, 92 Mo, francaise).
-       Secours : Google Translate TTS (femme, gratuite, sans cle, marche partout).
+    /* VOIX IA FEMME PAR DEFAUT : Google Translate TTS (gratuite, sans cle, marche partout).
+       Secours : voix systeme du navigateur (aucun reseau).
+       Kokoro RETIRE : trop lent, coupait les phrases, 92 Mo a telecharger.
        VITS RETIRE : Xenova/vits-tts-fra 401 sur HuggingFace.
        Edge TTS RETIRE : le WebSocket Bing est bloque sur ce reseau.
        StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['Systeme', speakSystem]];
-    else if (voiceMode === 'vits') chain = [['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro], ['Systeme', speakSystem]];
-    else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS], ['Kokoro', speakKokoro]];
+    if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
