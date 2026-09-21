@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.15';
+const APP_VERSION = '8.16';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -930,22 +930,29 @@ async function askBrain(messages){
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
-     souvent passageres (par minute). On attend 3s et on retente UN SEUL endpoint
-     (LLM7 GLM-5.3-Flash) au lieu de tout le pool : 1 requete, pas 6. */
+     souvent passageres (par minute). On retente 2x avec backoff progressif
+     (3s puis 6s), en alternant LLM7 GLM puis OVH : 1 requete par retry. */
   if (bad(r)){
-    await new Promise(res => setTimeout(res, 3000));
-    try {
-      const res = await fetch('https://api.llm7.io/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'GLM-5.3-Flash', messages, max_tokens: 300, temperature: 0.7 })
-      });
-      if (res && res.ok){
-        const data = await res.json();
-        const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
-        if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
-      }
-    } catch(e){ console.warn('[Retry] GLM echec:', e?.message); }
+    const retryTargets = [
+      { url: 'https://api.llm7.io/v1/chat/completions', model: 'GLM-5.3-Flash' },
+      { url: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', model: 'qwen3.5-397b-a17b' }
+    ];
+    for (let i = 0; i < retryTargets.length && bad(r); i++){
+      await new Promise(res => setTimeout(res, 3000 + i * 3000));
+      const t = retryTargets[i];
+      try {
+        const res = await fetch(t.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: t.model, messages, max_tokens: 300, temperature: 0.7 })
+        });
+        if (res && res.ok){
+          const data = await res.json();
+          const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
+          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
+        }
+      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); }
+    }
     diag.push('Retry:limit');
   }
   /* FALLBACK ULTIME : si TOUT a echoue, reponse simple et naturelle (comme GPT),
@@ -1135,6 +1142,10 @@ function normalizeForTTS(text){
     .replace(/\b(\d+)\s*m\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' metres')
     .replace(/\b(\d+)\s*s\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' secondes')
     .replace(/\b(\d+)\s*g\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' grammes')
+    /* TELEPHONES FRANCAIS : 06 12 34 56 78 -> chiffre par chiffre (sinon
+       "six douze trente-quatre..." faux). Aussi 06.12.34.56.78 et +33 6... */
+    .replace(/\b(\+33|0033)\s*(\d)\s*(\d{2})\s*(\d{2})\s*(\d{2})\s*(\d{2})\b/g, (m, p, a, b, c, d, e) => 'zero ' + numToFr(parseInt(a, 10)) + ' ' + numToFr(parseInt(b, 10)) + ' ' + numToFr(parseInt(c, 10)) + ' ' + numToFr(parseInt(d, 10)) + ' ' + numToFr(parseInt(e, 10)))
+    .replace(/\b0[1-9](?:[\s.\-]\d{2}){4}\b/g, m => m.replace(/[^\d]/g, '').split('').map(d => numToFr(parseInt(d, 10))).join(' '))
     /* ORDINAUX : 1er, 1ere, 2e, 3e */
     .replace(/\b1er\b/gi, 'premier').replace(/\b1ere\b/gi, 'premiere')
     .replace(/\b(\d+)e\b/g, (m, n) => numToFr(parseInt(n, 10)) + 'ieme')
@@ -1173,6 +1184,7 @@ function normalizeForTTS(text){
     .replace(/a toute\b/gi, 'a tout a l heure')
     /* DIVERS : etc, ex, vs, titres, numero */
     .replace(/\betc\.?\b/gi, 'et cetera')
+    .replace(/\bect\.?\b/gi, 'et cetera')
     .replace(/\bex\s*:/gi, 'par exemple')
     .replace(/\bex\.\b/gi, 'par exemple')
     .replace(/\bvs\.?\b/gi, 'versus')
@@ -1324,7 +1336,9 @@ function playGoogleChunk(c){
     setTimeout(() => { if (!done) finish(true); }, 30000);
   });
 }
-/* Decoupe aux fins de phrases (prosodie naturelle), max caracteres par chunk */
+/* Decoupe aux fins de phrases (prosodie naturelle), max caracteres par chunk.
+   Les phrases PLUS LONGUES que max sont decoupees en sous-chunks (sinon Google
+   TTS echoue au-dela de ~200 caracteres et prononce mal). */
 function splitSentences(text, max){
   const out = [];
   let cur = '';
@@ -1335,7 +1349,18 @@ function splitSentences(text, max){
     else cur = next;
   }
   if (cur.trim()) out.push(cur.trim());
-  return out.length ? out : [text];
+  /* sous-decoupage des chunks trop longs (phrase unique > max) */
+  const final = [];
+  for (const c of out){
+    if (c.length <= max){ final.push(c); continue; }
+    let part = '';
+    for (const word of c.split(/(\s+)/)){
+      if ((part + word).length > max && part){ final.push(part.trim()); part = word; }
+      else part += word;
+    }
+    if (part.trim()) final.push(part.trim());
+  }
+  return final.length ? final : [text];
 }
 async function speakGoogleTTS(text){
   try {
@@ -1453,6 +1478,25 @@ async function handleQuestion(question){
   else addUserMsg(question);
   setState('thinking');
   setStatus('...');
+  /* COMMANDES LOCALES (fiable 100%, sans passer par l'IA) : heure, date, jour.
+     Les petits modeles gratuits ignorent souvent le contexte systeme -> on repond
+     directement avec l'horloge de l'appareil. */
+  const q = question.toLowerCase();
+  const isTimeQ = /(quelle|quel|donne|dis|tu peux me dire|tu sais|c'est quoi|c est quoi)\s+(l'?heure|la date|le jour|quel jour|aujourd|la date d'aujourd)/.test(q)
+    || /(quelle heure|il est quelle heure|tu as l'heure|donne-moi l'heure|donne moi l'heure|la date|quel jour|aujourd'hui on est|on est quel jour|on est le)/.test(q)
+    || /(heure|date|jour)\s*(il est|on est|aujourd)/.test(q);
+  if (isTimeQ){
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const rep = "Il est " + timeStr + ", " + dateStr + ".";
+    addAiMsg(rep);
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartWake();
+    return;
+  }
   /* MODE AGENT : si la question demande une tache multi-etapes (planifie, compare,
      analyse, recherche sur...), Astra passe en agent autonome : plan -> etapes ->
      synthese, avec son travail affiche en direct. Plus de temps (90s) car elle
