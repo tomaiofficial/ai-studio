@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.16';
+const APP_VERSION = '8.17';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1364,8 +1364,9 @@ function splitSentences(text, max){
 }
 async function speakGoogleTTS(text){
   try {
-    /* morceaux courts (120) : URL courte, moins d'echecs, 1er son rapide */
-    const chunks = splitSentences(text, 120);
+    /* morceaux de 180 caracteres : phrase complete, prosodie naturelle (comme
+       ChatGPT), sous la limite Google (~200). 120 etait trop haché. */
+    const chunks = splitSentences(text, 180);
     for (const c of chunks){
       let ok = await playGoogleChunk(c);
       if (!ok) ok = await playGoogleChunk(c); /* 1 retry par morceau (reseau instable) */
@@ -1487,11 +1488,20 @@ async function handleQuestion(question){
     || /(heure|date|jour)\s*(il est|on est|aujourd)/.test(q);
   if (isTimeQ){
     const now = new Date();
+    /* AFFICHAGE lisible : "Il est 08:42, lundi 21 septembre 2026." */
     const dateStr = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const rep = "Il est " + timeStr + ", " + dateStr + ".";
+    /* PRONONCIATION en toutes lettres : "08:42" lu "huit, quarante-deux" est
+       horrible -> "huit heures quarante-deux". Meme chose pour la date. */
+    const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    const MONTHS = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+    const h = now.getHours(), m = now.getMinutes();
+    const timeWords = numToFr(h) + ' heures' + (m ? ' ' + numToFr(m) : '');
+    const dateWords = WEEKDAYS[now.getDay()] + ' ' + numToFr(now.getDate()) + ' ' + MONTHS[now.getMonth()] + ' ' + numToFr(now.getFullYear());
+    const repSpoken = "Il est " + timeWords + ", " + dateWords + ".";
     addAiMsg(rep);
-    await speak(rep);
+    await speak(repSpoken);
     isProcessing = false;
     manualStop = false;
     maybeRestartWake();
