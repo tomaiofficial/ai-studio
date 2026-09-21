@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.13';
+const APP_VERSION = '8.14';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -834,28 +834,26 @@ async function askFreeLLM(question, webCtx, msgs){
 
   /* 2. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
      GLM-5.3-Flash : teste 200 OK, repond bien en francais.
-     Retry 1x apres 800ms : les 429 sont souvent passagers. */
+     UNE seule tentative par modele : 3 modeles = 3 requetes/question,
+     sinon on brule les 10 req/min en 1 question (429 partout). */
   const llm7Models = ['mistral-Nemo-Instruct-2407', 'GLM-5.3-Flash', 'minimax-m2.7'];
   for (const model of llm7Models){
     attempts.push((async () => {
-      for (let attempt = 0; attempt < 2; attempt++){
-        try {
-          const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-          }), 10000);
-          if (res && res.ok){
-            const data = await res.json();
-            const msg = data?.choices?.[0]?.message || {};
-            /* contenu DIRECT : extractReply etait trop strict pour les petits
-               modeles et rejetait des reponses valides -> Gratuit:limit */
-            const text = (msg.content || '').trim();
-            if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
-          }
-        } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
-        if (attempt === 0) await new Promise(r => setTimeout(r, 800));
-      }
+      try {
+        const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
+        }), 10000);
+        if (res && res.ok){
+          const data = await res.json();
+          const msg = data?.choices?.[0]?.message || {};
+          /* contenu DIRECT : extractReply etait trop strict pour les petits
+             modeles et rejetait des reponses valides -> Gratuit:limit */
+          const text = (msg.content || '').trim();
+          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+        }
+      } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
       return null;
     })());
   }
@@ -932,13 +930,23 @@ async function askBrain(messages){
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
-     souvent passageres (par minute). On attend 3s et on retente le pool gratuit
-     UNE fois avant de rendre le fallback. */
+     souvent passageres (par minute). On attend 3s et on retente UN SEUL endpoint
+     (LLM7 GLM-5.3-Flash) au lieu de tout le pool : 1 requete, pas 6. */
   if (bad(r)){
     await new Promise(res => setTimeout(res, 3000));
-    const retry = await askFreeLLM(null, null, messages);
-    if (!bad(retry)) return retry;
-    diag.push('Retry:' + (retry.error || 'refus'));
+    try {
+      const res = await fetch('https://api.llm7.io/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'GLM-5.3-Flash', messages, max_tokens: 300, temperature: 0.7 })
+      });
+      if (res && res.ok){
+        const data = await res.json();
+        const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
+        if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
+      }
+    } catch(e){ console.warn('[Retry] GLM echec:', e?.message); }
+    diag.push('Retry:limit');
   }
   /* FALLBACK ULTIME : si TOUT a echoue, reponse simple et naturelle (comme GPT),
      sans drame ni "emotions". diag = raison exacte, affichee en sous-titre. */
@@ -1318,6 +1326,20 @@ async function speakKokoro(text){
 let sharedCtx = null;
 /* Mobile : voix legere d'abord (le modele local 38 Mo peut faire planter la page en RAM) */
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+/* NETTOYAGE SERVICE WORKER : un ANCIEN SW (d'une version precedente) peut
+   recharger la page en boucle (bug "la page se actualise toutes les 5 sec").
+   On le desinscrit + purge les caches au chargement. Le SW actuel n'est plus
+   enregistre : l'app est network-first, elle n'en a pas besoin. */
+try {
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => { try { r.unregister(); } catch {} });
+    }).catch(() => {});
+  }
+  if ('caches' in window){
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+  }
+} catch {}
 /* Precharge immediat assets legers Kokoro (config + embeddings ~0.5 Mo) des l'ouverture.
    Le modele lourd (92 Mo q8 / 45 Mo q4) sera charge au 1er geste utilisateur pour ne pas bloquer la page. */
 if (window.Transformers && window.PiperWeb){
