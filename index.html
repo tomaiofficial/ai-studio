@@ -208,6 +208,15 @@ select.wide-input{appearance:none}
 }
 .conv-msg.user{border-left-color:#ff9f2e}
 .conv-msg.ai{border-left-color:#3cdca0}
+/* ===== JOURNAL DIAGNOSTIC ===== */
+.diag-row{
+  display:flex;gap:8px;align-items:flex-start;padding:7px 10px;
+  border-radius:10px;background:rgba(255,255,255,.04);margin-bottom:6px;
+  font-size:12.5px;line-height:1.4;word-break:break-word;
+}
+.diag-time{color:#6a6a85;font-family:monospace;white-space:nowrap;flex-shrink:0}
+.diag-type{font-weight:700;flex-shrink:0;min-width:38px}
+.diag-msg{color:#c8c8dd}
 </style>
 </head>
 <body>
@@ -232,6 +241,7 @@ select.wide-input{appearance:none}
   <div class="topbar-title"><span class="dot"></span> Assistant IA</div>
   <div class="topbar-actions">
     <button class="icon-btn" id="historyBtn" aria-label="Historique">📜</button>
+    <button class="icon-btn" id="diagBtn" aria-label="Diagnostic IA">🐛</button>
     <button class="icon-btn" id="settingsBtn" aria-label="Réglages">⚙️</button>
   </div>
 </header>
@@ -247,6 +257,17 @@ select.wide-input{appearance:none}
   </button>
   <div class="subtitle" id="subtitle"></div>
   <div class="version-tag" id="versionTag"></div>
+</div>
+
+<!-- MODAL DIAGNOSTIC : journal des bugs de l'IA (cerveau, limites, TTS) -->
+<div id="diagModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="closeDiag">✕</button>
+    <h3>🐛 Diagnostic IA</h3>
+    <p class="muted">Tout ce que l'IA fait en arrière-plan : échecs du cerveau, limites, retries, erreurs. Utile quand elle fait n'importe quoi.</p>
+    <div id="diagList" style="max-height:50vh;overflow-y:auto;margin-top:10px"></div>
+    <button class="secondary" id="clearDiagBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer le journal</button>
+  </div>
 </div>
 
 <!-- MODAL HISTORIQUE -->

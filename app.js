@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.20';
+const APP_VERSION = '8.21';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -25,6 +25,39 @@ const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
+const diagBtn = $('diagBtn'), closeDiag = $('closeDiag'), diagModal = $('diagModal'), diagList = $('diagList'), clearDiagBtn = $('clearDiagBtn');
+
+/* ===== LOGGER DIAGNOSTIC : enregistre TOUS les evenements de l'IA (echecs
+   cerveau, limites, retries, TTS, bugs) pour voir ce qui se passe quand elle
+   est "hors controle". Stocke en localStorage, max 200 entrees. ===== */
+const DIAG_KEY = 'va_diag';
+let diagLog = [];
+try { diagLog = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); } catch { diagLog = []; }
+function logDiag(type, msg){
+  try {
+    diagLog.push({ t: Date.now(), type, msg });
+    if (diagLog.length > 200) diagLog = diagLog.slice(-200);
+    localStorage.setItem(DIAG_KEY, JSON.stringify(diagLog));
+  } catch {}
+}
+function renderDiag(){
+  if (!diagList) return;
+  if (!diagLog.length){
+    diagList.innerHTML = '<p class="muted" style="text-align:center;padding:20px">Aucun evenement enregistre pour le moment.</p>';
+    return;
+  }
+  const rows = diagLog.slice().reverse().map(e => {
+    const d = new Date(e.t);
+    const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0'), ss = String(d.getSeconds()).padStart(2, '0');
+    const color = e.type === 'OK' ? '#4ade80' : e.type === 'WARN' ? '#fbbf24' : '#f87171';
+    return '<div class="diag-row"><span class="diag-time">' + hh + ':' + mm + ':' + ss + '</span><span class="diag-type" style="color:' + color + '">' + escapeHtml(e.type) + '</span><span class="diag-msg">' + escapeHtml(e.msg) + '</span></div>';
+  }).join('');
+  diagList.innerHTML = rows;
+}
+if (diagBtn) diagBtn.addEventListener('click', () => { renderDiag(); diagModal.classList.remove('hidden'); });
+if (closeDiag) closeDiag.addEventListener('click', () => diagModal.classList.add('hidden'));
+if (diagModal) diagModal.addEventListener('click', e => { if (e.target === diagModal) diagModal.classList.add('hidden'); });
+if (clearDiagBtn) clearDiagBtn.addEventListener('click', () => { diagLog = []; try { localStorage.setItem(DIAG_KEY, '[]'); } catch {} renderDiag(); toast('Journal efface'); });
 
 /* ===== PROFIL UTILISATEUR (prénom + âge, une seule fois pour la vie) ===== */
 const PROFILE_KEY = 'va_profile';
@@ -804,90 +837,38 @@ async function askFreeLLM(question, webCtx, msgs){
   }
   const openaiMessages = messages;
 
-  /* TOUS les endpoints gratuits en PARALLELE : le premier qui repond gagne.
-     Avant : boucle sequentielle = chaque echec attendait son timeout (30s x 12
-     tentatives = jusqu'a 6 min !). Maintenant : reponse en ~2-4s. */
-  const attempts = [];
+  /* STRATEGIE H24 : LLM7 SEUL en premier (1 requete/question -> 10 questions/min
+     possibles, le quota ne brule plus). OVH n'est appele QUE si LLM7 echoue
+     (secours), pas en parallele : avant, 2 requetes/question dont OVH (2 req/min)
+     -> 2 questions/min max puis "Serveurs satures". */
+  const tryEndpoint = async (url, model) => {
+    try {
+      const res = await withTimeout(fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
+      }), 10000);
+      if (res && res.ok){
+        const data = await res.json();
+        const msg = data?.choices?.[0]?.message || {};
+        /* contenu DIRECT : extractReply etait trop strict pour les petits
+           modeles et rejetait des reponses valides -> Gratuit:limit */
+        const text = (msg.content || '').trim();
+        if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+      }
+    } catch(e){ console.warn('[' + model + ']', 'erreur:', e?.message); }
+    return null;
+  };
 
-  /* 1. ENDPOINTS COMMUNAUTAIRES (Churchless retire : CORS bloque navigateur) */
-  const communityEndpoints = [];
-  const models = ['llama-3.1-8b', 'mistral-7b'];
-  for (const ep of communityEndpoints){
-    for (const model of models){
-      attempts.push((async () => {
-        try {
-          const res = await withTimeout(fetch(ep, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-          }), 10000);
-          if (res && res.ok){
-            const data = await res.json();
-            const text = data?.choices?.[0]?.message?.content;
-            if (text && text.trim()) return text.trim();
-          }
-        } catch(e){ console.warn('[Community]', ep, model, 'erreur:', e?.message); }
-        return null;
-      })());
-    }
-  }
+  /* 1. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
+     GLM-5.3-Flash : teste 200 OK, repond bien en francais. */
+  let text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
+  if (text) return { text };
 
-  /* 2. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
-     GLM-5.3-Flash : teste 200 OK, repond bien en francais.
-     UN SEUL modele : 1 requete/question. Avant : 3 modeles = 3 requetes en
-     parallele -> on brulait les 10 req/min en 1 seule question -> 429 partout
-     -> "Gratuit:limit" a chaque question. 1 requete = 10 questions/min. */
-  const llm7Models = ['GLM-5.3-Flash'];
-  for (const model of llm7Models){
-    attempts.push((async () => {
-      try {
-        const res = await withTimeout(fetch('https://api.llm7.io/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-        }), 10000);
-        if (res && res.ok){
-          const data = await res.json();
-          const msg = data?.choices?.[0]?.message || {};
-          /* contenu DIRECT : extractReply etait trop strict pour les petits
-             modeles et rejetait des reponses valides -> Gratuit:limit */
-          const text = (msg.content || '').trim();
-          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
-        }
-      } catch(e){ console.warn('[LLM7]', model, 'erreur:', e?.message); }
-      return null;
-    })());
-  }
+  /* 2. OVHCLOUD AI ENDPOINTS - anonyme (2 req/min), secours si LLM7 echoue */
+  text = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
+  if (text) return { text };
 
-  /* 3. OVHCLOUD AI ENDPOINTS - anonyme (2 req/min) */
-  const ovhModels = ['qwen3.5-397b-a17b'];
-  for (const model of ovhModels){
-    attempts.push((async () => {
-      try {
-        const res = await withTimeout(fetch('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-        }), 10000);
-        if (res && res.ok){
-          const data = await res.json();
-          const msg = data?.choices?.[0]?.message || {};
-          /* contenu direct (extractReply trop strict pour les petits modeles) */
-          const text = (msg.content || '').trim();
-          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
-        }
-      } catch(e){ console.warn('[OVH]', model, 'erreur:', e?.message); }
-      return null;
-    })());
-  }
-
-  /* Premier succes gagne ; timeout global 8s si tout est mort */
-  let winner = null;
-  const done = new Promise(res => {
-    attempts.forEach(p => p.then(r => { if (r && !winner){ winner = r; res(); } }).catch(() => {}));
-  });
-  await Promise.race([done, new Promise(res => setTimeout(res, 8000))]);
-  if (winner) return { text: winner };
   return { error: 'limit' };
 }
 /* Chaine de cerveaux : TOUS les cerveaux partent EN PARALLELE, le premier qui
@@ -926,8 +907,9 @@ async function askBrain(messages){
       if (first.name === 'Mistral'){ badMistralKey = true; toast('Ta cle Mistral est invalide - retire-la ou remplace-la dans les reglages'); }
       if (first.name === 'Cerebras'){ badCerebrasKey = true; toast('Ta cle Cerebras est invalide - retire-la ou remplace-la dans les reglages'); }
     }
-    if (!bad(first.val)){ r = first.val; break; }
+    if (!bad(first.val)){ r = first.val; logDiag('OK', first.name + ' a repondu'); break; }
     diag.push(first.name + ':' + (first.val.error || 'refus'));
+    logDiag('ERR', first.name + ' -> ' + (first.val.error || 'refus') + (first.val.text ? ' : ' + first.val.text.slice(0, 80) : ''));
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
@@ -951,9 +933,11 @@ async function askBrain(messages){
         if (res && res.ok){
           const data = await res.json();
           const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
-          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
+          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)){ logDiag('OK', 'Retry ' + t.model + ' a repondu'); return { text }; }
+        } else if (res){
+          logDiag('WARN', 'Retry ' + t.model + ' -> HTTP ' + res.status);
         }
-      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); }
+      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); logDiag('ERR', 'Retry ' + t.model + ' -> ' + e?.message); }
     }
     diag.push('Retry:limit');
   }
@@ -973,6 +957,7 @@ async function askBrain(messages){
     if (useful.length > 0) finalDiag = useful.slice(0, 1);
     else if (diag.length > 0) finalDiag = ['Serveurs satures - reessaie dans une minute'];
     else finalDiag = [];
+    logDiag('ERR', 'TOUT a echoue (' + diag.join(' | ') + ') -> fallback');
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: finalDiag.join(' | ') };
   }
   return r;
