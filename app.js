@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.17';
+const APP_VERSION = '8.18';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1595,6 +1595,22 @@ async function forceUpdate(){
 updateBanner.addEventListener('click', forceUpdate);
 updateBanner.addEventListener('touchend', e => { e.preventDefault(); forceUpdate(); }, {passive:false});
 updateBanner.onclick = forceUpdate;
+/* BANNIERE INFO TEMPORAIRE : bug actualisation auto (ancien service worker).
+   Visible jusqu'au mercredi 23/09/2026 inclus, fermable (souvenir en localStorage). */
+(function(){
+  try {
+    const infoBanner = $('infoBanner'), infoClose = $('infoClose');
+    if (!infoBanner || !infoClose) return;
+    const end = new Date(2026, 8, 24); // 24/09/2026 00:00 -> visible tout le 23/09
+    if (new Date() >= end) return;
+    if (localStorage.getItem('infoBannerClosed') === '1') return;
+    infoBanner.classList.add('show');
+    infoClose.addEventListener('click', () => {
+      infoBanner.classList.remove('show');
+      try { localStorage.setItem('infoBannerClosed', '1'); } catch {}
+    });
+  } catch {}
+})();
 function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isProcessing=false; manualStop=false; welcomeDone=false; welcomePlaying=false; profile=null; state="idle"; setStatus("Appuie sur le micro et parle"); setState("idle"); location.reload(true); }
 $('appVersion').textContent = 'Assistant Vocal IA - v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;

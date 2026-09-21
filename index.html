@@ -181,6 +181,18 @@ select.wide-input{appearance:none}
   cursor:pointer;display:none;
 }
 #updateBanner.show{display:block}
+/* ===== BANNIERE INFO TEMPORAIRE (bug actualisation auto, visible jusqu'au 23/09/2026) ===== */
+#infoBanner{
+  position:fixed;top:0;left:0;right:0;background:#3b82f6;color:#fff;
+  text-align:center;padding:12px 44px;font-size:14px;font-weight:600;z-index:59;
+  display:none;line-height:1.4;
+}
+#infoBanner.show{display:block}
+#infoBanner .info-close{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:#fff;font-size:18px;cursor:pointer;
+  padding:4px 8px;line-height:1;
+}
 /* ===== HISTORIQUE ===== */
 .conv-item{
   background:rgba(255,255,255,.05);border-radius:14px;padding:12px 14px;
@@ -209,6 +221,12 @@ select.wide-input{appearance:none}
 </div>
 
 <div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
+
+<!-- INFO TEMPORAIRE : bug actualisation auto (ancien service worker). Visible jusqu'au mercredi 23/09/2026 inclus. -->
+<div id="infoBanner">
+  ℹ️ Info : l'IA actualisait la page toute seule (bug d'un ancien service worker) alors que tout était correct dans le code. Corrigé — recharge la page une fois.
+  <button class="info-close" id="infoClose" aria-label="Fermer">✕</button>
+</div>
 
 <header class="topbar">
   <div class="topbar-title"><span class="dot"></span> Assistant IA</div>
