@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.18';
+const APP_VERSION = '8.19';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1101,6 +1101,8 @@ function numToFr(n){
     if (u === 0) return TENS[t];
     if (t === 7) return 'soixante-' + UNITS[10+u];
     if (t === 9) return 'quatre-vingt-' + UNITS[10+u];
+    /* 21, 31, 41, 51, 61 = "vingt ET un" (Google TTS prononce mal "vingt-un") */
+    if (u === 1 && t >= 2 && t <= 6) return TENS[t] + ' et un';
     return TENS[t] + '-' + UNITS[u];
   }
   if (n < 1000){
