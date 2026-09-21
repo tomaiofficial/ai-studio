@@ -217,6 +217,18 @@ select.wide-input{appearance:none}
 .diag-time{color:#6a6a85;font-family:monospace;white-space:nowrap;flex-shrink:0}
 .diag-type{font-weight:700;flex-shrink:0;min-width:38px}
 .diag-msg{color:#c8c8dd}
+/* En-tete du journal : stats style vraie app */
+.diag-header{
+  display:flex;gap:8px;margin-bottom:12px;padding:10px;
+  border-radius:12px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);
+}
+.diag-stat{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 4px;border-radius:10px;background:rgba(0,0,0,.25);
+}
+.diag-stat-n{font-size:18px;font-weight:800;color:#e8e8f5;font-family:monospace}
+.diag-stat-l{font-size:10px;color:#8a8aa5;text-transform:uppercase;letter-spacing:.5px}
 </style>
 </head>
 <body>
@@ -264,7 +276,7 @@ select.wide-input{appearance:none}
   <div class="modal-card">
     <button class="modal-close" id="closeDiag">✕</button>
     <h3>🚨 IA hors contrôle</h3>
-    <p class="muted">Toutes les erreurs de l'IA s'ajoutent ici automatiquement. Impossible de les supprimer : c'est la preuve de ce qu'elle a fait.</p>
+    <p class="muted">Toutes les infos de l'IA s'affichent ici automatiquement : erreurs, actualisations automatiques, comportements anormaux. Impossible de les supprimer : c'est la preuve de ce qu'elle a fait.</p>
     <div id="diagList" style="max-height:50vh;overflow-y:auto;margin-top:10px"></div>
   </div>
 </div>

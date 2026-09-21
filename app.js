@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.24';
+const APP_VERSION = '8.25';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -41,28 +41,29 @@ function logDiag(type, msg){
     localStorage.setItem(DIAG_KEY, JSON.stringify(diagLog));
   } catch {}
 }
-/* SIGNALER UN COMPORTEMENT HORS CONTROLE : journal + modale auto + voix.
-   Phrase SIMPLE pour Google TTS (mots courts, pas de mots compliques :
-   "renforcee" et "actualisee" etaient mal prononces). */
+/* SIGNALER UN COMPORTEMENT HORS CONTROLE : journal + modale auto.
+   PAS d'alerte vocale : l'IA ne doit pas parler quand elle est hors controle,
+   elle affiche juste les infos dans le journal (comme une vraie app). */
 function signalHorsControle(msg){
   logDiag('HORS CONTROLE', msg);
   try {
     if (diagModal) diagModal.classList.remove('hidden');
     renderDiag();
   } catch {}
-  /* alerte vocale (apres un court delai pour laisser l'app se charger) */
-  setTimeout(() => {
-    try {
-      if (typeof speak === 'function' && !isProcessing){
-        speak("Desole, je me suis mise en securite renforcee pendant une minute. Je me suis actualisee toute seule, mais c'est corrige maintenant.");
-      }
-    } catch {}
-  }, 1500);
 }
 function renderDiag(){
   if (!diagList) return;
+  /* En-tete style vraie app : stats + version */
+  const errs = diagLog.filter(e => e.type === 'ERREUR' || e.type === 'HORS CONTROLE');
+  const last = diagLog.length ? diagLog[diagLog.length - 1] : null;
+  let header = '<div class="diag-header">'
+    + '<div class="diag-stat"><span class="diag-stat-n">' + diagLog.length + '</span><span class="diag-stat-l">événements</span></div>'
+    + '<div class="diag-stat"><span class="diag-stat-n" style="color:#f87171">' + errs.length + '</span><span class="diag-stat-l">erreurs</span></div>'
+    + '<div class="diag-stat"><span class="diag-stat-n" style="color:#fbbf24">' + (last ? new Date(last.t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—') + '</span><span class="diag-stat-l">dernier</span></div>'
+    + '<div class="diag-stat"><span class="diag-stat-n" style="font-size:13px">v' + APP_VERSION + '</span><span class="diag-stat-l">app</span></div>'
+    + '</div>';
   if (!diagLog.length){
-    diagList.innerHTML = '<p class="muted" style="text-align:center;padding:20px">Aucun événement enregistré pour le moment.</p>';
+    diagList.innerHTML = header + '<p class="muted" style="text-align:center;padding:20px">Aucun événement enregistré pour le moment.</p>';
     return;
   }
   const rows = diagLog.slice().reverse().map(e => {
@@ -71,7 +72,7 @@ function renderDiag(){
     const color = e.type === 'OK' ? '#4ade80' : e.type === 'WARN' ? '#fbbf24' : '#f87171';
     return '<div class="diag-row"><span class="diag-time">' + hh + ':' + mm + ':' + ss + '</span><span class="diag-type" style="color:' + color + '">' + escapeHtml(e.type) + '</span><span class="diag-msg">' + escapeHtml(e.msg) + '</span></div>';
   }).join('');
-  diagList.innerHTML = rows;
+  diagList.innerHTML = header + rows;
 }
 if (diagBtn) diagBtn.addEventListener('click', () => { renderDiag(); diagModal.classList.remove('hidden'); });
 if (closeDiag) closeDiag.addEventListener('click', () => diagModal.classList.add('hidden'));
