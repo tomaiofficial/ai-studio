@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.22';
+const APP_VERSION = '8.23';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -27,9 +27,10 @@ const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyMod
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
 const diagBtn = $('diagBtn'), closeDiag = $('closeDiag'), diagModal = $('diagModal'), diagList = $('diagList'), clearDiagBtn = $('clearDiagBtn');
 
-/* ===== LOGGER DIAGNOSTIC : enregistre TOUS les evenements de l'IA (echecs
-   cerveau, limites, retries, TTS, bugs) pour voir ce qui se passe quand elle
-   est "hors controle". Stocke en localStorage, max 200 entrees. ===== */
+/* ===== JOURNAL IA HORS CONTROLE : enregistre UNIQUEMENT les comportements
+   anormaux de l'IA (actualisation auto du site, etc.), PAS les trucs en
+   arriere-plan. Quand elle est hors controle : ajout au journal + ouverture
+   automatique de la modale + alerte vocale. Stocke en localStorage, max 200. ===== */
 const DIAG_KEY = 'va_diag';
 let diagLog = [];
 try { diagLog = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); } catch { diagLog = []; }
@@ -39,6 +40,22 @@ function logDiag(type, msg){
     if (diagLog.length > 200) diagLog = diagLog.slice(-200);
     localStorage.setItem(DIAG_KEY, JSON.stringify(diagLog));
   } catch {}
+}
+/* SIGNALER UN COMPORTEMENT HORS CONTROLE : journal + modale auto + voix */
+function signalHorsControle(msg){
+  logDiag('HORS CONTROLE', msg);
+  try {
+    if (diagModal) diagModal.classList.remove('hidden');
+    renderDiag();
+  } catch {}
+  /* alerte vocale (apres un court delai pour laisser l'app se charger) */
+  setTimeout(() => {
+    try {
+      if (typeof speak === 'function' && !isProcessing){
+        speak("Desole, je suis en securite renforcee pendant une minute. Je me suis actualisee toute seule, c'est corrige.");
+      }
+    } catch {}
+  }, 1500);
 }
 function renderDiag(){
   if (!diagList) return;
@@ -60,15 +77,15 @@ if (diagModal) diagModal.addEventListener('click', e => { if (e.target === diagM
 if (clearDiagBtn) clearDiagBtn.addEventListener('click', () => { diagLog = []; try { localStorage.setItem(DIAG_KEY, '[]'); } catch {} renderDiag(); toast('Journal efface'); });
 
 /* DETECTION ACTUALISATION AUTO : si la page se recharge toute seule (IA hors
-   controle / ancien service worker), on le voit dans le journal. On compare
-   l'heure du dernier chargement : si < 6s, c'est un refresh automatique. */
+   controle / ancien service worker), on le signale. On compare l'heure du
+   dernier chargement : si < 6s, c'est un refresh automatique. */
 (function(){
   try {
     const LAST_LOAD_KEY = 'va_last_load';
     const now = Date.now();
     const last = parseInt(localStorage.getItem(LAST_LOAD_KEY) || '0', 10);
     if (last && (now - last) < 6000){
-      logDiag('WARN', 'Actualisation automatique de la page detectee (IA hors controle ?) - dernier chargement il y a ' + Math.round((now - last) / 1000) + 's');
+      signalHorsControle('Actualisation automatique de la page detectee - dernier chargement il y a ' + Math.round((now - last) / 1000) + 's');
     }
     localStorage.setItem(LAST_LOAD_KEY, String(now));
   } catch {}
@@ -922,9 +939,8 @@ async function askBrain(messages){
       if (first.name === 'Mistral'){ badMistralKey = true; toast('Ta cle Mistral est invalide - retire-la ou remplace-la dans les reglages'); }
       if (first.name === 'Cerebras'){ badCerebrasKey = true; toast('Ta cle Cerebras est invalide - retire-la ou remplace-la dans les reglages'); }
     }
-    if (!bad(first.val)){ r = first.val; logDiag('OK', first.name + ' a repondu'); break; }
+    if (!bad(first.val)){ r = first.val; break; }
     diag.push(first.name + ':' + (first.val.error || 'refus'));
-    logDiag('ERR', first.name + ' -> ' + (first.val.error || 'refus') + (first.val.text ? ' : ' + first.val.text.slice(0, 80) : ''));
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
@@ -948,11 +964,9 @@ async function askBrain(messages){
         if (res && res.ok){
           const data = await res.json();
           const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
-          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)){ logDiag('OK', 'Retry ' + t.model + ' a repondu'); return { text }; }
-        } else if (res){
-          logDiag('WARN', 'Retry ' + t.model + ' -> HTTP ' + res.status);
+          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
         }
-      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); logDiag('ERR', 'Retry ' + t.model + ' -> ' + e?.message); }
+      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); }
     }
     diag.push('Retry:limit');
   }
@@ -972,7 +986,6 @@ async function askBrain(messages){
     if (useful.length > 0) finalDiag = useful.slice(0, 1);
     else if (diag.length > 0) finalDiag = ['Serveurs satures - reessaie dans une minute'];
     else finalDiag = [];
-    logDiag('ERR', 'TOUT a echoue (' + diag.join(' | ') + ') -> fallback');
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: finalDiag.join(' | ') };
   }
   return r;
@@ -1577,7 +1590,6 @@ async function checkUpdate(){
   } catch {}
 }
 async function forceUpdate(){
-  logDiag('WARN', 'Actualisation forcee (bandeau mise a jour) - purge caches + service workers');
   updateBanner.textContent = 'Mise a jour... patiente 2s';
   updateBanner.style.pointerEvents = 'none';
   try { sessionStorage.clear(); } catch {}

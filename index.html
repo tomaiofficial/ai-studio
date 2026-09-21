@@ -241,7 +241,7 @@ select.wide-input{appearance:none}
   <div class="topbar-title"><span class="dot"></span> Assistant IA</div>
   <div class="topbar-actions">
     <button class="icon-btn" id="historyBtn" aria-label="Historique">📜</button>
-    <button class="icon-btn" id="diagBtn" aria-label="Diagnostic IA">🐛</button>
+    <button class="icon-btn" id="diagBtn" aria-label="IA hors contrôle">🚨</button>
     <button class="icon-btn" id="settingsBtn" aria-label="Réglages">⚙️</button>
   </div>
 </header>
@@ -259,12 +259,12 @@ select.wide-input{appearance:none}
   <div class="version-tag" id="versionTag"></div>
 </div>
 
-<!-- MODAL DIAGNOSTIC : journal des bugs de l'IA (cerveau, limites, TTS) -->
+<!-- MODAL IA HORS CONTROLE : journal des comportements anormaux de l'IA -->
 <div id="diagModal" class="modal hidden">
   <div class="modal-card">
     <button class="modal-close" id="closeDiag">✕</button>
-    <h3>🐛 Diagnostic IA</h3>
-    <p class="muted">Tout ce que l'IA fait en arrière-plan : échecs du cerveau, limites, retries, erreurs. Utile quand elle fait n'importe quoi.</p>
+    <h3>🚨 IA hors contrôle</h3>
+    <p class="muted">Seulement quand l'IA fait des choses anormales : actualisation automatique du site, comportements bizarres. Pas les trucs en arrière-plan.</p>
     <div id="diagList" style="max-height:50vh;overflow-y:auto;margin-top:10px"></div>
     <button class="secondary" id="clearDiagBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer le journal</button>
   </div>
