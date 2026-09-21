@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.21';
+const APP_VERSION = '8.22';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -43,7 +43,7 @@ function logDiag(type, msg){
 function renderDiag(){
   if (!diagList) return;
   if (!diagLog.length){
-    diagList.innerHTML = '<p class="muted" style="text-align:center;padding:20px">Aucun evenement enregistre pour le moment.</p>';
+    diagList.innerHTML = '<p class="muted" style="text-align:center;padding:20px">Aucun événement enregistré pour le moment.</p>';
     return;
   }
   const rows = diagLog.slice().reverse().map(e => {
@@ -58,6 +58,21 @@ if (diagBtn) diagBtn.addEventListener('click', () => { renderDiag(); diagModal.c
 if (closeDiag) closeDiag.addEventListener('click', () => diagModal.classList.add('hidden'));
 if (diagModal) diagModal.addEventListener('click', e => { if (e.target === diagModal) diagModal.classList.add('hidden'); });
 if (clearDiagBtn) clearDiagBtn.addEventListener('click', () => { diagLog = []; try { localStorage.setItem(DIAG_KEY, '[]'); } catch {} renderDiag(); toast('Journal efface'); });
+
+/* DETECTION ACTUALISATION AUTO : si la page se recharge toute seule (IA hors
+   controle / ancien service worker), on le voit dans le journal. On compare
+   l'heure du dernier chargement : si < 6s, c'est un refresh automatique. */
+(function(){
+  try {
+    const LAST_LOAD_KEY = 'va_last_load';
+    const now = Date.now();
+    const last = parseInt(localStorage.getItem(LAST_LOAD_KEY) || '0', 10);
+    if (last && (now - last) < 6000){
+      logDiag('WARN', 'Actualisation automatique de la page detectee (IA hors controle ?) - dernier chargement il y a ' + Math.round((now - last) / 1000) + 's');
+    }
+    localStorage.setItem(LAST_LOAD_KEY, String(now));
+  } catch {}
+})();
 
 /* ===== PROFIL UTILISATEUR (prénom + âge, une seule fois pour la vie) ===== */
 const PROFILE_KEY = 'va_profile';
@@ -1562,6 +1577,7 @@ async function checkUpdate(){
   } catch {}
 }
 async function forceUpdate(){
+  logDiag('WARN', 'Actualisation forcee (bandeau mise a jour) - purge caches + service workers');
   updateBanner.textContent = 'Mise a jour... patiente 2s';
   updateBanner.style.pointerEvents = 'none';
   try { sessionStorage.clear(); } catch {}
