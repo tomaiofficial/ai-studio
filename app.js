@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.19';
+const APP_VERSION = '8.20';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -834,9 +834,10 @@ async function askFreeLLM(question, webCtx, msgs){
 
   /* 2. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
      GLM-5.3-Flash : teste 200 OK, repond bien en francais.
-     UNE seule tentative par modele : 3 modeles = 3 requetes/question,
-     sinon on brule les 10 req/min en 1 question (429 partout). */
-  const llm7Models = ['mistral-Nemo-Instruct-2407', 'GLM-5.3-Flash', 'minimax-m2.7'];
+     UN SEUL modele : 1 requete/question. Avant : 3 modeles = 3 requetes en
+     parallele -> on brulait les 10 req/min en 1 seule question -> 429 partout
+     -> "Gratuit:limit" a chaque question. 1 requete = 10 questions/min. */
+  const llm7Models = ['GLM-5.3-Flash'];
   for (const model of llm7Models){
     attempts.push((async () => {
       try {
@@ -930,15 +931,16 @@ async function askBrain(messages){
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
-     souvent passageres (par minute). On retente 2x avec backoff progressif
-     (3s puis 6s), en alternant LLM7 GLM puis OVH : 1 requete par retry. */
+     souvent passageres (fenetre glissante par minute). On attend assez longtemps
+     pour laisser la fenetre se reinitialiser : 5s puis 10s (avant : 3s/6s,
+     trop court -> re-429 immediat). 1 requete par retry, GLM puis OVH. */
   if (bad(r)){
     const retryTargets = [
       { url: 'https://api.llm7.io/v1/chat/completions', model: 'GLM-5.3-Flash' },
       { url: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', model: 'qwen3.5-397b-a17b' }
     ];
     for (let i = 0; i < retryTargets.length && bad(r); i++){
-      await new Promise(res => setTimeout(res, 3000 + i * 3000));
+      await new Promise(res => setTimeout(res, 5000 + i * 5000));
       const t = retryTargets[i];
       try {
         const res = await fetch(t.url, {
@@ -964,9 +966,13 @@ async function askBrain(messages){
       "Connexion difficile avec mes serveurs. Reessaie, je suis la."
     ];
     /* DIAGNOSTIC : UNE seule raison claire. 'limit' = transitoire (reessaie plus
-       tard) -> ignore si une vraie erreur existe (api/key/net/refus). */
+       tard) -> ignore si une vraie erreur existe (api/key/net/refus). Si TOUT
+       est en limite, message clair au lieu de "Gratuit:limit" (incomprehensible). */
     const useful = diag.filter(d => !d.endsWith(':limit'));
-    const finalDiag = (useful.length > 0 ? useful : diag).slice(0, 1);
+    let finalDiag;
+    if (useful.length > 0) finalDiag = useful.slice(0, 1);
+    else if (diag.length > 0) finalDiag = ['Serveurs satures - reessaie dans une minute'];
+    else finalDiag = [];
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: finalDiag.join(' | ') };
   }
   return r;
