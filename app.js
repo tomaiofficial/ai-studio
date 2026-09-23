@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.28';
+const APP_VERSION = '8.29';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -663,6 +663,51 @@ async function askMistral(question, webCtx, msgs){
     return { text: reply };
   } catch { return { error: 'net' }; }
 }
+/* ===== IA LOCALE (WebLLM) : tourne DANS le navigateur, sans serveur, sans cle,
+   sans saturation, A VIE. Le modele se telecharge 1 fois (~1 Go) puis reste
+   en cache. Necessite Chrome/Edge recent (WebGPU). ===== */
+let localEngine = null, localStatus = 'idle'; /* idle | loading | ready | error */
+const LOCAL_MODEL = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
+async function initLocalEngine(){
+  if (localEngine || localStatus === 'loading') return;
+  if (!navigator.gpu){ localStatus = 'error'; return; }
+  localStatus = 'loading';
+  try {
+    const webllm = await import('https://esm.sh/@mlc-ai/web-llm@0.2.77');
+    localEngine = await webllm.CreateMLCEngine(LOCAL_MODEL, {
+      initProgressCallback: p => {
+        const pct = Math.round((p.progress || 0) * 100);
+        setStatus('IA locale : telechargement du cerveau ' + pct + '%...');
+      }
+    });
+    localStatus = 'ready';
+    setStatus('IA locale prete - appuie sur le micro');
+  } catch(e){
+    console.warn('[Local] echec:', e?.message);
+    localStatus = 'error';
+  }
+}
+async function askLocal(question, webCtx, msgs){
+  if (localStatus !== 'ready' || !localEngine) return { error: 'nolocal' };
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
+    }
+    if (webCtx === undefined) webCtx = await webSearch(question);
+    if (webCtx){
+      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
+      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+    }
+  }
+  try {
+    const reply = await localEngine.chat.completions.create({ messages, max_tokens: 300, temperature: 0.7 });
+    const text = ((reply.choices && reply.choices[0] && reply.choices[0].message && reply.choices[0].message.content) || '').trim();
+    if (!text) return { error: 'api' };
+    return { text };
+  } catch(e){ console.warn('[Local] erreur:', e?.message); return { error: 'net' }; }
+}
 /* ===== OPENAI : le meme cerveau que ChatGPT, non stop avec une cle ===== */
 async function askOpenAI(question, webCtx, msgs){
   const key = getOpenAIKey();
@@ -939,8 +984,8 @@ async function askBrain(messages){
   else if (mode === 'cerebras'){ if (getCerebrasKey()) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) }); }
   else if (mode === 'mistral'){ if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) }); }
   else if (mode === 'gratuit'){ brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) }); }
-  else { /* AUTO : 2 cerveaux MAX - OpenAI (si cle) + Gratuit en secours */
-    if (getOpenAIKey()) brains.push({ name: 'OpenAI', fn: () => askOpenAI(null, null, messages) });
+  else { /* AUTO : 2 cerveaux MAX - IA locale (a vie, sans cle) + Gratuit en secours */
+    brains.push({ name: 'Local', fn: () => askLocal(null, null, messages) });
     brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
   }
   /* PARALLELE : chaque cerveau tourne en meme temps ; des qu'un succes arrive,
@@ -1676,3 +1721,6 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
+/* IA LOCALE : on lance le telechargement du cerveau en arriere-plan des le
+   chargement (1 seule fois, ~1 Go, reste en cache pour toujours). */
+setTimeout(() => { initLocalEngine(); }, 3000);
