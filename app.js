@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.31';
+const APP_VERSION = '8.32';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1001,16 +1001,46 @@ async function askFreeLLM(question, webCtx, msgs){
    pour ne plus re-echouer a chaque question. */
 let badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages){
-  /* PLUS AUCUN CERVEAU SERVEUR : reponse 100% locale, memoire + logique.
-     Fonctionne toujours, sans cle, sans internet, sans limite. */
+  /* CERVEAU GRATUIT LLM7 (GLM-5.3-Flash) : comprend bien, repond en francais
+     avec accents. Sans cle, sans compte. Si sature/echoue -> memoire+logique
+     locale (repond TOUJOURS). */
   const lastUser = messages.filter(m => m.role === 'user').pop();
-  return { text: localSmartReply(lastUser ? lastUser.content : '') };
+  const question = lastUser ? lastUser.content : '';
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  const tryEndpoint = async (url, model) => {
+    try {
+      const res = await withTimeout(fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, max_tokens: 300, temperature: 0.7 })
+      }), 15000);
+      if (res && res.ok){
+        const data = await res.json();
+        const msg = data?.choices?.[0]?.message || {};
+        let text = (msg.content || '').trim();
+        if (!text) text = (msg.reasoning || '').trim();
+        if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+      }
+      return null;
+    } catch(e){ return null; }
+  };
+  let text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
+  if (typeof text === 'string') return { text };
+  text = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
+  if (typeof text === 'string') return { text };
+  /* Secours : memoire + logique locale (repond toujours) */
+  return { text: localSmartReply(question) };
 }
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
-  /* Reponse 100% locale : memoire + logique. Aucun serveur, aucune cle. */
-  const r = await askBrain([{ role: 'user', content: question }]);
+  /* Contexte complet : systeme + memoire des conversations passees + session */
+  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  const mem = buildMemoryContext(currentConvId);
+  if (mem){
+    messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+  }
+  const r = await askBrain(messages);
   if (!r.error){
     r.text = stripGreeting(enforceIdentity(r.text));
     session.push({ role: 'assistant', content: r.text });
@@ -1142,6 +1172,112 @@ function numToFr(n){
 }
 function normalizeForTTS(text){
   return text.normalize('NFC')
+    /* RE-ACCENTUATION des mots francais courants ecrits sans accents (les
+       anciennes reponses en memoire sont sans accents -> Google TTS les
+       prononce mal : "ca" -> "ka", "deja" -> "de-ja"...). On remplace les
+       mots EXACTS (bordures de mot) pour ne rien casser. */
+    .replace(/\b(ca|Ca)\b/g, 'ça')
+    .replace(/\b(deja|Deja)\b/g, 'déjà')
+    .replace(/\b(memoire|Memoire)\b/g, 'mémoire')
+    .replace(/\b(etre|Etre)\b/g, 'être')
+    .replace(/\b(ou|Ou)\b(?=\s+(tu|vous|il|elle|on|nous|ils|elles|je|j'))/g, 'où')
+    .replace(/\b(ou)\b/g, 'où')
+    .replace(/\b(desole|Desole)\b/g, 'désolé')
+    .replace(/\b(desolee|Desolee)\b/g, 'désolée')
+    .replace(/\b(grace|Grace)\b/g, 'grâce')
+    .replace(/\b(apres|Apres)\b/g, 'après')
+    .replace(/\b(tres|Tres)\b/g, 'très')
+    .replace(/\b(peut-etre|Peut-etre)\b/g, 'peut-être')
+    .replace(/\b(ecole|Ecole)\b/g, 'école')
+    .replace(/\b(etait|Etai)\b/g, 'était')
+    .replace(/\b(etais|Etai)\b/g, 'étais')
+    .replace(/\b(ete|Ete)\b/g, 'été')
+    .replace(/\b(creer|Creer)\b/g, 'créer')
+    .replace(/\b(creee|Creee)\b/g, 'créée')
+    .replace(/\b(cree|Cree)\b/g, 'créé')
+    .replace(/\b(voila|Voila)\b/g, 'voilà')
+    .replace(/\b(la-bas|La-bas)\b/g, 'là-bas')
+    .replace(/\b(la|La)\b(?=\s+(ou|où|bas|haut|dedans|dehors))/g, 'là')
+    .replace(/\b(ou|Ou)\b/g, 'où')
+    .replace(/\b(genial|Genial)\b/g, 'génial')
+    .replace(/\b(probleme|Probleme)\b/g, 'problème')
+    .replace(/\b(systeme|Systeme)\b/g, 'système')
+    .replace(/\b(regle|Regle)\b/g, 'règle')
+    .replace(/\b(securite|Securite)\b/g, 'sécurité')
+    .replace(/\b(activite|Activite)\b/g, 'activité')
+    .replace(/\b(verite|Verite)\b/g, 'vérité')
+    .replace(/\b(necessaire|Necessaire)\b/g, 'nécessaire')
+    .replace(/\b(repete|Repete)\b/g, 'répète')
+    .replace(/\b(repeter|Repeter)\b/g, 'répéter')
+    .replace(/\b(ecoute|Ecoute)\b/g, 'écoute')
+    .replace(/\b(ecouter|Ecouter)\b/g, 'écouter')
+    .replace(/\b(ecrit|Ecrit)\b/g, 'écrit')
+    .replace(/\b(ecrire|Ecrire)\b/g, 'écrire')
+    .replace(/\b(histoire|Histoire)\b/g, 'histoire')
+    .replace(/\b(idee|Idee)\b/g, 'idée')
+    .replace(/\b(annee|Annee)\b/g, 'année')
+    .replace(/\b(journee|Journee)\b/g, 'journée')
+    .replace(/\b(soiree|Soiree)\b/g, 'soirée')
+    .replace(/\b(matinee|Matinee)\b/g, 'matinée')
+    .replace(/\b(entree|Entree)\b/g, 'entrée')
+    .replace(/\b(sortie|Sortie)\b/g, 'sortie')
+    .replace(/\b(equipe|Equipe)\b/g, 'équipe')
+    .replace(/\b(question|Question)\b/g, 'question')
+    .replace(/\b(reponse|Reponse)\b/g, 'réponse')
+    .replace(/\b(repondre|Repondre)\b/g, 'répondre')
+    .replace(/\b(reponds|Reponds)\b/g, 'réponds')
+    .replace(/\b(repond|Repond)\b/g, 'répond')
+    .replace(/\b(comprendre|Comprendre)\b/g, 'comprendre')
+    .replace(/\b(comprends|Comprends)\b/g, 'comprends')
+    .replace(/\b(comprend|Comprend)\b/g, 'comprend')
+    .replace(/\b(explique|Explique)\b/g, 'explique')
+    .replace(/\b(expliquer|Expliquer)\b/g, 'expliquer')
+    .replace(/\b(parle|Parle)\b/g, 'parle')
+    .replace(/\b(parler|Parler)\b/g, 'parler')
+    .replace(/\b(parles|Parles)\b/g, 'parles')
+    .replace(/\b(dis|Dis)\b/g, 'dis')
+    .replace(/\b(dire|Dire)\b/g, 'dire')
+    .replace(/\b(veux|Veux)\b/g, 'veux')
+    .replace(/\b(veut|Veut)\b/g, 'veut')
+    .replace(/\b(peux|Peux)\b/g, 'peux')
+    .replace(/\b(peut|Peut)\b/g, 'peut')
+    .replace(/\b(fait|Fait)\b/g, 'fait')
+    .replace(/\b(faire|Faire)\b/g, 'faire')
+    .replace(/\b(merci|Merci)\b/g, 'merci')
+    .replace(/\b(beaucoup|Beaucoup)\b/g, 'beaucoup')
+    .replace(/\b(aujourd|Aujourd)\b/g, 'aujourd')
+    .replace(/\b(aujourd'hui|Aujourd'hui)\b/g, "aujourd'hui")
+    .replace(/\b(quelque|Quelque)\b/g, 'quelque')
+    .replace(/\b(quelques|Quelques)\b/g, 'quelques')
+    .replace(/\b(chaque|Chaque)\b/g, 'chaque')
+    .replace(/\b(autre|Autre)\b/g, 'autre')
+    .replace(/\b(autres|Autres)\b/g, 'autres')
+    .replace(/\b(encore|Encore)\b/g, 'encore')
+    .replace(/\b(aussi|Aussi)\b/g, 'aussi')
+    .replace(/\b(mais|Mais)\b/g, 'mais')
+    .replace(/\b(donc|Donc)\b/g, 'donc')
+    .replace(/\b(quand|Quand)\b/g, 'quand')
+    .replace(/\b(comment|Comment)\b/g, 'comment')
+    .replace(/\b(pourquoi|Pourquoi)\b/g, 'pourquoi')
+    .replace(/\b(parce|Parce)\b/g, 'parce')
+    .replace(/\b(parce que|Parce que)\b/g, 'parce que')
+    .replace(/\b(avec|Avec)\b/g, 'avec')
+    .replace(/\b(sans|Sans)\b/g, 'sans')
+    .replace(/\b(pour|Pour)\b/g, 'pour')
+    .replace(/\b(contre|Contre)\b/g, 'contre')
+    .replace(/\b(entre|Entre)\b/g, 'entre')
+    .replace(/\b(sur|Sur)\b/g, 'sur')
+    .replace(/\b(sous|Sous)\b/g, 'sous')
+    .replace(/\b(dans|Dans)\b/g, 'dans')
+    .replace(/\b(vers|Vers)\b/g, 'vers')
+    .replace(/\b(chez|Chez)\b/g, 'chez')
+    .replace(/\b(avec|Avec)\b/g, 'avec')
+    .replace(/\b(avant|Avant)\b/g, 'avant')
+    .replace(/\b(apres|Apres)\b/g, 'après')
+    .replace(/\b(pendant|Pendant)\b/g, 'pendant')
+    .replace(/\b(depuis|Depuis)\b/g, 'depuis')
+    .replace(/\b(jusque|Jusque)\b/g, 'jusque')
+    .replace(/\b(jusqu|Jusqu)\b/g, 'jusqu')
     .replace(/\u2011/g, '-').replace(/[\u2010-\u2015]/g, '-')
     /* apostrophes normalisees en ASCII (les moteurs TTS les lisent mal en Unicode) */
     .replace(/[\u2018\u2019]/g, "'")
