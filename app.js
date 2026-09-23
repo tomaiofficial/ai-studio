@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.43';
+const APP_VERSION = '8.44';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'google'; // Voix IA FEMME Google TTS par defaut (gratuite, sans cle), voix systeme en secours
+const DEFAULT_VOICE = 'kokoro'; // Voix REALISTE Kokoro (meme partout, a vie, hors ligne), Google TTS en secours auto
 const SPEED = 1.0; // naturel
 
 
@@ -1533,6 +1533,10 @@ if ('speechSynthesis' in window){
   try { window.speechSynthesis.getVoices(); } catch {}
   window.speechSynthesis.onvoiceschanged = () => { try { window.speechSynthesis.getVoices(); } catch {} };
 }
+/* Precharge la voix REALISTE Kokoro en arriere-plan (92 Mo une seule fois,
+   puis cache navigateur -> hors ligne a vie). Pendant le chargement, Google
+   TTS repond immediatement en secours. */
+loadKokoro();
 function ensureAudio(){
   try {
     if (!sharedCtx){
@@ -1715,6 +1719,62 @@ function speakSystem(text){
   });
 }
 
+/* ===== VOIX REALISTE KOKORO : la MEME voix IA partout (mobile + PC), gratuite,
+   a vie, hors ligne apres le 1er telechargement (92 Mo une seule fois, gardes
+   en cache par le navigateur). Voix femme francaise ff_siwis (naturelle, pas
+   de synthese robotique). Secours auto : Google TTS si pas encore pret. ===== */
+let kokoroTTS = null, kokoroLoading = false, kokoroLoaded = false;
+function loadKokoro(){
+  if (kokoroLoading || kokoroLoaded) return;
+  kokoroLoading = true;
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/dist/transformers.min.js';
+  s.onload = async () => {
+    try {
+      const { pipeline } = self.transformers;
+      kokoroTTS = await pipeline('text-to-speech', 'onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8' });
+      kokoroLoaded = true;
+      console.log('[VOIX] Kokoro pret : voix realiste dispo');
+    } catch(e){ console.warn('[VOIX] Kokoro echec:', e && e.message); }
+    kokoroLoading = false;
+  };
+  s.onerror = () => { kokoroLoading = false; console.warn('[VOIX] Kokoro CDN indisponible'); };
+  document.head.appendChild(s);
+}
+function playFloat32(audio, rate){
+  return new Promise(resolve => {
+    try {
+      const ctx = ensureAudio();
+      if (!ctx) return resolve(false);
+      if (ctx.state !== 'running'){ try { ctx.resume(); } catch {} }
+      const buf = ctx.createBuffer(1, audio.length, rate);
+      buf.copyToChannel(audio, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      currentSources.push(src);
+      let done = false;
+      const finish = ok => { if (done) return; done = true; resolve(ok); };
+      src.onended = () => finish(true);
+      src.onerror = () => finish(false);
+      try { src.start(); } catch { finish(false); }
+    } catch { resolve(false); }
+  });
+}
+async function speakKokoro(text){
+  if (!kokoroLoaded || !kokoroTTS) return false;
+  try {
+    const chunks = splitSentences(text, 100);
+    for (const c of chunks){
+      const out = await kokoroTTS(c, { voice: 'ff_siwis' });
+      if (!out || !out.audio) return false;
+      const ok = await playFloat32(out.audio, out.sampling_rate || 24000);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] Kokoro erreur:', e && e.message); return false; }
+}
+
 function speak(text){
   return new Promise(resolve => {
     let clean = text;
@@ -1743,7 +1803,8 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
     const next = () => {
