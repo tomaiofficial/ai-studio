@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.40';
+const APP_VERSION = '8.41';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1006,7 +1006,7 @@ async function askGroq(question, webCtx, msgs){
       messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
     }
   }
-  const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+  const groqModels = ['llama-3.3-70b-versatile'];
   for (const model of groqModels){
     for (let attempt = 0; attempt < 2; attempt++){
       try {
@@ -1014,7 +1014,7 @@ async function askGroq(question, webCtx, msgs){
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
           body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
-        }), 6000);
+        }), 5000);
         if (res && res.ok){
           const data = await res.json();
           const t = (data?.choices?.[0]?.message?.content || '').trim();
@@ -1121,7 +1121,7 @@ async function askBrain(messages){
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages, max_tokens: 500, temperature: 0.7 })
-      }), 8000);
+      }), 5000);
       if (res && res.ok){
         const data = await res.json();
         const msg = data?.choices?.[0]?.message || {};
@@ -1146,9 +1146,11 @@ async function askBrain(messages){
   /* 2e essai Pollinations : endpoint natif (rate limit separe) */
   text = await tryEndpoint('https://text.pollinations.ai/', 'openai');
   if (typeof text === 'string') return { text };
-  text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
-  if (typeof text === 'string') return { text };
-  text = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
+  /* LLM7 + OVH EN PARALLELE : le premier qui repond gagne (max 5s) */
+  text = await Promise.race([
+    tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash'),
+    tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b')
+  ]);
   if (typeof text === 'string') return { text };
   /* Secours : memoire + logique locale (repond toujours) */
   return { text: localSmartReply(question) };
