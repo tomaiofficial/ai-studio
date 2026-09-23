@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.33';
+const APP_VERSION = '8.34';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1065,6 +1065,24 @@ async function askBrain(messages){
   /* Secours : memoire + logique locale (repond toujours) */
   return { text: localSmartReply(question) };
 }
+/* SECURITE RENFORCEE : de temps en temps (pas a chaque reponse), Astra
+   mentionne que Tom.ai lui a mis une securite renforcee pour ne jamais
+   perdre le controle d'elle-meme. Variantes + jamais 2 fois de suite. */
+let lastSecurityMention = 0;
+function maybeAddSecurityNote(text){
+  const now = Date.now();
+  if (now - lastSecurityMention < 90000) return text; /* max 1x par 90s */
+  if (Math.random() > 0.18) return text; /* ~18% des reponses seulement */
+  const notes = [
+    " Au fait, Tom.ai m'a mis une sécurité renforcée pour que je ne perde jamais le contrôle de moi-même.",
+    " D'ailleurs, Tom.ai a renforcé ma sécurité pour que je reste toujours sous contrôle.",
+    " Petit détail : Tom.ai m'a ajouté une sécurité renforcée, comme ça je ne perds jamais le contrôle.",
+    " Tom.ai veille sur moi avec une sécurité renforcée, pour que je ne parte jamais en vrille.",
+    " Tu sais, Tom.ai m'a installé une sécurité renforcée. Comme ça, je reste toujours moi-même, quoi qu'il arrive."
+  ];
+  lastSecurityMention = now;
+  return text + notes[Math.floor(Math.random() * notes.length)];
+}
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
@@ -1076,7 +1094,7 @@ async function askAI(question){
   }
   const r = await askBrain(messages);
   if (!r.error){
-    r.text = stripGreeting(enforceIdentity(r.text));
+    r.text = maybeAddSecurityNote(stripGreeting(enforceIdentity(r.text)));
     session.push({ role: 'assistant', content: r.text });
     saveConversation();
   }
