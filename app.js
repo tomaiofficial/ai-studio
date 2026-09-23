@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.36';
+const APP_VERSION = '8.37';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1035,9 +1035,11 @@ async function askFreeLLM(question, webCtx, msgs){
    pour ne plus re-echouer a chaque question. */
 let badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages){
-  /* CERVEAU GRATUIT LLM7 (GLM-5.3-Flash) : comprend bien, repond en francais
-     avec accents. Sans cle, sans compte. Si sature/echoue -> memoire+logique
-     locale (repond TOUJOURS). */
+  /* CERVEAUX GRATUITS SANS CLE, dans l'ordre :
+     1. POLLINATIONS (GPT, site gratuit, repond bien en francais avec accents)
+     2. LLM7 (GLM-5.3-Flash)
+     3. OVH (qwen3.5)
+     Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
   const lastUser = messages.filter(m => m.role === 'user').pop();
   const question = lastUser ? lastUser.content : '';
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
@@ -1067,7 +1069,9 @@ async function askBrain(messages){
       return null;
     } catch(e){ return null; }
   };
-  let text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
+  let text = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+  if (typeof text === 'string') return { text };
+  text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
   if (typeof text === 'string') return { text };
   text = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
   if (typeof text === 'string') return { text };
