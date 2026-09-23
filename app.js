@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.30';
+const APP_VERSION = '8.31';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -19,8 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), mistralKeyInput = $('mistralKey'), cerebrasKeyInput = $('cerebrasKey'), openaiKeyInput = $('openaiKey'), brainSel = $('brainSel');
-const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -85,13 +84,18 @@ function buildMemoryContext(excludeId){
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-/* ===== REPONSE LOCALE "MEMOIRE + LOGIQUE" : dernier recours, fonctionne TOUJOURS,
-   meme sans serveur, sans cle, sans internet. 1) memoire des conversations
-   passees (question similaire -> on rejoue la reponse), 2) logique par
-   mots-cles, 3) reponse honnete. Comme GPT en mode hors-ligne. ===== */
+/* ===== REPONSE LOCALE "MEMOIRE + LOGIQUE" : la SEULE source de reponse.
+   Fonctionne TOUJOURS, sans serveur, sans cle, sans internet. 1) memoire des
+   conversations passees (question similaire -> on rejoue la reponse), 2) logique
+   par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
+   voix prononce correctement. ===== */
+function isSecoursReply(t){
+  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant/i.test(t);
+}
 function localSmartReply(question){
   const q = question.toLowerCase().trim();
-  /* 1) MEMOIRE : chercher une question similaire deja posee et rejouer la reponse */
+  /* 1) MEMOIRE : chercher une question similaire deja posee et rejouer la
+     reponse, MAIS jamais une reponse de secours (sinon boucle infinie). */
   try {
     const words = q.split(/\s+/).filter(w => w.length > 3);
     let best = null, bestScore = 0;
@@ -102,6 +106,7 @@ function localSmartReply(question){
         if (m.role !== 'user') continue;
         const next = conv.messages[i + 1];
         if (!next || next.role !== 'assistant') continue;
+        if (isSecoursReply(next.content)) continue;
         const mw = m.content.toLowerCase().split(/\s+/).filter(w => w.length > 3);
         let score = 0;
         for (const w of words){ if (mw.includes(w)) score++; }
@@ -109,26 +114,26 @@ function localSmartReply(question){
       }
     }
     if (best && bestScore >= 2){
-      return "Je me souviens qu'on en a deja parle ! " + best;
+      return "Je me souviens qu'on en a déjà parlé ! " + best;
     }
   } catch {}
-  /* 2) LOGIQUE par mots-cles */
-  if (/(bonjour|salut|hello|coucou|hey)\b/.test(q)) return "Salut ! Comment ca va ?";
-  if (/(ca va|comment va|comment tu vas|tu vas bien)/.test(q)) return "Ca va tres bien, merci ! Et toi ?";
-  if (/(merci|thank)/.test(q)) return "Avec plaisir ! N'hesite pas si tu as besoin d'autre chose.";
-  if (/(qui es[- ]tu|tu es qui|ton nom|comment tu t'appelles|t'appelles comment)/.test(q)) return "Je m'appelle Astra, ton assistante vocale creee par Tom.ai. Je reponds a toutes tes questions, gratuitement et sans limite.";
-  if (/(qui t'a cree|qui t a cree|ton createur|qui t'a fait|qui t a fait)/.test(q)) return "J'ai ete creee par Tom.ai le 10 septembre 2026.";
-  if (/(tu te souviens|tu me souviens|memoire|tu as de la memoire)/.test(q)){
+  /* 2) LOGIQUE par mots-cles (avec accents pour la prononciation) */
+  if (/(bonjour|salut|hello|coucou|hey)\b/.test(q)) return "Salut ! Comment ça va ?";
+  if (/(ça va|ca va|comment va|comment tu vas|tu vas bien)/.test(q)) return "Ça va très bien, merci ! Et toi ?";
+  if (/(merci|thank)/.test(q)) return "Avec plaisir ! N'hésite pas si tu as besoin d'autre chose.";
+  if (/(qui es[- ]tu|tu es qui|ton nom|comment tu t'appelles|t'appelles comment)/.test(q)) return "Je m'appelle Astra, ton assistante vocale créée par Tom.ai. Je réponds à toutes tes questions, gratuitement et sans limite.";
+  if (/(qui t'a cree|qui t a cree|ton createur|qui t'a fait|qui t a fait)/.test(q)) return "J'ai été créée par Tom.ai le 10 septembre 2026.";
+  if (/(tu te souviens|tu me souviens|memoire|mémoire|tu as de la memoire|tu as de la mémoire)/.test(q)){
     const mem = buildMemoryContext(currentConvId);
     if (mem) return "Oui, je me souviens de tout ! Par exemple : " + mem.split('\n').slice(-3).join(' ');
-    return "Oui, j'ai une memoire parfaite. Mais pour l'instant on n'a pas encore beaucoup discute.";
+    return "Oui, j'ai une mémoire parfaite. Mais pour l'instant on n'a pas encore beaucoup discuté.";
   }
-  if (/(tu peux faire|tu sais faire|qu'est-ce que tu sais|qu est ce que tu sais|tes capacites)/.test(q)) return "Je sais repondre a tes questions, te donner l'heure et la date, chercher sur internet, et discuter avec toi. Et je me souviens de nos conversations.";
-  if (/(au revoir|bye|a plus|a bientot)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
-  if (/(blague|rigole|marre-moi|amuse-moi)/.test(q)) return "Pourquoi les plongeurs plongent toujours en arriere ? Parce que sinon ils tombent dans le bateau !";
-  if (/(tu es bete|t es bete|tu es nulle|t es nulle|tu marches pas|tu marche pas|bug)/.test(q)) return "Desole si j'ai eu un souci ! Mes serveurs gratuits etaient satures. Repose ta question, je reponds normalement.";
+  if (/(tu peux faire|tu sais faire|qu'est-ce que tu sais|qu est ce que tu sais|tes capacites|tes capacités)/.test(q)) return "Je sais répondre à tes questions, te donner l'heure et la date, et discuter avec toi. Et je me souviens de nos conversations.";
+  if (/(au revoir|bye|a plus|a bientot|à bientôt)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
+  if (/(blague|rigole|marre-moi|amuse-moi)/.test(q)) return "Pourquoi les plongeurs plongent toujours en arrière ? Parce que sinon ils tombent dans le bateau !";
+  if (/(tu es bete|t es bete|tu es nulle|t es nulle|tu marches pas|tu marche pas|bug)/.test(q)) return "Désolée si j'ai eu un souci ! Repose ta question, je réponds normalement.";
   /* 3) reponse honnete si on ne sait pas */
-  return "Je n'ai pas pu joindre mes serveurs la, mais je suis la. Repose ta question dans une minute, ou demande-moi l'heure, la date, ou ce dont tu te souviens.";
+  return "Je suis là, je t'écoute. Demande-moi l'heure, la date, ou ce dont tu te souviens, et je te réponds.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -253,40 +258,18 @@ function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
-  mistralKeyInput.value = getMistralKey();
-  cerebrasKeyInput.value = getCerebrasKey();
-  openaiKeyInput.value = getOpenAIKey();
-  brainSel.value = getBrain();
   ttsVoiceSel.value = getVoice();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
-mistralKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  toast('Cle Mistral enregistree');
-});
-brainSel.addEventListener('change', () => {
-  localStorage.setItem(LS.brain, brainSel.value);
-  toast('Cerveau choisi : ' + brainSel.value);
-});
-cerebrasKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.cerebras, cerebrasKeyInput.value.trim());
-  toast('Cle Cerebras enregistree');
-});
-openaiKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.openai, openaiKeyInput.value.trim());
-  toast('Cle OpenAI enregistree');
-});
 
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   toast('Voix choisie');
 });
 testVoiceBtn.addEventListener('click', async () => {
-  localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  localStorage.setItem(LS.cerebras, cerebrasKeyInput.value.trim());
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
@@ -1018,97 +1001,16 @@ async function askFreeLLM(question, webCtx, msgs){
    pour ne plus re-echouer a chaque question. */
 let badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages){
-  /* bad = reponse a REJETER -> on essaie le cerveau suivant.
-     TOUTE erreur (api/net/limit/nokey) est rejetee : avant, seules les erreurs
-     'limit' l'etaient, donc une erreur arretait tout -> "petite erreur". */
-  const bad = x => !!x.error || (!x.error && /atteint (ma|la|sa) limite|rate limit|trop de requetes|attends quelques secondes|reesaie dans/i.test(x.text || '')) || (!x.error && /i'?m sorry|i can'?t help|i cannot help|i can'?t assist|i cannot assist|as an ai|je ne peux pas (vous |t'|te )?aider|je ne peux pas repondre|je suis desole, mais|desole, mais je ne peux pas/i.test(x.text || ''));
-  /* UN SEUL cerveau choisi dans les reglages, ou AUTO = tous en parallele */
-  const mode = getBrain();
-  const brains = [];
-  if (mode === 'openai'){ if (getOpenAIKey()) brains.push({ name: 'OpenAI', fn: () => askOpenAI(null, null, messages) }); }
-  else if (mode === 'cerebras'){ if (getCerebrasKey()) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) }); }
-  else if (mode === 'mistral'){ if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) }); }
-  else if (mode === 'gratuit'){ brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) }); }
-  else { /* AUTO : 2 cerveaux MAX - IA locale (a vie, sans cle) + Gratuit en secours */
-    brains.push({ name: 'Local', fn: () => askLocal(null, null, messages) });
-    brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
-  }
-  /* PARALLELE : chaque cerveau tourne en meme temps ; des qu'un succes arrive,
-     on rend sa reponse SANS attendre les autres. */
-  const entries = brains.map((b, i) => ({ i, p: b.fn().then(val => ({ i, name: b.name, val })).catch(() => ({ i, name: b.name, val: { error: 'net' } })) }));
-  let r = { error: 'limit' }; /* si tout echoue, r reste une erreur -> retry puis fallback */
-  const diag = [];
-  while (entries.length > 0 && r.error){
-    const first = await Promise.race(entries.map(e => e.p));
-    entries.splice(entries.findIndex(e => e.i === first.i), 1);
-    /* Cle invalide (401/403/404) : on la desactive pour la session et on
-       previent l'utilisateur UNE fois au lieu de re-echouer a chaque question */
-    if (first.val.error === 'key'){
-      if (first.name === 'Mistral'){ badMistralKey = true; toast('Ta cle Mistral est invalide - retire-la ou remplace-la dans les reglages'); }
-      if (first.name === 'Cerebras'){ badCerebrasKey = true; toast('Ta cle Cerebras est invalide - retire-la ou remplace-la dans les reglages'); }
-    }
-    if (!bad(first.val)){ r = first.val; break; }
-    diag.push(first.name + ':' + (first.val.error || 'refus'));
-    console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
-  }
-  /* RETRY : seulement si l'echec n'est PAS une limite (429). Si tout est en
-     limite, retenter dans 5s/10s ne sert a rien (fenetre minute pas finie) et
-     brule le quota -> on repond directement "Serveurs satures". Le retry ne
-     sert que pour les erreurs reseau/refus passageres. */
-  if (bad(r) && !diag.every(d => d.endsWith(':limit'))){
-    const retryTargets = [
-      { url: 'https://api.llm7.io/v1/chat/completions', model: 'GLM-5.3-Flash' },
-      { url: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', model: 'qwen3.5-397b-a17b' }
-    ];
-    for (let i = 0; i < retryTargets.length && bad(r); i++){
-      await new Promise(res => setTimeout(res, 5000 + i * 5000));
-      const t = retryTargets[i];
-      try {
-        const res = await fetch(t.url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: t.model, messages, max_tokens: 300, temperature: 0.7 })
-        });
-        if (res && res.ok){
-          const data = await res.json();
-          const msg = data?.choices?.[0]?.message || {};
-          let text = (msg.content || '').trim();
-          if (!text) text = (msg.reasoning || '').trim();
-          if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
-        } else if (res && res.status === 429){
-          console.warn('[Retry]', t.model, 'HTTP 429 (quota)');
-        } else if (res){
-          console.warn('[Retry]', t.model, 'HTTP ' + res.status);
-        }
-      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); }
-    }
-    diag.push('Retry:limit');
-  }
-  /* FALLBACK ULTIME : si TOUT a echoue, on repond avec la MEMOIRE + LOGIQUE
-     locale (fonctionne toujours, sans serveur) : question similaire deja posee
-     -> on rejoue la reponse ; sinon mots-cles ; sinon reponse honnete. */
-  if (bad(r)){
-    const lastUser = messages.filter(m => m.role === 'user').pop();
-    const smart = localSmartReply(lastUser ? lastUser.content : '');
-    return { text: smart };
-  }
-  return r;
+  /* PLUS AUCUN CERVEAU SERVEUR : reponse 100% locale, memoire + logique.
+     Fonctionne toujours, sans cle, sans internet, sans limite. */
+  const lastUser = messages.filter(m => m.role === 'user').pop();
+  return { text: localSmartReply(lastUser ? lastUser.content : '') };
 }
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
-  /* recherche web UNE SEULE fois, partagee entre tous les cerveaux (sinon relancee
-     a chaque tentative = lenteur) */
-  const webCtx = await webSearch(question);
-  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
-  const mem = buildMemoryContext(currentConvId);
-  if (mem){
-    messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-  }
-  if (webCtx){
-    messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
-  }
-  const r = await askBrain(messages);
+  /* Reponse 100% locale : memoire + logique. Aucun serveur, aucune cle. */
+  const r = await askBrain([{ role: 'user', content: question }]);
   if (!r.error){
     r.text = stripGreeting(enforceIdentity(r.text));
     session.push({ role: 'assistant', content: r.text });
@@ -1751,6 +1653,3 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
-/* IA LOCALE : on lance le telechargement du cerveau en arriere-plan des le
-   chargement (1 seule fois, ~1 Go, reste en cache pour toujours). */
-setTimeout(() => { initLocalEngine(); }, 3000);
