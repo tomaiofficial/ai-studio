@@ -25,7 +25,6 @@ const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
-const diagBtn = null, closeDiag = null, diagModal = null, diagList = null;
 
 /* ===== PROFIL UTILISATEUR (prénom + âge, une seule fois pour la vie) ===== */
 const PROFILE_KEY = 'va_profile';
