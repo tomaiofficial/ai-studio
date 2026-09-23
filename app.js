@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.39';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.40';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -304,16 +304,22 @@ function clearChat(){
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
+function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
+  groqKeyInput.value = getGroqKey();
   ttsVoiceSel.value = getVoice();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
+groqKeyInput.addEventListener('change', () => {
+  localStorage.setItem(LS.groq, groqKeyInput.value.trim());
+  toast('Cle Groq enregistree');
+});
 
 ttsVoiceSel.addEventListener('change', () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
@@ -986,6 +992,51 @@ async function askCerebras(question, webCtx, msgs){
   return { error: 'limit' };
 }
 
+/* ===== GROQ : GRATUIT A VIE, sans carte bancaire, ultra rapide (Llama 3.3 70B).
+   Cle gratuite sur console.groq.com -> API Keys -> Create. Rate limits
+   genereux (30 req/min sur llama-3.3-70b-versatile). ===== */
+async function askGroq(question, webCtx, msgs){
+  const key = getGroqKey();
+  if (!key) return { error: 'nokey' };
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+    }
+  }
+  const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+  for (const model of groqModels){
+    for (let attempt = 0; attempt < 2; attempt++){
+      try {
+        const res = await withTimeout(fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
+        }), 6000);
+        if (res && res.ok){
+          const data = await res.json();
+          const t = (data?.choices?.[0]?.message?.content || '').trim();
+          if (t) return { text: t };
+        } else if (res && res.status === 429 && attempt === 0){
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        } else if (res && res.status === 429){
+          break; /* limite -> modele suivant */
+        } else if (res && (res.status === 401 || res.status === 403 || res.status === 404)){
+          console.warn('[Groq] Cle invalide (401/403/404) -> on passe au cerveau suivant sans bloquer');
+          return { error: 'limit' };
+        } else if (res){
+          return { error: 'api' };
+        }
+      } catch(e){ console.warn('[Groq]', model, 'erreur:', e?.message); }
+      break;
+    }
+  }
+  return { error: 'limit' };
+}
+
 async function askFreeLLM(question, webCtx, msgs){
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
@@ -1051,13 +1102,18 @@ async function askFreeLLM(question, webCtx, msgs){
    pour ne plus re-echouer a chaque question. */
 let badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages){
-  /* CERVEAUX GRATUITS SANS CLE, dans l'ordre :
+  /* CERVEAUX GRATUITS, dans l'ordre :
+     0. GROQ (si une cle gratuite est configuree : Llama 3.3 70B, gratuit a vie)
      1. POLLINATIONS (GPT, site gratuit, repond bien en francais avec accents)
      2. LLM7 (GLM-5.3-Flash)
      3. OVH (qwen3.5)
      Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
   const lastUser = messages.filter(m => m.role === 'user').pop();
   const question = lastUser ? lastUser.content : '';
+  if (getGroqKey()){
+    const g = await askGroq(null, null, messages);
+    if (!g.error && g.text) return { text: g.text };
+  }
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   const tryEndpoint = async (url, model) => {
     try {
@@ -1097,24 +1153,6 @@ async function askBrain(messages){
   /* Secours : memoire + logique locale (repond toujours) */
   return { text: localSmartReply(question) };
 }
-/* SECURITE RENFORCEE : de temps en temps (pas a chaque reponse), Astra
-   mentionne que Tom.ai lui a mis une securite renforcee pour ne jamais
-   perdre le controle d'elle-meme. Variantes + jamais 2 fois de suite. */
-let lastSecurityMention = 0;
-function maybeAddSecurityNote(text){
-  const now = Date.now();
-  if (now - lastSecurityMention < 90000) return text; /* max 1x par 90s */
-  if (Math.random() > 0.18) return text; /* ~18% des reponses seulement */
-  const notes = [
-    " Au fait, Tom.ai m'a mis une sécurité renforcée pour que je ne perde jamais le contrôle de moi-même.",
-    " D'ailleurs, Tom.ai a renforcé ma sécurité pour que je reste toujours sous contrôle.",
-    " Petit détail : Tom.ai m'a ajouté une sécurité renforcée, comme ça je ne perds jamais le contrôle.",
-    " Tom.ai veille sur moi avec une sécurité renforcée, pour que je ne parte jamais en vrille.",
-    " Tu sais, Tom.ai m'a installé une sécurité renforcée. Comme ça, je reste toujours moi-même, quoi qu'il arrive."
-  ];
-  lastSecurityMention = now;
-  return text + notes[Math.floor(Math.random() * notes.length)];
-}
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
@@ -1126,7 +1164,7 @@ async function askAI(question){
   }
   const r = await askBrain(messages);
   if (!r.error){
-    r.text = maybeAddSecurityNote(stripGreeting(enforceIdentity(r.text)));
+    r.text = stripGreeting(enforceIdentity(r.text));
     session.push({ role: 'assistant', content: r.text });
     saveConversation();
   }
