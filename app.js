@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.42';
+const APP_VERSION = '8.43';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'systeme'; // Voix REALISTE (naturelles du systeme) par defaut, Google TTS en secours auto
+const DEFAULT_VOICE = 'google'; // Voix IA FEMME Google TTS par defaut (gratuite, sans cle), voix systeme en secours
 const SPEED = 1.0; // naturel
 
 
