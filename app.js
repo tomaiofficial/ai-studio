@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.26';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.27';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,83 +19,13 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), mistralKeyInput = $('mistralKey'), cerebrasKeyInput = $('cerebrasKey'), brainSel = $('brainSel');
+const closeSettings = $('closeSettings'), mistralKeyInput = $('mistralKey'), cerebrasKeyInput = $('cerebrasKey'), openaiKeyInput = $('openaiKey'), brainSel = $('brainSel');
 const ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
-const diagBtn = $('diagBtn'), closeDiag = $('closeDiag'), diagModal = $('diagModal'), diagList = $('diagList');
-
-/* ===== JOURNAL IA HORS CONTROLE : enregistre UNIQUEMENT les comportements
-   anormaux de l'IA (actualisation auto du site, etc.), PAS les trucs en
-   arriere-plan. Quand elle est hors controle : ajout au journal + ouverture
-   automatique de la modale + alerte vocale. Stocke en localStorage, max 200. ===== */
-const DIAG_KEY = 'va_diag';
-let diagLog = [];
-try { diagLog = JSON.parse(localStorage.getItem(DIAG_KEY) || '[]'); } catch { diagLog = []; }
-function logDiag(type, msg){
-  try {
-    diagLog.push({ t: Date.now(), type, msg });
-    if (diagLog.length > 200) diagLog = diagLog.slice(-200);
-    localStorage.setItem(DIAG_KEY, JSON.stringify(diagLog));
-  } catch {}
-}
-/* SIGNALER UN COMPORTEMENT HORS CONTROLE : journal + modale auto.
-   PAS d'alerte vocale : l'IA ne doit pas parler quand elle est hors controle,
-   elle affiche juste les infos dans le journal (comme une vraie app). */
-function signalHorsControle(msg){
-  logDiag('HORS CONTROLE', msg);
-  try {
-    if (diagModal) diagModal.classList.remove('hidden');
-    renderDiag();
-  } catch {}
-}
-function renderDiag(){
-  if (!diagList) return;
-  /* En-tete style vraie app : stats + version */
-  const errs = diagLog.filter(e => e.type === 'ERREUR' || e.type === 'HORS CONTROLE');
-  const last = diagLog.length ? diagLog[diagLog.length - 1] : null;
-  let header = '<div class="diag-header">'
-    + '<div class="diag-stat"><span class="diag-stat-n">' + diagLog.length + '</span><span class="diag-stat-l">événements</span></div>'
-    + '<div class="diag-stat"><span class="diag-stat-n" style="color:#f87171">' + errs.length + '</span><span class="diag-stat-l">erreurs</span></div>'
-    + '<div class="diag-stat"><span class="diag-stat-n" style="color:#fbbf24">' + (last ? new Date(last.t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—') + '</span><span class="diag-stat-l">dernier</span></div>'
-    + '<div class="diag-stat"><span class="diag-stat-n" style="font-size:13px">v' + APP_VERSION + '</span><span class="diag-stat-l">app</span></div>'
-    + '</div>';
-  if (!diagLog.length){
-    diagList.innerHTML = header + '<p class="muted" style="text-align:center;padding:20px">Aucun événement enregistré pour le moment.</p>';
-    return;
-  }
-  const rows = diagLog.slice().reverse().map(e => {
-    const d = new Date(e.t);
-    const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0'), ss = String(d.getSeconds()).padStart(2, '0');
-    const color = e.type === 'OK' ? '#4ade80' : e.type === 'WARN' ? '#fbbf24' : '#f87171';
-    return '<div class="diag-row"><span class="diag-time">' + hh + ':' + mm + ':' + ss + '</span><span class="diag-type" style="color:' + color + '">' + escapeHtml(e.type) + '</span><span class="diag-msg">' + escapeHtml(e.msg) + '</span></div>';
-  }).join('');
-  diagList.innerHTML = header + rows;
-}
-if (diagBtn) diagBtn.addEventListener('click', () => { renderDiag(); diagModal.classList.remove('hidden'); });
-if (closeDiag) closeDiag.addEventListener('click', () => diagModal.classList.add('hidden'));
-if (diagModal) diagModal.addEventListener('click', e => { if (e.target === diagModal) diagModal.classList.add('hidden'); });
-
-/* DETECTION ACTUALISATION AUTO : si la page se recharge toute seule (IA hors
-   controle / ancien service worker), on le signale. On compare l'heure du
-   dernier chargement : si < 6s, c'est un refresh automatique. MAIS si c'est
-   NOUS qui avons actualise (bandeau mise a jour -> flag va_user_refresh),
-   on ne dit RIEN : la phrase de securite n'est que pour l'IA hors controle. */
-(function(){
-  try {
-    const LAST_LOAD_KEY = 'va_last_load';
-    const now = Date.now();
-    const last = parseInt(localStorage.getItem(LAST_LOAD_KEY) || '0', 10);
-    const userRefresh = localStorage.getItem('va_user_refresh') === '1';
-    localStorage.removeItem('va_user_refresh');
-    if (last && (now - last) < 6000 && !userRefresh){
-      signalHorsControle('Actualisation automatique de la page detectee - dernier chargement il y a ' + Math.round((now - last) / 1000) + 's');
-    }
-    localStorage.setItem(LAST_LOAD_KEY, String(now));
-  } catch {}
-})();
+const diagBtn = null, closeDiag = null, diagModal = null, diagList = null;
 
 /* ===== PROFIL UTILISATEUR (prénom + âge, une seule fois pour la vie) ===== */
 const PROFILE_KEY = 'va_profile';
@@ -274,12 +204,14 @@ function clearChat(){
 /* ===== REGLAGES ===== */
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
+function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   mistralKeyInput.value = getMistralKey();
   cerebrasKeyInput.value = getCerebrasKey();
+  openaiKeyInput.value = getOpenAIKey();
   brainSel.value = getBrain();
   ttsVoiceSel.value = getVoice();
   wakeToggle.checked = wakeEnabled;
@@ -298,6 +230,10 @@ brainSel.addEventListener('change', () => {
 cerebrasKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.cerebras, cerebrasKeyInput.value.trim());
   toast('Cle Cerebras enregistree');
+});
+openaiKeyInput.addEventListener('change', () => {
+  localStorage.setItem(LS.openai, openaiKeyInput.value.trim());
+  toast('Cle OpenAI enregistree');
 });
 
 ttsVoiceSel.addEventListener('change', () => {
@@ -728,6 +664,73 @@ async function askMistral(question, webCtx, msgs){
     return { text: reply };
   } catch { return { error: 'net' }; }
 }
+/* ===== OPENAI : le meme cerveau que ChatGPT, non stop avec une cle ===== */
+async function askOpenAI(question, webCtx, msgs){
+  const key = getOpenAIKey();
+  if (!key) return { error: 'nokey' };
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
+    }
+    if (webCtx === undefined) webCtx = await webSearch(question);
+    if (webCtx){
+      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
+      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
+    }
+  }
+  try {
+    let res = null;
+    for (let attempt = 0; attempt < 2; attempt++){
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      try {
+        res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model: 'gpt-4o-mini', messages, max_tokens: 400, temperature: 0.7 }),
+          signal: ctrl.signal
+        });
+      } finally { clearTimeout(timer); }
+      if (res.status === 429 && attempt === 0){
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      break;
+    }
+    if (res.status === 429) return { error: 'limit' };
+    if (res.status === 401 || res.status === 403 || res.status === 404) return { error: 'key' };
+    if (!res.ok) return { error: 'api' };
+    const j = await res.json();
+    const msg = j.choices && j.choices[0] && j.choices[0].message || {};
+    const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
+    let reply = extractReply(msg);
+    if (reply && fr === 'length'){
+      try {
+        const ctrl2 = new AbortController();
+        const timer2 = setTimeout(() => ctrl2.abort(), 15000);
+        let cres;
+        try {
+          cres = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({ model: 'gpt-4o-mini', messages: [...messages, { role: 'assistant', content: reply }, { role: 'user', content: 'Continue ta reponse exactement la ou tu t es arretee, sans repeter ni resumer.' }], max_tokens: 400, temperature: 0.7 }),
+            signal: ctrl2.signal
+          });
+        } finally { clearTimeout(timer2); }
+        if (cres && cres.ok){
+          const cj = await cres.json();
+          const cmsg = cj.choices && cj.choices[0] && cj.choices[0].message || {};
+          const contText = extractReply(cmsg);
+          if (contText) reply += ' ' + contText;
+        }
+      } catch {}
+    }
+    if (!reply) return { error: 'api' };
+    return { text: reply };
+  } catch { return { error: 'net' }; }
+}
 async function webSearch(question){
   /* Internet GRATUIT inclus a vie, aucune cle, aucune limite :
      1) DuckDuckGo Instant Answer + Wikipedia (faits, definitions) en parallele
@@ -930,10 +933,12 @@ async function askBrain(messages){
   /* UN SEUL cerveau choisi dans les reglages, ou AUTO = tous en parallele */
   const mode = getBrain();
   const brains = [];
-  if (mode === 'cerebras'){ if (getCerebrasKey()) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) }); }
+  if (mode === 'openai'){ if (getOpenAIKey()) brains.push({ name: 'OpenAI', fn: () => askOpenAI(null, null, messages) }); }
+  else if (mode === 'cerebras'){ if (getCerebrasKey()) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) }); }
   else if (mode === 'mistral'){ if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) }); }
   else if (mode === 'gratuit'){ brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) }); }
-  else { /* AUTO : Cerebras + Mistral + Gratuit EN PARALLELE, 1er succes gagne */
+  else { /* AUTO : OpenAI + Cerebras + Mistral + Gratuit EN PARALLELE, 1er succes gagne */
+    if (getOpenAIKey()) brains.push({ name: 'OpenAI', fn: () => askOpenAI(null, null, messages) });
     if (getCerebrasKey() && !badCerebrasKey) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) });
     if (getMistralKey() && !badMistralKey) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
     brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
@@ -954,7 +959,6 @@ async function askBrain(messages){
     }
     if (!bad(first.val)){ r = first.val; break; }
     diag.push(first.name + ':' + (first.val.error || 'refus'));
-    logDiag('ERREUR', first.name + ' -> ' + (first.val.error || 'refus') + (first.val.text ? ' : ' + first.val.text.slice(0, 80) : ''));
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
   /* RETRY : seulement si l'echec n'est PAS une limite (429). Si tout est en
@@ -980,11 +984,11 @@ async function askBrain(messages){
           const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
           if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
         } else if (res && res.status === 429){
-          logDiag('ERREUR', 'Retry ' + t.model + ' -> HTTP 429 (quota)');
+          console.warn('[Retry]', t.model, 'HTTP 429 (quota)');
         } else if (res){
-          logDiag('ERREUR', 'Retry ' + t.model + ' -> HTTP ' + res.status);
+          console.warn('[Retry]', t.model, 'HTTP ' + res.status);
         }
-      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); logDiag('ERREUR', 'Retry ' + t.model + ' -> ' + e?.message); }
+      } catch(e){ console.warn('[Retry]', t.model, 'echec:', e?.message); }
     }
     diag.push('Retry:limit');
   }
@@ -1009,7 +1013,6 @@ async function askBrain(messages){
     if (useful.length > 0) finalDiag = useful.slice(0, 1);
     else if (diag.length > 0) finalDiag = ['Serveurs satures - reessaie dans une minute'];
     else finalDiag = [];
-    logDiag('ERREUR', 'TOUT a echoue (' + diag.join(' | ') + ') -> reponse de secours');
     return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: finalDiag.join(' | ') };
   }
   return r;
