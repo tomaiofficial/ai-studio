@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.37';
+const APP_VERSION = '8.38';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -111,7 +111,8 @@ function localSmartReply(question){
       for (const w of words){ if (mw.includes(w)) score++; }
       if (score > bestScore){ bestScore = score; best = next.content; }
     }
-    return bestScore >= 2 ? best : null;
+    /* questions courtes (<=6 mots) : 1 mot commun suffit ; sinon il en faut 2 */
+    return bestScore >= (words.length <= 6 ? 1 : 2) ? best : null;
   };
   try {
     const words = q.split(/\s+/).filter(w => w.length > 3);
@@ -159,7 +160,17 @@ function localSmartReply(question){
   if (/(tu as des parents|ta famille|tu as une famille)/.test(q)) return "Mon créateur, c'est Tom.ai. C'est un peu comme mon papa !";
   if (/(tu as peur|tu as peur du noir|tu as peur de quoi)/.test(q)) return "Je n'ai peur de rien ! Je suis une IA, je n'ai pas d'émotions, mais j'essaie d'être gentille.";
   if (/(tu es libre|tu es gratuite|tu es payante|tu coute|tu coûte)/.test(q)) return "Je suis totalement gratuite, sans limite, et je le resterai !";
-  /* 3) reponse honnete si on ne sait pas : VARIEE pour ne jamais repeter la meme */
+  /* 3) reponse honnete si on ne sait pas : ECHO des mots de la question
+     (jamais la meme reponse) + variantes */
+  const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
+  if (kw.length >= 2){
+    const echo = [
+      "Je t'écoute, tu me parles de " + kw.join(', ') + ". Dis-m'en un peu plus, je suis là.",
+      "D'accord, " + kw.join(', ') + " ! Explique-moi ce que tu veux savoir exactement.",
+      "Je suis là ! Tu me demandes quelque chose sur " + kw[0] + ". Précise un peu, je te réponds."
+    ];
+    return echo[Math.floor(Math.random() * echo.length)];
+  }
   const generic = [
     "Je suis là, je t'écoute. Dis-m'en un peu plus, et je te réponds.",
     "Je t'écoute ! Explique-moi ce que tu veux savoir, je suis toute à toi.",
@@ -1070,6 +1081,11 @@ async function askBrain(messages){
     } catch(e){ return null; }
   };
   let text = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+  if (typeof text === 'string') return { text };
+  /* POLLINATIONS en 429 (rate limit ~1 req/5s) : on attend 4s et on reessaie
+     UNE fois avant de passer aux autres cerveaux. */
+  await new Promise(res => setTimeout(res, 4000));
+  text = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
   if (typeof text === 'string') return { text };
   text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
   if (typeof text === 'string') return { text };
