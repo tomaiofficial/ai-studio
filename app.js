@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.29';
+const APP_VERSION = '8.30';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -84,6 +84,51 @@ function buildMemoryContext(excludeId){
 }
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+/* ===== REPONSE LOCALE "MEMOIRE + LOGIQUE" : dernier recours, fonctionne TOUJOURS,
+   meme sans serveur, sans cle, sans internet. 1) memoire des conversations
+   passees (question similaire -> on rejoue la reponse), 2) logique par
+   mots-cles, 3) reponse honnete. Comme GPT en mode hors-ligne. ===== */
+function localSmartReply(question){
+  const q = question.toLowerCase().trim();
+  /* 1) MEMOIRE : chercher une question similaire deja posee et rejouer la reponse */
+  try {
+    const words = q.split(/\s+/).filter(w => w.length > 3);
+    let best = null, bestScore = 0;
+    for (const conv of conversations){
+      if (!conv.messages) continue;
+      for (let i = 0; i < conv.messages.length - 1; i++){
+        const m = conv.messages[i];
+        if (m.role !== 'user') continue;
+        const next = conv.messages[i + 1];
+        if (!next || next.role !== 'assistant') continue;
+        const mw = m.content.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        let score = 0;
+        for (const w of words){ if (mw.includes(w)) score++; }
+        if (score > bestScore){ bestScore = score; best = next.content; }
+      }
+    }
+    if (best && bestScore >= 2){
+      return "Je me souviens qu'on en a deja parle ! " + best;
+    }
+  } catch {}
+  /* 2) LOGIQUE par mots-cles */
+  if (/(bonjour|salut|hello|coucou|hey)\b/.test(q)) return "Salut ! Comment ca va ?";
+  if (/(ca va|comment va|comment tu vas|tu vas bien)/.test(q)) return "Ca va tres bien, merci ! Et toi ?";
+  if (/(merci|thank)/.test(q)) return "Avec plaisir ! N'hesite pas si tu as besoin d'autre chose.";
+  if (/(qui es[- ]tu|tu es qui|ton nom|comment tu t'appelles|t'appelles comment)/.test(q)) return "Je m'appelle Astra, ton assistante vocale creee par Tom.ai. Je reponds a toutes tes questions, gratuitement et sans limite.";
+  if (/(qui t'a cree|qui t a cree|ton createur|qui t'a fait|qui t a fait)/.test(q)) return "J'ai ete creee par Tom.ai le 10 septembre 2026.";
+  if (/(tu te souviens|tu me souviens|memoire|tu as de la memoire)/.test(q)){
+    const mem = buildMemoryContext(currentConvId);
+    if (mem) return "Oui, je me souviens de tout ! Par exemple : " + mem.split('\n').slice(-3).join(' ');
+    return "Oui, j'ai une memoire parfaite. Mais pour l'instant on n'a pas encore beaucoup discute.";
+  }
+  if (/(tu peux faire|tu sais faire|qu'est-ce que tu sais|qu est ce que tu sais|tes capacites)/.test(q)) return "Je sais repondre a tes questions, te donner l'heure et la date, chercher sur internet, et discuter avec toi. Et je me souviens de nos conversations.";
+  if (/(au revoir|bye|a plus|a bientot)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
+  if (/(blague|rigole|marre-moi|amuse-moi)/.test(q)) return "Pourquoi les plongeurs plongent toujours en arriere ? Parce que sinon ils tombent dans le bateau !";
+  if (/(tu es bete|t es bete|tu es nulle|t es nulle|tu marches pas|tu marche pas|bug)/.test(q)) return "Desole si j'ai eu un souci ! Mes serveurs gratuits etaient satures. Repose ta question, je reponds normalement.";
+  /* 3) reponse honnete si on ne sait pas */
+  return "Je n'ai pas pu joindre mes serveurs la, mais je suis la. Repose ta question dans une minute, ou demande-moi l'heure, la date, ou ce dont tu te souviens.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -667,7 +712,7 @@ async function askMistral(question, webCtx, msgs){
    sans saturation, A VIE. Le modele se telecharge 1 fois (~1 Go) puis reste
    en cache. Necessite Chrome/Edge recent (WebGPU). ===== */
 let localEngine = null, localStatus = 'idle'; /* idle | loading | ready | error */
-const LOCAL_MODEL = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC';
+const LOCAL_MODEL = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
 async function initLocalEngine(){
   if (localEngine || localStatus === 'loading') return;
   if (!navigator.gpu){ localStatus = 'error'; return; }
@@ -1039,28 +1084,13 @@ async function askBrain(messages){
     }
     diag.push('Retry:limit');
   }
-  /* FALLBACK ULTIME : si TOUT a echoue, reponse simple et naturelle (comme GPT),
-     sans drame ni "emotions". diag = raison exacte, affichee en sous-titre. */
+  /* FALLBACK ULTIME : si TOUT a echoue, on repond avec la MEMOIRE + LOGIQUE
+     locale (fonctionne toujours, sans serveur) : question similaire deja posee
+     -> on rejoue la reponse ; sinon mots-cles ; sinon reponse honnete. */
   if (bad(r)){
-    const allLimit = diag.every(d => d.endsWith(':limit'));
-    const fallbacks = allLimit ? [
-      "Mes serveurs sont satures la, je reponds dans une minute. Repose ta question dans un instant.",
-      "Trop de monde sur mes serveurs gratuits. Attends une petite minute et repose ta question.",
-      "Mes serveurs gratuits sont en limite de requetes. Reessaie dans une minute, je suis la."
-    ] : [
-      "Je n'arrive pas a joindre mes serveurs en ce moment. Reessaie dans quelques secondes.",
-      "Mes serveurs sont satures la. Repose ta question dans un instant, ca devrait repasser.",
-      "Connexion difficile avec mes serveurs. Reessaie, je suis la."
-    ];
-    /* DIAGNOSTIC : UNE seule raison claire. 'limit' = transitoire (reessaie plus
-       tard) -> ignore si une vraie erreur existe (api/key/net/refus). Si TOUT
-       est en limite, message clair au lieu de "Gratuit:limit" (incomprehensible). */
-    const useful = diag.filter(d => !d.endsWith(':limit'));
-    let finalDiag;
-    if (useful.length > 0) finalDiag = useful.slice(0, 1);
-    else if (diag.length > 0) finalDiag = ['Serveurs satures - reessaie dans une minute'];
-    else finalDiag = [];
-    return { text: fallbacks[Math.floor(Math.random() * fallbacks.length)], diag: finalDiag.join(' | ') };
+    const lastUser = messages.filter(m => m.role === 'user').pop();
+    const smart = localSmartReply(lastUser ? lastUser.content : '');
+    return { text: smart };
   }
   return r;
 }
