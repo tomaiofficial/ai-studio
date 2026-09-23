@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.27';
+const APP_VERSION = '8.28';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -892,8 +892,11 @@ async function askFreeLLM(question, webCtx, msgs){
         const data = await res.json();
         const msg = data?.choices?.[0]?.message || {};
         /* contenu DIRECT : extractReply etait trop strict pour les petits
-           modeles et rejetait des reponses valides -> Gratuit:limit */
-        const text = (msg.content || '').trim();
+           modeles et rejetait des reponses valides -> Gratuit:limit.
+           GLM-5.3-Flash met sa reponse dans "reasoning" quand "content" est
+           vide -> on prend reasoning en secours sinon tout echoue. */
+        let text = (msg.content || '').trim();
+        if (!text) text = (msg.reasoning || '').trim();
         if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
         return { err: 'refus' };
       }
@@ -936,10 +939,8 @@ async function askBrain(messages){
   else if (mode === 'cerebras'){ if (getCerebrasKey()) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) }); }
   else if (mode === 'mistral'){ if (getMistralKey()) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) }); }
   else if (mode === 'gratuit'){ brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) }); }
-  else { /* AUTO : OpenAI + Cerebras + Mistral + Gratuit EN PARALLELE, 1er succes gagne */
+  else { /* AUTO : 2 cerveaux MAX - OpenAI (si cle) + Gratuit en secours */
     if (getOpenAIKey()) brains.push({ name: 'OpenAI', fn: () => askOpenAI(null, null, messages) });
-    if (getCerebrasKey() && !badCerebrasKey) brains.push({ name: 'Cerebras', fn: () => askCerebras(null, null, messages) });
-    if (getMistralKey() && !badMistralKey) brains.push({ name: 'Mistral', fn: () => askMistral(null, null, messages) });
     brains.push({ name: 'Gratuit', fn: () => askFreeLLM(null, null, messages) });
   }
   /* PARALLELE : chaque cerveau tourne en meme temps ; des qu'un succes arrive,
@@ -980,7 +981,9 @@ async function askBrain(messages){
         });
         if (res && res.ok){
           const data = await res.json();
-          const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
+          const msg = data?.choices?.[0]?.message || {};
+          let text = (msg.content || '').trim();
+          if (!text) text = (msg.reasoning || '').trim();
           if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
         } else if (res && res.status === 429){
           console.warn('[Retry]', t.model, 'HTTP 429 (quota)');
