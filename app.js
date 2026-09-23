@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.25';
+const APP_VERSION = '8.26';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -885,7 +885,7 @@ async function askFreeLLM(question, webCtx, msgs){
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-      }), 10000);
+      }), 15000);
       if (res && res.ok){
         const data = await res.json();
         const msg = data?.choices?.[0]?.message || {};
@@ -893,20 +893,27 @@ async function askFreeLLM(question, webCtx, msgs){
            modeles et rejetait des reponses valides -> Gratuit:limit */
         const text = (msg.content || '').trim();
         if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+        return { err: 'refus' };
       }
-    } catch(e){ console.warn('[' + model + ']', 'erreur:', e?.message); }
-    return null;
+      /* 429 = QUOTA EPUISE : retenter dans 5s ne sert a rien (fenetre minute
+         pas reinitialisee) et brule le quota. On le distingue du reste. */
+      if (res && res.status === 429) return { err: 'limit' };
+      if (res) return { err: 'http' + res.status };
+      return { err: 'net' };
+    } catch(e){ console.warn('[' + model + ']', 'erreur:', e?.message); return { err: 'net' }; }
   };
 
   /* 1. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
      GLM-5.3-Flash : teste 200 OK, repond bien en francais. */
   let text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
-  if (text) return { text };
+  if (typeof text === 'string') return { text };
 
   /* 2. OVHCLOUD AI ENDPOINTS - anonyme (2 req/min), secours si LLM7 echoue */
   text = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
-  if (text) return { text };
+  if (typeof text === 'string') return { text };
 
+  /* Les deux ont echoue : on remonte la cause la plus parlante.
+     limit = quota epuise (transitoire, ~1 min) ; net = reseau ; httpX = autre. */
   return { error: 'limit' };
 }
 /* Chaine de cerveaux : TOUS les cerveaux partent EN PARALLELE, le premier qui
@@ -950,11 +957,11 @@ async function askBrain(messages){
     logDiag('ERREUR', first.name + ' -> ' + (first.val.error || 'refus') + (first.val.text ? ' : ' + first.val.text.slice(0, 80) : ''));
     console.warn('[Brain] echec:', first.name, first.val.error || (first.val.text || '').slice(0, 60));
   }
-  /* RETRY GRATUIT : si tout a echoue, les limites des serveurs gratuits sont
-     souvent passageres (fenetre glissante par minute). On attend assez longtemps
-     pour laisser la fenetre se reinitialiser : 5s puis 10s (avant : 3s/6s,
-     trop court -> re-429 immediat). 1 requete par retry, GLM puis OVH. */
-  if (bad(r)){
+  /* RETRY : seulement si l'echec n'est PAS une limite (429). Si tout est en
+     limite, retenter dans 5s/10s ne sert a rien (fenetre minute pas finie) et
+     brule le quota -> on repond directement "Serveurs satures". Le retry ne
+     sert que pour les erreurs reseau/refus passageres. */
+  if (bad(r) && !diag.every(d => d.endsWith(':limit'))){
     const retryTargets = [
       { url: 'https://api.llm7.io/v1/chat/completions', model: 'GLM-5.3-Flash' },
       { url: 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', model: 'qwen3.5-397b-a17b' }
@@ -972,6 +979,8 @@ async function askBrain(messages){
           const data = await res.json();
           const text = ((data?.choices?.[0]?.message || {}).content || '').trim();
           if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return { text };
+        } else if (res && res.status === 429){
+          logDiag('ERREUR', 'Retry ' + t.model + ' -> HTTP 429 (quota)');
         } else if (res){
           logDiag('ERREUR', 'Retry ' + t.model + ' -> HTTP ' + res.status);
         }
@@ -982,7 +991,12 @@ async function askBrain(messages){
   /* FALLBACK ULTIME : si TOUT a echoue, reponse simple et naturelle (comme GPT),
      sans drame ni "emotions". diag = raison exacte, affichee en sous-titre. */
   if (bad(r)){
-    const fallbacks = [
+    const allLimit = diag.every(d => d.endsWith(':limit'));
+    const fallbacks = allLimit ? [
+      "Mes serveurs sont satures la, je reponds dans une minute. Repose ta question dans un instant.",
+      "Trop de monde sur mes serveurs gratuits. Attends une petite minute et repose ta question.",
+      "Mes serveurs gratuits sont en limite de requetes. Reessaie dans une minute, je suis la."
+    ] : [
       "Je n'arrive pas a joindre mes serveurs en ce moment. Reessaie dans quelques secondes.",
       "Mes serveurs sont satures la. Repose ta question dans un instant, ca devrait repasser.",
       "Connexion difficile avec mes serveurs. Reessaie, je suis la."
