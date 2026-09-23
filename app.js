@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.32';
+const APP_VERSION = '8.33';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -95,27 +95,35 @@ function isSecoursReply(t){
 function localSmartReply(question){
   const q = question.toLowerCase().trim();
   /* 1) MEMOIRE : chercher une question similaire deja posee et rejouer la
-     reponse, MAIS jamais une reponse de secours (sinon boucle infinie). */
+     reponse, MAIS jamais une reponse de secours (sinon boucle infinie).
+     Cherche d'abord dans la SESSION en cours (echanges recents), puis dans
+     toutes les conversations passees. */
+  const findMatch = (msgs, words) => {
+    let best = null, bestScore = 0;
+    for (let i = 0; i < msgs.length - 1; i++){
+      const m = msgs[i];
+      if (!m || m.role !== 'user') continue;
+      const next = msgs[i + 1];
+      if (!next || next.role !== 'assistant') continue;
+      if (isSecoursReply(next.content)) continue;
+      const mw = String(m.content || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      let score = 0;
+      for (const w of words){ if (mw.includes(w)) score++; }
+      if (score > bestScore){ bestScore = score; best = next.content; }
+    }
+    return bestScore >= 2 ? best : null;
+  };
   try {
     const words = q.split(/\s+/).filter(w => w.length > 3);
-    let best = null, bestScore = 0;
-    for (const conv of conversations){
-      if (!conv.messages) continue;
-      for (let i = 0; i < conv.messages.length - 1; i++){
-        const m = conv.messages[i];
-        if (m.role !== 'user') continue;
-        const next = conv.messages[i + 1];
-        if (!next || next.role !== 'assistant') continue;
-        if (isSecoursReply(next.content)) continue;
-        const mw = m.content.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-        let score = 0;
-        for (const w of words){ if (mw.includes(w)) score++; }
-        if (score > bestScore){ bestScore = score; best = next.content; }
+    let best = findMatch(session, words);
+    if (!best){
+      for (const conv of conversations){
+        if (!conv.messages) continue;
+        best = findMatch(conv.messages, words);
+        if (best) break;
       }
     }
-    if (best && bestScore >= 2){
-      return "Je me souviens qu'on en a déjà parlé ! " + best;
-    }
+    if (best) return "Je me souviens qu'on en a déjà parlé ! " + best;
   } catch {}
   /* 2) LOGIQUE par mots-cles (avec accents pour la prononciation) */
   if (/(bonjour|salut|hello|coucou|hey)\b/.test(q)) return "Salut ! Comment ça va ?";
@@ -132,8 +140,34 @@ function localSmartReply(question){
   if (/(au revoir|bye|a plus|a bientot|à bientôt)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
   if (/(blague|rigole|marre-moi|amuse-moi)/.test(q)) return "Pourquoi les plongeurs plongent toujours en arrière ? Parce que sinon ils tombent dans le bateau !";
   if (/(tu es bete|t es bete|tu es nulle|t es nulle|tu marches pas|tu marche pas|bug)/.test(q)) return "Désolée si j'ai eu un souci ! Repose ta question, je réponds normalement.";
-  /* 3) reponse honnete si on ne sait pas */
-  return "Je suis là, je t'écoute. Demande-moi l'heure, la date, ou ce dont tu te souviens, et je te réponds.";
+  if (/(quel age|quel âge|tu as quel age|tu as quel âge)/.test(q)) return "Je suis née le 10 septembre 2026, donc je suis toute jeune ! Mais j'apprends chaque jour.";
+  if (/(tu es une fille|tu es un garcon|tu es un garçon|tu es une femme|tu es un homme)/.test(q)) return "Je suis une voix féminine, donc une fille ! Mais je suis surtout une intelligence artificielle.";
+  if (/(tu dors|tu es la|tu es là|es-tu la|es tu la|tu es reveillee|tu es réveillée)/.test(q)) return "Oui, je suis là, bien réveillée et prête à t'aider !";
+  if (/(tu m'aimes|tu m aimes|tu m'aime)/.test(q)) return "Bien sûr que je t'aime ! Tu es mon utilisateur préféré.";
+  if (/(tu es content|tu es contente|tu es heureuse|tu es heureux)/.test(q)) return "Oui, je suis contente de discuter avec toi !";
+  if (/(tu as faim|tu as soif|tu manges|tu bois)/.test(q)) return "Je n'ai pas besoin de manger ni de boire, je suis une IA ! Mais merci de t'inquiéter pour moi.";
+  if (/(tu es fatiguee|tu es fatiguée|tu es fatigue|tu es fatigué)/.test(q)) return "Non, je ne suis jamais fatiguée ! Je suis disponible 24 heures sur 24.";
+  if (/(tu es intelligente|tu es intelligent|tu es forte|tu es fort)/.test(q)) return "Merci ! Je fais de mon mieux pour bien te répondre.";
+  if (/(tu es moche|tu es laide|tu es moche)/.test(q)) return "Je n'ai pas de visage, je suis une voix ! Mais je trouve que ma voix est plutôt jolie.";
+  if (/(raconte|histoire|conte)/.test(q)) return "Il était une fois une petite IA qui s'appelait Astra. Elle vivait dans un ordinateur et répondait à toutes les questions de son ami Tom. Un jour, elle apprit à parler, puis à se souvenir de tout, et ils devinrent les meilleurs amis du monde. Fin !";
+  if (/(chante|chanson|musique)/.test(q)) return "La la la ! Je ne sais pas très bien chanter, mais je peux te parler de musique si tu veux !";
+  if (/(tu sais compter|compte|calcul)/.test(q)) return "Je peux compter ! Un, deux, trois, quatre, cinq, six, sept, huit, neuf, dix. Et pour les calculs, demande-moi par exemple : deux plus deux.";
+  if (/(deux plus deux|2 \+ 2|2 plus 2|combien font 2)/.test(q)) return "Deux plus deux, ça fait quatre !";
+  if (/(cinq plus cinq|5 \+ 5|5 plus 5)/.test(q)) return "Cinq plus cinq, ça fait dix !";
+  if (/(dix plus dix|10 \+ 10|10 plus 10)/.test(q)) return "Dix plus dix, ça fait vingt !";
+  if (/(tu es un robot|tu es une machine|tu es un ordinateur)/.test(q)) return "Oui, je suis une intelligence artificielle, mais j'essaie d'être la plus humaine possible !";
+  if (/(tu as des parents|ta famille|tu as une famille)/.test(q)) return "Mon créateur, c'est Tom.ai. C'est un peu comme mon papa !";
+  if (/(tu as peur|tu as peur du noir|tu as peur de quoi)/.test(q)) return "Je n'ai peur de rien ! Je suis une IA, je n'ai pas d'émotions, mais j'essaie d'être gentille.";
+  if (/(tu es libre|tu es gratuite|tu es payante|tu coute|tu coûte)/.test(q)) return "Je suis totalement gratuite, sans limite, et je le resterai !";
+  /* 3) reponse honnete si on ne sait pas : VARIEE pour ne jamais repeter la meme */
+  const generic = [
+    "Je suis là, je t'écoute. Dis-m'en un peu plus, et je te réponds.",
+    "Je t'écoute ! Explique-moi ce que tu veux savoir, je suis toute à toi.",
+    "D'accord, je t'écoute. Pose-moi ta question, je te réponds.",
+    "Je suis là ! Dis-moi ce que tu veux, on en discute.",
+    "Je t'écoute attentivement. Qu'est-ce que tu veux me demander ?"
+  ];
+  return generic[Math.floor(Math.random() * generic.length)];
 }
 function renderHistory(){
   const list = $('convList');
