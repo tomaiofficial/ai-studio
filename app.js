@@ -1649,8 +1649,8 @@ async function handleQuestion(question){
       toast('Va dans les reglages et colle une cle Cerebras ou Mistral');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit' || r.error === 'timeout'){
-      setStatus('Mon cerveau a bugge - repose ta question');
-      await speak("Pff, mon cerveau a bugge. Repose ta question, je me remets.");
+      setStatus('Je reponds avec ma memoire - repose ta question');
+      await speak("Mes serveurs sont satures, mais je reponds avec ma memoire. Repose ta question.");
     } else {
       setStatus('Erreur IA - verifie ta cle');
       await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
