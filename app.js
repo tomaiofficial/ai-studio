@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.38';
+const APP_VERSION = '8.39';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -90,7 +90,7 @@ function escapeHtml(s){
    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
    voix prononce correctement. ===== */
 function isSecoursReply(t){
-  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant/i.test(t);
+  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)/i.test(t);
 }
 function localSmartReply(question){
   const q = question.toLowerCase().trim();
@@ -106,13 +106,18 @@ function localSmartReply(question){
       const next = msgs[i + 1];
       if (!next || next.role !== 'assistant') continue;
       if (isSecoursReply(next.content)) continue;
-      const mw = String(m.content || '').toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      const mq = String(m.content || '').toLowerCase();
+      const mw = mq.split(/\s+/).filter(w => w.length > 3);
       let score = 0;
       for (const w of words){ if (mw.includes(w)) score++; }
-      if (score > bestScore){ bestScore = score; best = next.content; }
+      /* MATCHING STRICT : il faut au moins 2 mots communs ET que la question
+         memorisee soit vraiment similaire (>= 40% de ses mots retrouves dans
+         la question posee). Sinon on rejoue des reponses hors sujet. */
+      if (score > bestScore && score >= 2 && mw.length > 0 && score >= Math.ceil(mw.length * 0.4)){
+        bestScore = score; best = next.content;
+      }
     }
-    /* questions courtes (<=6 mots) : 1 mot commun suffit ; sinon il en faut 2 */
-    return bestScore >= (words.length <= 6 ? 1 : 2) ? best : null;
+    return best;
   };
   try {
     const words = q.split(/\s+/).filter(w => w.length > 3);
@@ -958,7 +963,7 @@ async function askCerebras(question, webCtx, msgs){
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
           body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
-        }), 8000);
+}), 6000);
         if (res && res.ok){
           const data = await res.json();
           const t = (data?.choices?.[0]?.message?.content || '').trim();
@@ -1082,10 +1087,8 @@ async function askBrain(messages){
   };
   let text = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
   if (typeof text === 'string') return { text };
-  /* POLLINATIONS en 429 (rate limit ~1 req/5s) : on attend 4s et on reessaie
-     UNE fois avant de passer aux autres cerveaux. */
-  await new Promise(res => setTimeout(res, 4000));
-  text = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+  /* 2e essai Pollinations : endpoint natif (rate limit separe) */
+  text = await tryEndpoint('https://text.pollinations.ai/', 'openai');
   if (typeof text === 'string') return { text };
   text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
   if (typeof text === 'string') return { text };
