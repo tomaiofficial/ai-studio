@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.73';
+const APP_VERSION = '8.74';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -91,7 +91,7 @@ function escapeHtml(s){
    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
    voix prononce correctement. ===== */
 function isSecoursReply(t){
-  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations/i.test(t);
+  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations|pollinations est temporairement indisponible/i.test(t);
 }
 function localSmartReply(question){
   const q = question.toLowerCase().trim();
@@ -171,9 +171,9 @@ function localSmartReply(question){
      cerveau (Pollinations GET natif est la solution fiable). */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    return "Je n'ai pas pu trouver la réponse sur " + kw[0] + " en ce moment. Essaie de choisir 'Pollinations' dans les réglages — c'est le cerveau le plus fiable, gratuit à vie.";
+    return "Pollinations est temporairement indisponible. Réessaie dans 5 secondes.";
   }
-  return "Je n'ai pas pu répondre en ce moment. Choisis 'Pollinations' dans les réglages — c'est le cerveau gratuit et fiable 24h/24.";
+  return "Pollinations est temporairement indisponible. Réessaie dans 5 secondes.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -1210,8 +1210,8 @@ async function askBrain(messages){
      choisi seul a 8s puis secours memoire locale -> repond TOUJOURS. */
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
-  if (brain === 'pollinations'){
-    let t = await tryPollinationsGet(); /* v8.71 : GET natif d'abord (fiable) */
+  if (brain === 'pollinations' || brain === 'auto'){
+    let t = await tryPollinationsGet(); /* v8.71 : GET natif d'abord (fiable 24h/24) */
     if (typeof t !== 'string') t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
     if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
     return { text: localSmartReply(question), diag: 'local (Pollinations:' + (t && t.err || 'net') + ')' };
@@ -1233,34 +1233,19 @@ async function askBrain(messages){
     }
     return { text: localSmartReply(question), diag: 'local' };
   }
-  /* auto (defaut) : TOUS les cerveaux EN PARALLELE (max 8s), le premier qui
-     repond gagne -> reponse en ~2-8s. v8.71 : + GET natif Pollinations (rate
-     limit different du POST). Retry 429, puis OVH en secours, puis memoire
-     locale -> repond TOUJOURS. Diagnostic detaille si tout echoue. */
+  /* auto = Pollinations GET natif uniquement (le seul fiable 24h/24) */
   const diags = [];
   const results = await Promise.all([
     tryPollinationsGet()
       .then(t => typeof t === 'string' ? { src: 'Pollinations-GET', text: t } : (diags.push('Pollinations-GET:' + (t && t.err || 'net')), null)),
-    (getGroqKey() && !badGroqKey)
-      ? askGroq(null, null, messages).then(g => (!g.error && g.text) ? { src: 'Groq', text: g.text } : null)
-      : Promise.resolve(null),
-    tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000)
-      .then(t => typeof t === 'string' ? { src: 'Pollinations', text: t } : (diags.push('Pollinations:' + (t && t.err || 'net')), null)),
-    tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 8000)
-      .then(t => typeof t === 'string' ? { src: 'LLM7', text: t } : (diags.push('LLM7:' + (t && t.err || 'net')), null))
   ]);
   const winner = results.find(r => r && r.text);
   if (winner) return { text: winner.text, diag: winner.src };
-  /* Retry Pollinations POST 1x sur 429 (rate limit transitoire) */
-  const poll = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000);
-  if (typeof poll === 'string') return { text: poll, diag: 'Pollinations' };
-  diags.push('Pollinations-retry:' + (poll && poll.err || 'net'));
-  /* Phase 2 : OVH seul (secours) - PAS en parallele pour preserver son quota
-     (2 req/min) : on ne le brule que si les autres ont echoue. */
-  const ovh = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b', 8000);
-  if (typeof ovh === 'string') return { text: ovh, diag: 'OVH' };
-  diags.push('OVH:' + (ovh && ovh.err || 'net'));
-  /* Secours : memoire + logique locale (repond TOUJOURS, immediat) */
+  /* Retry Pollinations GET 1x (cold start Vercel) */
+  const pollGet = await tryPollinationsGet();
+  if (typeof pollGet === 'string') return { text: pollGet, diag: 'Pollinations-GET' };
+  diags.push('Pollinations-GET-retry:' + (pollGet && pollGet.err || 'net'));
+  /* Secours : memoire locale */
   return { text: localSmartReply(question), diag: 'local (' + diags.join(' ') + ')' };
 }
 /* DETECTION ANGLAIS : si plus de 25% des mots sont des mots anglais courants,
@@ -1856,7 +1841,7 @@ async function speakEdgeTTS(text){
       let ok = await playEdgeChunk(c);
       if (!ok){
         /* v8.70 : delai avant le retry -> laisse le cold start Vercel finir */
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 500));
         ok = await playEdgeChunk(c);
       }
       if (!ok) return false;
@@ -2073,11 +2058,11 @@ async function handleQuestion(question){
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('Choisis Pollinations dans les reglages');
-      toast('Choisis Pollinations dans les reglages — c\'est le cerveau fiable 24h/24');
+      setStatus('Pollinations indisponible - reessaie dans 30s');
+      toast('Pollinations est temporairement indisponible — reessaie dans 30 secondes');
     } else if (r.error === 'limit' || r.error === 'timeout'){
-      setStatus('Choisis Pollinations dans les reglages');
-      await speak("Choisis Pollinations dans les réglages — c'est le cerveau gratuit et fiable 24h sur 24.");
+      setStatus('Pollinations indisponible - reessaie dans 30s');
+      await speak("Pollinations est temporairement indisponible. Réessaie dans 5 secondes.");
     } else {
       setStatus('Erreur IA - verifie ta cle');
       await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
