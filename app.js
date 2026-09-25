@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.67';
+const APP_VERSION = '8.68';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -166,25 +166,14 @@ function localSmartReply(question){
   if (/(tu as des parents|ta famille|tu as une famille)/.test(q)) return "Mon créateur, c'est Tom.ai. C'est un peu comme mon papa !";
   if (/(tu as peur|tu as peur du noir|tu as peur de quoi)/.test(q)) return "Je n'ai peur de rien ! Je suis une IA, je n'ai pas d'émotions, mais j'essaie d'être gentille.";
   if (/(tu es libre|tu es gratuite|tu es payante|tu coute|tu coûte)/.test(q)) return "Je suis totalement gratuite, sans limite, et je le resterai !";
-  /* 3) reponse honnete si on ne sait pas : ECHO des mots de la question
-     (jamais la meme reponse) + variantes */
+  /* 3) v8.68 : PLUS AUCUN ECHO hors sujet. Si tous les serveurs gratuits ont
+     echoue, on le dit honnetement et on guide vers la cle Groq gratuite
+     (qualite ChatGPT, gratuit a vie, 2 minutes a creer sur console.groq.com). */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    const echo = [
-      "Je t'écoute, tu me parles de " + kw.join(', ') + ". Dis-m'en un peu plus, je suis là.",
-      "D'accord, " + kw.join(', ') + " ! Explique-moi ce que tu veux savoir exactement.",
-      "Je suis là ! Tu me demandes quelque chose sur " + kw[0] + ". Précise un peu, je te réponds."
-    ];
-    return echo[Math.floor(Math.random() * echo.length)];
+    return "Mes serveurs gratuits sont saturés en ce moment, je n'ai pas pu chercher la réponse sur " + kw[0] + ". Colle une clé Groq gratuite dans les réglages pour des réponses complètes comme ChatGPT, ou réessaie dans une minute.";
   }
-  const generic = [
-    "Je suis là, je t'écoute. Dis-m'en un peu plus, et je te réponds.",
-    "Je t'écoute ! Explique-moi ce que tu veux savoir, je suis toute à toi.",
-    "D'accord, je t'écoute. Pose-moi ta question, je te réponds.",
-    "Je suis là ! Dis-moi ce que tu veux, on en discute.",
-    "Je t'écoute attentivement. Qu'est-ce que tu veux me demander ?"
-  ];
-  return generic[Math.floor(Math.random() * generic.length)];
+  return "Mes serveurs gratuits sont saturés en ce moment. Colle une clé Groq gratuite dans les réglages pour des réponses complètes comme ChatGPT, ou réessaie dans une minute.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -320,6 +309,7 @@ closeSettings.addEventListener('click', () => settingsModal.classList.add('hidde
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
 groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
+  badGroqKey = false; /* v8.68 : nouvelle cle -> on reessaie Groq */
   toast('Cle Groq enregistree');
 });
 
@@ -1060,6 +1050,9 @@ async function askGroq(question, webCtx, msgs){
         } else if (res && (res.status === 401 || res.status === 403 || res.status === 404)){
           console.warn('[Groq] Cle invalide (401/403/404) -> retiree pour la session');
           badGroqKey = true;
+          const gk = $('groqKey');
+          if (gk) gk.placeholder = 'Cle INVALIDE - colle une NOUVELLE cle (console.groq.com)';
+          toast('Ta cle Groq est invalide - colle une nouvelle cle gratuite');
           return { error: 'limit' };
         } else if (res){
           return { error: 'api' };
@@ -2037,12 +2030,12 @@ async function handleQuestion(question){
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('Ajoute une cle Cerebras ou Mistral dans les reglages');
-      toast('Va dans les reglages et colle une cle Cerebras ou Mistral');
+      setStatus('Colle une cle Groq gratuite dans les reglages');
+      toast('Va dans les reglages et colle une cle Groq gratuite (console.groq.com)');
       settingsModal.classList.remove('hidden');
     } else if (r.error === 'limit' || r.error === 'timeout'){
-      setStatus('Je reponds avec ma memoire - repose ta question');
-      await speak("Mes serveurs sont satures, mais je reponds avec ma memoire. Repose ta question.");
+      setStatus('Serveurs satures - colle une cle Groq gratuite');
+      await speak("Mes serveurs gratuits sont saturés. Colle une clé Groq gratuite dans les réglages pour des réponses comme ChatGPT, ou réessaie dans une minute.");
     } else {
       setStatus('Erreur IA - verifie ta cle');
       await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
