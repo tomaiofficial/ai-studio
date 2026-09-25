@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.65';
+const APP_VERSION = '8.66';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), brainSel = $('brainSel');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -312,6 +312,7 @@ function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
   ttsVoiceSel.value = getVoice();
+  brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
 });
@@ -320,6 +321,11 @@ settingsModal.addEventListener('click', e => { if (e.target === settingsModal) s
 groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   toast('Cle Groq enregistree');
+});
+
+brainSel.addEventListener('change', () => {
+  localStorage.setItem(LS.brain, brainSel.value);
+  toast('Cerveau choisi : ' + brainSel.options[brainSel.selectedIndex].text);
 });
 
 ttsVoiceSel.addEventListener('change', () => {
@@ -1164,7 +1170,34 @@ async function askBrain(messages){
       return null;
     } catch(e){ return null; }
   };
-  /* v8.65 : TOUS les cerveaux EN PARALLELE (max 6s), le premier qui repond
+  /* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
+     auto = tous en parallele (le premier qui repond gagne). Chaque cerveau
+     choisi seul a 8s puis secours memoire locale -> repond TOUJOURS. */
+  const brain = getBrain();
+  if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
+  if (brain === 'pollinations'){
+    const t = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000);
+    if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
+    return { text: localSmartReply(question), diag: 'local' };
+  }
+  if (brain === 'llm7'){
+    const t = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 8000);
+    if (typeof t === 'string') return { text: t, diag: 'LLM7' };
+    return { text: localSmartReply(question), diag: 'local' };
+  }
+  if (brain === 'ovh'){
+    const t = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b', 8000);
+    if (typeof t === 'string') return { text: t, diag: 'OVH' };
+    return { text: localSmartReply(question), diag: 'local' };
+  }
+  if (brain === 'groq'){
+    if (getGroqKey() && !badGroqKey){
+      const g = await askGroq(null, null, messages);
+      if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
+    }
+    return { text: localSmartReply(question), diag: 'local' };
+  }
+  /* auto (defaut) : v8.65 - TOUS les cerveaux EN PARALLELE (max 6s), le premier qui repond
      gagne -> reponse en ~2-6s au lieu de ~21-31s en sequentiel. Puis
      memoire+logique locale en secours IMMEDIAT -> reponse TOUJOURS garantie
      en <8s, meme si tout le reseau est bloque. */
@@ -1738,7 +1771,7 @@ async function speakGoogleTTS(text){
    en francais (fr-FR-DeniseNeural, femme). GRATUITE, AUCUNE cle, AUCUNE limite.
    Le WebSocket Bing etant bloque sur ce reseau, on passe par un proxy public
    gratuit (edge-tts.vercel.app) qui renvoie le MP3 en HTTP -> joue via <audio>
-   (pas de fetch -> pas de blocage CORS). Secours auto : Kokoro puis Google. ===== */
+   (pas de fetch -> pas de blocage CORS). Secours auto : Google TTS puis Systeme. ===== */
 const EDGE_TTS_PROXY = 'https://edge-tts.vercel.app/api/tts';
 const EDGE_TTS_VOICE = 'fr-FR-DeniseNeural';
 function playEdgeChunk(c){
@@ -1828,80 +1861,9 @@ function speakSystem(text){
   });
 }
 
-/* ===== VOIX REALISTE KOKORO : la MEME voix IA partout (mobile + PC), gratuite,
-   a vie, hors ligne apres le 1er telechargement (92 Mo une seule fois, gardes
-   en cache par le navigateur). Voix femme francaise ff_siwis (naturelle, pas
-   de synthese robotique). Secours auto : Google TTS si pas encore pret.
-   IMPLEMENTATION : kokoro-js v1.2.1 (bibliotheque officielle de l'auteur de
-   Kokoro) patchee localement (lib/kokoro.web.js) pour ajouter la voix
-   francaise ff_siwis + la langue fr (eSpeakNG WASM est bundlé dedans).
-   NOTE : transformers.js ne supporte PAS le config ONNX de Kokoro
-   (style_text_to_speech_2) -> kokoro-js utilise onnxruntime-web directement. ===== */
-let kokoroTTS = null, kokoroLoading = false, kokoroLoaded = false;
-function loadKokoro(){
-  if (kokoroLoading || kokoroLoaded) return;
-  kokoroLoading = true;
-  /* v8.59 : SCRIPT CLASSIQUE (lib/kokoro.global.js) au lieu de import() de
-     module ES. Le import() echouait chez l'utilisateur ("Kokoro CDN
-     indisponible") a cause du service worker qui servait une version corrompue
-     du module. Le script classique expose window.KokoroTTS directement. */
-  const s = document.createElement('script');
-  s.src = 'lib/kokoro.global.js?v=8.60';
-  s.onload = async () => {
-    try {
-      const KokoroTTS = window.KokoroTTS;
-      if (!KokoroTTS) throw new Error('KokoroTTS non expose');
-      /* v8.62 : le bundle lib/kokoro.global.js est patche EN DUR :
-         - modele 88 Mo -> https://tomaiofficial.github.io/ai-studio/models/kokoro
-         - WASM ORT 20 Mo -> https://tomaiofficial.github.io/ai-studio/lib/
-         - voix ff_siwis.bin -> https://tomaiofficial.github.io/ai-studio/models/kokoro/voices/
-         ZERO dependance externe (plus de huggingface.co ni jsdelivr) : le
-         navigateur ne peut plus etre bloque par un CDN tiers. */
-      console.log('[VOIX] Kokoro chargement modele 88 Mo (1 seule fois)...');
-      kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8' });
-      kokoroLoaded = true;
-      console.log('[VOIX] Kokoro pret : voix realiste dispo');
-      setStatus('Voix Kokoro prete !');
-      setTimeout(() => setStatus('Appuie sur le micro et parle'), 2500);
-    } catch(e){ console.warn('[VOIX] Kokoro echec:', e && e.message, e && e.stack); }
-    kokoroLoading = false;
-  };
-  s.onerror = e => { kokoroLoading = false; console.warn('[VOIX] Kokoro CDN indisponible', e); };
-  document.head.appendChild(s);
-}
-function playFloat32(audio, rate){
-  return new Promise(resolve => {
-    try {
-      const ctx = ensureAudio();
-      if (!ctx) return resolve(false);
-      if (ctx.state !== 'running'){ try { ctx.resume(); } catch {} }
-      const buf = ctx.createBuffer(1, audio.length, rate);
-      buf.copyToChannel(audio, 0);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(ctx.destination);
-      currentSources.push(src);
-      let done = false;
-      const finish = ok => { if (done) return; done = true; resolve(ok); };
-      src.onended = () => finish(true);
-      src.onerror = () => finish(false);
-      try { src.start(); } catch { finish(false); }
-    } catch { resolve(false); }
-  });
-}
-async function speakKokoro(text){
-  if (!kokoroLoaded || !kokoroTTS) return false;
-  try {
-    const chunks = splitSentences(text, 100);
-    for (const c of chunks){
-      const out = await kokoroTTS.generate(c, { voice: 'ff_siwis' });
-      if (!out || !out.audio) return false;
-      const ok = await playFloat32(out.audio, out.sampling_rate || 24000);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] Kokoro erreur:', e && e.message); return false; }
-}
+/* ===== VOIX KOKORO : RETIREE en v8.66 (l'utilisateur prefere Edge TTS,
+   Microsoft Neural, plus naturelle et instantanee). Les fichiers
+   lib/kokoro.* et models/kokoro/ ont ete supprimes du repo. ===== */
 
 /* ===== TRANSCRIPTION LOCALE WHISPER : si la reconnaissance vocale du navigateur
    echoue (service Google indisponible, reseau bloque...), Whisper transcrit
@@ -1957,15 +1919,15 @@ function speak(text){
     };
     const fail = () => {
       console.warn('[VOIX] Toutes les voix ont echoue');
-      if (kokoroLoading) setStatus("Voix Edge/Kokoro indisponibles - verifie ta connexion (Kokoro en preparation, 92 Mo 1 seule fois)");
-      else setStatus("Voix indisponible - Edge TTS bloque, verifie ta connexion");
+      setStatus("Voix indisponible - Edge TTS bloque, verifie ta connexion");
       done(false);
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 25s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 25s'); fail(); }, 25000);
     /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
-       gratuite, sans cle, via proxy public HTTP). Secours : Kokoro (neuronale
-       locale), puis Google Translate TTS, puis voix systeme du navigateur.
+       gratuite, sans cle, via proxy public HTTP). Secours : Google Translate
+       TTS, puis voix systeme du navigateur (aucun reseau).
+       Kokoro RETIRE en v8.66 (l'utilisateur prefere Edge).
        VITS RETIRE : Xenova/vits-tts-fra 401 sur HuggingFace.
        Edge TTS WebSocket RETIRE : le WebSocket Bing est bloque sur ce reseau
        (v8.64 : reintegre via proxy public HTTP edge-tts.vercel.app).
@@ -1973,14 +1935,13 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Kokoro en secours,
-       Google TTS puis Systeme en dernier recours. Le choix du selecteur est respecte. */
-    if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
+       Systeme en dernier recours. Le choix du selecteur est respecte. */
+    if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
-    else chain = [['Edge', speakEdgeTTS], ['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
@@ -2176,9 +2137,3 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
-/* Precharge la voix REALISTE Kokoro en arriere-plan (92 Mo une seule fois,
-   puis cache navigateur -> hors ligne a vie). Appele ICI, a la FIN du fichier,
-   APRES toutes les declarations let (sinon erreur 'Cannot access before
-   initialization' qui cassait tout le script). Pendant le chargement, Google
-   TTS repond immediatement en secours. */
-loadKokoro();

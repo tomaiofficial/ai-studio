@@ -311,14 +311,24 @@ select.wide-input{appearance:none}
     <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq ici… — optionnel (gratuit sans elle)" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Voix IA réaliste Edge</b> — vraie voix Microsoft Neural française (Denise), la plus naturelle et réactive, gratuite sans clé. Secours auto : Kokoro puis Google TTS.</p>
+    <p class="muted">🎙️ <b>Voix IA réaliste Edge</b> — vraie voix Microsoft Neural française (Denise), la plus naturelle et réactive, gratuite sans clé. Secours auto : Google TTS puis voix système.</p>
     <select id="ttsVoice" class="wide-input">
       <option value="edge" selected>🎙️ Voix IA réaliste Edge (Microsoft Neural) — la plus naturelle</option>
-      <option value="kokoro">🎙️ Voix réaliste Kokoro (même partout) — gratuite à vie</option>
       <option value="google">🎙️ Voix IA femme (Google) — fiable</option>
       <option value="systeme">🎙️ Voix système</option>
     </select>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
+
+    <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
+    <p class="muted">Choisis le cerveau qui répond à tes questions. <b>Auto</b> = tous en parallèle, le plus rapide gagne. Tous gratuits à vie, sans carte bancaire.</p>
+    <select id="brainSel" class="wide-input">
+      <option value="auto" selected>🤖 Auto (le plus rapide dispo) — recommandé</option>
+      <option value="pollinations">🧠 Pollinations GPT — gratuit à vie</option>
+      <option value="llm7">⚡ LLM7 GLM-5.3 — gratuit à vie</option>
+      <option value="ovh">☁️ OVH Qwen — gratuit à vie</option>
+      <option value="groq">🚀 Groq Llama 3.3 (si clé collée ci-dessous)</option>
+      <option value="local">💾 Mémoire locale (hors ligne, répond toujours)</option>
+    </select>
 
     <h4 class="settings-title">🎤 Réveil vocal</h4>
     <p class="muted">Dis « Hey Astra » pour la réveiller sans toucher la bulle. Le micro reste actif en arrière-plan.</p>
