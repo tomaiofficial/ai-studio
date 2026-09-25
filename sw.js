@@ -26,6 +26,11 @@ self.addEventListener('fetch', e => {
      intercepte, l'audio TTS et les modeles peuvent echouer (fetch no-cors
      casse, cache opaque, etc.) -> 'Voix en echec'. */
   if (url.origin !== self.location.origin) return;
+  /* Gros fichiers modeles IA (.onnx 88 Mo, .bin voix) : NE PAS les intercepter.
+     Le navigateur les charge directement et le hub les met dans son propre
+     Cache Storage. Si le SW les interceptait, un echec de cache (quota) les
+     remplacerait par index.html -> Kokoro ne se chargeait jamais. */
+  if (/\.(onnx|bin)$/.test(url.pathname)) return;
   /* Network-first pour le code ET version.json (sinon le bandeau de mise à jour
      voit toujours l'ancienne version en cache) */
   const isMain = e.request.mode === 'navigate' || /\.(html|js|css|json)$/.test(url.pathname);

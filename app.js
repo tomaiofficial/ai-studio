@@ -1757,7 +1757,13 @@ function loadKokoro(){
   kokoroLoading = true;
   import('lib/kokoro.web.js').then(async mod => {
     try {
-      const { KokoroTTS } = mod;
+      const { KokoroTTS, env } = mod;
+      /* v8.58 : le modele Kokoro (88 Mo) est heberge DANS le repo GitHub et
+         servi par GitHub Pages (MEME origine que l'app) : aucun CORS, aucun
+         blocage reseau, telechargement fiable. huggingface.co etait bloque/
+         trop lent chez l'utilisateur -> Kokoro ne se chargeait jamais. */
+      env.remoteHost = 'https://tomaiofficial.github.io/ai-studio';
+      env.remotePathTemplate = 'models/kokoro';
       kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8' });
       kokoroLoaded = true;
       console.log('[VOIX] Kokoro pret : voix realiste dispo');
