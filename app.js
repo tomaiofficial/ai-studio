@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.56';
+const APP_VERSION = '8.57';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1873,11 +1873,15 @@ function speak(text){
        JAMAIS la synthese vocale robotique. Kokoro (voix realiste) en premier,
        Google TTS (voix IA femme naturelle) en secours. La voix systeme reste
        dispo uniquement si l'utilisateur la choisit explicitement. */
-    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'naturelle') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS]];
+    /* VOIX SYSTEME en DERNIER recours (v8.57) : si Kokoro et Google TTS
+       echouent, on joue la voix systeme pour que l'utilisateur ENTENDE TOUJOURS
+       une reponse. Mieux vaut une voix de secours qu'un silence + message
+       d'erreur. La voix systeme choisit les voix naturelles en priorite. */
+    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'naturelle') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
-    else chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS]];
+    else chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
