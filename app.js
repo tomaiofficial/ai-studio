@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.70';
+const APP_VERSION = '8.71';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -166,14 +166,14 @@ function localSmartReply(question){
   if (/(tu as des parents|ta famille|tu as une famille)/.test(q)) return "Mon créateur, c'est Tom.ai. C'est un peu comme mon papa !";
   if (/(tu as peur|tu as peur du noir|tu as peur de quoi)/.test(q)) return "Je n'ai peur de rien ! Je suis une IA, je n'ai pas d'émotions, mais j'essaie d'être gentille.";
   if (/(tu es libre|tu es gratuite|tu es payante|tu coute|tu coûte)/.test(q)) return "Je suis totalement gratuite, sans limite, et je le resterai !";
-  /* 3) v8.68 : PLUS AUCUN ECHO hors sujet. Si tous les serveurs gratuits ont
-     echoue, on le dit honnetement et on guide vers la cle Groq gratuite
-     (qualite ChatGPT, gratuit a vie, 2 minutes a creer sur console.groq.com). */
+  /* 3) v8.71 : PLUS AUCUN ECHO hors sujet, PLUS AUCUNE mention de cle. Si tous
+     les serveurs gratuits ont echoue, on le dit honnetement et on invite a
+     reessayer (les serveurs gratuits se liberent en ~1 min). */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    return "Mes serveurs gratuits sont saturés en ce moment, je n'ai pas pu chercher la réponse sur " + kw[0] + ". Colle une clé Groq gratuite dans les réglages pour des réponses complètes comme ChatGPT, ou réessaie dans une minute.";
+    return "Mes serveurs gratuits sont saturés en ce moment, je n'ai pas pu chercher la réponse sur " + kw[0] + ". Réessaie dans une minute, ou choisis un autre cerveau dans les réglages.";
   }
-  return "Mes serveurs gratuits sont saturés en ce moment. Colle une clé Groq gratuite dans les réglages pour des réponses complètes comme ChatGPT, ou réessaie dans une minute.";
+  return "Mes serveurs gratuits sont saturés en ce moment. Réessaie dans une minute, ou choisis un autre cerveau dans les réglages.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -1184,13 +1184,35 @@ async function askBrain(messages){
     }
     return t;
   };
+  /* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
+     Rate limit DIFFERENT du POST /openai/v1 (souvent 429) -> 2e chance fiable.
+     Retourne du TEXTE BRUT. URL limitee a ~1400 caracteres. */
+  const tryPollinationsGet = async () => {
+    try {
+      const lastUser = messages.filter(m => m.role === 'user').pop();
+      const q = lastUser ? lastUser.content : '';
+      let prompt = 'Reponds en francais, de facon courte et naturelle. ' + q;
+      if (prompt.length > 1400) prompt = prompt.slice(-1400);
+      const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
+      const res = await withTimeout(fetch(url), 8000);
+      if (res && res.ok){
+        const text = (await res.text()).trim();
+        if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+        return { err: 'refus' };
+      }
+      if (res && res.status === 429) return { err: 'limit' };
+      if (res) return { err: 'http' + res.status };
+      return { err: 'net' };
+    } catch(e){ return { err: 'net' }; }
+  };
   /* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
      auto = tous en parallele (le premier qui repond gagne). Chaque cerveau
      choisi seul a 8s puis secours memoire locale -> repond TOUJOURS. */
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations'){
-    const t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+    let t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+    if (typeof t !== 'string') t = await tryPollinationsGet(); /* v8.71 : 2e chance GET natif */
     if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
     return { text: localSmartReply(question), diag: 'local (Pollinations:' + (t && t.err || 'net') + ')' };
   }
@@ -1204,30 +1226,32 @@ async function askBrain(messages){
     if (typeof t === 'string') return { text: t, diag: 'OVH' };
     return { text: localSmartReply(question), diag: 'local (OVH:' + (t && t.err || 'net') + ')' };
   }
-  if (brain === 'groq'){
+  if (brain === 'groq'){ /* v8.71 : option retiree du selecteur, code garde si cle deja collee */
     if (getGroqKey() && !badGroqKey){
       const g = await askGroq(null, null, messages);
       if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
     }
-    return { text: localSmartReply(question), diag: 'local (Groq:pas de cle ou invalide)' };
+    return { text: localSmartReply(question), diag: 'local' };
   }
   /* auto (defaut) : TOUS les cerveaux EN PARALLELE (max 8s), le premier qui
-     repond gagne -> reponse en ~2-8s. Retry Pollinations 1x sur 429, puis OVH
-     en secours, puis memoire locale -> repond TOUJOURS. Diagnostic detaille
-     si tout echoue (pour savoir quel serveur bloque). */
+     repond gagne -> reponse en ~2-8s. v8.71 : + GET natif Pollinations (rate
+     limit different du POST). Retry 429, puis OVH en secours, puis memoire
+     locale -> repond TOUJOURS. Diagnostic detaille si tout echoue. */
   const diags = [];
   const results = await Promise.all([
     (getGroqKey() && !badGroqKey)
-      ? askGroq(null, null, messages).then(g => (!g.error && g.text) ? { src: 'Groq', text: g.text } : (diags.push('Groq:' + (g.error || 'echec')), null))
+      ? askGroq(null, null, messages).then(g => (!g.error && g.text) ? { src: 'Groq', text: g.text } : null)
       : Promise.resolve(null),
     tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000)
       .then(t => typeof t === 'string' ? { src: 'Pollinations', text: t } : (diags.push('Pollinations:' + (t && t.err || 'net')), null)),
+    tryPollinationsGet()
+      .then(t => typeof t === 'string' ? { src: 'Pollinations-GET', text: t } : (diags.push('Pollinations-GET:' + (t && t.err || 'net')), null)),
     tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 8000)
       .then(t => typeof t === 'string' ? { src: 'LLM7', text: t } : (diags.push('LLM7:' + (t && t.err || 'net')), null))
   ]);
   const winner = results.find(r => r && r.text);
   if (winner) return { text: winner.text, diag: winner.src };
-  /* Retry Pollinations 1x sur 429 (rate limit transitoire) */
+  /* Retry Pollinations POST 1x sur 429 (rate limit transitoire) */
   const poll = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000);
   if (typeof poll === 'string') return { text: poll, diag: 'Pollinations' };
   diags.push('Pollinations-retry:' + (poll && poll.err || 'net'));
@@ -2049,12 +2073,11 @@ async function handleQuestion(question){
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('Colle une cle Groq gratuite dans les reglages');
-      toast('Va dans les reglages et colle une cle Groq gratuite (console.groq.com)');
-      settingsModal.classList.remove('hidden');
+      setStatus('Serveurs gratuits satures - reessaie dans une minute');
+      toast('Les serveurs gratuits sont satures - reessaie dans une minute');
     } else if (r.error === 'limit' || r.error === 'timeout'){
-      setStatus('Serveurs satures - colle une cle Groq gratuite');
-      await speak("Mes serveurs gratuits sont saturés. Colle une clé Groq gratuite dans les réglages pour des réponses comme ChatGPT, ou réessaie dans une minute.");
+      setStatus('Serveurs gratuits satures - reessaie dans une minute');
+      await speak("Mes serveurs gratuits sont saturés en ce moment. Réessaie dans une minute.");
     } else {
       setStatus('Erreur IA - verifie ta cle');
       await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
