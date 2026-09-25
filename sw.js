@@ -1,5 +1,5 @@
 /* Assistant Vocal IA — Service Worker */
-const CACHE = 'assistvocal-v154';
+const CACHE = 'assistvocal-v155';
 const STATIC = [
   './manifest.webmanifest',
   './icon-192.png',
@@ -31,6 +31,10 @@ self.addEventListener('fetch', e => {
      Cache Storage. Si le SW les interceptait, un echec de cache (quota) les
      remplacerait par index.html -> Kokoro ne se chargeait jamais. */
   if (/\.(onnx|bin)$/.test(url.pathname)) return;
+  /* Bundle Kokoro (2 Mo) : NE PAS l'intercepter non plus. Le import()/script
+     echouait chez l'utilisateur ("Kokoro CDN indisponible") a cause du SW qui
+     servait une version corrompue du module depuis son cache. */
+  if (/kokoro\.(web|global)\.js$/.test(url.pathname)) return;
   /* Network-first pour le code ET version.json (sinon le bandeau de mise à jour
      voit toujours l'ancienne version en cache) */
   const isMain = e.request.mode === 'navigate' || /\.(html|js|css|json)$/.test(url.pathname);

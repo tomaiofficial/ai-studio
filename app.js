@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.58';
+const APP_VERSION = '8.59';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1755,13 +1755,18 @@ let kokoroTTS = null, kokoroLoading = false, kokoroLoaded = false;
 function loadKokoro(){
   if (kokoroLoading || kokoroLoaded) return;
   kokoroLoading = true;
-  import('lib/kokoro.web.js').then(async mod => {
+  /* v8.59 : SCRIPT CLASSIQUE (lib/kokoro.global.js) au lieu de import() de
+     module ES. Le import() echouait chez l'utilisateur ("Kokoro CDN
+     indisponible") a cause du service worker qui servait une version corrompue
+     du module. Le script classique expose window.KokoroTTS directement. */
+  const s = document.createElement('script');
+  s.src = 'lib/kokoro.global.js';
+  s.onload = async () => {
     try {
-      const { KokoroTTS, env } = mod;
+      const { KokoroTTS, env } = window;
       /* v8.58 : le modele Kokoro (88 Mo) est heberge DANS le repo GitHub et
          servi par GitHub Pages (MEME origine que l'app) : aucun CORS, aucun
-         blocage reseau, telechargement fiable. huggingface.co etait bloque/
-         trop lent chez l'utilisateur -> Kokoro ne se chargeait jamais. */
+         blocage reseau. La voix ff_siwis.bin est aussi patchee vers le repo. */
       env.remoteHost = 'https://tomaiofficial.github.io/ai-studio';
       env.remotePathTemplate = 'models/kokoro';
       kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8' });
@@ -1769,7 +1774,9 @@ function loadKokoro(){
       console.log('[VOIX] Kokoro pret : voix realiste dispo');
     } catch(e){ console.warn('[VOIX] Kokoro echec:', e && e.message); }
     kokoroLoading = false;
-  }).catch(() => { kokoroLoading = false; console.warn('[VOIX] Kokoro CDN indisponible'); });
+  };
+  s.onerror = () => { kokoroLoading = false; console.warn('[VOIX] Kokoro CDN indisponible'); };
+  document.head.appendChild(s);
 }
 function playFloat32(audio, rate){
   return new Promise(resolve => {
