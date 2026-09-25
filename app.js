@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.64';
+const APP_VERSION = '8.65';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1039,7 +1039,7 @@ async function askGroq(question, webCtx, msgs){
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
           body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
-        }), 5000);
+        }), 3000);
         if (res && res.ok){
           const data = await res.json();
           const t = (data?.choices?.[0]?.message?.content || '').trim();
@@ -1050,7 +1050,8 @@ async function askGroq(question, webCtx, msgs){
         } else if (res && res.status === 429){
           break; /* limite -> modele suivant */
         } else if (res && (res.status === 401 || res.status === 403 || res.status === 404)){
-          console.warn('[Groq] Cle invalide (401/403/404) -> on passe au cerveau suivant sans bloquer');
+          console.warn('[Groq] Cle invalide (401/403/404) -> retiree pour la session');
+          badGroqKey = true;
           return { error: 'limit' };
         } else if (res){
           return { error: 'api' };
@@ -1125,7 +1126,7 @@ async function askFreeLLM(question, webCtx, msgs){
    Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
 /* Cles invalides detectees (401/403/404) : retirees de la chaine pour la session
    pour ne plus re-echouer a chaque question. */
-let badMistralKey = false, badCerebrasKey = false;
+let badMistralKey = false, badCerebrasKey = false, badGroqKey = false;
 async function askBrain(messages){
   /* CERVEAUX GRATUITS, dans l'ordre :
      0. GROQ (si une cle gratuite est configuree : Llama 3.3 70B, gratuit a vie)
@@ -1135,10 +1136,6 @@ async function askBrain(messages){
      Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
   const lastUser = messages.filter(m => m.role === 'user').pop();
   const question = lastUser ? lastUser.content : '';
-  if (getGroqKey()){
-    const g = await askGroq(null, null, messages);
-    if (!g.error && g.text) return { text: g.text };
-  }
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   const tryEndpoint = async (url, model, ms) => {
     try {
@@ -1146,7 +1143,7 @@ async function askBrain(messages){
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
-      }), ms || 8000);
+      }), ms || 6000);
       if (res && res.ok){
         const data = await res.json();
         const msg = data?.choices?.[0]?.message || {};
@@ -1167,24 +1164,27 @@ async function askBrain(messages){
       return null;
     } catch(e){ return null; }
   };
-  /* 1. POLLINATIONS /openai/v1 : TESTE 200 OK, repond bien en francais.
-     Timeout 8s (l'API est parfois lente mais fiable). Retry 1x sur 429
-     (rate limit ~1 req/5s par IP) apres 2s. */
-  let text = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000);
-  if (typeof text === 'string') return { text };
-  if (text && text.err === 'limit'){
-    await new Promise(r => setTimeout(r, 2000));
-    text = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000);
-    if (typeof text === 'string') return { text };
-  }
-  /* 2. LLM7 + OVH EN PARALLELE : le premier qui repond gagne (max 8s) */
-  text = await Promise.race([
-    tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 8000),
-    tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b', 8000)
+  /* v8.65 : TOUS les cerveaux EN PARALLELE (max 6s), le premier qui repond
+     gagne -> reponse en ~2-6s au lieu de ~21-31s en sequentiel. Puis
+     memoire+logique locale en secours IMMEDIAT -> reponse TOUJOURS garantie
+     en <8s, meme si tout le reseau est bloque. */
+  const results = await Promise.all([
+    (getGroqKey() && !badGroqKey)
+      ? askGroq(null, null, messages).then(g => (!g.error && g.text) ? { src: 'Groq', text: g.text } : null)
+      : Promise.resolve(null),
+    tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 6000)
+      .then(t => typeof t === 'string' ? { src: 'Pollinations', text: t } : null),
+    tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 6000)
+      .then(t => typeof t === 'string' ? { src: 'LLM7', text: t } : null)
   ]);
-  if (typeof text === 'string') return { text };
-  /* Secours : memoire + logique locale (repond toujours) */
-  return { text: localSmartReply(question) };
+  const winner = results.find(r => r && r.text);
+  if (winner) return { text: winner.text, diag: winner.src };
+  /* Phase 2 : OVH seul (secours) - PAS en parallele pour preserver son quota
+     (2 req/min) : on ne le brule que si les 3 premiers ont echoue. */
+  const ovh = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b', 6000);
+  if (typeof ovh === 'string') return { text: ovh, diag: 'OVH' };
+  /* Secours : memoire + logique locale (repond TOUJOURS, immediat) */
+  return { text: localSmartReply(question), diag: 'local' };
 }
 /* DETECTION ANGLAIS : si plus de 25% des mots sont des mots anglais courants,
    la reponse est probablement en anglais -> on la traduit en francais pour que
@@ -1961,8 +1961,8 @@ function speak(text){
       else setStatus("Voix indisponible - Edge TTS bloque, verifie ta connexion");
       done(false);
     };
-    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
+    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 25s sans son */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 25s'); fail(); }, 25000);
     /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
        gratuite, sans cle, via proxy public HTTP). Secours : Kokoro (neuronale
        locale), puis Google Translate TTS, puis voix systeme du navigateur.
@@ -2052,7 +2052,7 @@ async function handleQuestion(question){
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente) */
   const r = await Promise.race([
     agentMode ? runAgent(question) : askAI(question),
-    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 60000 : 40000))
+    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 30000))
   ]);
   if (r.error){
     setState('idle');
