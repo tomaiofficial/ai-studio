@@ -1,5 +1,5 @@
-/* Assistant Vocal IA — Service Worker */
-const CACHE = 'assistvocal-v159';
+﻿/* Assistant Vocal IA â€” Service Worker */
+const CACHE = 'assistvocal-v160';
 const STATIC = [
   './manifest.webmanifest',
   './icon-192.png',
@@ -35,11 +35,11 @@ self.addEventListener('fetch', e => {
      echouait chez l'utilisateur ("Kokoro CDN indisponible") a cause du SW qui
      servait une version corrompue du module depuis son cache. */
   if (/kokoro\.(web|global)\.js$/.test(url.pathname)) return;
-  /* Network-first pour le code ET version.json (sinon le bandeau de mise à jour
+  /* Network-first pour le code ET version.json (sinon le bandeau de mise Ã  jour
      voit toujours l'ancienne version en cache) */
   const isMain = e.request.mode === 'navigate' || /\.(html|js|css|json)$/.test(url.pathname);
   if (isMain){
-    /* Network-first : toujours la dernière version, cache en secours hors-ligne */
+    /* Network-first : toujours la derniÃ¨re version, cache en secours hors-ligne */
     e.respondWith(
       fetch(e.request).then(res => {
         const copy = res.clone();
@@ -48,7 +48,7 @@ self.addEventListener('fetch', e => {
       }).catch(() => caches.match(e.request).then(hit => hit || caches.match('./index.html')))
     );
   } else {
-    /* Cache-first pour les fichiers statiques (icônes, manifest) */
+    /* Cache-first pour les fichiers statiques (icÃ´nes, manifest) */
     e.respondWith(
       caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
         const copy = res.clone();

@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.63';
+const APP_VERSION = '8.64';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'kokoro'; // Voix REALISTE Kokoro (meme partout, a vie, hors ligne), Google TTS en secours auto
+const DEFAULT_VOICE = 'edge'; // Voix IA REALISTE Edge (Microsoft Neural fr-FR-DeniseNeural, la plus naturelle, gratuite sans cle), Kokoro/Google en secours auto
 const SPEED = 1.0; // naturel
 
 
@@ -1723,7 +1723,7 @@ function splitSentences(text, max){
 async function speakGoogleTTS(text){
   try {
     /* morceaux de 180 caracteres : phrase complete, prosodie naturelle (comme
-       ChatGPT), sous la limite Google (~200). 120 etait trop haché. */
+       ChatGPT), sous la limite Google (~200). 120 etait trop hache. */
     const chunks = splitSentences(text, 180);
     for (const c of chunks){
       let ok = await playGoogleChunk(c);
@@ -1732,6 +1732,51 @@ async function speakGoogleTTS(text){
     }
     return true;
   } catch(e){ console.warn('[VOIX] GoogleTTS echec:', e.message); return false; }
+}
+
+/* ===== VOIX IA REALISTE EDGE (Microsoft Neural) : la voix la plus naturelle
+   en francais (fr-FR-DeniseNeural, femme). GRATUITE, AUCUNE cle, AUCUNE limite.
+   Le WebSocket Bing etant bloque sur ce reseau, on passe par un proxy public
+   gratuit (edge-tts.vercel.app) qui renvoie le MP3 en HTTP -> joue via <audio>
+   (pas de fetch -> pas de blocage CORS). Secours auto : Kokoro puis Google. ===== */
+const EDGE_TTS_PROXY = 'https://edge-tts.vercel.app/api/tts';
+const EDGE_TTS_VOICE = 'fr-FR-DeniseNeural';
+function playEdgeChunk(c){
+  return new Promise(res => {
+    const url = EDGE_TTS_PROXY + '?text=' + encodeURIComponent(c) + '&voice=' + EDGE_TTS_VOICE;
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    currentAudios.push(audio);
+    let done = false, started = false;
+    const finish = v => { if (done) return; done = true; res(v); };
+    audio.onplaying = () => { started = true; };
+    audio.onended = () => finish(true);
+    audio.onerror = () => { console.warn('[VOIX] EdgeTTS audio error:', audio.error && audio.error.code, audio.error && audio.error.message); finish(false); };
+    /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
+    const tryPlay = n => {
+      audio.play().then(() => {}).catch(() => {
+        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+        else finish(false);
+      });
+    };
+    tryPlay(0);
+    /* si rien ne joue apres 6s (proxy lent ou bloque) -> voix suivante */
+    setTimeout(() => { if (!done && !started) finish(false); }, 6000);
+    /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
+    setTimeout(() => { if (!done) finish(true); }, 30000);
+  });
+}
+async function speakEdgeTTS(text){
+  try {
+    /* morceaux de 200 caracteres : phrase complete, prosodie naturelle */
+    const chunks = splitSentences(text, 200);
+    for (const c of chunks){
+      let ok = await playEdgeChunk(c);
+      if (!ok) ok = await playEdgeChunk(c); /* 1 retry par morceau (proxy instable) */
+      if (!ok) return false;
+    }
+    return true;
+} catch(e){ console.warn('[VOIX] EdgeTTS echec:', e.message); return false; }
 }
 
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
@@ -1912,30 +1957,30 @@ function speak(text){
     };
     const fail = () => {
       console.warn('[VOIX] Toutes les voix ont echoue');
-      if (kokoroLoading) setStatus("Voix realiste en preparation (92 Mo, 1 seule fois) - reessaie dans un instant");
-      else if (kokoroLoaded) setStatus("Voix indisponible - Google TTS bloque, verifie ta connexion");
-      else setStatus("Voix indisponible - Kokoro pas encore charge et Google TTS bloque, verifie ta connexion");
+      if (kokoroLoading) setStatus("Voix Edge/Kokoro indisponibles - verifie ta connexion (Kokoro en preparation, 92 Mo 1 seule fois)");
+      else setStatus("Voix indisponible - Edge TTS bloque, verifie ta connexion");
       done(false);
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
-    /* VOIX IA FEMME PAR DEFAUT : Google Translate TTS (gratuite, sans cle, marche partout).
-       Secours : voix systeme du navigateur (aucun reseau).
-       Kokoro RETIRE : trop lent, coupait les phrases, 92 Mo a telecharger.
+    /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
+       gratuite, sans cle, via proxy public HTTP). Secours : Kokoro (neuronale
+       locale), puis Google Translate TTS, puis voix systeme du navigateur.
        VITS RETIRE : Xenova/vits-tts-fra 401 sur HuggingFace.
-       Edge TTS RETIRE : le WebSocket Bing est bloque sur ce reseau.
+       Edge TTS WebSocket RETIRE : le WebSocket Bing est bloque sur ce reseau
+       (v8.64 : reintegre via proxy public HTTP edge-tts.vercel.app).
        StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    /* VOIX IA REALISTE : Kokoro (neuronale, gratuite, hors ligne apres 1er
-       telechargement) en premier, Google TTS en secours, Systeme en dernier
-       recours. Le choix du selecteur est respecte. */
-    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Kokoro en secours,
+       Google TTS puis Systeme en dernier recours. Le choix du selecteur est respecte. */
+    if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'naturelle') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
-    else chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else chain = [['Edge', speakEdgeTTS], ['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
