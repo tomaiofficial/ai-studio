@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.54';
+const APP_VERSION = '8.55';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1840,7 +1840,12 @@ function speak(text){
       maybeRestartWake(); /* app inactive -> l'oreille "hey astra" se rallume */
       resolve(ok);
     };
-    const fail = () => { console.warn('[VOIX] Toutes les voix ont echoue'); setStatus("Voix indisponible - verifie ta connexion"); done(false); };
+    const fail = () => {
+      console.warn('[VOIX] Toutes les voix ont echoue');
+      if (kokoroLoading) setStatus("Voix realiste en preparation (92 Mo, 1 seule fois) - reessaie dans un instant");
+      else setStatus("Voix indisponible - verifie ta connexion");
+      done(false);
+    };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
     /* VOIX IA FEMME PAR DEFAUT : Google Translate TTS (gratuite, sans cle, marche partout).
