@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.68';
+const APP_VERSION = '8.69';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -261,11 +261,19 @@ function addUserMsg(text){
   const sub = document.getElementById('subtitle');
   if (sub) sub.textContent = '';
 }
-function addAiMsg(text){
+function addAiMsg(text, diag){
   if (chatEmpty) chatEmpty.style.display = 'none';
   const d = document.createElement('div');
   d.className = 'msg ai';
   d.textContent = text;
+  /* v8.69 : le DIAGNOSTIC s'affiche dans la bulle (petit texte gris), PLUS
+     JAMAIS dans le sous-titre (qui affiche les paroles pendant qu'elle parle) */
+  if (diag){
+    const dd = document.createElement('div');
+    dd.className = 'msg-diag';
+    dd.textContent = 'Diagnostic: ' + diag;
+    d.appendChild(dd);
+  }
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
   /* SOUS-TITRES : affiche ce que dit l'IA sous la bulle (interface vocale) */
@@ -2044,13 +2052,7 @@ async function handleQuestion(question){
     manualStop = false;
     return;
   }
-  addAiMsg(r.text);
-  /* DIAGNOSTIC : si tous les cerveaux ont echoue, on affiche la raison exacte
-     en sous-titre (petit texte sous la bulle) pour pouvoir corriger vite */
-  if (r.diag){
-    const sub = document.getElementById('subtitle');
-    if (sub) sub.textContent = 'Diagnostic: ' + r.diag;
-  }
+  addAiMsg(r.text, r.diag);
   await speak(r.text);
   isProcessing = false;
   manualStop = false;
