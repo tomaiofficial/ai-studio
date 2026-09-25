@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.44';
+const APP_VERSION = '8.45';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -497,11 +497,24 @@ async function startRecorder(){
       recorderBusy = false;
       if (blob.size < 3000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); return; }
       /* Transcription : la reconnaissance vocale du navigateur (gratuite, sans cle)
-         est le seul service de transcription. Si on est arrive ici, c'est qu'elle a
-         echoue -> on invite a reessayer. */
+         est le service principal. Si on est arrive ici, elle a echoue -> on tente
+         Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
+      setState('thinking');
+      setStatus('Je t\'ecoute...');
+      if (!whisperLoaded && !whisperLoading){
+        setStatus('Preparation de la transcription locale (1 seule fois)...');
+        loadWhisper();
+      }
+      if (whisperLoaded && whisperASR){
+        const txt = await transcribeBlob(blob);
+        if (txt){
+          setState('idle');
+          handleQuestion(txt);
+          return;
+        }
+      }
       setState('idle');
       setStatus("Je n'ai pas compris - reessaie en parlant plus fort");
-      recorderBusy = false;
     };
     mediaRec.onerror = () => { cleanupRecorder(); recorderBusy = false; setState('idle'); setStatus('Erreur micro - reessaie'); };
     mediaRec.start();
@@ -1773,6 +1786,42 @@ async function speakKokoro(text){
     }
     return true;
   } catch(e){ console.warn('[VOIX] Kokoro erreur:', e && e.message); return false; }
+}
+
+/* ===== TRANSCRIPTION LOCALE WHISPER : si la reconnaissance vocale du navigateur
+   echoue (service Google indisponible, reseau bloque...), Whisper transcrit
+   l'audio DIRECTEMENT sur l'appareil : hors ligne, gratuit, a vie, meme partout.
+   Modele Xenova/whisper-base (148 Mo, 1 seule fois, puis cache navigateur). ===== */
+let whisperASR = null, whisperLoading = false, whisperLoaded = false;
+function loadWhisper(){
+  if (whisperLoading || whisperLoaded) return;
+  whisperLoading = true;
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/dist/transformers.min.js';
+  s.onload = async () => {
+    try {
+      const { pipeline } = self.transformers;
+      whisperASR = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', { dtype: 'q8' });
+      whisperLoaded = true;
+      console.log('[STT] Whisper pret : transcription locale dispo');
+    } catch(e){ console.warn('[STT] Whisper echec:', e && e.message); }
+    whisperLoading = false;
+  };
+  s.onerror = () => { whisperLoading = false; console.warn('[STT] Whisper CDN indisponible'); };
+  document.head.appendChild(s);
+}
+async function transcribeBlob(blob){
+  if (!whisperLoaded || !whisperASR) return '';
+  try {
+    const audioBuf = await blob.arrayBuffer();
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const dctx = new AC();
+    const decoded = await dctx.decodeAudioData(audioBuf);
+    const pcm = decoded.getChannelData(0);
+    try { dctx.close(); } catch {}
+    const out = await whisperASR(pcm, { language: 'french', task: 'transcribe' });
+    return (out && out.text || '').trim();
+  } catch(e){ console.warn('[STT] Whisper erreur:', e && e.message); return ''; }
 }
 
 function speak(text){
