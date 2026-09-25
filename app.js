@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.62';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', googlecloud: 'va_gckey', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.63';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), googleTtsKeyInput = $('googleTtsKey');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -306,13 +306,11 @@ function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim()
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
-function getGoogleCloudKey(){ return (localStorage.getItem(LS.googlecloud) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
-  googleTtsKeyInput.value = getGoogleCloudKey();
   ttsVoiceSel.value = getVoice();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
@@ -322,10 +320,6 @@ settingsModal.addEventListener('click', e => { if (e.target === settingsModal) s
 groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   toast('Cle Groq enregistree');
-});
-googleTtsKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.googlecloud, googleTtsKeyInput.value.trim());
-  toast('Cle Google Cloud enregistree');
 });
 
 ttsVoiceSel.addEventListener('change', () => {
@@ -1740,58 +1734,6 @@ async function speakGoogleTTS(text){
   } catch(e){ console.warn('[VOIX] GoogleTTS echec:', e.message); return false; }
 }
 
-/* ===== VOIX GOOGLE AI STUDIO (Chirp 3 HD) : la voix naturelle de Google Cloud
-   Text-to-Speech, celle qu'on entend dans Google AI Studio. GRATUITE 1M
-   caracteres/mois sans carte bancaire. Cle : console.cloud.google.com ->
-   activer "Cloud Text-to-Speech API" -> creer une cle API. ===== */
-async function speakGoogleCloud(text){
-  const key = getGoogleCloudKey();
-  if (!key) return false;
-  try {
-    const chunks = splitSentences(text, 180);
-    for (const c of chunks){
-      const ok = await playGoogleCloudChunk(c, key);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] GoogleCloud echec:', e && e.message); return false; }
-}
-function playGoogleCloudChunk(c, key){
-  return new Promise(res => {
-    try {
-      fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=' + encodeURIComponent(key), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: { text: c },
-          voice: { languageCode: 'fr-FR', name: 'fr-FR-Chirp3-HD-Leda' },
-          audioConfig: { audioEncoding: 'MP3', speakingRate: 1.0, pitch: 0 }
-        })
-      }).then(r => r.json()).then(data => {
-        if (!data || !data.audioContent) throw new Error('pas d audio');
-        const b64 = data.audioContent;
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'audio/mpeg' });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.volume = 1.0;
-        currentAudios.push(audio);
-        let done = false;
-        const finish = v => { if (done) return; done = true; res(v); };
-        audio.onended = () => finish(true);
-        audio.onerror = () => { console.warn('[VOIX] GoogleCloud audio error'); finish(false); };
-        const tryPlay = n => {
-          audio.play().then(() => {}).catch(() => { if (n < 2) setTimeout(() => tryPlay(n + 1), 300); else finish(false); });
-        };
-        tryPlay(0);
-        setTimeout(() => finish(true), 30000);
-      }).catch(e => { console.warn('[VOIX] GoogleCloud echec:', e && e.message); res(false); });
-    } catch(e){ res(false); }
-  });
-}
-
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
    aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
 function speakSystem(text){
@@ -1986,20 +1928,14 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    /* v8.62 : Google Cloud TTS (Chirp 3 HD = voix de Google AI Studio) insere
-       apres Kokoro si une cle est configuree. Ordre : Kokoro (gratuit, hors
-       ligne) -> GoogleCloud (naturelle, si cle) -> GoogleTTS -> Systeme. */
-    const hasGC = !!getGoogleCloudKey();
+    /* VOIX IA REALISTE : Kokoro (neuronale, gratuite, hors ligne apres 1er
+       telechargement) en premier, Google TTS en secours, Systeme en dernier
+       recours. Le choix du selecteur est respecte. */
     if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'googlecloud') chain = [['GoogleCloud', speakGoogleCloud], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'naturelle') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
     else chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    if (hasGC && voiceMode !== 'googlecloud' && voiceMode !== 'google' && voiceMode !== 'systeme'){
-      /* insere GoogleCloud juste apres Kokoro dans la chaine par defaut */
-      chain.splice(1, 0, ['GoogleCloud', speakGoogleCloud]);
-    }
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
