@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.72';
+const APP_VERSION = '8.73';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -91,7 +91,7 @@ function escapeHtml(s){
    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
    voix prononce correctement. ===== */
 function isSecoursReply(t){
-  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)/i.test(t);
+  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations/i.test(t);
 }
 function localSmartReply(question){
   const q = question.toLowerCase().trim();
