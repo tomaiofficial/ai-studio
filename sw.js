@@ -1,5 +1,5 @@
 /* Assistant Vocal IA — Service Worker */
-const CACHE = 'assistvocal-v147';
+const CACHE = 'assistvocal-v148';
 const STATIC = [
   './manifest.webmanifest',
   './icon-192.png',
@@ -20,6 +20,12 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
+  /* NE PAS intercepter les requetes CROSS-ORIGIN (translate.google.com pour la
+     voix TTS, huggingface.co pour les modeles IA, cdn.jsdelivr.net pour
+     transformers.js, etc.) : le navigateur les gere directement. Si le SW les
+     intercepte, l'audio TTS et les modeles peuvent echouer (fetch no-cors
+     casse, cache opaque, etc.) -> 'Voix en echec'. */
+  if (url.origin !== self.location.origin) return;
   /* Network-first pour le code ET version.json (sinon le bandeau de mise à jour
      voit toujours l'ancienne version en cache) */
   const isMain = e.request.mode === 'navigate' || /\.(html|js|css|json)$/.test(url.pathname);
