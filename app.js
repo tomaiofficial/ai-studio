@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.55';
+const APP_VERSION = '8.56';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -332,6 +332,17 @@ testVoiceBtn.addEventListener('click', async () => {
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
   setStatus(ok ? 'Voix OK - appuie sur le micro et parle' : 'Voix en echec - verifie ta connexion', !ok);
 });
+
+/* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
+const textInput = $('textInput'), sendBtn = $('sendBtn');
+function sendTextQuestion(){
+  const q = textInput.value.trim();
+  if (!q || isProcessing) return;
+  textInput.value = '';
+  handleQuestion(q);
+}
+sendBtn.addEventListener('click', sendTextQuestion);
+textInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendTextQuestion(); });
 
 /* ===== RECONNAISSANCE VOCALE ===== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1637,7 +1648,7 @@ function playGoogleChunk(c){
     const finish = v => { if (done) return; done = true; res(v); };
     audio.onplaying = () => { started = true; };
     audio.onended = () => finish(true);
-    audio.onerror = () => finish(false);
+    audio.onerror = () => { console.warn('[VOIX] GoogleTTS audio error:', audio.error && audio.error.code, audio.error && audio.error.message, url.slice(0, 80)); finish(false); };
     /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
     const tryPlay = n => {
       audio.play().then(() => {}).catch(() => {
@@ -1843,7 +1854,8 @@ function speak(text){
     const fail = () => {
       console.warn('[VOIX] Toutes les voix ont echoue');
       if (kokoroLoading) setStatus("Voix realiste en preparation (92 Mo, 1 seule fois) - reessaie dans un instant");
-      else setStatus("Voix indisponible - verifie ta connexion");
+      else if (kokoroLoaded) setStatus("Voix indisponible - Google TTS bloque, verifie ta connexion");
+      else setStatus("Voix indisponible - Kokoro pas encore charge et Google TTS bloque, verifie ta connexion");
       done(false);
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s sans son */

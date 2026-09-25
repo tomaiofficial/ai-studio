@@ -168,6 +168,23 @@ select.wide-input{appearance:none}
 }
 .toggle-row input{width:20px;height:20px;accent-color:#7c5cff;flex-shrink:0;cursor:pointer}
 .toggle-row span{font-size:14px;color:#c8c8dd}
+/* ===== SAISIE TEXTE (poser une question par ecrit) ===== */
+.text-input-row{
+  display:flex;align-items:center;gap:8px;padding:10px 14px 14px;
+  max-width:420px;margin:0 auto;width:100%;
+}
+.text-input-row input{
+  flex:1;padding:13px 16px;border-radius:24px;border:1px solid #2a2a45;
+  background:#10101e;color:#fff;font-size:15px;outline:none;min-width:0;
+}
+.text-input-row input:focus{border-color:#7c5cff}
+.text-input-row input::placeholder{color:#5a5a75}
+.send-btn{
+  width:46px;height:46px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;
+  background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+}
+.send-btn:active{transform:scale(.94)}
 .toast{
   position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
   background:#2a2a45;color:#fff;padding:12px 20px;border-radius:30px;
@@ -247,6 +264,12 @@ select.wide-input{appearance:none}
   </button>
   <div class="subtitle" id="subtitle"></div>
   <div class="version-tag" id="versionTag"></div>
+</div>
+
+<!-- SAISIE TEXTE : poser une question par ecrit (marche toujours, meme sans micro) -->
+<div class="text-input-row">
+  <input type="text" id="textInput" placeholder="Écris ta question ici…" autocomplete="off" maxlength="500">
+  <button class="send-btn" id="sendBtn" aria-label="Envoyer">➤</button>
 </div>
 
 <!-- MODAL HISTORIQUE -->
