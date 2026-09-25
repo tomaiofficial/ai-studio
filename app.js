@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.59';
+const APP_VERSION = '8.60';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1709,35 +1709,45 @@ function speakSystem(text){
   return new Promise(resolve => {
     try {
       if (!('speechSynthesis' in window)) return resolve(false);
-      const chunks = splitSentences(text, 200);
-      let i = 0;
-      let done = false;
-      const finish = ok => { if (done) return; done = true; resolve(ok); };
-      const speakNext = () => {
-        if (i >= chunks.length) return finish(true);
-        const u = new SpeechSynthesisUtterance(chunks[i++]);
-        u.lang = 'fr-FR';
-        u.rate = 1.0;
-        u.pitch = 1.0;
-        const voices = window.speechSynthesis.getVoices();
-        const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
-        /* VOIX REALISTE d'abord : voix naturelles/neurales (Windows 11 Natural,
-           Android Neural, iPhone Amelie/Siri...), puis Google, puis Microsoft.
-           Les voix naturelles sonnent comme un vrai humain, comme ChatGPT. */
-        const pick = fr.find(v => /natural|neural|premium|enhanced|amelie|amélie|denise|hortense|jacqueline|cecile|cécile/i.test(v.name))
-          || fr.find(v => /google/i.test(v.name))
-          || fr.find(v => /microsoft/i.test(v.name))
-          || fr[0];
-        if (pick) u.voice = pick;
-        u.onend = () => speakNext();
-        u.onerror = () => finish(false);
-        window.speechSynthesis.speak(u);
+      // Chrome charge les voix en asynchrone : getVoices() vide au 1er appel
+      let voices = window.speechSynthesis.getVoices();
+      const startSpeak = () => {
+        const chunks = splitSentences(text, 200);
+        let i = 0;
+        let done = false;
+        const finish = ok => { if (done) return; done = true; resolve(ok); };
+        const speakNext = () => {
+          if (i >= chunks.length) return finish(true);
+          const u = new SpeechSynthesisUtterance(chunks[i++]);
+          u.lang = 'fr-FR';
+          u.rate = 1.0;
+          u.pitch = 1.0;
+          const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
+          const pick = fr.find(v => /natural|neural|premium|enhanced|amelie|amélie|denise|hortense|jacqueline|cecile|cécile/i.test(v.name))
+            || fr.find(v => /google/i.test(v.name))
+            || fr.find(v => /microsoft/i.test(v.name))
+            || fr[0] || voices[0];
+          if (pick) u.voice = pick;
+          u.onend = () => speakNext();
+          u.onerror = e => { console.warn('[VOIX] Systeme erreur:', e.error); finish(false); };
+          // débloque si en pause (Chrome)
+          try { window.speechSynthesis.resume(); } catch {}
+          window.speechSynthesis.speak(u);
+        };
+        speakNext();
+        setTimeout(() => finish(true), chunks.length * 20000 + 10000);
       };
-      /* garde-fou : si rien ne parle apres 3s (voix indisponible), on passe au repli */
-      setTimeout(() => { if (!done && !window.speechSynthesis.speaking) finish(false); }, 3000);
-      speakNext();
-      /* timeout global (phrases longues) */
-      setTimeout(() => finish(true), chunks.length * 20000 + 10000);
+      if (voices.length === 0) {
+        // attend les voix (max 1s) puis parle quand meme avec voix par defaut
+        let waited = false;
+        window.speechSynthesis.onvoiceschanged = () => {
+          if (waited) return;
+          waited = true;
+          voices = window.speechSynthesis.getVoices();
+          startSpeak();
+        };
+        setTimeout(() => { if (!waited) { waited = true; voices = window.speechSynthesis.getVoices(); startSpeak(); } }, 1000);
+      } else startSpeak();
     } catch(e){ resolve(false); }
   });
 }
@@ -1760,22 +1770,24 @@ function loadKokoro(){
      indisponible") a cause du service worker qui servait une version corrompue
      du module. Le script classique expose window.KokoroTTS directement. */
   const s = document.createElement('script');
-  s.src = 'lib/kokoro.global.js';
+  s.src = 'lib/kokoro.global.js?v=8.60';
   s.onload = async () => {
     try {
-      const { KokoroTTS, env } = window;
-      /* v8.58 : le modele Kokoro (88 Mo) est heberge DANS le repo GitHub et
-         servi par GitHub Pages (MEME origine que l'app) : aucun CORS, aucun
-         blocage reseau. La voix ff_siwis.bin est aussi patchee vers le repo. */
+      const KokoroTTS = window.KokoroTTS;
+      const env = window.kokoroEnv;
+      if (!KokoroTTS) throw new Error('KokoroTTS non expose');
       env.remoteHost = 'https://tomaiofficial.github.io/ai-studio';
       env.remotePathTemplate = 'models/kokoro';
+      console.log('[VOIX] Kokoro chargement modele 88 Mo...');
       kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8' });
       kokoroLoaded = true;
       console.log('[VOIX] Kokoro pret : voix realiste dispo');
-    } catch(e){ console.warn('[VOIX] Kokoro echec:', e && e.message); }
+      setStatus('Voix Kokoro prete !');
+      setTimeout(() => setStatus('Appuie sur le micro et parle'), 2500);
+    } catch(e){ console.warn('[VOIX] Kokoro echec:', e && e.message, e && e.stack); }
     kokoroLoading = false;
   };
-  s.onerror = () => { kokoroLoading = false; console.warn('[VOIX] Kokoro CDN indisponible'); };
+  s.onerror = e => { kokoroLoading = false; console.warn('[VOIX] Kokoro CDN indisponible', e); };
   document.head.appendChild(s);
 }
 function playFloat32(audio, rate){
