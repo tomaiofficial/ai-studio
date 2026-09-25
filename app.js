@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.49';
+const APP_VERSION = '8.50';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1546,10 +1546,9 @@ if ('speechSynthesis' in window){
   try { window.speechSynthesis.getVoices(); } catch {}
   window.speechSynthesis.onvoiceschanged = () => { try { window.speechSynthesis.getVoices(); } catch {} };
 }
-/* Precharge la voix NATURELLE IA en arriere-plan (~10 Mo une seule fois,
-   puis cache navigateur -> hors ligne a vie). Pendant le chargement, Google
-   TTS repond immediatement en secours. */
-loadVoiceIA();
+/* NOTE : loadVoiceIA() est appele a la FIN du fichier (apres toutes les
+   declarations let) pour eviter l'erreur 'Cannot access before initialization'
+   qui cassait tout le script. */
 function ensureAudio(){
   try {
     if (!sharedCtx){
@@ -2053,3 +2052,9 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
+/* Precharge la voix NATURELLE IA en arriere-plan (~10 Mo une seule fois,
+   puis cache navigateur -> hors ligne a vie). Appele ICI, a la FIN du fichier,
+   APRES toutes les declarations let (sinon erreur 'Cannot access before
+   initialization' qui cassait tout le script). Pendant le chargement, Google
+   TTS repond immediatement en secours. */
+loadVoiceIA();
