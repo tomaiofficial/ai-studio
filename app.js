@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.46';
+const APP_VERSION = '8.47';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'naturelle'; // Voix NATURELLE IA (Meta MMS, hors ligne, a vie), Google TTS en secours auto
+const DEFAULT_VOICE = 'google'; // Voix IA FEMME Google TTS par defaut (fiable, sans cle), voix systeme en secours
 const SPEED = 1.0; // naturel
 
 
@@ -1855,8 +1855,8 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'naturelle' || voiceMode === 'kokoro') chain = [['Naturelle', speakVoiceIA], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'naturelle' || voiceMode === 'kokoro') chain = [['Naturelle', speakVoiceIA], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
     const next = () => {
