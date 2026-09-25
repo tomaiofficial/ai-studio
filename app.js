@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.66';
+const APP_VERSION = '8.67';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -676,7 +676,9 @@ const SYSTEM_PROMPT = getSystemPrompt();
 
 function extractReply(msg){
   const content = (msg.content || '').trim();
-  const reasoning = (msg.reasoning || '').trim();
+  /* v8.67 : LLM7 met la reponse dans "reasoning_content" (pas "reasoning") ->
+     sans ce champ, sa reponse etait rejetee et tout tombait en "local". */
+  const reasoning = (msg.reasoning_content || msg.reasoning || '').trim();
   const thinky = t => {
     if (!t) return false;
     const s = t.toLowerCase();
@@ -1102,7 +1104,7 @@ async function askFreeLLM(question, webCtx, msgs){
            GLM-5.3-Flash met sa reponse dans "reasoning" quand "content" est
            vide -> on prend reasoning en secours sinon tout echoue. */
         let text = (msg.content || '').trim();
-        if (!text) text = (msg.reasoning || '').trim();
+        if (!text) text = (msg.reasoning_content || msg.reasoning || '').trim();
         if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
         return { err: 'refus' };
       }
@@ -1149,12 +1151,12 @@ async function askBrain(messages){
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
-      }), ms || 6000);
+      }), ms || 8000);
       if (res && res.ok){
         const data = await res.json();
         const msg = data?.choices?.[0]?.message || {};
         let text = (msg.content || '').trim();
-        if (!text) text = (msg.reasoning || '').trim();
+        if (!text) text = (msg.reasoning_content || msg.reasoning || '').trim();
         if (text && !/^the user (says|asks|is asking|wants)/i.test(text)){
           /* ANTI-PHRASE COUPEE : si la reponse ne se termine pas par une
              ponctuation de fin, on coupe au dernier point pour ne jamais
@@ -1165,10 +1167,21 @@ async function askBrain(messages){
           }
           return text;
         }
+        return { err: 'refus' };
       }
       if (res && res.status === 429) return { err: 'limit' };
-      return null;
-    } catch(e){ return null; }
+      if (res) return { err: 'http' + res.status };
+      return { err: 'net' };
+    } catch(e){ return { err: 'net' }; }
+  };
+  /* v8.67 : retry 1x sur 429 (rate limit transitoire ~1 req/5s par IP) */
+  const tryWithRetry = async (url, model) => {
+    let t = await tryEndpoint(url, model, 8000);
+    if (t && t.err === 'limit'){
+      await new Promise(r => setTimeout(r, 2000));
+      t = await tryEndpoint(url, model, 8000);
+    }
+    return t;
   };
   /* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
      auto = tous en parallele (le premier qui repond gagne). Chaque cerveau
@@ -1176,48 +1189,54 @@ async function askBrain(messages){
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations'){
-    const t = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000);
+    const t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
     if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
-    return { text: localSmartReply(question), diag: 'local' };
+    return { text: localSmartReply(question), diag: 'local (Pollinations:' + (t && t.err || 'net') + ')' };
   }
   if (brain === 'llm7'){
-    const t = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 8000);
+    const t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
     if (typeof t === 'string') return { text: t, diag: 'LLM7' };
-    return { text: localSmartReply(question), diag: 'local' };
+    return { text: localSmartReply(question), diag: 'local (LLM7:' + (t && t.err || 'net') + ')' };
   }
   if (brain === 'ovh'){
-    const t = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b', 8000);
+    const t = await tryWithRetry('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
     if (typeof t === 'string') return { text: t, diag: 'OVH' };
-    return { text: localSmartReply(question), diag: 'local' };
+    return { text: localSmartReply(question), diag: 'local (OVH:' + (t && t.err || 'net') + ')' };
   }
   if (brain === 'groq'){
     if (getGroqKey() && !badGroqKey){
       const g = await askGroq(null, null, messages);
       if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
     }
-    return { text: localSmartReply(question), diag: 'local' };
+    return { text: localSmartReply(question), diag: 'local (Groq:pas de cle ou invalide)' };
   }
-  /* auto (defaut) : v8.65 - TOUS les cerveaux EN PARALLELE (max 6s), le premier qui repond
-     gagne -> reponse en ~2-6s au lieu de ~21-31s en sequentiel. Puis
-     memoire+logique locale en secours IMMEDIAT -> reponse TOUJOURS garantie
-     en <8s, meme si tout le reseau est bloque. */
+  /* auto (defaut) : TOUS les cerveaux EN PARALLELE (max 8s), le premier qui
+     repond gagne -> reponse en ~2-8s. Retry Pollinations 1x sur 429, puis OVH
+     en secours, puis memoire locale -> repond TOUJOURS. Diagnostic detaille
+     si tout echoue (pour savoir quel serveur bloque). */
+  const diags = [];
   const results = await Promise.all([
     (getGroqKey() && !badGroqKey)
-      ? askGroq(null, null, messages).then(g => (!g.error && g.text) ? { src: 'Groq', text: g.text } : null)
+      ? askGroq(null, null, messages).then(g => (!g.error && g.text) ? { src: 'Groq', text: g.text } : (diags.push('Groq:' + (g.error || 'echec')), null))
       : Promise.resolve(null),
-    tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 6000)
-      .then(t => typeof t === 'string' ? { src: 'Pollinations', text: t } : null),
-    tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 6000)
-      .then(t => typeof t === 'string' ? { src: 'LLM7', text: t } : null)
+    tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000)
+      .then(t => typeof t === 'string' ? { src: 'Pollinations', text: t } : (diags.push('Pollinations:' + (t && t.err || 'net')), null)),
+    tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash', 8000)
+      .then(t => typeof t === 'string' ? { src: 'LLM7', text: t } : (diags.push('LLM7:' + (t && t.err || 'net')), null))
   ]);
   const winner = results.find(r => r && r.text);
   if (winner) return { text: winner.text, diag: winner.src };
+  /* Retry Pollinations 1x sur 429 (rate limit transitoire) */
+  const poll = await tryEndpoint('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 8000);
+  if (typeof poll === 'string') return { text: poll, diag: 'Pollinations' };
+  diags.push('Pollinations-retry:' + (poll && poll.err || 'net'));
   /* Phase 2 : OVH seul (secours) - PAS en parallele pour preserver son quota
-     (2 req/min) : on ne le brule que si les 3 premiers ont echoue. */
-  const ovh = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b', 6000);
+     (2 req/min) : on ne le brule que si les autres ont echoue. */
+  const ovh = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b', 8000);
   if (typeof ovh === 'string') return { text: ovh, diag: 'OVH' };
+  diags.push('OVH:' + (ovh && ovh.err || 'net'));
   /* Secours : memoire + logique locale (repond TOUJOURS, immediat) */
-  return { text: localSmartReply(question), diag: 'local' };
+  return { text: localSmartReply(question), diag: 'local (' + diags.join(' ') + ')' };
 }
 /* DETECTION ANGLAIS : si plus de 25% des mots sont des mots anglais courants,
    la reponse est probablement en anglais -> on la traduit en francais pour que
