@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.47';
+const APP_VERSION = '8.48';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'google'; // Voix IA FEMME Google TTS par defaut (fiable, sans cle), voix systeme en secours
+const DEFAULT_VOICE = 'naturelle'; // Voix NATURELLE IA (Meta MMS, hors ligne, a vie), Google TTS en secours auto
 const SPEED = 1.0; // naturel
 
 
@@ -1855,8 +1855,8 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'naturelle' || voiceMode === 'kokoro') chain = [['Naturelle', speakVoiceIA], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (voiceMode === 'naturelle' || voiceMode === 'kokoro') chain = [['Naturelle', speakVoiceIA], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
     const next = () => {
@@ -1971,14 +1971,23 @@ function versionCompare(a, b){
   return 0;
 }
 async function checkUpdate(){
-  /* FINI LA BOUCLE : plus AUCUN rechargement automatique ni bandeau.
-     Le service worker est network-first : chaque ouverture de l'app charge deja
-     la toute derniere version directement. Rien a cliquer, rien de bloque. */
+  /* Si une NOUVELLE version existe sur le serveur, on recharge AUTOMATIQUEMENT
+     une seule fois (flag va_auto_reloaded) pour que l'utilisateur ait TOUJOURS
+     la derniere version, sans rien cliquer. Le service worker est network-first
+     donc le rechargement charge la toute derniere version. */
   try {
     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
     if (j.version && versionCompare(j.version, APP_VERSION) > 0){
-      console.info('[MAJ] Nouvelle version ' + j.version + ' detectee - deja chargee au prochain chargement (network-first)');
+      console.info('[MAJ] Nouvelle version ' + j.version + ' detectee (app ' + APP_VERSION + ')');
+      let done = false;
+      try { done = localStorage.getItem('va_auto_reloaded') === '1'; } catch {}
+      if (!done){
+        try { localStorage.setItem('va_auto_reloaded', '1'); } catch {}
+        setTimeout(() => { try { location.reload(true); } catch { location.href = location.pathname + '?v=' + Date.now(); } }, 500);
+      }
+    } else {
+      try { localStorage.removeItem('va_auto_reloaded'); } catch {}
     }
   } catch {}
 }
