@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.69';
+const APP_VERSION = '8.70';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1794,6 +1794,11 @@ async function speakGoogleTTS(text){
    (pas de fetch -> pas de blocage CORS). Secours auto : Google TTS puis Systeme. ===== */
 const EDGE_TTS_PROXY = 'https://edge-tts.vercel.app/api/tts';
 const EDGE_TTS_VOICE = 'fr-FR-DeniseNeural';
+/* v8.70 : PRE-ECHAUFFAGE du proxy Edge TTS au chargement. Vercel met l'instance
+   en veille apres ~10 min d'inactivite -> le 1er appel peut repondre 504
+   (cold start ~5-10s). Un ping discret au demarrage evite ce delai au 1er
+   message parle. */
+try { fetch(EDGE_TTS_PROXY + '?text=bonjour&voice=' + EDGE_TTS_VOICE, { mode: 'no-cors' }).catch(() => {}); } catch(e) {}
 function playEdgeChunk(c){
   return new Promise(res => {
     const url = EDGE_TTS_PROXY + '?text=' + encodeURIComponent(c) + '&voice=' + EDGE_TTS_VOICE;
@@ -1813,19 +1818,23 @@ function playEdgeChunk(c){
       });
     };
     tryPlay(0);
-    /* si rien ne joue apres 6s (proxy lent ou bloque) -> voix suivante */
-    setTimeout(() => { if (!done && !started) finish(false); }, 6000);
+    /* si rien ne joue apres 8s (cold start Vercel ou proxy bloque) -> voix suivante */
+    setTimeout(() => { if (!done && !started) finish(false); }, 8000);
     /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
     setTimeout(() => { if (!done) finish(true); }, 30000);
   });
 }
 async function speakEdgeTTS(text){
   try {
-    /* morceaux de 200 caracteres : phrase complete, prosodie naturelle */
-    const chunks = splitSentences(text, 200);
+    /* morceaux de 250 caracteres : phrase complete, prosodie naturelle */
+    const chunks = splitSentences(text, 250);
     for (const c of chunks){
       let ok = await playEdgeChunk(c);
-      if (!ok) ok = await playEdgeChunk(c); /* 1 retry par morceau (proxy instable) */
+      if (!ok){
+        /* v8.70 : delai avant le retry -> laisse le cold start Vercel finir */
+        await new Promise(r => setTimeout(r, 1000));
+        ok = await playEdgeChunk(c);
+      }
       if (!ok) return false;
     }
     return true;
@@ -1939,11 +1948,13 @@ function speak(text){
     };
     const fail = () => {
       console.warn('[VOIX] Toutes les voix ont echoue');
-      setStatus("Voix indisponible - Edge TTS bloque, verifie ta connexion");
+      setStatus("Voix indisponible - verifie ta connexion internet");
       done(false);
     };
-    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 25s sans son */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 25s'); fail(); }, 25000);
+    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s
+       sans son (v8.70 : 25s etait trop court pour la chaine complete
+       Edge 8s + retry 1s + Google 6s + retry + Systeme) */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
     /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
        gratuite, sans cle, via proxy public HTTP). Secours : Google Translate
        TTS, puis voix systeme du navigateur (aucun reseau).
