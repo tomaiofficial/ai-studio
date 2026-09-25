@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.45';
+const APP_VERSION = '8.46';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'kokoro'; // Voix REALISTE Kokoro (meme partout, a vie, hors ligne), Google TTS en secours auto
+const DEFAULT_VOICE = 'naturelle'; // Voix NATURELLE IA (Meta MMS, hors ligne, a vie), Google TTS en secours auto
 const SPEED = 1.0; // naturel
 
 
@@ -1546,10 +1546,10 @@ if ('speechSynthesis' in window){
   try { window.speechSynthesis.getVoices(); } catch {}
   window.speechSynthesis.onvoiceschanged = () => { try { window.speechSynthesis.getVoices(); } catch {} };
 }
-/* Precharge la voix REALISTE Kokoro en arriere-plan (92 Mo une seule fois,
+/* Precharge la voix NATURELLE IA en arriere-plan (~10 Mo une seule fois,
    puis cache navigateur -> hors ligne a vie). Pendant le chargement, Google
    TTS repond immediatement en secours. */
-loadKokoro();
+loadVoiceIA();
 function ensureAudio(){
   try {
     if (!sharedCtx){
@@ -1732,26 +1732,29 @@ function speakSystem(text){
   });
 }
 
-/* ===== VOIX REALISTE KOKORO : la MEME voix IA partout (mobile + PC), gratuite,
-   a vie, hors ligne apres le 1er telechargement (92 Mo une seule fois, gardes
-   en cache par le navigateur). Voix femme francaise ff_siwis (naturelle, pas
-   de synthese robotique). Secours auto : Google TTS si pas encore pret. ===== */
-let kokoroTTS = null, kokoroLoading = false, kokoroLoaded = false;
-function loadKokoro(){
-  if (kokoroLoading || kokoroLoaded) return;
-  kokoroLoading = true;
+/* ===== VOIX NATURELLE IA (Meta MMS, modele VITS) : la MEME voix partout
+   (mobile + PC), gratuite, a vie, hors ligne apres le 1er telechargement
+   (~10 Mo seulement, gardes en cache par le navigateur). Voix francaise
+   naturelle (pas de synthese robotique). Secours auto : Google TTS si pas
+   encore pret.
+   NOTE : Kokoro (82M) n'est PAS supporte par transformers.js (config ONNX
+   incompatible) -> remplace par Xenova/mms-tts-fra qui fonctionne. ===== */
+let voiceIATTS = null, voiceIALoading = false, voiceIALoaded = false;
+function loadVoiceIA(){
+  if (voiceIALoading || voiceIALoaded) return;
+  voiceIALoading = true;
   const s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/dist/transformers.min.js';
   s.onload = async () => {
     try {
       const { pipeline } = self.transformers;
-      kokoroTTS = await pipeline('text-to-speech', 'onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8' });
-      kokoroLoaded = true;
-      console.log('[VOIX] Kokoro pret : voix realiste dispo');
-    } catch(e){ console.warn('[VOIX] Kokoro echec:', e && e.message); }
-    kokoroLoading = false;
+      voiceIATTS = await pipeline('text-to-speech', 'Xenova/mms-tts-fra');
+      voiceIALoaded = true;
+      console.log('[VOIX] Voix naturelle pret : voix IA dispo');
+    } catch(e){ console.warn('[VOIX] Voix naturelle echec:', e && e.message); }
+    voiceIALoading = false;
   };
-  s.onerror = () => { kokoroLoading = false; console.warn('[VOIX] Kokoro CDN indisponible'); };
+  s.onerror = () => { voiceIALoading = false; console.warn('[VOIX] Voix naturelle CDN indisponible'); };
   document.head.appendChild(s);
 }
 function playFloat32(audio, rate){
@@ -1774,18 +1777,18 @@ function playFloat32(audio, rate){
     } catch { resolve(false); }
   });
 }
-async function speakKokoro(text){
-  if (!kokoroLoaded || !kokoroTTS) return false;
+async function speakVoiceIA(text){
+  if (!voiceIALoaded || !voiceIATTS) return false;
   try {
     const chunks = splitSentences(text, 100);
     for (const c of chunks){
-      const out = await kokoroTTS(c, { voice: 'ff_siwis' });
+      const out = await voiceIATTS(c);
       if (!out || !out.audio) return false;
-      const ok = await playFloat32(out.audio, out.sampling_rate || 24000);
+      const ok = await playFloat32(out.audio, out.sampling_rate || 16000);
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.warn('[VOIX] Kokoro erreur:', e && e.message); return false; }
+  } catch(e){ console.warn('[VOIX] Voix naturelle erreur:', e && e.message); return false; }
 }
 
 /* ===== TRANSCRIPTION LOCALE WHISPER : si la reconnaissance vocale du navigateur
@@ -1852,7 +1855,7 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'kokoro') chain = [['Kokoro', speakKokoro], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (voiceMode === 'naturelle' || voiceMode === 'kokoro') chain = [['Naturelle', speakVoiceIA], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
