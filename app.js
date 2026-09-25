@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.48';
+const APP_VERSION = '8.49';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'naturelle'; // Voix NATURELLE IA (Meta MMS, hors ligne, a vie), Google TTS en secours auto
+const DEFAULT_VOICE = 'google'; // Voix IA FEMME Google TTS (comme avant, fiable, sans cle), voix systeme en secours
 const SPEED = 1.0; // naturel
 
 
@@ -1855,8 +1855,8 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode === 'naturelle' || voiceMode === 'kokoro') chain = [['Naturelle', speakVoiceIA], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'naturelle' || voiceMode === 'kokoro') chain = [['Naturelle', speakVoiceIA], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else chain = [['Systeme', speakSystem], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
     const next = () => {
@@ -2040,6 +2040,10 @@ function resetApp(){ localStorage.clear(); session=[]; currentConvId=null; isPro
 $('appVersion').textContent = 'Assistant Vocal IA - v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
+/* MAJ AUTO PERIODIQUE : verifie toutes les 60s si une nouvelle version existe
+   et recharge toute seule -> l'utilisateur a TOUJOURS la derniere version,
+   meme s'il ne recharge jamais l'app. */
+setInterval(checkUpdate, 60000);
 setStatus("Appuie sur le micro et parle");
 /* Au premier lancement (pour la vie) : petite fenetre prénom + âge */
 if (!profile){
