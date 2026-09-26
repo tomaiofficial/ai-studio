@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.88';
+const APP_VERSION = '8.90';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -91,7 +91,7 @@ function escapeHtml(s){
    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
    voix prononce correctement. ===== */
 function isSecoursReply(t){
-  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations|pollinations est temporairement indisponible/i.test(t);
+  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations|pollinations est temporairement indisponible|pollinations is temporarily unavailable|temporarily unavailable|try again in|rate[- ]?limit|too many requests|quota (epuise|épuisé|exceeded)|temporairement indisponible|maintenance en cours|429/i.test(t);
 }
 function localSmartReply(question){
   const q = question.toLowerCase().trim();
@@ -168,12 +168,14 @@ function localSmartReply(question){
   if (/(tu es libre|tu es gratuite|tu es payante|tu coute|tu coûte)/.test(q)) return "Je suis totalement gratuite, sans limite, et je le resterai !";
   /* 3) v8.71 : REPONSE DIRECTE — jamais d'excuse, jamais d'echo. Si tout
      echoue, on repond avec une reponse utile et on invite a changer de
-     cerveau (Pollinations GET natif est la solution fiable). */
+     cerveau (Pollinations GET natif est la solution fiable).
+     v8.90 : plus JAMAIS le message d'erreur "Pollinations indisponible" :
+     on repond honnetement et on propose une alternative. */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    return "Pollinations est temporairement indisponible. Réessaie dans 5 secondes.";
+    return "Mes serveurs en ligne sont saturés en ce moment, mais je suis là ! Réessaie dans une minute, ou pose-moi une autre question.";
   }
-  return "Pollinations est temporairement indisponible. Réessaie dans 5 secondes.";
+  return "Mes serveurs en ligne sont saturés en ce moment, mais je suis là ! Réessaie dans une minute, ou pose-moi une autre question.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -1114,7 +1116,7 @@ async function askFreeLLM(question, webCtx, msgs){
            vide -> on prend reasoning en secours sinon tout echoue. */
         let text = (msg.content || '').trim();
         if (!text) text = (msg.reasoning_content || msg.reasoning || '').trim();
-        if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+        if (text && !/^the user (says|asks|is asking|wants)/i.test(text) && !isSecoursReply(text)) return text;
         return { err: 'refus' };
       }
       /* 429 = QUOTA EPUISE : retenter dans 5s ne sert a rien (fenetre minute
@@ -1205,7 +1207,7 @@ async function askBrain(messages){
       const res = await withTimeout(fetch(url), 10000);
       if (res && res.ok){
         const text = (await res.text()).trim();
-        if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+        if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text) && !isSecoursReply(text)) return text;
         return { err: 'refus' };
       }
       if (res && res.status === 429) return { err: 'limit' };
@@ -2231,11 +2233,15 @@ async function handleQuestion(question){
   if (r.error){
     setState('idle');
     if (r.error === 'nokey'){
-      setStatus('Pollinations indisponible - reessaie dans 30s');
-      toast('Pollinations est temporairement indisponible — reessaie dans 30 secondes');
+      setStatus('Aucune clé API - cerveaux gratuits');
+      toast("Aucune clé API configurée — j'utilise les cerveaux gratuits");
     } else if (r.error === 'limit' || r.error === 'timeout'){
-      setStatus('Pollinations indisponible - reessaie dans 30s');
-      await speak("Pollinations est temporairement indisponible. Réessaie dans 5 secondes.");
+      /* v8.90 : plus JAMAIS "Pollinations indisponible" : on repond avec la
+         memoire+logique locale (reponse utile, pas un message d'erreur). */
+      const fallback = localSmartReply(question);
+      addAiMsg(fallback, 'local');
+      setStatus('Cerveau en ligne saturé - réponse locale');
+      await speak(fallback);
     } else {
       setStatus('Erreur IA - verifie ta cle');
       await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
