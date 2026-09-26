@@ -1890,17 +1890,23 @@ function splitSentences(text, max){
     else cur = next;
   }
   if (cur.trim()) out.push(cur.trim());
-  /* sous-decoupage des chunks trop longs (phrase unique > max) */
-  const final = [];
-  for (const c of out){
-    if (c.length <= max){ final.push(c); continue; }
-    let part = '';
-    for (const word of c.split(/(\s+)/)){
-      if ((part + word).length > max && part){ final.push(part.trim()); part = word; }
-      else part += word;
+    /* sous-decoupage des chunks trop longs : coupe au dernier point/virgule
+       avant max (pas au milieu d'une phrase) pour que Piper ne fasse pas
+       de pause bizarre au milieu d'une phrase */
+    const final = [];
+    for (const c of out){
+      if (c.length <= max){ final.push(c); continue; }
+      let part = '';
+      for (const word of c.split(/(\s+)/)){
+        if ((part + word).length > max && part){
+          /* cherche le dernier separateur dans part pour couper proprement */
+          const lastSep = Math.max(part.lastIndexOf('.'), part.lastIndexOf(','), part.lastIndexOf(':'));
+          if (lastSep > 20){ final.push(part.slice(0, lastSep + 1).trim()); part = part.slice(lastSep + 1).trim() + word; }
+          else { final.push(part.trim()); part = word; }
+        } else part += word;
+      }
+      if (part.trim()) final.push(part.trim());
     }
-    if (part.trim()) final.push(part.trim());
-  }
   return final.length ? final : [text];
 }
 async function speakGoogleTTS(text){
@@ -2034,7 +2040,7 @@ async function speakPiper(text){
        meilleure articulation, sinon Siwis par defaut. */
     const effectiveVoiceId = (voiceId === 'fr_FR-siwis-medium' && !parts[1]) ? 'fr_FR-tom-medium' : voiceId;
     const engine = await getPiperEngine();
-    const chunks = splitSentences(text, 300);
+    const chunks = splitSentences(text, 180);
     for (const c of chunks){
       const voiceData = await engine.voiceProvider.fetch(effectiveVoiceId);
       const phonemeData = await engine.phonemizeRuntime.phonemize(c, voiceData);
