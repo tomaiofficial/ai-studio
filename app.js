@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.78';
+const APP_VERSION = '8.79';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', soniox: 'va_soniox', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2105,9 +2105,10 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    /* v8.78 : si une cle Soniox est collee, sa voix naturelle passe EN PRIORITE
-       (secours auto : Edge puis Google puis Systeme). */
-    if (getSonioxKey()) chain = [['Soniox', speakSonioxTTS], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    /* v8.79 : voix Soniox en PRIORITE si choisie dans le selecteur OU si une cle
+       Soniox est collee (secours auto : Edge puis Google puis Systeme). */
+    const sonioxFirst = voiceMode === 'soniox' || getSonioxKey();
+    if (sonioxFirst) chain = [['Soniox', speakSonioxTTS], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
        Systeme en dernier recours. Le choix du selecteur est respecte. */
     else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
