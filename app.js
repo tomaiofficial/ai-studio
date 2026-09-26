@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.80';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', soniox: 'va_soniox', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.81';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), sonioxKeyInput = $('sonioxKey'), brainSel = $('brainSel');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), brainSel = $('brainSel');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -303,13 +303,11 @@ function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim()
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
-function getSonioxKey(){ return (localStorage.getItem(LS.soniox) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
-  sonioxKeyInput.value = getSonioxKey();
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
@@ -321,12 +319,6 @@ groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   badGroqKey = false; /* v8.68 : nouvelle cle -> on reessaie Groq */
   toast('Cle Groq enregistree');
-});
-
-sonioxKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.soniox, sonioxKeyInput.value.trim());
-  sonioxErrShown = false; /* v8.80 : nouvelle cle -> on reessaie et on re-diagnostique */
-  toast('Cle Soniox enregistree - transcription et voix Soniox activees');
 });
 
 brainSel.addEventListener('change', () => {
@@ -524,21 +516,6 @@ async function startRecorder(){
          Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
       setState('thinking');
       setStatus('Je t\'ecoute...');
-      /* Soniox en PRIORITE si une cle est collee : transcription ultra precise
-         (60+ langues, francais parfait). Secours Whisper si echec. */
-      if (getSonioxKey()){
-        setStatus('Transcription Soniox...');
-        try {
-          const txt = await transcribeSoniox(blob);
-          if (txt){
-            setState('idle');
-            handleQuestion(txt);
-            return;
-          }
-        } catch (err){
-          console.warn('[STT] Soniox a echoue, secours Whisper :', err && err.message);
-        }
-      }
       if (!whisperLoaded && !whisperLoading){
         setStatus('Preparation de la transcription locale (1 seule fois)...');
         loadWhisper();
@@ -1873,82 +1850,6 @@ async function speakEdgeTTS(text){
 } catch(e){ console.warn('[VOIX] EdgeTTS echec:', e.message); return false; }
 }
 
-/* ===== VOIX SONIOX (TTS REST) =====
-   Voix naturelle Soniox (60+ langues, francais parfait). Utilisee en PRIORITE
-   si une cle Soniox est collee dans les reglages. Secours auto : Edge puis
-   Google puis Systeme. POST https://tts-rt.soniox.com/tts -> audio mp3 brut. */
-const SONIOX_TTS_URL = 'https://tts-rt.soniox.com/tts';
-const SONIOX_TTS_VOICE = 'Maya'; /* voix femme claire, parle toutes les langues */
-let sonioxErrShown = false; /* v8.80 : diagnostic affiche 1 seule fois par session */
-function playSonioxChunk(c){
-  return new Promise(res => {
-    const key = getSonioxKey();
-    if (!key) return res(false);
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
-    fetch(SONIOX_TTS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model: 'tts-rt-v2', language: 'fr', voice: SONIOX_TTS_VOICE, audio_format: 'mp3', text: c }),
-      signal: ctrl.signal
-    }).then(r => {
-      if (!r.ok){
-        if (!sonioxErrShown){
-          sonioxErrShown = true;
-          const msg = r.status === 401 ? 'Cle Soniox invalide - verifie ta cle dans les reglages'
-            : r.status === 400 ? 'Voix Soniox invalide (400) - modele ou voix inconnu'
-            : r.status === 402 ? 'Soniox: solde epuise'
-            : r.status === 429 ? 'Soniox: quota depasse - reessaie plus tard'
-            : 'Soniox erreur ' + r.status;
-          toast(msg);
-          console.warn('[VOIX] Soniox:', msg);
-        }
-        throw new Error('Soniox TTS HTTP ' + r.status);
-      }
-      return r.blob();
-    }).then(blob => {
-      clearTimeout(timer);
-      if (!blob || blob.size < 500) return res(false);
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.volume = 1.0;
-      currentAudios.push(audio);
-      let done = false, started = false;
-      const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
-      audio.onplaying = () => { started = true; };
-      audio.onended = () => finish(true);
-      audio.onerror = () => { console.warn('[VOIX] Soniox audio error'); finish(false); };
-      const tryPlay = n => {
-        audio.play().then(() => {}).catch(() => {
-          if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
-          else finish(false);
-        });
-      };
-      tryPlay(0);
-      setTimeout(() => { if (!done && !started) finish(false); }, 10000);
-      setTimeout(() => { if (!done) finish(true); }, 30000);
-    }).catch(e => {
-      clearTimeout(timer);
-      console.warn('[VOIX] Soniox TTS echec:', e && e.message);
-      res(false);
-    });
-  });
-}
-async function speakSonioxTTS(text){
-  try {
-    const chunks = splitSentences(text, 250);
-    for (const c of chunks){
-      let ok = await playSonioxChunk(c);
-      if (!ok){
-        await new Promise(r => setTimeout(r, 500));
-        ok = await playSonioxChunk(c);
-      }
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] Soniox TTS echec:', e.message); return false; }
-}
-
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
    aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
 function speakSystem(text){
@@ -2038,51 +1939,6 @@ async function transcribeBlob(blob){
   } catch(e){ console.warn('[STT] Whisper erreur:', e && e.message); return ''; }
 }
 
-/* ===== SONIOX SPEECH-TO-TEXT (async) =====
-   Transcription ultra precise (60+ langues, francais parfait, code-switching).
-   Utilisee en PRIORITE si une cle Soniox est collee dans les reglages.
-   Flux : upload fichier -> creation transcription -> polling -> transcript.
-   Le blob webm est accepte directement (aucune conversion). */
-async function transcribeSoniox(blob){
-  const key = getSonioxKey();
-  if (!key) return '';
-  const H = { 'Authorization': 'Bearer ' + key };
-  /* 1. Upload du fichier audio */
-  const fd = new FormData();
-  fd.append('file', blob, 'audio.webm');
-  const upRes = await fetch('https://api.soniox.com/v1/files', { method: 'POST', headers: H, body: fd });
-  if (!upRes.ok) throw new Error('Soniox upload ' + upRes.status);
-  const upData = await upRes.json();
-  const fileId = upData.id;
-  if (!fileId) throw new Error('Soniox pas de file_id');
-  /* 2. Creation de la transcription */
-  const crRes = await fetch('https://api.soniox.com/v1/transcriptions', {
-    method: 'POST',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, H),
-    body: JSON.stringify({ model: 'stt-async-v5', file_id: fileId, language_hints: ['fr'] })
-  });
-  if (!crRes.ok) throw new Error('Soniox create ' + crRes.status);
-  const crData = await crRes.json();
-  const tId = crData.id;
-  if (!tId) throw new Error('Soniox pas de transcription id');
-  /* 3. Polling jusqu'a completion (max 20s) */
-  const deadline = Date.now() + 20000;
-  while (Date.now() < deadline){
-    await new Promise(r => setTimeout(r, 800));
-    const gRes = await fetch('https://api.soniox.com/v1/transcriptions/' + tId, { headers: H });
-    if (!gRes.ok) throw new Error('Soniox poll ' + gRes.status);
-    const gData = await gRes.json();
-    if (gData.status === 'completed'){
-      const tRes = await fetch('https://api.soniox.com/v1/transcriptions/' + tId + '/transcript', { headers: H });
-      if (!tRes.ok) throw new Error('Soniox transcript ' + tRes.status);
-      const tData = await tRes.json();
-      return (tData.text || '').trim();
-    }
-    if (gData.status === 'failed') throw new Error('Soniox transcription echouee');
-  }
-  throw new Error('Soniox timeout');
-}
-
 function speak(text){
   return new Promise(resolve => {
     let clean = text;
@@ -2119,13 +1975,9 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    /* v8.79 : voix Soniox en PRIORITE si choisie dans le selecteur OU si une cle
-       Soniox est collee (secours auto : Edge puis Google puis Systeme). */
-    const sonioxFirst = voiceMode === 'soniox' || getSonioxKey();
-    if (sonioxFirst) chain = [['Soniox', speakSonioxTTS], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
        Systeme en dernier recours. Le choix du selecteur est respecte. */
-    else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
