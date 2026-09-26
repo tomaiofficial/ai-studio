@@ -1910,7 +1910,6 @@ function splitSentences(text, max){
   return final.length ? final : [text];
 }
 /* ===== VOIX SYSTÈME SEULE : navigateur, hors ligne, 100% fiable, sans clé. ===== */
-   en francais (fr-FR-DeniseNeural, femme). GRATUITE, AUCUNE cle, AUCUNE limite.
    Le WebSocket Bing etant bloque sur ce reseau, on passe par un proxy public
    gratuit (edge-tts.vercel.app) qui renvoie le MP3 en HTTP -> joue via <audio>
    (pas de fetch -> pas de blocage CORS). Secours auto : Google TTS puis Systeme. ===== */
