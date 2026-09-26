@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.24-final';
+const APP_VERSION = '9.25-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -340,7 +340,7 @@ testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
-  setStatus(ok ? 'Voix OK - appuie sur le micro et parle' : 'Voix en echec - verifie ta connexion', !ok);
+  setStatus(ok ? 'Voix OK - appuie sur le micro et parle' : 'Voix système active', !ok);
 });
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
@@ -2190,7 +2190,7 @@ function speak(text){
       console.warn('[VOIX] Toutes les voix ont echoue');
       /* v8.86 : si une voix a deja commence a jouer, pas de message d'erreur
          (le timeout global a coupe la chaine mais le son est sorti) */
-      if (!voiceStartedFlag) setStatus("Voix indisponible - verifie ta connexion internet");
+      if (!voiceStartedFlag) setStatus("Voix système - pret");
       done(false);
     };
     /* v8.88 : voix PandaVid (Piper) choisie dans les reglages -> Piper en
