@@ -313,7 +313,6 @@ function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
-  piperVoiceSel.value = getPiperVoice();
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
