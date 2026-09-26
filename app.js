@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.34-final';
+const APP_VERSION = '9.35-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1198,16 +1198,16 @@ async function askBrain(messages, webCtx){
       return { err: 'net' };
     } catch(e){ return { err: 'net' }; }
   };
-  /* v8.67 : retry 1x sur 429 (rate limit transitoire ~1 req/5s par IP) */
+/* v8.67 : retry 1x sur 429 (rate limit transitoire ~1 req/5s par IP) */
   const tryWithRetry = async (url, model) => {
-    let t = await tryEndpoint(url, model, 8000);
+    let t = await tryEndpoint(url, model, 5000);
     if (t && t.err === 'limit'){
-      await new Promise(r => setTimeout(r, 2000));
-      t = await tryEndpoint(url, model, 8000);
+      await new Promise(r => setTimeout(r, 1000));
+      t = await tryEndpoint(url, model, 5000);
     }
     return t;
   };
-/* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
+  /* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
      Rate limit DIFFERENT du POST /openai/v1 (souvent 429) -> 2e chance fiable.
      Retourne du TEXTE BRUT. URL limitee a ~1400 caracteres. */
   const tryPollinationsGet = async (model) => {
@@ -1219,7 +1219,7 @@ async function askBrain(messages, webCtx){
       prompt += ' Question : ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
       const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=' + (model || 'openai');
-      const res = await withTimeout(fetch(url), 15000);
+      const res = await withTimeout(fetch(url), 8000);
       if (res && res.ok){
         const text = (await res.text()).trim();
         if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text) && !isSecoursReply(text)) return text;
@@ -1236,26 +1236,29 @@ async function askBrain(messages, webCtx){
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations' || brain === 'auto'){
-    /* Pollinations GET natif x4 (openai/mistral alternes) -> POST Pollinations -> LLM7 -> OVH -> Local */
+    /* RAPIDE : Local instantané + Pollinations en parallèle (max 8s) */
+    const localText = localSmartReply(question);
     let t = null;
     const models = ['openai', 'mistral'];
-    for (let i = 0; i < 4; i++){
-      if (i > 0) await new Promise(r => setTimeout(r, 500 * i));
-      t = await tryPollinationsGet(models[i % 2]);
-      if (typeof t === 'string') break;
-    }
-    if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
-    // POST Pollinations avec retry
-    t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
-    if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
-    // LLM7
-    t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
-    if (typeof t === 'string') return { text: t, diag: 'LLM7' };
-    // OVH
-    t = await tryWithRetry('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
-    if (typeof t === 'string') return { text: t, diag: 'OVH' };
-    // Local en dernier recours
-    return { text: localSmartReply(question), diag: 'local (tous echecs)' };
+    const pollinationsPromise = (async () => {
+      for (let i = 0; i < 2; i++){
+        if (i > 0) await new Promise(r => setTimeout(r, 300));
+        const t = await tryPollinationsGet(models[i % 2]);
+        if (typeof t === 'string') return t;
+      }
+      return null;
+    })();
+    // Attend max 5s pour Pollinations, sinon local
+    const pollinationsResult = await Promise.race([
+      pollinationsPromise,
+      new Promise(r => setTimeout(() => r(null), 5000))
+    ]);
+    if (pollinationsResult) return { text: pollinationsResult, diag: 'Pollinations' };
+    // POST Pollinations rapide
+    const postResult = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+    if (typeof postResult === 'string') return { text: postResult, diag: 'Pollinations' };
+    // Local instantané en secours
+    return { text: localText, diag: 'local' };
   }
   if (brain === 'llm7'){
     const t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
