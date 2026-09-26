@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.19-final';
+const APP_VERSION = '9.20-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), googleaiKeyInput = $('googleaiKey'), openrouterKeyInput = $('openrouterKey');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), googleaiKeyInput = $('googleaiKey'), openrouterKeyInput = $('openrouterKey'), hfTokenInput = $('hfToken');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -328,6 +328,10 @@ if (googleaiKeyInput) googleaiKeyInput.addEventListener('change', () => {
 if (openrouterKeyInput) openrouterKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.openrouter, openrouterKeyInput.value.trim());
   toast('Cle OpenRouter enregistree');
+});
+if (hfTokenInput) hfTokenInput.addEventListener('change', () => {
+  localStorage.setItem('LS.hf', hfTokenInput.value.trim());
+  toast('Token Hugging Face enregistre');
 });
 
 /* Piper retire v8.96 : pas de selecteur */
@@ -1931,16 +1935,47 @@ function splitSentences(text, max){
 }
 async function speakGoogleTTS(text){
   try {
-    /* morceaux de 180 caracteres : phrase complete, prosodie naturelle (comme
-       ChatGPT), sous la limite Google (~200). 120 etait trop hache. */
     const chunks = splitSentences(text, 180);
     for (const c of chunks){
       let ok = await playGoogleChunk(c);
-      if (!ok) ok = await playGoogleChunk(c); /* 1 retry par morceau (reseau instable) */
+      if (!ok) ok = await playGoogleChunk(c);
       if (!ok) return false;
     }
     return true;
   } catch(e){ console.warn('[VOIX] GoogleTTS echec:', e.message); return false; }
+}
+
+/* ===== HUGGING FACE MMS-TTS (Meta AI) : modèle Meta open-source, 1100+ langues.
+   Gratuit avec token HF (huggingface.co/settings/tokens). Modèle: facebook/mms-tts-fra.
+   Proche de la voix Meta AI. ===== */
+async function speakHfMmsTts(text){
+  const token = (localStorage.getItem('LS.hf') || '').trim();
+  if (!token) return { error: 'nokey' };
+  try {
+    const chunks = splitSentences(text, 200);
+    for (const c of chunks){
+      const res = await fetch('https://api-inference.huggingface.co/models/facebook/mms-tts-fra', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputs: c })
+      });
+      if (!res.ok) {
+        if (res.status === 401) { toast('Token HF invalide'); return false; }
+        if (res.status === 503) { await new Promise(r => setTimeout(r, 3000)); continue; } /* cold start */
+        return false;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      await new Promise((resolve, reject) => {
+        const a = new Audio(url);
+        a.onended = resolve;
+        a.onerror = reject;
+        a.play().catch(reject);
+      });
+      URL.revokeObjectURL(url);
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] HF MMS-TTS echec:', e.message); return false; }
 }
 
 /* ===== VOIX IA REALISTE EDGE (Microsoft Neural) : la voix la plus naturelle
@@ -2211,12 +2246,12 @@ function speak(text){
     if (voiceMode.startsWith('system:')){
       const voiceName = voiceMode.substring(7);
       chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName)]];
-    } else if (piperFirst) chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'edge') chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'systeme') chain = [['Système', speakSystem], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeTTS]];
-    else if (voiceMode === 'google') chain = [['Système', speakSystem], ['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'naturelle') chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
-    else chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    } else if (piperFirst) chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    else if (voiceMode === 'edge') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    else if (voiceMode === 'systeme') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeTTS]];
+    else if (voiceMode === 'google') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['GoogleTTS', speakGoogleTTS]];
+    else if (voiceMode === 'naturelle') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    else chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
