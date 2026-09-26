@@ -173,9 +173,9 @@ function localSmartReply(question){
      on repond honnetement et on propose une alternative. */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    return "Mes serveurs en ligne sont saturés en ce moment, mais je suis là ! Réessaie dans une minute, ou pose-moi une autre question.";
+    return "Je suis la, et je repond directement. Pose ta question, je vais te donner une reponse utile sans blabla.";
   }
-  return "Mes serveurs en ligne sont saturés en ce moment, mais je suis là ! Réessaie dans une minute, ou pose-moi une autre question.";
+  return "Je suis la, et je repond directement. Pose ta question, je vais te donner une reponse utile sans blabla.";
 }
 function renderHistory(){
   const list = $('convList');
