@@ -1318,17 +1318,12 @@ async function askAI(question){
   if (mem){
     messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
   }
-  /* v8.92 : RECHERCHE WEB EN TEMPS REEL - injectee dans le contexte AVANT les
-     cerveaux (sinon l'IA repond "je ne peux pas faire de recherches web").
-     Timeout 5s : si la recherche traine, on repond sans contexte web. */
+  /* v8.99 : recherche web simplifiee - injectee seulement si question d'actualite */
   let webCtx = '';
   try {
-    webCtx = await Promise.race([
-      webSearch(question),
-      new Promise(res => setTimeout(() => res(''), 5000))
-    ]);
-    if (webCtx){
-      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
+    if (/actualit|nouvelle|aujourd|hier|recemment|dernier|actu|news|election|president|guerre|crise|prix|meteo|temps|resultat|score|match|sortie|annonc|deces|attaque|accord|loi|gouvernement|minister|economie|football|ligue|championnat|internet|web|recherche/i.test(question)){
+      webCtx = await Promise.race([webSearch(question), new Promise(res => setTimeout(() => res(''), 3000))]);
+      if (webCtx) messages.unshift({ role: 'system', content: 'Web (recherche en direct) : ' + webCtx.slice(0, 800) });
     }
   } catch {}
   const r = await askBrain(messages, webCtx);
