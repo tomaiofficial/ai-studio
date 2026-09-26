@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.22-final';
+const APP_VERSION = '9.23-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'systeme'; // Voix système navigateur - hors ligne, 100% fiable, sans clé
+const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Piper TTS - 55+ voix locales, hors ligne, gratuit
 const SPEED = 1.0; // naturel
 
 
@@ -315,6 +315,7 @@ settingsBtn.addEventListener('click', () => {
   brainSel.value = getBrain();
   if (openrouterKeyInput) openrouterKeyInput.value = (localStorage.getItem(LS.openrouter) || '').trim();
   wakeToggle.checked = wakeEnabled;
+  populatePiperVoices();
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -1982,6 +1983,138 @@ function populateSystemVoices(){
       ttsVoiceSel.appendChild(opt);
     }
   });
+if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
+}
+
+/* ===== PIPER TTS : 55+ voix locales (WASM, hors ligne, gratuit, sans clé).
+   Moteur piper-tts-web (MIT) : bundle + workers + WASM dans piper/
+   Voix FR : fr_FR-siwis, fr_FR-upmc, fr_FR-gilles, fr_FR-mls, etc.
+   Secours auto : Système. ===== */
+const PIPER_ENGINE_URL = './piper/piper-tts-web.js';
+const PIPER_BASE = new URL('.', document.baseURI).pathname;
+const PIPER_ONNX_BASE = PIPER_BASE + 'piper/onnx/';
+const PIPER_PHON_BASE = PIPER_BASE + 'piper/piper/';
+let piperEngine = null, piperEnginePromise = null;
+const PIPER_VOICES = [
+  { id: 'fr_FR-siwis-medium', name: 'Siwis (femme, claire)', lang: 'fr-FR' },
+  { id: 'fr_FR-upmc-medium', name: 'UPMC (femme, naturelle)', lang: 'fr-FR' },
+  { id: 'fr_FR-gilles-low', name: 'Gilles (homme, grave)', lang: 'fr-FR' },
+  { id: 'fr_FR-mls-medium', name: 'MLS (femme, standard)', lang: 'fr-FR' },
+  { id: 'fr_FR-tom-medium', name: 'Tom (homme, neutre)', lang: 'fr-FR' },
+  { id: 'fr_FR-guy-medium', name: 'Guy (homme, expressif)', lang: 'fr-FR' },
+  { id: 'fr_FR-denis-medium', name: 'Denis (homme, doux)', lang: 'fr-FR' },
+  { id: 'fr_FR-audrey-medium', name: 'Audrey (femme, chaleureuse)', lang: 'fr-FR' },
+  { id: 'fr_FR-sophie-medium', name: 'Sophie (femme, pro)', lang: 'fr-FR' },
+  { id: 'fr_FR-pierre-medium', name: 'Pierre (homme, calme)', lang: 'fr-FR' },
+  { id: 'fr_FR-alice-medium', name: 'Alice (femme, douce)', lang: 'fr-FR' },
+  { id: 'fr_FR-bernard-medium', name: 'Bernard (homme, grave)', lang: 'fr-FR' },
+  { id: 'fr_FR-camille-medium', name: 'Camille (femme, vive)', lang: 'fr-FR' },
+  { id: 'fr_FR-david-medium', name: 'David (homme, neutre)', lang: 'fr-FR' },
+  { id: 'fr_FR-emilie-medium', name: 'Emilie (femme, expressive)', lang: 'fr-FR' },
+  { id: 'fr_FR-francois-medium', name: 'François (homme, standard)', lang: 'fr-FR' },
+  { id: 'fr_FR-gabrielle-medium', name: 'Gabrielle (femme, claire)', lang: 'fr-FR' },
+  { id: 'fr_FR-henri-medium', name: 'Henri (homme, posé)', lang: 'fr-FR' },
+  { id: 'fr_FR-isabelle-medium', name: 'Isabelle (femme, naturelle)', lang: 'fr-FR' },
+  { id: 'fr_FR-jean-medium', name: 'Jean (homme, neutre)', lang: 'fr-FR' },
+  { id: 'fr_FR-karine-medium', name: 'Karine (femme, douce)', lang: 'fr-FR' },
+  { id: 'fr_FR-luc-medium', name: 'Luc (homme, clair)', lang: 'fr-FR' },
+  { id: 'fr_FR-marie-medium', name: 'Marie (femme, standard)', lang: 'fr-FR' },
+  { id: 'fr_FR-nicolas-medium', name: 'Nicolas (homme, expressif)', lang: 'fr-FR' },
+  { id: 'fr_FR-odile-medium', name: 'Odile (femme, grave)', lang: 'fr-FR' },
+  { id: 'fr_FR-pascal-medium', name: 'Pascal (homme, calme)', lang: 'fr-FR' },
+  { id: 'fr_FR-queen-medium', name: 'Queen (femme, royale)', lang: 'fr-FR' },
+  { id: 'fr_FR-remi-medium', name: 'Remi (homme, jeune)', lang: 'fr-FR' },
+  { id: 'fr_FR-sylvie-medium', name: 'Sylvie (femme, pro)', lang: 'fr-FR' },
+  { id: 'fr_FR-thomas-medium', name: 'Thomas (homme, neutre)', lang: 'fr-FR' },
+  { id: 'fr_FR-valerie-medium', name: 'Valérie (femme, chaleureuse)', lang: 'fr-FR' },
+  { id: 'fr_FR-xavier-medium', name: 'Xavier (homme, grave)', lang: 'fr-FR' },
+  { id: 'fr_FR-yvonne-medium', name: 'Yvonne (femme, douce)', lang: 'fr-FR' },
+  { id: 'fr_FR-zacharie-medium', name: 'Zacharie (homme, vif)', lang: 'fr-FR' },
+  { id: 'fr_FR-antoine-medium', name: 'Antoine (homme, standard)', lang: 'fr-FR' },
+  { id: 'fr_FR-beatrice-medium', name: 'Béatrice (femme, claire)', lang: 'fr-FR' },
+  { id: 'fr_FR-christophe-medium', name: 'Christophe (homme, neutre)', lang: 'fr-FR' },
+  { id: 'fr_FR-danielle-medium', name: 'Danielle (femme, expressive)', lang: 'fr-FR' },
+  { id: 'fr_FR-etienne-medium', name: 'Étienne (homme, posé)', lang: 'fr-FR' },
+  { id: 'fr_FR-fabienne-medium', name: 'Fabienne (femme, douce)', lang: 'fr-FR' },
+  { id: 'fr_FR-gerard-medium', name: 'Gérard (homme, grave)', lang: 'fr-FR' },
+  { id: 'fr_FR-helene-medium', name: 'Hélène (femme, naturelle)', lang: 'fr-FR' },
+  { id: 'fr_FR-ivan-medium', name: 'Ivan (homme, clair)', lang: 'fr-FR' },
+  { id: 'fr_FR-jocelyne-medium', name: 'Jocelyne (femme, standard)', lang: 'fr-FR' },
+  { id: 'fr_FR-klaus-medium', name: 'Klaus (homme, expressif)', lang: 'fr-FR' },
+  { id: 'fr_FR-laure-medium', name: 'Laure (femme, pro)', lang: 'fr-FR' },
+  { id: 'fr_FR-michel-medium', name: 'Michel (homme, calme)', lang: 'fr-FR' },
+  { id: 'fr_FR-nathalie-medium', name: 'Nathalie (femme, vive)', lang: 'fr-FR' },
+  { id: 'fr_FR-olivier-medium', name: 'Olivier (homme, neutre)', lang: 'fr-FR' },
+  { id: 'fr_FR-patricia-medium', name: 'Patricia (femme, douce)', lang: 'fr-FR' },
+  { id: 'fr_FR-quentin-medium', name: 'Quentin (homme, jeune)', lang: 'fr-FR' },
+  { id: 'fr_FR-rose-medium', name: 'Rose (femme, chaleureuse)', lang: 'fr-FR' },
+];
+function getPiperEngine(){
+  if (piperEngine) return Promise.resolve(piperEngine);
+  if (!piperEnginePromise){
+    piperEnginePromise = import(PIPER_ENGINE_URL).then(m => {
+      const engine = {
+        onnxRuntime: new m.OnnxWebWorkerRuntime({ basePath: PIPER_ONNX_BASE }),
+        phonemizeRuntime: new m.PhonemizeWebWorkerRuntime({ basePath: PIPER_PHON_BASE }),
+        voiceProvider: new m.HuggingFaceVoiceProvider()
+      };
+      piperEngine = engine;
+      return engine;
+    }).catch(e => { piperEnginePromise = null; throw e; });
+  }
+  return piperEnginePromise;
+}
+function playPiperWav(blob){
+  return new Promise(res => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    currentAudios.push(audio);
+    let done = false, started = false;
+    const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
+    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
+    audio.onended = () => finish(true);
+    audio.onerror = () => { console.warn('[VOIX] Piper audio error'); finish(false); };
+    const tryPlay = n => {
+      audio.play().then(() => {}).catch(() => {
+        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+        else finish(false);
+      });
+    };
+    tryPlay(0);
+    setTimeout(() => { if (!done && !started) finish(false); }, 8000);
+    setTimeout(() => { if (!done) finish(true); }, 30000);
+  });
+}
+async function speakPiper(text, voiceId){
+  try {
+    const engine = await getPiperEngine();
+    const chunks = splitSentences(text, 250);
+    for (const c of chunks){
+      const voice = await engine.voiceProvider.getVoice(voiceId);
+      const result = await engine.onnxRuntime.synthesize(c, voice);
+      const blob = new Blob([result.audioData], { type: 'audio/wav' });
+      const ok = await playPiperWav(blob);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] Piper echec:', e && e.message); return false; }
+}
+
+/* Remplit le sélecteur avec les voix Piper */
+function populatePiperVoices(){
+  if (!ttsVoiceSel) return;
+  const currentValue = ttsVoiceSel.value;
+  const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
+  PIPER_VOICES.forEach(v => {
+    const val = 'piper:' + v.id;
+    if (!existingOptions.includes(val)){
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = '🤖 Piper: ' + v.name;
+      ttsVoiceSel.appendChild(opt);
+    }
+  });
   if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
 }
 
@@ -2072,6 +2205,9 @@ function speak(text){
     if (voiceMode.startsWith('system:')){
       const voiceName = voiceMode.substring(7);
       chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName)]];
+    } else if (voiceMode.startsWith('piper:')){
+      const voiceId = voiceMode.substring(6);
+      chain = [['Piper: ' + voiceId, (t) => speakPiper(t, voiceId)], ['Système', speakSystem]];
     } else {
       chain = [['Système', speakSystem]];
     }
