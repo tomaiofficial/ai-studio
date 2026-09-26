@@ -327,10 +327,7 @@ groqKeyInput.addEventListener('change', () => {
   toast('Cle Groq enregistree');
 });
 
-piperVoiceSel.addEventListener('change', () => {
-  localStorage.setItem(LS.piper, piperVoiceSel.value);
-  toast('Voix PandaVid choisie : ' + piperVoiceSel.options[piperVoiceSel.selectedIndex].text);
-});
+/* Piper retire v8.96 : pas de selecteur */
 
 brainSel.addEventListener('change', () => {
   localStorage.setItem(LS.brain, brainSel.value);
