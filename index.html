@@ -369,6 +369,22 @@ select.wide-input{appearance:none}
       <option value="piper:fr_FR-rose-medium">🤖 Piper: Rose (femme, chaleureuse)</option>
       <option value="systeme">🎙️ Voix système du navigateur — hors ligne</option>
     </select>
+    <div class="piper-download-section" style="margin-top:12px; padding:12px; background:#1a1a2e; border-radius:8px; border:1px solid #333;">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <button class="primary" id="downloadAllVoices" style="flex:1; min-width:200px;">📥 Télécharger toutes les voix Piper (55 voix, ~2.5 Go)</button>
+        <button class="secondary" id="downloadSelectedVoice" style="flex:1; min-width:150px;">📥 Télécharger voix sélectionnée</button>
+      </div>
+      <div id="piperDownloadProgress" style="margin-top:12px; display:none;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span id="piperProgressText">Préparation...</span>
+          <span id="piperProgressPercent">0%</span>
+        </div>
+        <div style="height:8px; background:#333; border-radius:4px; overflow:hidden;">
+          <div id="piperProgressBar" style="height:100%; width:0%; background:linear-gradient(90deg, #00d4aa, #00ffcc); transition:width 0.3s;"></div>
+        </div>
+        <div id="piperCurrentVoice" style="margin-top:4px; font-size:12px; color:#888;"></div>
+      </div>
+    </div>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
 
     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
@@ -390,6 +406,6 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.25-final"></script>
+<script src="app.js?v=9.26-final"></script>
 </body>
 </html>

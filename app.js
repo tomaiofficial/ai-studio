@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.25-final';
+const APP_VERSION = '9.26-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -341,6 +341,83 @@ testVoiceBtn.addEventListener('click', async () => {
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
   setStatus(ok ? 'Voix OK - appuie sur le micro et parle' : 'Voix système active', !ok);
+});
+
+const downloadAllVoicesBtn = $('downloadAllVoices');
+const downloadSelectedVoiceBtn = $('downloadSelectedVoice');
+const piperDownloadProgress = $('piperDownloadProgress');
+const piperProgressBar = $('piperProgressBar');
+const piperProgressText = $('piperProgressText');
+const piperProgressPercent = $('piperProgressPercent');
+const piperCurrentVoice = $('piperCurrentVoice');
+
+if (downloadAllVoicesBtn) downloadAllVoicesBtn.addEventListener('click', async () => {
+  downloadAllVoicesBtn.disabled = true;
+  downloadSelectedVoiceBtn.disabled = true;
+  piperDownloadProgress.style.display = 'block';
+  piperProgressBar.style.width = '0%';
+  piperProgressText.textContent = 'Initialisation...';
+  piperProgressPercent.textContent = '0%';
+  piperCurrentVoice.textContent = '';
+  
+  try {
+    await downloadAllPiperVoices(
+      (progress) => {
+        const pct = Math.round(progress * 100);
+        piperProgressBar.style.width = pct + '%';
+        piperProgressPercent.textContent = pct + '%';
+      },
+      (voiceId, success, cached) => {
+        const name = PIPER_VOICES.find(v => v.id === voiceId)?.name || voiceId;
+        piperCurrentVoice.textContent = (cached ? '✅ Déjà en cache: ' : (success ? '✅ Téléchargé: ' : '❌ Échec: ')) + name;
+      }
+    );
+    toast('Toutes les voix Piper téléchargées !');
+  } catch(e) {
+    console.error('[PIPER] Erreur téléchargement:', e);
+    toast('Erreur lors du téléchargement');
+  } finally {
+    downloadAllVoicesBtn.disabled = false;
+    downloadSelectedVoiceBtn.disabled = false;
+  }
+});
+
+if (downloadSelectedVoiceBtn) downloadSelectedVoiceBtn.addEventListener('click', async () => {
+  const voiceMode = getVoice();
+  if (!voiceMode.startsWith('piper:')) {
+    toast('Sélectionne une voix Piper d\'abord');
+    return;
+  }
+  const voiceId = voiceMode.substring(6);
+  downloadSelectedVoiceBtn.disabled = true;
+  downloadAllVoicesBtn.disabled = true;
+  piperDownloadProgress.style.display = 'block';
+  piperProgressBar.style.width = '0%';
+  piperProgressText.textContent = 'Téléchargement de ' + voiceId + '...';
+  piperProgressPercent.textContent = '0%';
+  piperCurrentVoice.textContent = '';
+  
+  try {
+    const success = await downloadPiperVoice(voiceId, (p) => {
+      const pct = Math.round(p * 100);
+      piperProgressBar.style.width = pct + '%';
+      piperProgressPercent.textContent = pct + '%';
+    });
+    if (success) {
+      toast('Voix ' + voiceId + ' téléchargée !');
+      piperProgressText.textContent = 'Terminé !';
+      piperProgressPercent.textContent = '100%';
+      piperProgressBar.style.width = '100%';
+    } else {
+      toast('Échec du téléchargement');
+    }
+  } catch(e) {
+    console.error('[PIPER] Erreur:', e);
+    toast('Erreur lors du téléchargement');
+  } finally {
+    downloadSelectedVoiceBtn.disabled = false;
+    downloadAllVoicesBtn.disabled = false;
+  }
 });
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
@@ -2049,6 +2126,117 @@ const PIPER_VOICES = [
   { id: 'fr_FR-quentin-medium', name: 'Quentin (homme, jeune)', lang: 'fr-FR' },
   { id: 'fr_FR-rose-medium', name: 'Rose (femme, chaleureuse)', lang: 'fr-FR' },
 ];
+/* ===== PIPER VOICE DOWNLOADER : télécharge les modèles .onnx depuis HuggingFace
+   et les stocke dans IndexedDB pour usage hors ligne. ===== */
+const PIPER_MODEL_BASE_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/';
+const PIPER_DB_NAME = 'piper-voices-db';
+const PIPER_DB_VERSION = 1;
+let piperDB = null;
+
+function openPiperDB(){
+  return new Promise((resolve, reject) => {
+    if (piperDB) return resolve(piperDB);
+    const request = indexedDB.open(PIPER_DB_NAME, PIPER_DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => { piperDB = request.result; resolve(piperDB); };
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('voices')) {
+        db.createObjectStore('voices', { keyPath: 'id' });
+      }
+    };
+  });
+}
+
+async function saveVoiceToDB(voiceId, arrayBuffer){
+  const db = await openPiperDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('voices', 'readwrite');
+    const store = tx.objectStore('voices');
+    store.put({ id: voiceId, data: arrayBuffer, timestamp: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getVoiceFromDB(voiceId){
+  const db = await openPiperDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('voices', 'readonly');
+    const store = tx.objectStore('voices');
+    const request = store.get(voiceId);
+    request.onsuccess = () => resolve(request.result ? request.result.data : null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function isVoiceCached(voiceId){
+  const data = await getVoiceFromDB(voiceId);
+  return !!data;
+}
+
+/* LocalVoiceProvider : charge les voix depuis IndexedDB au lieu de HuggingFace */
+class LocalVoiceProvider {
+  async getVoice(voiceId){
+    const data = await getVoiceFromDB(voiceId);
+    if (!data) throw new Error('Voix non trouvée en local: ' + voiceId);
+    return new Uint8Array(data);
+  }
+}
+
+/* Télécharge une voix Piper avec progression */
+async function downloadPiperVoice(voiceId, onProgress){
+  const url = PIPER_MODEL_BASE_URL + voiceId + '/' + voiceId + '.onnx';
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const total = parseInt(response.headers.get('content-length') || '0', 10);
+    const reader = response.body.getReader();
+    const chunks = [];
+    let received = 0;
+    while (true){
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (onProgress && total) onProgress(received / total);
+    }
+    const arrayBuffer = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks){
+      arrayBuffer.set(chunk, offset);
+      offset += chunk.length;
+    }
+    await saveVoiceToDB(voiceId, arrayBuffer.buffer);
+    return true;
+  } catch(e){
+    console.warn('[PIPER] Téléchargement échoué:', voiceId, e.message);
+    return false;
+  }
+}
+
+/* Télécharge toutes les voix avec progression globale */
+async function downloadAllPiperVoices(onProgress, onVoiceComplete){
+  const voices = PIPER_VOICES.map(v => v.id);
+  let completed = 0;
+  for (const voiceId of voices){
+    if (await isVoiceCached(voiceId)){
+      completed++;
+      if (onProgress) onProgress(completed / voices.length);
+      if (onVoiceComplete) onVoiceComplete(voiceId, true, true);
+      continue;
+    }
+    const success = await downloadPiperVoice(voiceId, (p) => {
+      if (onProgress) onProgress((completed + p) / voices.length);
+    });
+    completed++;
+    if (onProgress) onProgress(completed / voices.length);
+    if (onVoiceComplete) onVoiceComplete(voiceId, success, false);
+  }
+  return true;
+}
+
+/* LocalVoiceProvider pour Piper Engine */
 function getPiperEngine(){
   if (piperEngine) return Promise.resolve(piperEngine);
   if (!piperEnginePromise){
@@ -2056,7 +2244,7 @@ function getPiperEngine(){
       const engine = {
         onnxRuntime: new m.OnnxWebWorkerRuntime({ basePath: PIPER_ONNX_BASE }),
         phonemizeRuntime: new m.PhonemizeWebWorkerRuntime({ basePath: PIPER_PHON_BASE }),
-        voiceProvider: new m.HuggingFaceVoiceProvider()
+        voiceProvider: new LocalVoiceProvider()
       };
       piperEngine = engine;
       return engine;
