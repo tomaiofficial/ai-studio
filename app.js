@@ -1922,6 +1922,7 @@ async function speakGoogleTTS(text){
    (pas de fetch -> pas de blocage CORS). Secours auto : Google TTS puis Systeme. ===== */
 const EDGE_TTS_PROXY = 'https://edge-tts.vercel.app/api/tts';
 const EDGE_TTS_VOICE = 'fr-FR-DeniseNeural';
+const EDGE_TTS_VOICE_ALT = 'fr-FR-AmelieNeural';
 /* v8.70 : PRE-ECHAUFFAGE du proxy Edge TTS au chargement. Vercel met l'instance
    en veille apres ~10 min d'inactivite -> le 1er appel peut repondre 504
    (cold start ~5-10s). Un ping discret au demarrage evite ce delai au 1er
@@ -1929,7 +1930,7 @@ const EDGE_TTS_VOICE = 'fr-FR-DeniseNeural';
 try { fetch(EDGE_TTS_PROXY + '?text=bonjour&voice=' + EDGE_TTS_VOICE, { mode: 'no-cors' }).catch(() => {}); } catch(e) {}
 function playEdgeChunk(c){
   return new Promise(res => {
-    const url = EDGE_TTS_PROXY + '?text=' + encodeURIComponent(c) + '&voice=' + EDGE_TTS_VOICE;
+    const url = EDGE_TTS_PROXY + '?text=' + encodeURIComponent(c) + '&voice=' + (getVoice() === 'systeme' ? EDGE_TTS_VOICE_ALT : EDGE_TTS_VOICE);
     const audio = new Audio(url);
     audio.volume = 1.0;
     currentAudios.push(audio);
@@ -1953,8 +1954,15 @@ function playEdgeChunk(c){
   });
 }
 async function speakEdgeTTS(text){
-  try { return await speakSystem(text); }
-  catch(e){ console.warn('[VOIX] EdgeTTS echec:', e && e.message); return false; }
+  try {
+    const chunks = splitSentences(text, 250);
+    for (const c of chunks){
+      let ok = await playEdgeChunk(c);
+      if (!ok){ await new Promise(r => setTimeout(r, 500)); ok = await playEdgeChunk(c); }
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] EdgeTTS echec:', e && e.message); return false; }
 }
 
 /* ===== VOIX PANDAVID (Piper) : meme moteur que pandavid.ai (synthese vocale
@@ -2148,6 +2156,7 @@ function speak(text){
     if (piperFirst) chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
        Systeme en dernier recours. Le choix du selecteur est respecte. */
+    else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
     else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
