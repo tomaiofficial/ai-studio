@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.26-final';
+const APP_VERSION = '9.27-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2076,55 +2076,6 @@ const PIPER_VOICES = [
   { id: 'fr_FR-siwis-medium', name: 'Siwis (femme, claire)', lang: 'fr-FR' },
   { id: 'fr_FR-upmc-medium', name: 'UPMC (femme, naturelle)', lang: 'fr-FR' },
   { id: 'fr_FR-gilles-low', name: 'Gilles (homme, grave)', lang: 'fr-FR' },
-  { id: 'fr_FR-mls-medium', name: 'MLS (femme, standard)', lang: 'fr-FR' },
-  { id: 'fr_FR-tom-medium', name: 'Tom (homme, neutre)', lang: 'fr-FR' },
-  { id: 'fr_FR-guy-medium', name: 'Guy (homme, expressif)', lang: 'fr-FR' },
-  { id: 'fr_FR-denis-medium', name: 'Denis (homme, doux)', lang: 'fr-FR' },
-  { id: 'fr_FR-audrey-medium', name: 'Audrey (femme, chaleureuse)', lang: 'fr-FR' },
-  { id: 'fr_FR-sophie-medium', name: 'Sophie (femme, pro)', lang: 'fr-FR' },
-  { id: 'fr_FR-pierre-medium', name: 'Pierre (homme, calme)', lang: 'fr-FR' },
-  { id: 'fr_FR-alice-medium', name: 'Alice (femme, douce)', lang: 'fr-FR' },
-  { id: 'fr_FR-bernard-medium', name: 'Bernard (homme, grave)', lang: 'fr-FR' },
-  { id: 'fr_FR-camille-medium', name: 'Camille (femme, vive)', lang: 'fr-FR' },
-  { id: 'fr_FR-david-medium', name: 'David (homme, neutre)', lang: 'fr-FR' },
-  { id: 'fr_FR-emilie-medium', name: 'Emilie (femme, expressive)', lang: 'fr-FR' },
-  { id: 'fr_FR-francois-medium', name: 'François (homme, standard)', lang: 'fr-FR' },
-  { id: 'fr_FR-gabrielle-medium', name: 'Gabrielle (femme, claire)', lang: 'fr-FR' },
-  { id: 'fr_FR-henri-medium', name: 'Henri (homme, posé)', lang: 'fr-FR' },
-  { id: 'fr_FR-isabelle-medium', name: 'Isabelle (femme, naturelle)', lang: 'fr-FR' },
-  { id: 'fr_FR-jean-medium', name: 'Jean (homme, neutre)', lang: 'fr-FR' },
-  { id: 'fr_FR-karine-medium', name: 'Karine (femme, douce)', lang: 'fr-FR' },
-  { id: 'fr_FR-luc-medium', name: 'Luc (homme, clair)', lang: 'fr-FR' },
-  { id: 'fr_FR-marie-medium', name: 'Marie (femme, standard)', lang: 'fr-FR' },
-  { id: 'fr_FR-nicolas-medium', name: 'Nicolas (homme, expressif)', lang: 'fr-FR' },
-  { id: 'fr_FR-odile-medium', name: 'Odile (femme, grave)', lang: 'fr-FR' },
-  { id: 'fr_FR-pascal-medium', name: 'Pascal (homme, calme)', lang: 'fr-FR' },
-  { id: 'fr_FR-queen-medium', name: 'Queen (femme, royale)', lang: 'fr-FR' },
-  { id: 'fr_FR-remi-medium', name: 'Remi (homme, jeune)', lang: 'fr-FR' },
-  { id: 'fr_FR-sylvie-medium', name: 'Sylvie (femme, pro)', lang: 'fr-FR' },
-  { id: 'fr_FR-thomas-medium', name: 'Thomas (homme, neutre)', lang: 'fr-FR' },
-  { id: 'fr_FR-valerie-medium', name: 'Valérie (femme, chaleureuse)', lang: 'fr-FR' },
-  { id: 'fr_FR-xavier-medium', name: 'Xavier (homme, grave)', lang: 'fr-FR' },
-  { id: 'fr_FR-yvonne-medium', name: 'Yvonne (femme, douce)', lang: 'fr-FR' },
-  { id: 'fr_FR-zacharie-medium', name: 'Zacharie (homme, vif)', lang: 'fr-FR' },
-  { id: 'fr_FR-antoine-medium', name: 'Antoine (homme, standard)', lang: 'fr-FR' },
-  { id: 'fr_FR-beatrice-medium', name: 'Béatrice (femme, claire)', lang: 'fr-FR' },
-  { id: 'fr_FR-christophe-medium', name: 'Christophe (homme, neutre)', lang: 'fr-FR' },
-  { id: 'fr_FR-danielle-medium', name: 'Danielle (femme, expressive)', lang: 'fr-FR' },
-  { id: 'fr_FR-etienne-medium', name: 'Étienne (homme, posé)', lang: 'fr-FR' },
-  { id: 'fr_FR-fabienne-medium', name: 'Fabienne (femme, douce)', lang: 'fr-FR' },
-  { id: 'fr_FR-gerard-medium', name: 'Gérard (homme, grave)', lang: 'fr-FR' },
-  { id: 'fr_FR-helene-medium', name: 'Hélène (femme, naturelle)', lang: 'fr-FR' },
-  { id: 'fr_FR-ivan-medium', name: 'Ivan (homme, clair)', lang: 'fr-FR' },
-  { id: 'fr_FR-jocelyne-medium', name: 'Jocelyne (femme, standard)', lang: 'fr-FR' },
-  { id: 'fr_FR-klaus-medium', name: 'Klaus (homme, expressif)', lang: 'fr-FR' },
-  { id: 'fr_FR-laure-medium', name: 'Laure (femme, pro)', lang: 'fr-FR' },
-  { id: 'fr_FR-michel-medium', name: 'Michel (homme, calme)', lang: 'fr-FR' },
-  { id: 'fr_FR-nathalie-medium', name: 'Nathalie (femme, vive)', lang: 'fr-FR' },
-  { id: 'fr_FR-olivier-medium', name: 'Olivier (homme, neutre)', lang: 'fr-FR' },
-  { id: 'fr_FR-patricia-medium', name: 'Patricia (femme, douce)', lang: 'fr-FR' },
-  { id: 'fr_FR-quentin-medium', name: 'Quentin (homme, jeune)', lang: 'fr-FR' },
-  { id: 'fr_FR-rose-medium', name: 'Rose (femme, chaleureuse)', lang: 'fr-FR' },
 ];
 /* ===== PIPER VOICE DOWNLOADER : télécharge les modèles .onnx depuis HuggingFace
    et les stocke dans IndexedDB pour usage hors ligne. ===== */
