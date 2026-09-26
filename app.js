@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.16-final';
+const APP_VERSION = '9.18-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -316,6 +316,7 @@ settingsBtn.addEventListener('click', () => {
   if (googleaiKeyInput) googleaiKeyInput.value = (localStorage.getItem('LS.googleai') || '').trim();
   if (openrouterKeyInput) openrouterKeyInput.value = (localStorage.getItem(LS.openrouter) || '').trim();
   wakeToggle.checked = wakeEnabled;
+  populateSystemVoices();
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -2048,11 +2049,10 @@ async function speakPiper(text){ return false; }
 
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
    aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
-function speakSystem(text){
+function speakSystem(text, specificVoiceName){
   return new Promise(resolve => {
     try {
       if (!('speechSynthesis' in window)) return resolve(false);
-      // Chrome charge les voix en asynchrone : getVoices() vide au 1er appel
       let voices = window.speechSynthesis.getVoices();
       const startSpeak = () => {
         const chunks = splitSentences(text, 200);
@@ -2066,14 +2066,18 @@ function speakSystem(text){
           u.rate = 1.0;
           u.pitch = 1.0;
           const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
-          const mode = getVoice();
-          const pick = (mode === 'systeme')
-            ? (fr.find(v => /amelie|amélie/i.test(v.name)) || fr.find(v => /denise/i.test(v.name)) || fr[0] || voices[0])
-            : (fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0]);
+          let pick = null;
+          if (specificVoiceName){
+            pick = fr.find(v => v.name === specificVoiceName) || fr[0] || voices[0];
+          } else {
+            const mode = getVoice();
+            pick = (mode === 'systeme')
+              ? (fr.find(v => /amelie|amélie/i.test(v.name)) || fr.find(v => /denise/i.test(v.name)) || fr[0] || voices[0])
+              : (fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0]);
+          }
           if (pick) u.voice = pick;
           u.onend = () => speakNext();
           u.onerror = e => { console.warn('[VOIX] Systeme erreur:', e.error); finish(false); };
-          // débloque si en pause (Chrome)
           try { window.speechSynthesis.resume(); } catch {}
           voiceStartedFlag = true;
           window.speechSynthesis.speak(u);
@@ -2082,7 +2086,6 @@ function speakSystem(text){
         setTimeout(() => finish(true), chunks.length * 20000 + 10000);
       };
       if (voices.length === 0) {
-        // attend les voix (max 1s) puis parle quand meme avec voix par defaut
         let waited = false;
         window.speechSynthesis.onvoiceschanged = () => {
           if (waited) return;
@@ -2094,6 +2097,31 @@ function speakSystem(text){
       } else startSpeak();
     } catch(e){ resolve(false); }
   });
+}
+
+/* Liste toutes les voix FR disponibles du système */
+function getSystemVoices(){
+  if (!('speechSynthesis' in window)) return [];
+  const voices = window.speechSynthesis.getVoices();
+  return voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
+}
+
+/* Remplit le sélecteur avec les voix système */
+function populateSystemVoices(){
+  const voices = getSystemVoices();
+  if (!ttsVoiceSel) return;
+  const currentValue = ttsVoiceSel.value;
+  const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
+  voices.forEach(v => {
+    const val = 'system:' + v.name;
+    if (!existingOptions.includes(val)){
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = '🎙️ ' + v.name + ' (' + v.lang + ')';
+      ttsVoiceSel.appendChild(opt);
+    }
+  });
+  if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
 }
 
 /* ===== VOIX KOKORO : RETIREE en v8.66 (l'utilisateur prefere Edge TTS,
@@ -2180,15 +2208,14 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (piperFirst) chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
-       Systeme en dernier recours. Le choix du selecteur est respecte. */
+    if (voiceMode.startsWith('system:')){
+      const voiceName = voiceMode.substring(7);
+      chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName)]];
+    } else if (piperFirst) chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem], ['Edge', speakEdgeTTS]];
-    else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
     else chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     let i = 0;
     const next = () => {
