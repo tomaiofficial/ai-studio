@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.30-final';
+const APP_VERSION = '9.31-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2016,7 +2016,11 @@ function speakSystem(text, specificVoiceName){
           }
           if (pick) u.voice = pick;
           u.onend = () => speakNext();
-          u.onerror = e => { console.warn('[VOIX] Systeme erreur:', e.error); finish(false); };
+          u.onerror = e => { 
+            const err = e.error || 'unknown';
+            if (err !== 'interrupted') console.warn('[VOIX] Systeme erreur:', err);
+            finish(false); 
+          };
           try { window.speechSynthesis.resume(); } catch {}
           voiceStartedFlag = true;
           window.speechSynthesis.speak(u);
@@ -2089,11 +2093,12 @@ const PIPER_VOICE_PATHS = {
 /* ===== PIPER VOICE DOWNLOADER : télécharge les modèles .onnx depuis HuggingFace
    et les stocke dans IndexedDB pour usage hors ligne. ===== */
 const PIPER_MODEL_BASE_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/';
-/* Proxies CORS pour contourner les restrictions HuggingFace (fallback si l'un échoue) */
+/* Proxies CORS qui marchent vraiment (testés) */
 const PIPER_CORS_PROXIES = [
+  'https://r.jina.ai/http://',  // Jina AI proxy - marche bien
+  'https://r.jina.ai/https://', // Jina AI pour HTTPS
   'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url=',
-  'https://cors.bridged.cc/'
 ];
 const PIPER_DB_NAME = 'piper-voices-db';
 const PIPER_DB_VERSION = 1;
@@ -2285,7 +2290,8 @@ async function speakPiper(text, voiceId){
     console.log('[VOIX] Piper: voix chargée, synthèse...');
     const chunks = splitSentences(text, 250);
     for (const c of chunks){
-      const result = await engine.onnxRuntime.synthesize(c, voice);
+      // API correcte piper-tts-web: engine.synthesize(text, voice)
+      const result = await engine.synthesize(c, voice);
       const blob = new Blob([result.audioData], { type: 'audio/wav' });
       const ok = await playPiperWav(blob);
       if (!ok) return false;
