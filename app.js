@@ -1953,20 +1953,8 @@ function playEdgeChunk(c){
   });
 }
 async function speakEdgeTTS(text){
-  try {
-    /* morceaux de 250 caracteres : phrase complete, prosodie naturelle */
-    const chunks = splitSentences(text, 250);
-    for (const c of chunks){
-      let ok = await playEdgeChunk(c);
-      if (!ok){
-        /* v8.70 : delai avant le retry -> laisse le cold start Vercel finir */
-        await new Promise(r => setTimeout(r, 500));
-        ok = await playEdgeChunk(c);
-      }
-      if (!ok) return false;
-    }
-    return true;
-} catch(e){ console.warn('[VOIX] EdgeTTS echec:', e.message); return false; }
+  try { return await speakSystem(text); }
+  catch(e){ console.warn('[VOIX] EdgeTTS echec:', e && e.message); return false; }
 }
 
 /* ===== VOIX PANDAVID (Piper) : meme moteur que pandavid.ai (synthese vocale
@@ -2043,8 +2031,9 @@ function speakSystem(text){
           u.rate = 1.0;
           u.pitch = 1.0;
           const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
-          const pick = (voiceMode === 'systeme')
-            ? (fr.find(v => /amelie|amélie/i.test(v.name)) || fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0])
+          const mode = getVoice();
+          const pick = (mode === 'systeme')
+            ? (fr.find(v => /amelie|amélie/i.test(v.name)) || fr.find(v => /denise/i.test(v.name)) || fr[0] || voices[0])
             : (fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0]);
           if (pick) u.voice = pick;
           u.onend = () => speakNext();
