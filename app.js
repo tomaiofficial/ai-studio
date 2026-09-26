@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.18-final';
+const APP_VERSION = '9.19-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2211,12 +2211,12 @@ function speak(text){
     if (voiceMode.startsWith('system:')){
       const voiceName = voiceMode.substring(7);
       chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName)]];
-    } else if (piperFirst) chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'systeme') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem], ['Edge', speakEdgeTTS]];
-    else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
-    else chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    } else if (piperFirst) chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    else if (voiceMode === 'edge') chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    else if (voiceMode === 'systeme') chain = [['Système', speakSystem], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeTTS]];
+    else if (voiceMode === 'google') chain = [['Système', speakSystem], ['GoogleTTS', speakGoogleTTS]];
+    else if (voiceMode === 'naturelle') chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    else chain = [['Système', speakSystem], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
