@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.79';
+const APP_VERSION = '8.80';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', soniox: 'va_soniox', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -325,7 +325,8 @@ groqKeyInput.addEventListener('change', () => {
 
 sonioxKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.soniox, sonioxKeyInput.value.trim());
-  toast('Cle Soniox enregistree - transcription Soniox activee');
+  sonioxErrShown = false; /* v8.80 : nouvelle cle -> on reessaie et on re-diagnostique */
+  toast('Cle Soniox enregistree - transcription et voix Soniox activees');
 });
 
 brainSel.addEventListener('change', () => {
@@ -1878,6 +1879,7 @@ async function speakEdgeTTS(text){
    Google puis Systeme. POST https://tts-rt.soniox.com/tts -> audio mp3 brut. */
 const SONIOX_TTS_URL = 'https://tts-rt.soniox.com/tts';
 const SONIOX_TTS_VOICE = 'Maya'; /* voix femme claire, parle toutes les langues */
+let sonioxErrShown = false; /* v8.80 : diagnostic affiche 1 seule fois par session */
 function playSonioxChunk(c){
   return new Promise(res => {
     const key = getSonioxKey();
@@ -1890,7 +1892,19 @@ function playSonioxChunk(c){
       body: JSON.stringify({ model: 'tts-rt-v2', language: 'fr', voice: SONIOX_TTS_VOICE, audio_format: 'mp3', text: c }),
       signal: ctrl.signal
     }).then(r => {
-      if (!r.ok) throw new Error('Soniox TTS HTTP ' + r.status);
+      if (!r.ok){
+        if (!sonioxErrShown){
+          sonioxErrShown = true;
+          const msg = r.status === 401 ? 'Cle Soniox invalide - verifie ta cle dans les reglages'
+            : r.status === 400 ? 'Voix Soniox invalide (400) - modele ou voix inconnu'
+            : r.status === 402 ? 'Soniox: solde epuise'
+            : r.status === 429 ? 'Soniox: quota depasse - reessaie plus tard'
+            : 'Soniox erreur ' + r.status;
+          toast(msg);
+          console.warn('[VOIX] Soniox:', msg);
+        }
+        throw new Error('Soniox TTS HTTP ' + r.status);
+      }
       return r.blob();
     }).then(blob => {
       clearTimeout(timer);
