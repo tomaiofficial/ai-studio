@@ -322,10 +322,10 @@ select.wide-input{appearance:none}
     <input type="password" id="hfToken" class="wide-input" placeholder="Colle ton token HF ici… — optionnel" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Voix IA réaliste Edge</b> — vraie voix Microsoft Neural française (Denise), la plus naturelle et réactive, gratuite sans clé. Secours auto : Google TTS puis voix système.</p>
+    <p class="muted">🤗 <b>HF MMS-TTS (Meta AI)</b> — voix Meta open-source (facebook/mms-tts-fra), gratuite avec token HF. Secours : voix système du navigateur (hors ligne).</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="edge" selected>🎙️ Voix IA réaliste Edge (Microsoft Neural) — Denise</option>
-      <option value="google">🎙️ Voix IA femme (Google) — Amélie / différente</option>
+      <option value="hf" selected>🤗 HF MMS-TTS (Meta AI) — français natif</option>
+      <option value="systeme">🎙️ Voix système du navigateur — hors ligne</option>
     </select>
     <input type="text" id="googleaiKey" class="wide-input" placeholder="Colle ta clé Google AI Studio ici — optionnel (gratuit sans elle)">
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
@@ -352,6 +352,6 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.20-final"></script>
+<script src="app.js?v=9.21-final"></script>
 </body>
 </html>

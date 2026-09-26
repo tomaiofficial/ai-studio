@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.20-final';
+const APP_VERSION = '9.21-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'edge'; // Voix IA REALISTE Edge (Microsoft Neural fr-FR-DeniseNeural, la plus naturelle, gratuite sans cle), Kokoro/Google en secours auto
+const DEFAULT_VOICE = 'hf'; // HF MMS-TTS (Meta AI) - facebook/mms-tts-fra, gratuit avec token HF
 const SPEED = 1.0; // naturel
 
 
@@ -2246,12 +2246,9 @@ function speak(text){
     if (voiceMode.startsWith('system:')){
       const voiceName = voiceMode.substring(7);
       chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName)]];
-    } else if (piperFirst) chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'edge') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'systeme') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['GoogleTTS', speakGoogleTTS], ['Edge', speakEdgeTTS]];
-    else if (voiceMode === 'google') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['GoogleTTS', speakGoogleTTS]];
-    else if (voiceMode === 'naturelle') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
-    else chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS]];
+    } else if (voiceMode === 'hf') chain = [['HF MMS-TTS (Meta)', speakHfMmsTts], ['Système', speakSystem]];
+    else if (voiceMode === 'systeme') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts]];
+    else chain = [['HF MMS-TTS (Meta)', speakHfMmsTts], ['Système', speakSystem]];
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
