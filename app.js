@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.29-final';
+const APP_VERSION = '9.30-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2089,6 +2089,12 @@ const PIPER_VOICE_PATHS = {
 /* ===== PIPER VOICE DOWNLOADER : télécharge les modèles .onnx depuis HuggingFace
    et les stocke dans IndexedDB pour usage hors ligne. ===== */
 const PIPER_MODEL_BASE_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/';
+/* Proxies CORS pour contourner les restrictions HuggingFace (fallback si l'un échoue) */
+const PIPER_CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+  'https://cors.bridged.cc/'
+];
 const PIPER_DB_NAME = 'piper-voices-db';
 const PIPER_DB_VERSION = 1;
 let piperDB = null;
@@ -2149,7 +2155,7 @@ class LocalVoiceProvider {
   }
 }
 
-/* Télécharge une voix Piper (.onnx + .onnx.json) avec progression */
+/* Télécharge une voix Piper (.onnx + .onnx.json) avec progression et fallback proxies */
 async function downloadPiperVoice(voiceId, onProgress){
   const path = PIPER_VOICE_PATHS[voiceId];
   if (!path) throw new Error('Chemin inconnu pour voix: ' + voiceId);
@@ -2157,42 +2163,54 @@ async function downloadPiperVoice(voiceId, onProgress){
   const modelUrl = baseUrl + '.onnx';
   const configUrl = baseUrl + '.onnx.json';
   
-  try {
-    // Télécharge le modèle .onnx
-    const modelResponse = await fetch(modelUrl);
-    if (!modelResponse.ok) throw new Error('Modèle HTTP ' + modelResponse.status);
-    const modelTotal = parseInt(modelResponse.headers.get('content-length') || '0', 10);
-    const modelReader = modelResponse.body.getReader();
-    const modelChunks = [];
-    let modelReceived = 0;
-    while (true){
-      const { done, value } = await modelReader.read();
-      if (done) break;
-      modelChunks.push(value);
-      modelReceived += value.length;
-      if (onProgress && modelTotal) onProgress((modelReceived / modelTotal) * 0.5);
+  // Essaie chaque proxy jusqu'à ce que ça marche
+  for (const proxy of PIPER_CORS_PROXIES){
+    try {
+      const proxiedModelUrl = proxy + encodeURIComponent(modelUrl);
+      const proxiedConfigUrl = proxy + encodeURIComponent(configUrl);
+      
+      console.log('[PIPER] Tentative avec proxy:', proxy);
+      console.log('[PIPER] Téléchargement modèle:', proxiedModelUrl);
+      
+      // Télécharge le modèle .onnx via proxy CORS
+      const modelResponse = await fetch(proxiedModelUrl);
+      if (!modelResponse.ok) throw new Error('Modèle HTTP ' + modelResponse.status);
+      const modelTotal = parseInt(modelResponse.headers.get('content-length') || '0', 10);
+      const modelReader = modelResponse.body.getReader();
+      const modelChunks = [];
+      let modelReceived = 0;
+      while (true){
+        const { done, value } = await modelReader.read();
+        if (done) break;
+        modelChunks.push(value);
+        modelReceived += value.length;
+        if (onProgress && modelTotal) onProgress((modelReceived / modelTotal) * 0.5);
+      }
+      const modelArray = new Uint8Array(modelReceived);
+      let offset = 0;
+      for (const chunk of modelChunks){
+        modelArray.set(chunk, offset);
+        offset += chunk.length;
+      }
+      
+      // Télécharge le config .onnx.json
+      console.log('[PIPER] Téléchargement config via proxy:', proxy);
+      const configResponse = await fetch(proxy + encodeURIComponent(configUrl));
+      if (!configResponse.ok) throw new Error('Config HTTP ' + configResponse.status);
+      const configText = await configResponse.text();
+      const config = JSON.parse(configText);
+      
+      // Sauvegarde les deux en base
+      await saveVoiceToDB(voiceId, { model: modelArray.buffer, config });
+      if (onProgress) onProgress(1);
+      console.log('[PIPER] Voix', voiceId, 'téléchargée avec succès via', proxy);
+      return true;
+    } catch(e){
+      console.warn('[PIPER] Proxy', proxy, 'échoué:', e.message);
+      continue; // Essaie le proxy suivant
     }
-    const modelArray = new Uint8Array(modelReceived);
-    let offset = 0;
-    for (const chunk of modelChunks){
-      modelArray.set(chunk, offset);
-      offset += chunk.length;
-    }
-    
-    // Télécharge le config .onnx.json
-    const configResponse = await fetch(configUrl);
-    if (!configResponse.ok) throw new Error('Config HTTP ' + configResponse.status);
-    const configText = await configResponse.text();
-    const config = JSON.parse(configText);
-    
-    // Sauvegarde les deux en base
-    await saveVoiceToDB(voiceId, { model: modelArray.buffer, config });
-    if (onProgress) onProgress(1);
-    return true;
-  } catch(e){
-    console.warn('[PIPER] Téléchargement échoué:', voiceId, e.message);
-    return false;
   }
+  throw new Error('Tous les proxies ont échoué pour ' + voiceId);
 }
 
 /* Télécharge toutes les voix avec progression globale */
