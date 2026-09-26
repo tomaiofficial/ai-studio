@@ -173,9 +173,9 @@ function localSmartReply(question){
      on repond honnetement et on propose une alternative. */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    return "Je suis la, et je repond directement. Pose ta question, je vais te donner une reponse utile sans blabla.";
+    return "Je suis la et je t'écoute. Pose-moi ta question et je vais te répondre au mieux.";
   }
-  return "Je suis la, et je repond directement. Pose ta question, je vais te donner une reponse utile sans blabla.";
+  return "Je suis la et je t'écoute. Pose-moi ta question et je vais te répondre au mieux.";
 }
 function renderHistory(){
   const list = $('convList');
