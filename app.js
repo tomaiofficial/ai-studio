@@ -2043,10 +2043,9 @@ function speakSystem(text){
           u.rate = 1.0;
           u.pitch = 1.0;
           const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
-          const pick = fr.find(v => /natural|neural|premium|enhanced|amelie|amélie|denise|hortense|jacqueline|cecile|cécile/i.test(v.name))
-            || fr.find(v => /google/i.test(v.name))
-            || fr.find(v => /microsoft/i.test(v.name))
-            || fr[0] || voices[0];
+          const pick = (voiceMode === 'systeme')
+            ? (fr.find(v => /amelie|amélie/i.test(v.name)) || fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0])
+            : (fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0]);
           if (pick) u.voice = pick;
           u.onend = () => speakNext();
           u.onerror = e => { console.warn('[VOIX] Systeme erreur:', e.error); finish(false); };
