@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.87';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', camb: 'va_camb', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.88';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), cambKeyInput = $('cambKey'), brainSel = $('brainSel');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), piperVoiceSel = $('piperVoice'), brainSel = $('brainSel');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -304,13 +304,13 @@ function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim()
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
-function getCambKey(){ return (localStorage.getItem(LS.camb) || '').trim(); }
+function getPiperVoice(){ return (localStorage.getItem(LS.piper) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
-  cambKeyInput.value = getCambKey();
+  piperVoiceSel.value = getPiperVoice();
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
@@ -324,10 +324,9 @@ groqKeyInput.addEventListener('change', () => {
   toast('Cle Groq enregistree');
 });
 
-cambKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.camb, cambKeyInput.value.trim());
-  cambErrShown = false; /* v8.82 : nouvelle cle -> on reessaie et on re-diagnostique */
-  toast('Cle Camb.ai enregistree - voix Camb.ai activee');
+piperVoiceSel.addEventListener('change', () => {
+  localStorage.setItem(LS.piper, piperVoiceSel.value);
+  toast('Voix PandaVid choisie : ' + piperVoiceSel.options[piperVoiceSel.selectedIndex].text);
 });
 
 brainSel.addEventListener('change', () => {
@@ -1922,88 +1921,77 @@ async function speakEdgeTTS(text){
 } catch(e){ console.warn('[VOIX] EdgeTTS echec:', e.message); return false; }
 }
 
-/* ===== VOIX CAMB.AI (MARS8) : voix IA multilingue 150+ langues, francais inclus.
-   API officielle client.camb.ai, CORS autorise EXPLICITEMENT pour ce domaine
-   (Access-Control-Allow-Origin: tomaiofficial.github.io) -> fonctionne depuis
-   le navigateur (contrairement a Soniox). Plan gratuit : 2000 credits/mois,
-   500 caracteres par generation. Cle requise (reglages > Cle Camb.ai).
+/* ===== VOIX PANDAVID (Piper) : meme moteur que pandavid.ai (synthese vocale
+   100% locale dans le navigateur, gratuite et illimitee, sans cle, sans compte).
+   Moteur piper-tts-web (MIT) : bundle + workers + WASM copies dans piper/
+   (aucun CDN), voix francaises fr_FR-* chargees depuis HuggingFace (CORS
+   ouvert). Le modele (~60 Mo) est telecharge une seule fois puis mis en cache
+   par le navigateur.
    Secours auto : Edge puis Google puis Systeme. ===== */
-const CAMB_TTS_URL = 'https://client.camb.ai/apis/tts-stream';
-const CAMB_TTS_VOICE = 147320; /* voix par defaut de la bibliotheque, parle 150+ langues */
-let cambErrShown = false;
-function playCambChunk(c){
-  return new Promise(res => {
-    const key = getCambKey();
-    if (!key) return res(false);
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 15000);
-    fetch(CAMB_TTS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': key },
-      body: JSON.stringify({
-        text: c,
-        voice_id: CAMB_TTS_VOICE,
-        language: 'fr-fr',
-        speech_model: 'mars-8.1-flash-beta',
-        output_configuration: { format: 'wav' }
-      }),
-      signal: ctrl.signal
-    }).then(r => {
-      if (!r.ok){
-        if (!cambErrShown){
-          cambErrShown = true;
-          const msg = r.status === 401 ? 'Cle Camb.ai invalide - verifie les reglages'
-            : r.status === 402 ? 'Camb.ai : credits epuises'
-            : r.status === 429 ? 'Camb.ai : quota depasse, reessaie plus tard'
-            : 'Camb.ai erreur ' + r.status;
-          toast(msg);
-          console.warn('[VOIX] Camb.ai:', msg);
-        }
-        throw new Error('Camb TTS HTTP ' + r.status);
-      }
-      return r.blob();
-    }).then(blob => {
-      clearTimeout(timer);
-      if (!blob || blob.size < 500) return res(false);
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.volume = 1.0;
-      currentAudios.push(audio);
-      let done = false, started = false;
-      const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
-      audio.onplaying = () => { started = true; voiceStartedFlag = true; };
-      audio.onended = () => finish(true);
-      audio.onerror = () => { console.warn('[VOIX] Camb audio error'); finish(false); };
-      const tryPlay = n => {
-        audio.play().then(() => {}).catch(() => {
-          if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
-          else finish(false);
-        });
+const PIPER_ENGINE_URL = './piper/piper-tts-web.js';
+/* base du site : '/ai-studio/' sur GitHub Pages, '/' en local -> les chemins
+   des WASM (piper/onnx/, piper/piper/) sont calcules dynamiquement */
+const PIPER_BASE = new URL('.', document.baseURI).pathname;
+const PIPER_ONNX_BASE = PIPER_BASE + 'piper/onnx/';
+const PIPER_PHON_BASE = PIPER_BASE + 'piper/piper/';
+let piperEngine = null;
+let piperEnginePromise = null;
+function getPiperEngine(){
+  if (piperEngine) return Promise.resolve(piperEngine);
+  if (!piperEnginePromise){
+    piperEnginePromise = import(PIPER_ENGINE_URL).then(m => {
+      const engine = {
+        onnxRuntime: new m.OnnxWebWorkerRuntime({ basePath: PIPER_ONNX_BASE }),
+        phonemizeRuntime: new m.PhonemizeWebWorkerRuntime({ basePath: PIPER_PHON_BASE }),
+        voiceProvider: new m.HuggingFaceVoiceProvider()
       };
-      tryPlay(0);
-      setTimeout(() => { if (!done && !started) finish(false); }, 8000);
-      setTimeout(() => { if (!done) finish(true); }, 30000);
-    }).catch(e => {
-      clearTimeout(timer);
-      console.warn('[VOIX] Camb echec:', e && e.message);
-      res(false);
-    });
+      piperEngine = engine;
+      return engine;
+    }).catch(e => { piperEnginePromise = null; throw e; });
+  }
+  return piperEnginePromise;
+}
+function playPiperWav(blob){
+  return new Promise(res => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    currentAudios.push(audio);
+    let done = false, started = false;
+    const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
+    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
+    audio.onended = () => finish(true);
+    audio.onerror = () => { console.warn('[VOIX] Piper audio error'); finish(false); };
+    const tryPlay = n => {
+      audio.play().then(() => {}).catch(() => {
+        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+        else finish(false);
+      });
+    };
+    tryPlay(0);
+    setTimeout(() => { if (!done && !started) finish(false); }, 8000);
+    setTimeout(() => { if (!done) finish(true); }, 30000);
   });
 }
-async function speakCambTTS(text){
+async function speakPiper(text){
   try {
-    /* morceaux de 250 caracteres : sous la limite Camb de 500/generation */
-    const chunks = splitSentences(text, 250);
+    const voiceKey = getPiperVoice();
+    if (!voiceKey) return false;
+    const parts = voiceKey.split('|');
+    const voiceId = parts[0];
+    const speaker = parts[1] ? Number(parts[1]) : 0;
+    const engine = await getPiperEngine();
+    const chunks = splitSentences(text, 300);
     for (const c of chunks){
-      let ok = await playCambChunk(c);
-      if (!ok){
-        await new Promise(r => setTimeout(r, 500));
-        ok = await playCambChunk(c);
-      }
+      const voiceData = await engine.voiceProvider.fetch(voiceId);
+      const phonemeData = await engine.phonemizeRuntime.phonemize(c, voiceData);
+      const r = await engine.onnxRuntime.generate(phonemeData, voiceData, speaker);
+      if (!r || !r.file) return false;
+      const ok = await playPiperWav(r.file);
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.warn('[VOIX] CambTTS echec:', e.message); return false; }
+  } catch(e){ console.warn('[VOIX] Piper echec:', e && e.message); return false; }
 }
 
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
@@ -2120,10 +2108,15 @@ function speak(text){
       if (!voiceStartedFlag) setStatus("Voix indisponible - verifie ta connexion internet");
       done(false);
     };
+    /* v8.88 : voix PandaVid (Piper) choisie dans les reglages -> Piper en
+       premier, puis la chaine normale en secours. */
+    const piperFirst = getPiperVoice() !== '';
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 90s
        sans son (v8.86 : 40s etait trop court pour les textes longs avec la
-       chaine Camb 15s + Edge 8s + retry + Google 6s + retry + Systeme) */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 90s'); fail(); }, 90000);
+       chaine Camb 15s + Edge 8s + retry + Google 6s + retry + Systeme).
+       v8.88 : avec Piper en premier, le 1er chargement (moteur + modele ~60 Mo)
+       peut depasser 90s sur connexion lente -> 180s. */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, piperFirst ? 180000 : 90000);
     /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
        gratuite, sans cle, via proxy public HTTP). Secours : Google Translate
        TTS, puis voix systeme du navigateur (aucun reseau).
@@ -2134,11 +2127,8 @@ function speak(text){
        StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
-    /* v8.82 : cle Camb.ai presente -> voix Camb en premier (comme demandé),
-       puis la chaine normale en secours. */
-    const cambFirst = getCambKey() !== '';
     let chain;
-    if (cambFirst) chain = [['Camb', speakCambTTS], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (piperFirst) chain = [['Piper', speakPiper], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
        Systeme en dernier recours. Le choix du selecteur est respecte. */
     else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
