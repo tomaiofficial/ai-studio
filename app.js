@@ -306,7 +306,8 @@ function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim()
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
-function getPiperVoice(){ return (localStorage.getItem(LS.piper) || '').trim(); }
+function getPiperVoice(){   return '';
+}
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
@@ -2029,29 +2030,7 @@ function playPiperWav(blob){
     setTimeout(() => { if (!done) finish(true); }, 30000);
   });
 }
-async function speakPiper(text){
-  try {
-    const voiceKey = getPiperVoice();
-    if (!voiceKey) return false;
-    const parts = (getPiperVoice() || 'fr_FR-tom-medium').split('|');
-    const voiceId = parts[0];
-    const speaker = parts[1] ? Number(parts[1]) : 0;
-    /* v8.89 : si voix Piper choisie, preferer Tom (fr_FR-tom-medium) pour
-       meilleure articulation, sinon Siwis par defaut. */
-    const effectiveVoiceId = (voiceId === 'fr_FR-siwis-medium' && !parts[1]) ? 'fr_FR-tom-medium' : voiceId;
-    const engine = await getPiperEngine();
-    const chunks = splitSentences(text, 180);
-    for (const c of chunks){
-      const voiceData = await engine.voiceProvider.fetch(effectiveVoiceId);
-      const phonemeData = await engine.phonemizeRuntime.phonemize(c, voiceData);
-      const r = await engine.onnxRuntime.generate(phonemeData, voiceData, speaker);
-      if (!r || !r.file) return false;
-      const ok = await playPiperWav(r.file);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] Piper echec:', e && e.message); return false; }
-}
+async function speakPiper(text){ return false; }
 
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
    aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
@@ -2169,13 +2148,13 @@ function speak(text){
     };
     /* v8.88 : voix PandaVid (Piper) choisie dans les reglages -> Piper en
        premier, puis la chaine normale en secours. */
-    const piperFirst = getPiperVoice() !== '';
+    const piperFirst = false;
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 90s
        sans son (v8.86 : 40s etait trop court pour les textes longs avec la
        chaine Camb 15s + Edge 8s + retry + Google 6s + retry + Systeme).
        v8.88 : avec Piper en premier, le 1er chargement (moteur + modele ~60 Mo)
        peut depasser 90s sur connexion lente -> 180s. */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, piperFirst ? 180000 : 90000);
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 90000);
     /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
        gratuite, sans cle, via proxy public HTTP). Secours : Google Translate
        TTS, puis voix systeme du navigateur (aucun reseau).
@@ -2187,7 +2166,7 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
-    if (piperFirst) chain = [['Piper', speakPiper], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    if (piperFirst) chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
        Systeme en dernier recours. Le choix du selecteur est respecte. */
     else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
