@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), brainSel = $('brainSel');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), brainSel = $('brainSel'), googleaiKeyInput = $('googleaiKey');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -315,6 +315,7 @@ settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
+  if (googleaiKeyInput) googleaiKeyInput.value = (localStorage.getItem('LS.googleai') || '').trim();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
 });
@@ -324,6 +325,10 @@ groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   badGroqKey = false; /* v8.68 : nouvelle cle -> on reessaie Groq */
   toast('Cle Groq enregistree');
+});
+if (googleaiKeyInput) googleaiKeyInput.addEventListener('change', () => {
+  localStorage.setItem('LS.googleai', googleaiKeyInput.value.trim());
+  toast('Cle Google AI Studio enregistree');
 });
 
 /* Piper retire v8.96 : pas de selecteur */
@@ -1030,6 +1035,27 @@ async function askCerebras(question, webCtx, msgs){
   return { error: 'limit' };
 }
 
+/* ===== GOOGLE AI STUDIO (Gemini) : GRATUIT avec cle Google AI Studio.
+   https://aistudio.google.com/app/apikey -> cle gratuite. ===== */
+async function askGoogleAI(question, webCtx, msgs){
+  const key = (localStorage.getItem('LS.googleai') || '').trim();
+  if (!key) return { error: 'nokey' };
+  try {
+    const messages = msgs || [{ role: 'user', content: question }];
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: messages.map(m => m.content || '').join(' | ') }] }] })
+    });
+    if (res && res.ok){
+      const data = await res.json();
+      const t = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+      if (t) return { text: t };
+    }
+    return { error: 'http' + (res ? res.status : 'net') };
+  } catch(e){ return { error: 'net' }; }
+}
+
 /* ===== GROQ : GRATUIT A VIE, sans carte bancaire, ultra rapide (Llama 3.3 70B).
    Cle gratuite sur console.groq.com -> API Keys -> Create. Rate limits
    genereux (30 req/min sur llama-3.3-70b-versatile). ===== */
@@ -1230,6 +1256,12 @@ async function askBrain(messages, webCtx){
     if (getGroqKey() && !badGroqKey){
       const g = await askGroq(null, null, messages);
       if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
+    }
+    /* v9.11 : Google AI Studio (Gemini) - gratuit avec cle */
+    const gaKey = (localStorage.getItem('LS.googleai') || '').trim();
+    if (gaKey){
+      const ga = await askGoogleAI(question, webCtx, messages);
+      if (!ga.error && ga.text) return { text: ga.text, diag: 'GoogleAI' };
     }
     let t = null;
     const models = ['openai', 'mistral'];
