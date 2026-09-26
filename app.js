@@ -1253,15 +1253,15 @@ async function askBrain(messages, webCtx){
        4. LLM7 (GLM-5.3-Flash)
        5. OVH (qwen3.5)
        6. Memoire locale (repond TOUJOURS) */
-    if (getGroqKey() && !badGroqKey){
-      const g = await askGroq(null, null, messages);
-      if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
-    }
-    /* v9.11 : Google AI Studio (Gemini) - gratuit avec cle */
+    /* v9.11 : Google AI Studio (Gemini) en premier - le plus fiable */
     const gaKey = (localStorage.getItem('LS.googleai') || '').trim();
     if (gaKey){
       const ga = await askGoogleAI(question, webCtx, messages);
       if (!ga.error && ga.text) return { text: ga.text, diag: 'GoogleAI' };
+    }
+    if (getGroqKey() && !badGroqKey){
+      const g = await askGroq(null, null, messages);
+      if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
     }
     let t = null;
     const models = ['openai', 'mistral'];
