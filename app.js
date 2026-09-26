@@ -5,12 +5,12 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.21-final';
+const APP_VERSION = '9.22-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'hf'; // HF MMS-TTS (Meta AI) - facebook/mms-tts-fra, gratuit avec token HF
+const DEFAULT_VOICE = 'systeme'; // Voix système navigateur - hors ligne, 100% fiable, sans clé
 const SPEED = 1.0; // naturel
 
 
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), googleaiKeyInput = $('googleaiKey'), openrouterKeyInput = $('openrouterKey'), hfTokenInput = $('hfToken');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), openrouterKeyInput = $('openrouterKey');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -313,25 +313,15 @@ function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
-  if (googleaiKeyInput) googleaiKeyInput.value = (localStorage.getItem('LS.googleai') || '').trim();
   if (openrouterKeyInput) openrouterKeyInput.value = (localStorage.getItem(LS.openrouter) || '').trim();
   wakeToggle.checked = wakeEnabled;
-  populateSystemVoices();
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
-if (googleaiKeyInput) googleaiKeyInput.addEventListener('change', () => {
-  localStorage.setItem('LS.googleai', googleaiKeyInput.value.trim());
-  toast('Cle Google AI Studio enregistree');
-});
 if (openrouterKeyInput) openrouterKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.openrouter, openrouterKeyInput.value.trim());
   toast('Cle OpenRouter enregistree');
-});
-if (hfTokenInput) hfTokenInput.addEventListener('change', () => {
-  localStorage.setItem('LS.hf', hfTokenInput.value.trim());
-  toast('Token Hugging Face enregistre');
 });
 
 /* Piper retire v8.96 : pas de selecteur */
@@ -1239,26 +1229,12 @@ async function askBrain(messages, webCtx){
       return { err: 'net' };
     } catch(e){ return { err: 'net' }; }
   };
-  /* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
-     auto = tous en parallele (le premier qui repond gagne). Chaque cerveau
-     choisi seul a 8s puis secours memoire locale -> repond TOUJOURS. */
+/* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
+     auto = Pollinations (gratuit sans clé) -> Local (repond TOUJOURS). */
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations' || brain === 'auto'){
-     /* v8.91 : cascade NON STOP :
-        1. Google AI Studio (si cle configuree) - le plus fiable
-        2. OpenRouter (si cle configuree) - Llama 3.3 70B
-        3. GET natif Pollinations x4 (openai/mistral alternes, rate limit par IP)
-        4. POST Pollinations
-        5. LLM7 (GLM-5.3-Flash)
-        6. OVH (qwen3.5)
-        7. Memoire locale (repond TOUJOURS) */
-    /* v9.13 : Google AI Studio (Gemini) en premier - le plus fiable */
-    const gaKey = (localStorage.getItem('LS.googleai') || '').trim();
-    if (gaKey){
-      const ga = await askGoogleAI(question, webCtx, messages);
-      if (!ga.error && ga.text) return { text: ga.text, diag: 'GoogleAI' };
-    }
+    /* Pollinations GET natif x4 (openai/mistral alternes) -> POST Pollinations -> Local */
     let t = null;
     const models = ['openai', 'mistral'];
     for (let i = 0; i < 4; i++){
@@ -1933,156 +1909,11 @@ function splitSentences(text, max){
     }
   return final.length ? final : [text];
 }
-async function speakGoogleTTS(text){
-  try {
-    const chunks = splitSentences(text, 180);
-    for (const c of chunks){
-      let ok = await playGoogleChunk(c);
-      if (!ok) ok = await playGoogleChunk(c);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] GoogleTTS echec:', e.message); return false; }
-}
-
-/* ===== HUGGING FACE MMS-TTS (Meta AI) : modèle Meta open-source, 1100+ langues.
-   Gratuit avec token HF (huggingface.co/settings/tokens). Modèle: facebook/mms-tts-fra.
-   Proche de la voix Meta AI. ===== */
-async function speakHfMmsTts(text){
-  const token = (localStorage.getItem('LS.hf') || '').trim();
-  if (!token) return { error: 'nokey' };
-  try {
-    const chunks = splitSentences(text, 200);
-    for (const c of chunks){
-      const res = await fetch('https://api-inference.huggingface.co/models/facebook/mms-tts-fra', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inputs: c })
-      });
-      if (!res.ok) {
-        if (res.status === 401) { toast('Token HF invalide'); return false; }
-        if (res.status === 503) { await new Promise(r => setTimeout(r, 3000)); continue; } /* cold start */
-        return false;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      await new Promise((resolve, reject) => {
-        const a = new Audio(url);
-        a.onended = resolve;
-        a.onerror = reject;
-        a.play().catch(reject);
-      });
-      URL.revokeObjectURL(url);
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] HF MMS-TTS echec:', e.message); return false; }
-}
-
-/* ===== VOIX IA REALISTE EDGE (Microsoft Neural) : la voix la plus naturelle
+/* ===== VOIX SYSTÈME SEULE : navigateur, hors ligne, 100% fiable, sans clé. ===== */
    en francais (fr-FR-DeniseNeural, femme). GRATUITE, AUCUNE cle, AUCUNE limite.
    Le WebSocket Bing etant bloque sur ce reseau, on passe par un proxy public
    gratuit (edge-tts.vercel.app) qui renvoie le MP3 en HTTP -> joue via <audio>
    (pas de fetch -> pas de blocage CORS). Secours auto : Google TTS puis Systeme. ===== */
-const EDGE_TTS_PROXY = 'https://edge-tts.vercel.app/api/tts';
-const EDGE_TTS_VOICE = 'fr-FR-DeniseNeural';
-const EDGE_TTS_VOICE_ALT = 'fr-FR-AmelieNeural';
-/* v8.70 : PRE-ECHAUFFAGE du proxy Edge TTS au chargement. Vercel met l'instance
-   en veille apres ~10 min d'inactivite -> le 1er appel peut repondre 504
-   (cold start ~5-10s). Un ping discret au demarrage evite ce delai au 1er
-   message parle. */
-try { fetch(EDGE_TTS_PROXY + '?text=bonjour&voice=' + EDGE_TTS_VOICE, { mode: 'no-cors' }).catch(() => {}); } catch(e) {}
-function playEdgeChunk(c){
-  return new Promise(res => {
-    const url = EDGE_TTS_PROXY + '?text=' + encodeURIComponent(c) + '&voice=' + (getVoice() === 'systeme' ? EDGE_TTS_VOICE_ALT : EDGE_TTS_VOICE);
-    const audio = new Audio(url);
-    audio.volume = 1.0;
-    currentAudios.push(audio);
-    let done = false, started = false;
-    const finish = v => { if (done) return; done = true; res(v); };
-    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
-    audio.onended = () => finish(true);
-    audio.onerror = () => { console.warn('[VOIX] EdgeTTS audio error:', audio.error && audio.error.code, audio.error && audio.error.message); finish(false); };
-    /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
-    const tryPlay = n => {
-      audio.play().then(() => {}).catch(() => {
-        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
-        else finish(false);
-      });
-    };
-    tryPlay(0);
-    /* si rien ne joue apres 8s (cold start Vercel ou proxy bloque) -> voix suivante */
-    setTimeout(() => { if (!done && !started) finish(false); }, 8000);
-    /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
-    setTimeout(() => { if (!done) finish(true); }, 30000);
-  });
-}
-async function speakEdgeTTS(text){
-  try {
-    const chunks = splitSentences(text, 250);
-    for (const c of chunks){
-      let ok = await playEdgeChunk(c);
-      if (!ok){ await new Promise(r => setTimeout(r, 500)); ok = await playEdgeChunk(c); }
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOIX] EdgeTTS echec:', e && e.message); return false; }
-}
-
-/* ===== VOIX PANDAVID (Piper) : meme moteur que pandavid.ai (synthese vocale
-   100% locale dans le navigateur, gratuite et illimitee, sans cle, sans compte).
-   Moteur piper-tts-web (MIT) : bundle + workers + WASM copies dans piper/
-   (aucun CDN), voix francaises fr_FR-* chargees depuis HuggingFace (CORS
-   ouvert). Le modele (~60 Mo) est telecharge une seule fois puis mis en cache
-   par le navigateur.
-   Secours auto : Edge puis Google puis Systeme. ===== */
-const PIPER_ENGINE_URL = './piper/piper-tts-web.js';
-/* base du site : '/ai-studio/' sur GitHub Pages, '/' en local -> les chemins
-   des WASM (piper/onnx/, piper/piper/) sont calcules dynamiquement */
-const PIPER_BASE = new URL('.', document.baseURI).pathname;
-const PIPER_ONNX_BASE = PIPER_BASE + 'piper/onnx/';
-const PIPER_PHON_BASE = PIPER_BASE + 'piper/piper/';
-let piperEngine = null;
-let piperEnginePromise = null;
-function getPiperEngine(){
-  if (piperEngine) return Promise.resolve(piperEngine);
-  if (!piperEnginePromise){
-    piperEnginePromise = import(PIPER_ENGINE_URL).then(m => {
-      const engine = {
-        onnxRuntime: new m.OnnxWebWorkerRuntime({ basePath: PIPER_ONNX_BASE }),
-        phonemizeRuntime: new m.PhonemizeWebWorkerRuntime({ basePath: PIPER_PHON_BASE }),
-        voiceProvider: new m.HuggingFaceVoiceProvider()
-      };
-      piperEngine = engine;
-      return engine;
-    }).catch(e => { piperEnginePromise = null; throw e; });
-  }
-  return piperEnginePromise;
-}
-function playPiperWav(blob){
-  return new Promise(res => {
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.volume = 1.0;
-    currentAudios.push(audio);
-    let done = false, started = false;
-    const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
-    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
-    audio.onended = () => finish(true);
-    audio.onerror = () => { console.warn('[VOIX] Piper audio error'); finish(false); };
-    const tryPlay = n => {
-      audio.play().then(() => {}).catch(() => {
-        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
-        else finish(false);
-      });
-    };
-    tryPlay(0);
-    setTimeout(() => { if (!done && !started) finish(false); }, 8000);
-    setTimeout(() => { if (!done) finish(true); }, 30000);
-  });
-}
-async function speakPiper(text){ return false; }
-
-/* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
    aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
 function speakSystem(text, specificVoiceName){
   return new Promise(resolve => {
@@ -2246,9 +2077,9 @@ function speak(text){
     if (voiceMode.startsWith('system:')){
       const voiceName = voiceMode.substring(7);
       chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName)]];
-    } else if (voiceMode === 'hf') chain = [['HF MMS-TTS (Meta)', speakHfMmsTts], ['Système', speakSystem]];
-    else if (voiceMode === 'systeme') chain = [['Système', speakSystem], ['HF MMS-TTS (Meta)', speakHfMmsTts]];
-    else chain = [['HF MMS-TTS (Meta)', speakHfMmsTts], ['Système', speakSystem]];
+    } else {
+      chain = [['Système', speakSystem]];
+    }
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
