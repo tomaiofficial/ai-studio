@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.28-final';
+const APP_VERSION = '9.29-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2108,12 +2108,12 @@ function openPiperDB(){
   });
 }
 
-async function saveVoiceToDB(voiceId, arrayBuffer){
+async function saveVoiceToDB(voiceId, voiceData){
   const db = await openPiperDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('voices', 'readwrite');
     const store = tx.objectStore('voices');
-    store.put({ id: voiceId, data: arrayBuffer, timestamp: Date.now() });
+    store.put({ id: voiceId, model: voiceData.model, config: voiceData.config, timestamp: Date.now() });
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -2125,7 +2125,7 @@ async function getVoiceFromDB(voiceId){
     const tx = db.transaction('voices', 'readonly');
     const store = tx.objectStore('voices');
     const request = store.get(voiceId);
-    request.onsuccess = () => resolve(request.result ? request.result.data : null);
+    request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error);
   });
 }
@@ -2135,41 +2135,59 @@ async function isVoiceCached(voiceId){
   return !!data;
 }
 
-/* LocalVoiceProvider : charge les voix depuis IndexedDB au lieu de HuggingFace */
+/* LocalVoiceProvider : charge les voix depuis IndexedDB au lieu de HuggingFace.
+   Retourne l'objet attendu par Piper : { model: Uint8Array, config: Object } */
 class LocalVoiceProvider {
   async getVoice(voiceId){
-    const data = await getVoiceFromDB(voiceId);
-    if (!data) throw new Error('Voix non trouvée en local: ' + voiceId);
-    return new Uint8Array(data);
+    const voiceData = await getVoiceFromDB(voiceId);
+    if (!voiceData) throw new Error('Voix non trouvée en local: ' + voiceId);
+    // voiceData = { model: ArrayBuffer, config: Object }
+    return {
+      model: new Uint8Array(voiceData.model),
+      config: voiceData.config
+    };
   }
 }
 
-/* Télécharge une voix Piper avec progression */
+/* Télécharge une voix Piper (.onnx + .onnx.json) avec progression */
 async function downloadPiperVoice(voiceId, onProgress){
   const path = PIPER_VOICE_PATHS[voiceId];
   if (!path) throw new Error('Chemin inconnu pour voix: ' + voiceId);
-  const url = PIPER_MODEL_BASE_URL + path;
+  const baseUrl = PIPER_MODEL_BASE_URL + path.replace('.onnx', '');
+  const modelUrl = baseUrl + '.onnx';
+  const configUrl = baseUrl + '.onnx.json';
+  
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const total = parseInt(response.headers.get('content-length') || '0', 10);
-    const reader = response.body.getReader();
-    const chunks = [];
-    let received = 0;
+    // Télécharge le modèle .onnx
+    const modelResponse = await fetch(modelUrl);
+    if (!modelResponse.ok) throw new Error('Modèle HTTP ' + modelResponse.status);
+    const modelTotal = parseInt(modelResponse.headers.get('content-length') || '0', 10);
+    const modelReader = modelResponse.body.getReader();
+    const modelChunks = [];
+    let modelReceived = 0;
     while (true){
-      const { done, value } = await reader.read();
+      const { done, value } = await modelReader.read();
       if (done) break;
-      chunks.push(value);
-      received += value.length;
-      if (onProgress && total) onProgress(received / total);
+      modelChunks.push(value);
+      modelReceived += value.length;
+      if (onProgress && modelTotal) onProgress((modelReceived / modelTotal) * 0.5);
     }
-    const arrayBuffer = new Uint8Array(received);
+    const modelArray = new Uint8Array(modelReceived);
     let offset = 0;
-    for (const chunk of chunks){
-      arrayBuffer.set(chunk, offset);
+    for (const chunk of modelChunks){
+      modelArray.set(chunk, offset);
       offset += chunk.length;
     }
-    await saveVoiceToDB(voiceId, arrayBuffer.buffer);
+    
+    // Télécharge le config .onnx.json
+    const configResponse = await fetch(configUrl);
+    if (!configResponse.ok) throw new Error('Config HTTP ' + configResponse.status);
+    const configText = await configResponse.text();
+    const config = JSON.parse(configText);
+    
+    // Sauvegarde les deux en base
+    await saveVoiceToDB(voiceId, { model: modelArray.buffer, config });
+    if (onProgress) onProgress(1);
     return true;
   } catch(e){
     console.warn('[PIPER] Téléchargement échoué:', voiceId, e.message);
