@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.23-final';
+const APP_VERSION = '9.24-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2088,17 +2088,28 @@ function playPiperWav(blob){
 }
 async function speakPiper(text, voiceId){
   try {
+    console.log('[VOIX] Piper: chargement moteur pour', voiceId);
     const engine = await getPiperEngine();
+    console.log('[VOIX] Piper: moteur OK, récupération voix', voiceId);
+    // Timeout 15s pour téléchargement voix depuis HF
+    const voice = await Promise.race([
+      engine.voiceProvider.getVoice(voiceId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout téléchargement voix')), 15000))
+    ]);
+    console.log('[VOIX] Piper: voix chargée, synthèse...');
     const chunks = splitSentences(text, 250);
     for (const c of chunks){
-      const voice = await engine.voiceProvider.getVoice(voiceId);
       const result = await engine.onnxRuntime.synthesize(c, voice);
       const blob = new Blob([result.audioData], { type: 'audio/wav' });
       const ok = await playPiperWav(blob);
       if (!ok) return false;
     }
+    console.log('[VOIX] Piper: OK');
     return true;
-  } catch(e){ console.warn('[VOIX] Piper echec:', e && e.message); return false; }
+  } catch(e){ 
+    console.warn('[VOIX] Piper echec:', e && e.message);
+    return false; 
+  }
 }
 
 /* Remplit le sélecteur avec les voix Piper */
@@ -2190,7 +2201,7 @@ function speak(text){
        chaine Camb 15s + Edge 8s + retry + Google 6s + retry + Systeme).
        v8.88 : avec Piper en premier, le 1er chargement (moteur + modele ~60 Mo)
        peut depasser 90s sur connexion lente -> 180s. */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 90000);
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
     /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
        gratuite, sans cle, via proxy public HTTP). Secours : Google Translate
        TTS, puis voix systeme du navigateur (aucun reseau).
