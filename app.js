@@ -130,7 +130,7 @@ function localSmartReply(question){
         if (best) break;
       }
     }
-    if (best) return "Je me souviens qu'on en a déjà parlé ! " + best;
+    if (best) return best;
   } catch {}
   /* 2) LOGIQUE par mots-cles (avec accents pour la prononciation) */
   if (/(bonjour|salut|hello|coucou|hey)\b/.test(q)) return "Salut ! Comment ça va ?";
