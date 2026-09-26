@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.77';
+const APP_VERSION = '8.78';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', soniox: 'va_soniox', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1872,6 +1872,69 @@ async function speakEdgeTTS(text){
 } catch(e){ console.warn('[VOIX] EdgeTTS echec:', e.message); return false; }
 }
 
+/* ===== VOIX SONIOX (TTS REST) =====
+   Voix naturelle Soniox (60+ langues, francais parfait). Utilisee en PRIORITE
+   si une cle Soniox est collee dans les reglages. Secours auto : Edge puis
+   Google puis Systeme. POST https://tts-rt.soniox.com/tts -> audio mp3 brut. */
+const SONIOX_TTS_URL = 'https://tts-rt.soniox.com/tts';
+const SONIOX_TTS_VOICE = 'Maya'; /* voix femme claire, parle toutes les langues */
+function playSonioxChunk(c){
+  return new Promise(res => {
+    const key = getSonioxKey();
+    if (!key) return res(false);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    fetch(SONIOX_TTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: 'tts-rt-v2', language: 'fr', voice: SONIOX_TTS_VOICE, audio_format: 'mp3', text: c }),
+      signal: ctrl.signal
+    }).then(r => {
+      if (!r.ok) throw new Error('Soniox TTS HTTP ' + r.status);
+      return r.blob();
+    }).then(blob => {
+      clearTimeout(timer);
+      if (!blob || blob.size < 500) return res(false);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.volume = 1.0;
+      currentAudios.push(audio);
+      let done = false, started = false;
+      const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
+      audio.onplaying = () => { started = true; };
+      audio.onended = () => finish(true);
+      audio.onerror = () => { console.warn('[VOIX] Soniox audio error'); finish(false); };
+      const tryPlay = n => {
+        audio.play().then(() => {}).catch(() => {
+          if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+          else finish(false);
+        });
+      };
+      tryPlay(0);
+      setTimeout(() => { if (!done && !started) finish(false); }, 10000);
+      setTimeout(() => { if (!done) finish(true); }, 30000);
+    }).catch(e => {
+      clearTimeout(timer);
+      console.warn('[VOIX] Soniox TTS echec:', e && e.message);
+      res(false);
+    });
+  });
+}
+async function speakSonioxTTS(text){
+  try {
+    const chunks = splitSentences(text, 250);
+    for (const c of chunks){
+      let ok = await playSonioxChunk(c);
+      if (!ok){
+        await new Promise(r => setTimeout(r, 500));
+        ok = await playSonioxChunk(c);
+      }
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] Soniox TTS echec:', e.message); return false; }
+}
+
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
    aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
 function speakSystem(text){
@@ -2042,9 +2105,12 @@ function speak(text){
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
     let chain;
+    /* v8.78 : si une cle Soniox est collee, sa voix naturelle passe EN PRIORITE
+       (secours auto : Edge puis Google puis Systeme). */
+    if (getSonioxKey()) chain = [['Soniox', speakSonioxTTS], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
        Systeme en dernier recours. Le choix du selecteur est respecte. */
-    if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
