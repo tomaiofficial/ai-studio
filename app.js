@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.27-final';
+const APP_VERSION = '9.28-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2077,6 +2077,15 @@ const PIPER_VOICES = [
   { id: 'fr_FR-upmc-medium', name: 'UPMC (femme, naturelle)', lang: 'fr-FR' },
   { id: 'fr_FR-gilles-low', name: 'Gilles (homme, grave)', lang: 'fr-FR' },
 ];
+/* Mapping correct des chemins HuggingFace pour Piper voices :
+   fr_FR-siwis-medium → fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx
+   fr_FR-upmc-medium → fr/fr_FR/upmc/medium/fr_FR-upmc-medium.onnx
+   fr_FR-gilles-low → fr/fr_FR/gilles/low/fr_FR-gilles-low.onnx */
+const PIPER_VOICE_PATHS = {
+  'fr_FR-siwis-medium': 'siwis/medium/fr_FR-siwis-medium.onnx',
+  'fr_FR-upmc-medium': 'upmc/medium/fr_FR-upmc-medium.onnx',
+  'fr_FR-gilles-low': 'gilles/low/fr_FR-gilles-low.onnx',
+};
 /* ===== PIPER VOICE DOWNLOADER : télécharge les modèles .onnx depuis HuggingFace
    et les stocke dans IndexedDB pour usage hors ligne. ===== */
 const PIPER_MODEL_BASE_URL = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/';
@@ -2137,7 +2146,9 @@ class LocalVoiceProvider {
 
 /* Télécharge une voix Piper avec progression */
 async function downloadPiperVoice(voiceId, onProgress){
-  const url = PIPER_MODEL_BASE_URL + voiceId + '/' + voiceId + '.onnx';
+  const path = PIPER_VOICE_PATHS[voiceId];
+  if (!path) throw new Error('Chemin inconnu pour voix: ' + voiceId);
+  const url = PIPER_MODEL_BASE_URL + path;
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error('HTTP ' + response.status);
