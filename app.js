@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.81';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.82';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', camb: 'va_camb', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), brainSel = $('brainSel');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), cambKeyInput = $('cambKey'), brainSel = $('brainSel');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -303,11 +303,13 @@ function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim()
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
+function getCambKey(){ return (localStorage.getItem(LS.camb) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
+  cambKeyInput.value = getCambKey();
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
@@ -319,6 +321,12 @@ groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   badGroqKey = false; /* v8.68 : nouvelle cle -> on reessaie Groq */
   toast('Cle Groq enregistree');
+});
+
+cambKeyInput.addEventListener('change', () => {
+  localStorage.setItem(LS.camb, cambKeyInput.value.trim());
+  cambErrShown = false; /* v8.82 : nouvelle cle -> on reessaie et on re-diagnostique */
+  toast('Cle Camb.ai enregistree - voix Camb.ai activee');
 });
 
 brainSel.addEventListener('change', () => {
@@ -1850,6 +1858,90 @@ async function speakEdgeTTS(text){
 } catch(e){ console.warn('[VOIX] EdgeTTS echec:', e.message); return false; }
 }
 
+/* ===== VOIX CAMB.AI (MARS8) : voix IA multilingue 150+ langues, francais inclus.
+   API officielle client.camb.ai, CORS autorise EXPLICITEMENT pour ce domaine
+   (Access-Control-Allow-Origin: tomaiofficial.github.io) -> fonctionne depuis
+   le navigateur (contrairement a Soniox). Plan gratuit : 2000 credits/mois,
+   500 caracteres par generation. Cle requise (reglages > Cle Camb.ai).
+   Secours auto : Edge puis Google puis Systeme. ===== */
+const CAMB_TTS_URL = 'https://client.camb.ai/apis/tts-stream';
+const CAMB_TTS_VOICE = 147320; /* voix par defaut de la bibliotheque, parle 150+ langues */
+let cambErrShown = false;
+function playCambChunk(c){
+  return new Promise(res => {
+    const key = getCambKey();
+    if (!key) return res(false);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    fetch(CAMB_TTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+      body: JSON.stringify({
+        text: c,
+        voice_id: CAMB_TTS_VOICE,
+        language: 'fr-fr',
+        speech_model: 'mars-8.1-flash-beta',
+        output_configuration: { format: 'wav' }
+      }),
+      signal: ctrl.signal
+    }).then(r => {
+      if (!r.ok){
+        if (!cambErrShown){
+          cambErrShown = true;
+          const msg = r.status === 401 ? 'Cle Camb.ai invalide - verifie les reglages'
+            : r.status === 402 ? 'Camb.ai : credits epuises'
+            : r.status === 429 ? 'Camb.ai : quota depasse, reessaie plus tard'
+            : 'Camb.ai erreur ' + r.status;
+          toast(msg);
+          console.warn('[VOIX] Camb.ai:', msg);
+        }
+        throw new Error('Camb TTS HTTP ' + r.status);
+      }
+      return r.blob();
+    }).then(blob => {
+      clearTimeout(timer);
+      if (!blob || blob.size < 500) return res(false);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.volume = 1.0;
+      currentAudios.push(audio);
+      let done = false, started = false;
+      const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
+      audio.onplaying = () => { started = true; };
+      audio.onended = () => finish(true);
+      audio.onerror = () => { console.warn('[VOIX] Camb audio error'); finish(false); };
+      const tryPlay = n => {
+        audio.play().then(() => {}).catch(() => {
+          if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+          else finish(false);
+        });
+      };
+      tryPlay(0);
+      setTimeout(() => { if (!done && !started) finish(false); }, 8000);
+      setTimeout(() => { if (!done) finish(true); }, 30000);
+    }).catch(e => {
+      clearTimeout(timer);
+      console.warn('[VOIX] Camb echec:', e && e.message);
+      res(false);
+    });
+  });
+}
+async function speakCambTTS(text){
+  try {
+    /* morceaux de 250 caracteres : sous la limite Camb de 500/generation */
+    const chunks = splitSentences(text, 250);
+    for (const c of chunks){
+      let ok = await playCambChunk(c);
+      if (!ok){
+        await new Promise(r => setTimeout(r, 500));
+        ok = await playCambChunk(c);
+      }
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] CambTTS echec:', e.message); return false; }
+}
+
 /* Voix SYSTEME (Web Speech API) : integree au navigateur, aucune cle, aucun reseau,
    aucun CDN -> fonctionne TOUJOURS. VOIX PRINCIPALE (fiable a 100%). */
 function speakSystem(text){
@@ -1974,10 +2066,14 @@ function speak(text){
        StreamElements (Lea) RETIRE : l'API renvoie 401 sans cle depuis 2026.
        Le choix du selecteur de voix est RESPECTE. */
     const voiceMode = getVoice();
+    /* v8.82 : cle Camb.ai presente -> voix Camb en premier (comme demandé),
+       puis la chaine normale en secours. */
+    const cambFirst = getCambKey() !== '';
     let chain;
+    if (cambFirst) chain = [['Camb', speakCambTTS], ['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     /* VOIX IA REALISTE : Edge (Microsoft Neural) en premier, Google TTS puis
        Systeme en dernier recours. Le choix du selecteur est respecte. */
-    if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
+    else if (voiceMode === 'edge') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'google') chain = [['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'naturelle') chain = [['Edge', speakEdgeTTS], ['GoogleTTS', speakGoogleTTS], ['Systeme', speakSystem]];
     else if (voiceMode === 'systeme') chain = [['Systeme', speakSystem]];
