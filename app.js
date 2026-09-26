@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.36-final';
+const APP_VERSION = '9.37-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), openrouterKeyInput = $('openrouterKey');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), openrouterKeyInput = $('openrouterKey'), mistralKeyInput = $('mistralKey');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -317,6 +317,7 @@ settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   if (openrouterKeyInput) openrouterKeyInput.value = (localStorage.getItem(LS.openrouter) || '').trim();
+  if (mistralKeyInput) mistralKeyInput.value = (localStorage.getItem(LS.mistral) || '').trim();
   wakeToggle.checked = wakeEnabled;
   populateSystemVoices();
   populatePiperVoices();
@@ -327,6 +328,10 @@ settingsModal.addEventListener('click', e => { if (e.target === settingsModal) s
 if (openrouterKeyInput) openrouterKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.openrouter, openrouterKeyInput.value.trim());
   toast('Cle OpenRouter enregistree');
+});
+if (mistralKeyInput) mistralKeyInput.addEventListener('change', () => {
+  localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
+  toast('Cle Mistral AI enregistree');
 });
 
 brainSel.addEventListener('change', () => {
@@ -1127,11 +1132,53 @@ async function askGoogleAI(question, webCtx, msgs){
     }
     return { error: 'http' + (res ? res.status : 'net') };
   } catch(e){ return { error: 'net' }; }
+
+/* ===== MISTRAL AI : gratuit avec cle (console.mistral.ai -> API Keys).
+   Model: mistral-small-latest (rapide, gratuit, excellent en francais). ===== */
+async function askMistral(question, webCtx, msgs){
+  const key = (localStorage.getItem(LS.mistral) || '').trim();
+  if (!key) return { error: 'nokey' };
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
+  if (!msgs){
+    const mem = buildMemoryContext(currentConvId);
+    if (mem){
+      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
+    }
+  }
+  if (webCtx){
+    messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
+  }
+  const mistralModels = ['mistral-small-latest'];
+  for (const model of mistralModels){
+    for (let attempt = 0; attempt < 2; attempt++){
+      try {
+        const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
+        }), 5000);
+        if (res && res.ok){
+          const data = await res.json();
+          const t = (data?.choices?.[0]?.message?.content || '').trim();
+          if (t) return { text: t };
+        } else if (res && res.status === 429 && attempt === 0){
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        } else if (res && (res.status === 401 || res.status === 403)){
+          console.warn('[Mistral] Cle invalide -> retiree pour la session');
+          toast('Cle Mistral invalide - colle une nouvelle cle gratuite');
+          return { error: 'limit' };
+        } else if (res){
+          return { error: 'api' };
+        }
+      } catch(e){ console.warn('[Mistral]', model, 'erreur:', e?.message); }
+      break;
+    }
+  }
+  return { error: 'limit' };
 }
 
-/* ===== OPENROUTER : GRATUIT (Llama 3.3 70B, Mistral), ultra fiable.
-   Cle gratuite sur openrouter.ai -> API Keys -> Create.
-   Models: meta-llama/llama-3.3-70b, openai/gpt-4o-mini ===== */
 async function askOpenRouter(question, webCtx, msgs){
   const key = (localStorage.getItem(LS.openrouter) || '').trim();
   if (!key) return { error: 'nokey' };
@@ -1352,6 +1399,11 @@ async function askBrain(messages, webCtx){
   if (brain === 'openrouter'){
     const o = await askOpenRouter(question, webCtx, messages);
     if (!o.error && o.text) return { text: o.text, diag: 'OpenRouter' };
+    return { text: localSmartReply(question), diag: 'local' };
+  }
+  if (brain === 'mistral'){
+    const m = await askMistral(question, webCtx, messages);
+    if (!m.error && m.text) return { text: m.text, diag: 'Mistral' };
     return { text: localSmartReply(question), diag: 'local' };
   }
   /* auto = Google AI Studio (si cle) -> Pollinations GET x4 -> LLM7 -> OVH -> memoire locale. */
@@ -2575,3 +2627,4 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
+}

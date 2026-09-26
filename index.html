@@ -310,7 +310,16 @@ select.wide-input{appearance:none}
 <h3>⚙️ Réglages</h3>
 
     <h4 class="settings-title">🧠 Cerveau IA</h4>
-    <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit sans clé). Mémoire + logique en dernier recours.</p>
+    <p class="muted">Astra répond avec <b>Mistral AI</b> (gratuit avec clé), <b>Pollinations GPT</b> (gratuit sans clé). Mémoire + logique en dernier recours.</p>
+    <h4 class="settings-title">🟣 Clé Mistral AI (GRATUITE, mistral-small-latest)</h4>
+    <p class="muted">Ultra rapide, excellent en français. Sur <b>console.mistral.ai</b> → API Keys → Create Key → copie la clé ici.</p>
+    <a class="secondary" href="https://console.mistral.ai/" target="_blank" rel="noopener">🔑 Obtenir une clé Mistral gratuite</a>
+    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé Mistral AI ici… — optionnel (gratuit sans elle)" autocomplete="off">
+
+    <h4 class="settings-title">🟢 Clé OpenRouter (GRATUITE, Llama 3.3 70B)</h4>
+    <p class="muted">Ultra fiable, comprend tout. Sur <b>openrouter.ai</b> → API Keys → Create Key → copie la clé ici.</p>
+    <a class="secondary" href="https://openrouter.ai/keys" target="_blank" rel="noopener">🔑 Obtenir une clé OpenRouter gratuite</a>
+    <input type="password" id="openrouterKey" class="wide-input" placeholder="Colle ta clé OpenRouter ici… — optionnel (gratuit sans elle)" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
     <p class="muted">🤖 <b>Piper TTS</b> — 2 voix réalistes locales (WASM, hors ligne, gratuit). Secours : voix système.</p>
@@ -338,9 +347,10 @@ select.wide-input{appearance:none}
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
 
     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
-    <p class="muted">Choisis le cerveau. <b>Pollinations</b> = gratuit sans clé. <b>Local</b> = hors ligne.</p>
+    <p class="muted">Choisis le cerveau. <b>Mistral AI</b> = gratuit avec clé. <b>Pollinations</b> = gratuit sans clé. <b>Local</b> = hors ligne.</p>
     <select id="brainSel" class="wide-input">
-      <option value="pollinations" selected>🌐 Pollinations GPT — gratuit sans clé</option>
+      <option value="mistral" selected>🟣 Mistral AI (mistral-small-latest) — gratuit avec clé</option>
+      <option value="pollinations">🌐 Pollinations GPT — gratuit sans clé</option>
       <option value="local">💾 Mémoire locale (hors ligne, répond toujours)</option>
     </select>
     <h4 class="settings-title">🎤 Réveil vocal</h4>
@@ -356,6 +366,6 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.36-final"></script>
+<script src="app.js?v=9.37-final"></script>
 </body>
 </html>
