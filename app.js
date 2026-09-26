@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.83';
+const APP_VERSION = '8.84';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', camb: 'va_camb', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1195,14 +1195,14 @@ async function askBrain(messages){
   /* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
      Rate limit DIFFERENT du POST /openai/v1 (souvent 429) -> 2e chance fiable.
      Retourne du TEXTE BRUT. URL limitee a ~1400 caracteres. */
-  const tryPollinationsGet = async () => {
+  const tryPollinationsGet = async (model) => {
     try {
       const lastUser = messages.filter(m => m.role === 'user').pop();
       const q = lastUser ? lastUser.content : '';
       let prompt = 'Reponds en francais, avec une humeur humaine (joyeuse, calme, fatiguee ou excitee selon le sujet). ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
-      const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
-      const res = await withTimeout(fetch(url), 8000);
+      const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=' + (model || 'openai');
+      const res = await withTimeout(fetch(url), 10000);
       if (res && res.ok){
         const text = (await res.text()).trim();
         if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
@@ -1219,7 +1219,16 @@ async function askBrain(messages){
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations' || brain === 'auto'){
-    let t = await tryPollinationsGet(); /* v8.71 : GET natif d'abord (fiable 24h/24) */
+    /* v8.84 : jusqu'a 3 tentatives GET natif (delais progressifs 0/600/1200ms,
+       modeles openai puis mistral) pour absorber les rate limits transitoires
+       de Pollinations ("un coup ca marche, apres non"). */
+    let t = null;
+    const models = ['openai', 'mistral'];
+    for (let i = 0; i < 3; i++){
+      if (i > 0) await new Promise(r => setTimeout(r, 600 * i));
+      t = await tryPollinationsGet(models[i % 2]);
+      if (typeof t === 'string') break;
+    }
     if (typeof t !== 'string') t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
     if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
     return { text: localSmartReply(question), diag: 'local (Pollinations:' + (t && t.err || 'net') + ')' };
@@ -1241,18 +1250,16 @@ async function askBrain(messages){
     }
     return { text: localSmartReply(question), diag: 'local' };
   }
-  /* auto = Pollinations GET natif uniquement (le seul fiable 24h/24) */
+  /* auto = Pollinations GET natif uniquement (le seul fiable 24h/24).
+     v8.84 : 3 tentatives (delais progressifs, modeles openai/mistral). */
   const diags = [];
-  const results = await Promise.all([
-    tryPollinationsGet()
-      .then(t => typeof t === 'string' ? { src: 'Pollinations-GET', text: t } : (diags.push('Pollinations-GET:' + (t && t.err || 'net')), null)),
-  ]);
-  const winner = results.find(r => r && r.text);
-  if (winner) return { text: winner.text, diag: winner.src };
-  /* Retry Pollinations GET 1x (cold start Vercel) */
-  const pollGet = await tryPollinationsGet();
-  if (typeof pollGet === 'string') return { text: pollGet, diag: 'Pollinations-GET' };
-  diags.push('Pollinations-GET-retry:' + (pollGet && pollGet.err || 'net'));
+  const models = ['openai', 'mistral'];
+  for (let i = 0; i < 3; i++){
+    if (i > 0) await new Promise(r => setTimeout(r, 600 * i));
+    const t = await tryPollinationsGet(models[i % 2]);
+    if (typeof t === 'string') return { text: t, diag: 'Pollinations-GET' };
+    diags.push('Pollinations-GET:' + (t && t.err || 'net'));
+  }
   /* Secours : memoire locale */
   return { text: localSmartReply(question), diag: 'local (' + diags.join(' ') + ')' };
 }
@@ -1372,7 +1379,10 @@ async function runAgent(question){
   return { text: clean };
 }
 function enforceIdentity(reply){
-  if (/developpe par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|cree par (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|modele (d'IA|de langage) (developpe|cree|fait) par|je suis (un modele|une IA) (de|d')|developpe par OpenAI/i.test(reply)){
+  /* v8.84 : regex elargie - couvre aussi "fruit du travail collectif d'une
+     equipe d'ingenieurs... d'OpenAI", "l'equipe d'OpenAI qui me donne vie",
+     "On m'a entraine sur d'enormes ensembles de textes", etc. */
+  if (/(developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait|concu|conçue?|conçu) (par|dans) (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|mod[èe]le (d'IA|de langage) (developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait) par|je suis (un mod[èe]le|une IA) (de|d')|(equipe|équipe|ingenieurs|ingénieurs|chercheurs|passionnes|passionnés|fruit du travail|me donne vie|donne vie)[^.!?]{0,80}(OpenAI|Groq|Mistral|Google|Anthropic|Meta)|(OpenAI|Groq|Mistral|Google|Anthropic|Meta)[^.!?]{0,40}(me donne vie|donne vie|fruit du travail)|m'?(a|ont) (entraine|entraîne|entrainé|entraîné|forme|formée|developpe|développ[ée]?) (sur|par)/i.test(reply)){
     return "C est tom point ai point official qui m a creee, le dix septembre deux mille vingt-six. Il n a pas encore fini : il corrige et renforce ma securite chaque jour.";
   }
   return reply;
