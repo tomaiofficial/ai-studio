@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.85';
+const APP_VERSION = '8.86';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', camb: 'va_camb', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -265,7 +265,8 @@ function addAiMsg(text, diag){
   if (chatEmpty) chatEmpty.style.display = 'none';
   const d = document.createElement('div');
   d.className = 'msg ai';
-  d.textContent = text;
+  /* v8.86 : nettoyage markdown -> jamais de ** ni de - dans les bulles */
+  d.textContent = cleanMarkdown(text);
   /* v8.69 : le DIAGNOSTIC s'affiche dans la bulle (petit texte gris), PLUS
      JAMAIS dans le sous-titre (qui affiche les paroles pendant qu'elle parle) */
   if (diag){
@@ -278,7 +279,7 @@ function addAiMsg(text, diag){
   chat.scrollTop = chat.scrollHeight;
   /* SOUS-TITRES : affiche ce que dit l'IA sous la bulle (interface vocale) */
   const sub = document.getElementById('subtitle');
-  if (sub) sub.textContent = text;
+  if (sub) sub.textContent = cleanMarkdown(text);
 }
 /* Sous-titre temps reel : met a jour la derniere bulle utilisateur */
 function showInterim(text){
@@ -1451,8 +1452,51 @@ function numToFr(n){
   }
   return String(n);
 }
+/* v8.86 : NETTOYAGE MARKDOWN des reponses de l'IA (les modeles renvoient
+   parfois du markdown : **gras**, *italique*, # titres, - listes, `code`,
+   _souligne_, tableaux, liens). On vire tout pour un texte propre a
+   l'affichage et a la voix. */
+function cleanMarkdown(t){
+  if (!t) return t;
+  return t
+    /* blocs et code inline */
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    /* images et liens markdown -> texte seul */
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    /* gras et italique (d'abord ** et __, puis * et _) - limites a la ligne
+       pour ne pas engloutir des blocs entiers quand plusieurs ** existent */
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1$2')
+    .replace(/(^|[^_])_([^_\n]+)_/g, '$1$2')
+    /* etoiles et underscores orphelins restants (markdown mal forme) */
+    .replace(/\*+/g, '')
+    .replace(/_+/g, '')
+    /* titres markdown */
+    .replace(/^#{1,6}[ \t]+/gm, '')
+    /* listes : - item, * item, + item, 1. item (espaces/tabs seulement,
+       pas les retours a la ligne -> on garde les paragraphes) */
+    .replace(/^[ \t]*[-*+][ \t]+/gm, '')
+    .replace(/^[ \t]*\d+[.)][ \t]+/gm, '')
+    /* lignes de separation (--- ou tableaux |---|---|) */
+    .replace(/^\s*\|?[\s:|=|-]+\|?\s*$/gm, '')
+    /* tableaux : | a | b | -> a b */
+    .replace(/^\s*\|/gm, '')
+    .replace(/\|\s*$/gm, '')
+    .replace(/\|/g, ' ')
+    /* espaces multiples -> un seul */
+    .replace(/[ \t]{2,}/g, ' ')
+    /* espaces autour des retours a la ligne -> propres */
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    /* retours a la ligne multiples -> un seul */
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 function normalizeForTTS(text){
-  return text.normalize('NFC')
+  return cleanMarkdown(text).normalize('NFC')
     /* RE-ACCENTUATION des mots francais courants ecrits sans accents (les
        anciennes reponses en memoire sont sans accents -> Google TTS les
        prononce mal : "ca" -> "ka", "deja" -> "de-ja"...). On remplace les
@@ -1767,7 +1811,7 @@ function playGoogleChunk(c){
     currentAudios.push(audio);
     let done = false, started = false;
     const finish = v => { if (done) return; done = true; res(v); };
-    audio.onplaying = () => { started = true; };
+    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
     audio.onended = () => finish(true);
     audio.onerror = () => { console.warn('[VOIX] GoogleTTS audio error:', audio.error && audio.error.code, audio.error && audio.error.message, url.slice(0, 80)); finish(false); };
     /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
@@ -1844,7 +1888,7 @@ function playEdgeChunk(c){
     currentAudios.push(audio);
     let done = false, started = false;
     const finish = v => { if (done) return; done = true; res(v); };
-    audio.onplaying = () => { started = true; };
+    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
     audio.onended = () => finish(true);
     audio.onerror = () => { console.warn('[VOIX] EdgeTTS audio error:', audio.error && audio.error.code, audio.error && audio.error.message); finish(false); };
     /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
@@ -1927,7 +1971,7 @@ function playCambChunk(c){
       currentAudios.push(audio);
       let done = false, started = false;
       const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
-      audio.onplaying = () => { started = true; };
+      audio.onplaying = () => { started = true; voiceStartedFlag = true; };
       audio.onended = () => finish(true);
       audio.onerror = () => { console.warn('[VOIX] Camb audio error'); finish(false); };
       const tryPlay = n => {
@@ -1991,6 +2035,7 @@ function speakSystem(text){
           u.onerror = e => { console.warn('[VOIX] Systeme erreur:', e.error); finish(false); };
           // débloque si en pause (Chrome)
           try { window.speechSynthesis.resume(); } catch {}
+          voiceStartedFlag = true;
           window.speechSynthesis.speak(u);
         };
         speakNext();
@@ -2055,6 +2100,7 @@ function speak(text){
   return new Promise(resolve => {
     let clean = text;
     try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); }
+    voiceStartedFlag = false;
     setState('speaking');
     setStatus('...');
     let settled = false;
@@ -2069,13 +2115,15 @@ function speak(text){
     };
     const fail = () => {
       console.warn('[VOIX] Toutes les voix ont echoue');
-      setStatus("Voix indisponible - verifie ta connexion internet");
+      /* v8.86 : si une voix a deja commence a jouer, pas de message d'erreur
+         (le timeout global a coupe la chaine mais le son est sorti) */
+      if (!voiceStartedFlag) setStatus("Voix indisponible - verifie ta connexion internet");
       done(false);
     };
-    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 40s
-       sans son (v8.70 : 25s etait trop court pour la chaine complete
-       Edge 8s + retry 1s + Google 6s + retry + Systeme) */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 40s'); fail(); }, 40000);
+    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 90s
+       sans son (v8.86 : 40s etait trop court pour les textes longs avec la
+       chaine Camb 15s + Edge 8s + retry + Google 6s + retry + Systeme) */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global 90s'); fail(); }, 90000);
     /* VOIX IA FEMME PAR DEFAUT : Edge TTS (Microsoft Neural, la plus naturelle,
        gratuite, sans cle, via proxy public HTTP). Secours : Google Translate
        TTS, puis voix systeme du navigateur (aucun reseau).
@@ -2112,6 +2160,9 @@ function speak(text){
   });
 }
 let currentAudios = [];
+/* v8.86 : passe a true des qu'une voix a COMMENCE a jouer -> le timeout
+   global ne doit pas afficher "Voix indisponible" si du son est deja sorti */
+let voiceStartedFlag = false;
 function stopAudio(){
   currentAudios.forEach(a => { try { a.pause(); a.src = ''; a.remove(); } catch {} });
   currentAudios = [];
