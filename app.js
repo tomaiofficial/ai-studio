@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.74';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', brain: 'va_brain', voice: 'va_ttsvoice' };
+const APP_VERSION = '8.75';
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', meta: 'va_metakey', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), brainSel = $('brainSel');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), metaKeyInput = $('metaKey'), brainSel = $('brainSel');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -303,11 +303,13 @@ function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim()
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
+function getMetaKey(){ return (localStorage.getItem(LS.meta) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
   groqKeyInput.value = getGroqKey();
+  metaKeyInput.value = getMetaKey();
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
@@ -319,6 +321,11 @@ groqKeyInput.addEventListener('change', () => {
   localStorage.setItem(LS.groq, groqKeyInput.value.trim());
   badGroqKey = false; /* v8.68 : nouvelle cle -> on reessaie Groq */
   toast('Cle Groq enregistree');
+});
+
+metaKeyInput.addEventListener('change', () => {
+  localStorage.setItem(LS.meta, metaKeyInput.value.trim());
+  toast('Cle Meta enregistree - transcription Muse activee');
 });
 
 brainSel.addEventListener('change', () => {
@@ -516,6 +523,21 @@ async function startRecorder(){
          Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
       setState('thinking');
       setStatus('Je t\'ecoute...');
+      /* Muse Voice Transcribe (Meta) en PRIORITE si une cle est collee :
+         bien plus precis que Whisper (25 langues, francais parfait). */
+      if (getMetaKey()){
+        setStatus('Transcription Muse (Meta)...');
+        try {
+          const txt = await transcribeMuse(blob);
+          if (txt){
+            setState('idle');
+            handleQuestion(txt);
+            return;
+          }
+        } catch (err){
+          console.warn('[STT] Muse a echoue, secours Whisper :', err && err.message);
+        }
+      }
       if (!whisperLoaded && !whisperLoading){
         setStatus('Preparation de la transcription locale (1 seule fois)...');
         loadWhisper();
@@ -1937,6 +1959,66 @@ async function transcribeBlob(blob){
     const out = await whisperASR(pcm, { language: 'french', task: 'transcribe' });
     return (out && out.text || '').trim();
   } catch(e){ console.warn('[STT] Whisper erreur:', e && e.message); return ''; }
+}
+
+/* ===== MUSE VOICE TRANSCRIBE (Meta Model API) =====
+   Transcription vocale ultra precise de Meta (25 langues, francais parfait).
+   Utilisee en PRIORITE si une cle Meta Model API est collee dans les reglages.
+   - POST https://api.meta.ai/v1/asr/transcribe (multipart : request JSON + audio WAV)
+   - L'audio doit etre du WAV mono 16-bit PCM 16 kHz ou 24 kHz -> on convertit le blob. */
+async function blobToWav16k(blob){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ac = new AC();
+  try {
+    const buf = await ac.decodeAudioData(await blob.arrayBuffer());
+    const src = buf.getChannelData(0);
+    const targetRate = 16000;
+    const ratio = buf.sampleRate / targetRate;
+    const outLen = Math.max(1, Math.round(src.length / ratio));
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++){
+      const idx = Math.min(Math.floor(i * ratio), src.length - 1);
+      out[i] = src[idx];
+    }
+    const buffer = new ArrayBuffer(44 + outLen * 2);
+    const view = new DataView(buffer);
+    const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+    writeStr(0, 'RIFF'); view.setUint32(4, 36 + outLen * 2, true); writeStr(8, 'WAVE');
+    writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, targetRate, true); view.setUint32(28, targetRate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    writeStr(36, 'data'); view.setUint32(40, outLen * 2, true);
+    let off = 44;
+    for (let i = 0; i < outLen; i++){
+      const s = Math.max(-1, Math.min(1, out[i]));
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      off += 2;
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  } finally {
+    try { ac.close(); } catch {}
+  }
+}
+async function transcribeMuse(blob){
+  const key = getMetaKey();
+  if (!key) return '';
+  const wav = await blobToWav16k(blob);
+  const fd = new FormData();
+  fd.append('request', new Blob([JSON.stringify({
+    mode: 'PUSH_TO_TALK',
+    model: 'muse-voice-transcribe-1.0',
+    audioEncoding: 'WAV',
+    languageBias: ['French']
+  })], { type: 'application/json' }), 'request.json');
+  fd.append('audio', wav, 'audio.wav');
+  const res = await fetch('https://api.meta.ai/v1/asr/transcribe', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + key },
+    body: fd
+  });
+  if (!res.ok) throw new Error('Muse HTTP ' + res.status);
+  const data = await res.json();
+  return (data.transcript || '').trim();
 }
 
 function speak(text){
