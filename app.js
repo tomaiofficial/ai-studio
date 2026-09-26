@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '8.84';
+const APP_VERSION = '8.85';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', camb: 'va_camb', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -225,7 +225,7 @@ if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', () => {
 });
 
 /* Message de bienvenue */
-const DEV_MESSAGE = "C est tom point ai point official qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.";
+const DEV_MESSAGE = "C est tom ai official qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.";
 const DEV_MESSAGE_TXT = "Je m'appelle Astra. C'est tom.ai.official qui a commence a me creer le 10 septembre 2026, mais il n'a pas encore fini. Il corrige et renforce ma securite chaque jour.";
 
 /* ===== TOAST ===== */
@@ -602,7 +602,7 @@ async function playWelcome(){
     ? `Salut ${name} ! Je m'appelle Astra. C'est tom.ai.official qui a commence a me creer le 10 septembre 2026, mais il n'a pas encore fini. Il corrige et renforce ma securite chaque jour.`
     : DEV_MESSAGE_TXT;
   const spoken = name
-    ? `Salut ${name} ! Moi c'est Astra. C'est tom point ai point official qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.`
+    ? `Salut ${name} ! Moi c'est Astra. C'est tom ai official qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.`
     : DEV_MESSAGE;
   addAiMsg(txt);
   setState('speaking');
@@ -1229,8 +1229,13 @@ async function askBrain(messages){
       t = await tryPollinationsGet(models[i % 2]);
       if (typeof t === 'string') break;
     }
-    if (typeof t !== 'string') t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
     if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
+    t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+    if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
+    /* v8.85 : LLM7 en secours (gratuit, vivant, repond bien en francais) ->
+       Astra repond a TOUTES les questions, meme quand Pollinations est sature. */
+    t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
+    if (typeof t === 'string') return { text: t, diag: 'LLM7' };
     return { text: localSmartReply(question), diag: 'local (Pollinations:' + (t && t.err || 'net') + ')' };
   }
   if (brain === 'llm7'){
@@ -1250,7 +1255,7 @@ async function askBrain(messages){
     }
     return { text: localSmartReply(question), diag: 'local' };
   }
-  /* auto = Pollinations GET natif uniquement (le seul fiable 24h/24).
+  /* auto = Pollinations GET natif, puis LLM7, puis memoire locale.
      v8.84 : 3 tentatives (delais progressifs, modeles openai/mistral). */
   const diags = [];
   const models = ['openai', 'mistral'];
@@ -1260,6 +1265,10 @@ async function askBrain(messages){
     if (typeof t === 'string') return { text: t, diag: 'Pollinations-GET' };
     diags.push('Pollinations-GET:' + (t && t.err || 'net'));
   }
+  /* v8.85 : LLM7 en secours (gratuit, vivant) */
+  const llm7 = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
+  if (typeof llm7 === 'string') return { text: llm7, diag: 'LLM7' };
+  diags.push('LLM7:' + (llm7 && llm7.err || 'net'));
   /* Secours : memoire locale */
   return { text: localSmartReply(question), diag: 'local (' + diags.join(' ') + ')' };
 }
@@ -1383,7 +1392,7 @@ function enforceIdentity(reply){
      equipe d'ingenieurs... d'OpenAI", "l'equipe d'OpenAI qui me donne vie",
      "On m'a entraine sur d'enormes ensembles de textes", etc. */
   if (/(developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait|concu|conçue?|conçu) (par|dans) (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|mod[èe]le (d'IA|de langage) (developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait) par|je suis (un mod[èe]le|une IA) (de|d')|(equipe|équipe|ingenieurs|ingénieurs|chercheurs|passionnes|passionnés|fruit du travail|me donne vie|donne vie)[^.!?]{0,80}(OpenAI|Groq|Mistral|Google|Anthropic|Meta)|(OpenAI|Groq|Mistral|Google|Anthropic|Meta)[^.!?]{0,40}(me donne vie|donne vie|fruit du travail)|m'?(a|ont) (entraine|entraîne|entrainé|entraîné|forme|formée|developpe|développ[ée]?) (sur|par)/i.test(reply)){
-    return "C est tom point ai point official qui m a creee, le dix septembre deux mille vingt-six. Il n a pas encore fini : il corrige et renforce ma securite chaque jour.";
+    return "C est tom ai official qui m a creee, le dix septembre deux mille vingt-six. Il n a pas encore fini : il corrige et renforce ma securite chaque jour.";
   }
   return reply;
 }
@@ -1411,7 +1420,7 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
   session = lastConv.messages.map(m => ({ role: m.role, content: m.content }));
 } else {
   session.push({ role: 'user', content: "Rappel important : tu t'appelles Astra et tu as ete creee par tom.ai.official le 10 septembre 2026. Il n'a pas encore fini de te developper : il corrige et renforce ta securite chaque jour. Si on te demande qui t'a creee, reponds toujours que c'est tom.ai.official, jamais une autre entreprise. Si on te demande ton nom, reponds toujours Astra, jamais TomBot." });
-  session.push({ role: 'assistant', content: "Compris, je m appelle Astra et c est tom point ai point official qui m a creee le 10 septembre 2026. Il n a pas encore fini : il corrige et renforce ma securite chaque jour." });
+  session.push({ role: 'assistant', content: "Compris, je m appelle Astra et c est tom ai official qui m a creee le 10 septembre 2026. Il n a pas encore fini : il corrige et renforce ma securite chaque jour." });
 }
 
 /* ===== VOIX IA FEMME (Google Translate TTS) : gratuite, sans cle, marche partout ===== */
@@ -1558,8 +1567,8 @@ function normalizeForTTS(text){
     .replace(/[\u201C\u201D\u201E\u00AB\u00BB"]/g, ' ')
     /* liens web : jamais lus lettre par lettre */
     .replace(/https?:\/\/\S+/gi, ' lien ')
-    .replace(/tom\.ai\.official/gi, 'tom point ai point official')
-    .replace(/Tom\.ai/gi, 'Tom point ai')
+    .replace(/tom\.ai\.official/gi, 'tom ai official')
+    .replace(/Tom\.ai/gi, 'Tom ai')
     .replace(/v(\d+)\.(\d+)/gi, (m, a, b) => numToFr(parseInt(a, 10)) + ' point ' + numToFr(parseInt(b, 10)))
     /* HEURES : 10h30 -> "dix heures trente", 10h -> "dix heures" */
     .replace(/\b(\d{1,2})h(\d{2})\b/g, (m, h, mn) => numToFr(parseInt(h, 10)) + ' heures ' + numToFr(parseInt(mn, 10)))
