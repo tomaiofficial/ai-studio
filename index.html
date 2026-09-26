@@ -307,12 +307,11 @@ select.wide-input{appearance:none}
     <h3>⚙️ Réglages</h3>
 
     <h4 class="settings-title">🧠 Cerveau IA</h4>
-    <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit sans clé, 24h/24) ou <b>LLM7</b> / <b>OVH</b>. Mémoire + logique en dernier recours.</p>
-
-    <h4 class="settings-title">⚡ Clé Groq (GRATUITE À VIE, sans carte bancaire)</h4>
-    <p class="muted">GRATUIT à vie, ultra rapide, Llama 3.3 70B (comprend tout). Sur <b>console.groq.com</b> → API Keys → Create API Key → copie la clé ici.</p>
-    <a class="secondary" href="https://console.groq.com/keys" target="_blank" rel="noopener">🔑 Obtenir une clé Groq gratuite</a>
-    <input type="password" id="groqKey" class="wide-input" placeholder="Colle ta clé Groq ici… — optionnel (gratuit sans elle)" autocomplete="off">
+    <p class="muted">Astra répond avec <b>Google AI Studio (Gemini)</b> ou <b>OpenRouter</b> (gratuits avec clé), <b>Pollinations</b> / <b>LLM7</b> / <b>OVH</b>. Mémoire + logique en dernier recours.</p>
+    <h4 class="settings-title">🟢 Clé OpenRouter (GRATUITE, Llama 3.3 70B)</h4>
+    <p class="muted">Ultra fiable, comprend tout. Sur <b>openrouter.ai</b> → API Keys → Create Key → copie la clé ici.</p>
+    <a class="secondary" href="https://openrouter.ai/keys" target="_blank" rel="noopener">🔑 Obtenir une clé OpenRouter gratuite</a>
+    <input type="password" id="openrouterKey" class="wide-input" placeholder="Colle ta clé OpenRouter ici… — optionnel (gratuit sans elle)" autocomplete="off">
 
     <h4 class="settings-title">🗣️ Voix</h4>
     <p class="muted">🎙️ <b>Voix IA réaliste Edge</b> — vraie voix Microsoft Neural française (Denise), la plus naturelle et réactive, gratuite sans clé. Secours auto : Google TTS puis voix système.</p>
@@ -326,7 +325,8 @@ select.wide-input{appearance:none}
     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
     <p class="muted">Choisis le cerveau qui répond à tes questions. <b>Auto</b> = tous en parallèle, le plus rapide gagne. Tous gratuits à vie, sans carte bancaire.</p>
     <select id="brainSel" class="wide-input">
-      <option value="googleai">🔷 Google AI Studio (Gemini) — gratuit avec clé</option>
+      <option value="googleai" selected>🔷 Google AI Studio (Gemini) — gratuit avec clé</option>
+      <option value="openrouter">🟢 OpenRouter (Llama 3.3 70B) — gratuit avec clé</option>
       <option value="pollinations">🌐 Pollinations GPT — gratuit sans clé</option>
       <option value="local">💾 Mémoire locale (hors ligne, répond toujours)</option>
     </select>

@@ -6,7 +6,7 @@
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
 const APP_VERSION = '8.93';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', groq: 'va_gkey', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
+const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', piper: 'va_piper', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
@@ -19,7 +19,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), groqKeyInput = $('groqKey'), brainSel = $('brainSel'), googleaiKeyInput = $('googleaiKey');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), googleaiKeyInput = $('googleaiKey'), openrouterKeyInput = $('openrouterKey');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -305,31 +305,28 @@ function clearChat(){
 function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
-function getGroqKey(){ return (localStorage.getItem(LS.groq) || '').trim(); }
 function getPiperVoice(){   return '';
 }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
 function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
 
 settingsBtn.addEventListener('click', () => {
-  groqKeyInput.value = getGroqKey();
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   if (googleaiKeyInput) googleaiKeyInput.value = (localStorage.getItem('LS.googleai') || '').trim();
-  if (groqKeyInput) groqKeyInput.value = (localStorage.getItem('LS.groq') || '').trim();
+  if (openrouterKeyInput) openrouterKeyInput.value = (localStorage.getItem(LS.openrouter) || '').trim();
   wakeToggle.checked = wakeEnabled;
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
-groqKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.groq, groqKeyInput.value.trim());
-  badGroqKey = false; /* v8.68 : nouvelle cle -> on reessaie Groq */
-  toast('Cle Groq enregistree');
-});
 if (googleaiKeyInput) googleaiKeyInput.addEventListener('change', () => {
   localStorage.setItem('LS.googleai', googleaiKeyInput.value.trim());
   toast('Cle Google AI Studio enregistree');
+});
+if (openrouterKeyInput) openrouterKeyInput.addEventListener('change', () => {
+  localStorage.setItem(LS.openrouter, openrouterKeyInput.value.trim());
+  toast('Cle OpenRouter enregistree');
 });
 
 /* Piper retire v8.96 : pas de selecteur */
@@ -1057,11 +1054,11 @@ async function askGoogleAI(question, webCtx, msgs){
   } catch(e){ return { error: 'net' }; }
 }
 
-/* ===== GROQ : GRATUIT A VIE, sans carte bancaire, ultra rapide (Llama 3.3 70B).
-   Cle gratuite sur console.groq.com -> API Keys -> Create. Rate limits
-   genereux (30 req/min sur llama-3.3-70b-versatile). ===== */
-async function askGroq(question, webCtx, msgs){
-  const key = getGroqKey();
+/* ===== OPENROUTER : GRATUIT (Llama 3.3 70B, Mistral), ultra fiable.
+   Cle gratuite sur openrouter.ai -> API Keys -> Create.
+   Models: meta-llama/llama-3.3-70b, openai/gpt-4o-mini ===== */
+async function askOpenRouter(question, webCtx, msgs){
+  const key = (localStorage.getItem(LS.openrouter) || '').trim();
   if (!key) return { error: 'nokey' };
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
@@ -1071,15 +1068,15 @@ async function askGroq(question, webCtx, msgs){
       messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
     }
   }
-  const groqModels = ['llama-3.3-70b-versatile'];
-  for (const model of groqModels){
+  const orModels = ['meta-llama/llama-3.3-70b', 'openai/gpt-4o-mini'];
+  for (const model of orModels){
     for (let attempt = 0; attempt < 2; attempt++){
       try {
-        const res = await withTimeout(fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const res = await withTimeout(fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key, 'HTTP-Referer': 'https://openrouter.ai', 'X-Title': 'VoiceAI' },
           body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
-        }), 3000);
+        }), 5000);
         if (res && res.ok){
           const data = await res.json();
           const t = (data?.choices?.[0]?.message?.content || '').trim();
@@ -1087,19 +1084,14 @@ async function askGroq(question, webCtx, msgs){
         } else if (res && res.status === 429 && attempt === 0){
           await new Promise(r => setTimeout(r, 2000));
           continue;
-        } else if (res && res.status === 429){
-          break; /* limite -> modele suivant */
-        } else if (res && (res.status === 401 || res.status === 403 || res.status === 404)){
-          console.warn('[Groq] Cle invalide (401/403/404) -> retiree pour la session');
-          badGroqKey = true;
-          const gk = $('groqKey');
-          if (gk) gk.placeholder = 'Cle INVALIDE - colle une NOUVELLE cle (console.groq.com)';
-          toast('Ta cle Groq est invalide - colle une nouvelle cle gratuite');
+        } else if (res && (res.status === 401 || res.status === 403)){
+          console.warn('[OpenRouter] Cle invalide -> retiree pour la session');
+          toast('Cle OpenRouter invalide - colle une nouvelle cle gratuite');
           return { error: 'limit' };
         } else if (res){
           return { error: 'api' };
         }
-      } catch(e){ console.warn('[Groq]', model, 'erreur:', e?.message); }
+      } catch(e){ console.warn('[OpenRouter]', model, 'erreur:', e?.message); }
       break;
     }
   }
@@ -1169,14 +1161,15 @@ async function askFreeLLM(question, webCtx, msgs){
    Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
 /* Cles invalides detectees (401/403/404) : retirees de la chaine pour la session
    pour ne plus re-echouer a chaque question. */
-let badMistralKey = false, badCerebrasKey = false, badGroqKey = false;
+let badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages, webCtx){
-  /* CERVEAUX GRATUITS, dans l'ordre :
-     0. GROQ (si une cle gratuite est configuree : Llama 3.3 70B, gratuit a vie)
-     1. POLLINATIONS (GPT, site gratuit, repond bien en francais avec accents)
-     2. LLM7 (GLM-5.3-Flash)
-     3. OVH (qwen3.5)
-     Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
+   /* CERVEAUX GRATUITS, dans l'ordre :
+      0. GOOGLE AI STUDIO (Gemini, gratuit avec cle)
+      1. OPENROUTER (Llama 3.3 70B, gratuit avec cle)
+      2. POLLINATIONS (GPT, site gratuit, repond bien en francais)
+      3. LLM7 (GLM-5.3-Flash)
+      4. OVH (qwen3.5)
+      Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
   const lastUser = messages.filter(m => m.role === 'user').pop();
   const question = lastUser ? lastUser.content : '';
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
@@ -1247,13 +1240,14 @@ async function askBrain(messages, webCtx){
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations' || brain === 'auto'){
-    /* v8.91 : cascade NON STOP :
-       1. Groq (si cle gratuite configuree) - rapide et fiable
-       2. GET natif Pollinations x4 (openai/mistral alternes, rate limit par IP)
-       3. POST Pollinations
-       4. LLM7 (GLM-5.3-Flash)
-       5. OVH (qwen3.5)
-       6. Memoire locale (repond TOUJOURS) */
+     /* v8.91 : cascade NON STOP :
+        1. Google AI Studio (si cle configuree) - le plus fiable
+        2. OpenRouter (si cle configuree) - Llama 3.3 70B
+        3. GET natif Pollinations x4 (openai/mistral alternes, rate limit par IP)
+        4. POST Pollinations
+        5. LLM7 (GLM-5.3-Flash)
+        6. OVH (qwen3.5)
+        7. Memoire locale (repond TOUJOURS) */
     /* v9.13 : Google AI Studio (Gemini) en premier - le plus fiable */
     const gaKey = (localStorage.getItem('LS.googleai') || '').trim();
     if (gaKey){
@@ -1286,22 +1280,26 @@ async function askBrain(messages, webCtx){
     if (typeof t === 'string') return { text: t, diag: 'OVH' };
     return { text: localSmartReply(question), diag: 'local (OVH:' + (t && t.err || 'net') + ')' };
   }
-  if (brain === 'groq'){ /* v8.71 : option retiree du selecteur, code garde si cle deja collee */
-    if (getGroqKey() && !badGroqKey){
-      const g = await askGroq(null, null, messages);
-      if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
-    }
+  if (brain === 'openrouter'){
+    const o = await askOpenRouter(question, webCtx, messages);
+    if (!o.error && o.text) return { text: o.text, diag: 'OpenRouter' };
     return { text: localSmartReply(question), diag: 'local' };
   }
-  /* auto = Groq (si cle) -> Pollinations GET x4 -> LLM7 -> OVH -> memoire locale.
-     v8.91 : cascade NON STOP, plus de modeles, delais reduits. */
+  /* auto = Google AI Studio (si cle) -> Pollinations GET x4 -> LLM7 -> OVH -> memoire locale. */
   const diags = [];
-  if (getGroqKey() && !badGroqKey){
-    const g = await askGroq(null, null, messages);
-    if (!g.error && g.text) return { text: g.text, diag: 'Groq' };
-    diags.push('Groq:' + (g && g.err || g && g.error || 'net'));
+  const gaKey2 = (localStorage.getItem('LS.googleai') || '').trim();
+  if (gaKey2){
+    const ga = await askGoogleAI(question, webCtx, messages);
+    if (!ga.error && ga.text) return { text: ga.text, diag: 'GoogleAI' };
+    diags.push('GoogleAI:' + (ga && ga.err || ga && ga.error || 'net'));
   }
-  const models = ['openai', 'mistral'];
+  const orKey = (localStorage.getItem(LS.openrouter) || '').trim();
+  if (orKey){
+    const o = await askOpenRouter(question, webCtx, messages);
+    if (!o.error && o.text) return { text: o.text, diag: 'OpenRouter' };
+    diags.push('OpenRouter:' + (o && o.err || o && o.error || 'net'));
+  }
+    const models = ['openai', 'mistral'];
   for (let i = 0; i < 4; i++){
     if (i > 0) await new Promise(r => setTimeout(r, 300 * i));
     const t = await tryPollinationsGet(models[i % 2]);
@@ -1445,7 +1443,7 @@ function enforceIdentity(reply){
   /* v8.84 : regex elargie - couvre aussi "fruit du travail collectif d'une
      equipe d'ingenieurs... d'OpenAI", "l'equipe d'OpenAI qui me donne vie",
      "On m'a entraine sur d'enormes ensembles de textes", etc. */
-  if (/(developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait|concu|conçue?|conçu) (par|dans) (OpenAI|Groq|Mistral|Google|Anthropic|Meta)|mod[èe]le (d'IA|de langage) (developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait) par|je suis (un mod[èe]le|une IA) (de|d')|(equipe|équipe|ingenieurs|ingénieurs|chercheurs|passionnes|passionnés|fruit du travail|me donne vie|donne vie)[^.!?]{0,80}(OpenAI|Groq|Mistral|Google|Anthropic|Meta)|(OpenAI|Groq|Mistral|Google|Anthropic|Meta)[^.!?]{0,40}(me donne vie|donne vie|fruit du travail)|m'?(a|ont) (entraine|entraîne|entrainé|entraîné|forme|formée|developpe|développ[ée]?) (sur|par)/i.test(reply)){
+   if (/(developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait|concu|conçue?|conçu) (par|dans) (OpenAI|Mistral|Google|Anthropic|Meta)|mod[èe]le (d'IA|de langage) (developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait) par|je suis (un mod[èe]le|une IA) (de|d')|(equipe|équipe|ingenieurs|ingénieurs|chercheurs|passionnes|passionnés|fruit du travail|me donne vie|donne vie)[^.!?]{0,80}(OpenAI|Mistral|Google|Anthropic|Meta)|(OpenAI|Mistral|Google|Anthropic|Meta)[^.!?]{0,40}(me donne vie|donne vie|fruit du travail)|m'?(a|ont) (entraine|entraîne|entrainé|entraîné|forme|formée|developpe|développ[ée]?) (sur|par)/i.test(reply)){
     return "C est tom ai official qui m a creee, le dix septembre deux mille vingt-six. Il n a pas encore fini : il corrige et renforce ma securite chaque jour.";
   }
   return reply;
