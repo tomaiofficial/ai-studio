@@ -5,7 +5,7 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.33-final';
+const APP_VERSION = '9.34-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -173,9 +173,14 @@ function localSmartReply(question){
      on repond honnetement et on propose une alternative. */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    return "Je suis la et je t'écoute. Pose-moi ta question et je vais te répondre au mieux.";
+    return "Je suis là et je t'écoute. Dis-moi ce que tu veux savoir, je vais t'aider.";
   }
-  return "Je suis la et je t'écoute. Pose-moi ta question et je vais te répondre au mieux.";
+  // Réponses contextuelles basées sur mots-clés
+  if (/(bonjour|salut|hello|coucou)/.test(q)) return "Salut ! Comment puis-je t'aider aujourd'hui ?";
+  if (/(comment|pourquoi|qu'est-ce|quest-ce|c'est quoi)/.test(q)) return "C'est une bonne question. Laisse-moi réfléchir... " + kw.join(' ') + " est un sujet intéressant.";
+  if (/(merci|thanks)/.test(q)) return "Avec plaisir ! N'hésite pas si tu as d'autres questions.";
+  if (/(au revoir|bye|a plus)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
+  return "Je suis là. Pose-moi ta question, je vais faire de mon mieux pour t'aider.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -1202,7 +1207,7 @@ async function askBrain(messages, webCtx){
     }
     return t;
   };
-  /* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
+/* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
      Rate limit DIFFERENT du POST /openai/v1 (souvent 429) -> 2e chance fiable.
      Retourne du TEXTE BRUT. URL limitee a ~1400 caracteres. */
   const tryPollinationsGet = async (model) => {
@@ -1214,38 +1219,43 @@ async function askBrain(messages, webCtx){
       prompt += ' Question : ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
       const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=' + (model || 'openai');
-      const res = await withTimeout(fetch(url), 10000);
+      const res = await withTimeout(fetch(url), 15000);
       if (res && res.ok){
         const text = (await res.text()).trim();
         if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text) && !isSecoursReply(text)) return text;
         return { err: 'refus' };
       }
       if (res && res.status === 429) return { err: 'limit' };
+      if (res && res.status >= 500) return { err: 'server' };
       if (res) return { err: 'http' + res.status };
       return { err: 'net' };
     } catch(e){ return { err: 'net' }; }
   };
-/* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
+  /* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
      auto = Pollinations (gratuit sans clé) -> Local (repond TOUJOURS). */
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations' || brain === 'auto'){
-    /* Pollinations GET natif x4 (openai/mistral alternes) -> POST Pollinations -> Local */
+    /* Pollinations GET natif x4 (openai/mistral alternes) -> POST Pollinations -> LLM7 -> OVH -> Local */
     let t = null;
     const models = ['openai', 'mistral'];
     for (let i = 0; i < 4; i++){
-      if (i > 0) await new Promise(r => setTimeout(r, 300 * i));
+      if (i > 0) await new Promise(r => setTimeout(r, 500 * i));
       t = await tryPollinationsGet(models[i % 2]);
       if (typeof t === 'string') break;
     }
     if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
+    // POST Pollinations avec retry
     t = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
     if (typeof t === 'string') return { text: t, diag: 'Pollinations' };
+    // LLM7
     t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
     if (typeof t === 'string') return { text: t, diag: 'LLM7' };
+    // OVH
     t = await tryWithRetry('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
     if (typeof t === 'string') return { text: t, diag: 'OVH' };
-    return { text: localSmartReply(question), diag: 'local (Pollinations:' + (t && t.err || 'net') + ')' };
+    // Local en dernier recours
+    return { text: localSmartReply(question), diag: 'local (tous echecs)' };
   }
   if (brain === 'llm7'){
     const t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
@@ -1915,6 +1925,7 @@ function speakSystem(text, specificVoiceName){
         const chunks = splitSentences(text, 200);
         let i = 0;
         let done = false;
+        let hasSpoken = false;
         const finish = ok => { if (done) return; done = true; resolve(ok); };
         const speakNext = () => {
           if (i >= chunks.length) return finish(true);
@@ -1933,18 +1944,18 @@ function speakSystem(text, specificVoiceName){
               : (fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0]);
           }
           if (pick) u.voice = pick;
-          u.onend = () => speakNext();
+          u.onend = () => { hasSpoken = true; speakNext(); };
           u.onerror = e => { 
             const err = e.error || 'unknown';
             if (err !== 'interrupted') console.warn('[VOIX] Systeme erreur:', err);
-            finish(false); 
+            // Ne pas échouer si on a déjà parlé au moins un chunk
+            if (hasSpoken) finish(true); else finish(false); 
           };
           try { window.speechSynthesis.resume(); } catch {}
-          voiceStartedFlag = true;
           window.speechSynthesis.speak(u);
         };
         speakNext();
-        setTimeout(() => finish(true), chunks.length * 20000 + 10000);
+        setTimeout(() => finish(hasSpoken), chunks.length * 20000 + 10000);
       };
       if (voices.length === 0) {
         let waited = false;
@@ -1997,19 +2008,18 @@ let whisperASR = null, whisperLoading = false, whisperLoaded = false;
 function loadWhisper(){
   if (whisperLoading || whisperLoaded) return;
   whisperLoading = true;
-  const s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/dist/transformers.min.js';
-  s.onload = async () => {
-    try {
-      const { pipeline } = self.transformers;
-      whisperASR = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', { dtype: 'q8' });
-      whisperLoaded = true;
-      console.log('[STT] Whisper pret : transcription locale dispo');
-    } catch(e){ console.warn('[STT] Whisper echec:', e && e.message); }
-    whisperLoading = false;
-  };
-  s.onerror = () => { whisperLoading = false; console.warn('[STT] Whisper CDN indisponible'); };
-  document.head.appendChild(s);
+  // Charge transformers.js en module ES
+  import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/dist/transformers.min.js')
+    .then(async (transformers) => {
+      try {
+        const { pipeline } = transformers;
+        whisperASR = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', { dtype: 'q8' });
+        whisperLoaded = true;
+        console.log('[STT] Whisper pret : transcription locale dispo');
+      } catch(e){ console.warn('[STT] Whisper echec:', e && e.message); }
+      whisperLoading = false;
+    })
+    .catch(() => { whisperLoading = false; console.warn('[STT] Whisper CDN indisponible'); });
 }
 async function transcribeBlob(blob){
   if (!whisperLoaded || !whisperASR) return '';
