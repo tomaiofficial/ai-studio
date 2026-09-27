@@ -313,16 +313,13 @@ select.wide-input{appearance:none}
     <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🌟 <b>Kokoro TTS</b> — 8 voix FR/EN natives, qualité premium (WebGPU/WASM, ~82 Mo, sans serveur). Secours : Edge TTS / voix système.</p>
+    <p class="muted">🌟 <b>SpeechT5 TTS</b> — 5 voix FR/EN (Microsoft, WebGPU/WASM, ~200 Mo, sans serveur). Secours : Edge TTS / voix système.</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="kokoro:af_sky" selected>🌟 Kokoro: Sky (femme, naturelle, FR/EN)</option>
-      <option value="kokoro:af_bella">🌟 Kokoro: Bella (femme, douce, FR/EN)</option>
-      <option value="kokoro:af_sarah">🌟 Kokoro: Sarah (femme, claire, FR/EN)</option>
-      <option value="kokoro:af_nicole">🌟 Kokoro: Nicole (femme, expressive, FR/EN)</option>
-      <option value="kokoro:af_aoede">🌟 Kokoro: Aoede (femme, chaleureuse, FR/EN)</option>
-      <option value="kokoro:af_kore">🌟 Kokoro: Kore (femme, naturelle, FR/EN)</option>
-      <option value="kokoro:bf_emma">🌟 Kokoro: Emma (femme, britannique, FR/EN)</option>
-      <option value="kokoro:bf_isabella">🌟 Kokoro: Isabella (femme, britannique, FR/EN)</option>
+      <option value="speecht5:fr_female_1" selected>🌟 SpeechT5: Française 1 (naturelle)</option>
+      <option value="speecht5:fr_female_2">🌟 SpeechT5: Française 2 (douce)</option>
+      <option value="speecht5:fr_male_1">🌟 SpeechT5: Français 1 (profond)</option>
+      <option value="speecht5:en_female_1">🌟 SpeechT5: English Female 1</option>
+      <option value="speecht5:en_male_1">🌟 SpeechT5: English Male 1</option>
     </select>
     <button class="primary" id="testVoice">🔊 Tester la voix</button>
 
@@ -344,6 +341,6 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.60-final"></script>
+<script src="app.js?v=9.61-final"></script>
 </body>
 </html>

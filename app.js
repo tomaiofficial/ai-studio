@@ -4,11 +4,11 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.60-final loading...');
-const APP_VERSION = '9.60-final';
+console.log('[APP] v9.61-final loading...');
+const APP_VERSION = '9.61-final';
 const LS = { voice: 'va_ttsvoice' };
 
-const DEFAULT_VOICE = 'kokoro:af_sky'; // Voix Kokoro Sky par défaut (WebGPU/WASM, FR natif, qualité top)
+const DEFAULT_VOICE = 'speecht5:fr_female_1'; // Voix SpeechT5 Française 1 par défaut (WebGPU/WASM, FR natif, qualité top)
 const SPEED = 1.0; // naturel
 
 /* ===== EDGE TTS LOCAL (Microsoft voix neuronales : Henrietta, Denise, Remy...)
@@ -71,73 +71,73 @@ function playAudioBlob(blob){
   });
 }
 
-/* ===== KOKORO TTS LOCAL (Hugging Face / Transformers.js) — PRIORITÉ #1
-   Modèle: onnx-community/Kokoro-82M-ONNX (82M params, qualité quasi humaine)
-   Voix FR natives: af_sky, af_bella, af_sarah, af_nicole, af_aoede, af_kore, bf_emma, bf_isabella
+/* ===== SPEECHT5 TTS LOCAL (Microsoft / Transformers.js) — PRIORITÉ #1
+   Modèle: Xenova/speecht5_tts (Microsoft, multilingue, qualité premium)
+   Voix: speaker embeddings (x-vectors) pour multiples locuteurs FR/EN
    Tourne 100% navigateur: WebGPU (GPU) + WASM (CPU fallback), quantized q8 pour vitesse
-   Aucun serveur, aucune clé, ~82 Mo téléchargés une fois (cache navigateur) ===== */
-const KOKORO_MODEL_ID = 'onnx-community/Kokoro-82M-ONNX';
-let kokoroPipeline = null;
-let kokoroVoicesCache = null;
-const KOKORO_VOICES = [
-  { id: 'af_sky', name: 'Kokoro: Sky (femme, naturelle, FR/EN)', lang: 'fr' },
-  { id: 'af_bella', name: 'Kokoro: Bella (femme, douce, FR/EN)', lang: 'fr' },
-  { id: 'af_sarah', name: 'Kokoro: Sarah (femme, claire, FR/EN)', lang: 'fr' },
-  { id: 'af_nicole', name: 'Kokoro: Nicole (femme, expressive, FR/EN)', lang: 'fr' },
-  { id: 'af_aoede', name: 'Kokoro: Aoede (femme, chaleureuse, FR/EN)', lang: 'fr' },
-  { id: 'af_kore', name: 'Kokoro: Kore (femme, naturelle, FR/EN)', lang: 'fr' },
-  { id: 'bf_emma', name: 'Kokoro: Emma (femme, britannique, FR/EN)', lang: 'fr' },
-  { id: 'bf_isabella', name: 'Kokoro: Isabella (femme, britannique, FR/EN)', lang: 'fr' },
+   Aucun serveur, aucune clé, ~200 Mo téléchargés une fois (cache navigateur) ===== */
+const SPEECHT5_MODEL_ID = 'Xenova/speecht5_tts';
+let speecht5Pipeline = null;
+let speecht5Loading = false;
+/* Voix SpeechT5 : speaker embeddings (x-vectors) — on utilise des presets FR/EN */
+const SPEECHT5_VOICES = [
+  { id: 'fr_female_1', name: 'SpeechT5: Française 1 (naturelle)', lang: 'fr', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
+  { id: 'fr_female_2', name: 'SpeechT5: Française 2 (douce)', lang: 'fr', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
+  { id: 'fr_male_1', name: 'SpeechT5: Français 1 (profond)', lang: 'fr', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
+  { id: 'en_female_1', name: 'SpeechT5: English Female 1', lang: 'en', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
+  { id: 'en_male_1', name: 'SpeechT5: English Male 1', lang: 'en', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
 ];
-let kokoroLoading = false;
-async function loadKokoroPipeline(){
-  if (kokoroPipeline) return kokoroPipeline;
-  if (kokoroLoading) {
-    while (kokoroLoading) await new Promise(r => setTimeout(r, 100));
-    return kokoroPipeline;
+let speecht5Pipeline = null;
+let speecht5Loading = false;
+async function loadSpeecht5Pipeline(){
+  if (speecht5Pipeline) return speecht5Pipeline;
+  if (speecht5Loading) {
+    while (speecht5Loading) await new Promise(r => setTimeout(r, 100));
+    return speecht5Pipeline;
   }
-  kokoroLoading = true;
+  speecht5Loading = true;
   try {
-    console.log('[KOKORO] Chargement modèle', KOKORO_MODEL_ID, '...');
+    console.log('[SPEECHT5] Chargement modèle', SPEECHT5_MODEL_ID, '...');
     const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
     const device = (navigator.gpu ? 'webgpu' : 'wasm');
     const dtype = 'q8';
-    kokoroPipeline = await pipeline('text-to-speech', 'onnx-community/Kokoro-82M-ONNX', {
+    speecht5Pipeline = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
       device,
       dtype,
-      progress_callback: (p) => console.log('[KOKORO] Chargement:', Math.round(p * 100) + '%')
+      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
     });
-    console.log('[KOKORO] Modèle prêt sur', device, 'dtype q8');
+    console.log('[SPEECHT5] Modèle prêt sur', device, 'dtype q8');
     // Test rapide avec timeout
-    const testPromise = kokoroPipeline('Test', { voice: 'af_sky' });
+    const testPromise = speecht5Pipeline('Test', { speaker_embeddings: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' });
     const test = await Promise.race([testPromise, new Promise((_, r) => setTimeout(() => r(new Error('Test timeout')), 30000))]);
-    console.log('[KOKORO] Test OK - audio length:', test?.audio?.length, 'sr:', test?.sampling_rate || test?.samplingRate);
-    return kokoroPipeline;
+    console.log('[SPEECHT5] Test OK - audio length:', test?.audio?.length, 'sr:', test?.sampling_rate || test?.samplingRate);
+    return speecht5Pipeline;
   } catch(e) {
-    console.error('[KOKORO] Échec chargement:', e);
-    kokoroPipeline = null;
+    console.error('[SPEECHT5] Échec chargement:', e);
+    speecht5Pipeline = null;
     throw e;
   } finally {
-    kokoroLoading = false;
+    speecht5Loading = false;
   }
 }
-async function fetchKokoroVoices(){
-  return KOKORO_VOICES;
+async function fetchSpeecht5Voices(){
+  return SPEECHT5_VOICES;
 }
-async function speakKokoro(text, voiceId, onChunk){
+async function speakSpeecht5(text, voiceId, onChunk){
   try {
-    console.log('[KOKORO] speakKokoro appelé, voiceId:', voiceId, 'text:', text.substring(0,50));
-    const pipe = await loadKokoroPipeline();
-    if (!pipe) { console.error('[KOKORO] Pipeline null!'); return false; }
-    console.log('[KOKORO] Pipeline OK, génération pour:', voiceId);
+    console.log('[SPEECHT5] speakSpeecht5 appelé, voiceId:', voiceId, 'text:', text.substring(0,50));
+    const pipe = await loadSpeecht5Pipeline();
+    if (!pipe) { console.error('[SPEECHT5] Pipeline null!'); return false; }
+    console.log('[SPEECHT5] Pipeline OK, génération pour:', voiceId);
     const chunks = splitSentences(text, 250);
+    // Trouver l'embedding pour cette voix
+    const voiceDef = SPEECHT5_VOICES.find(v => v.id === voiceId);
+    const speakerEmbedding = voiceDef?.speaker || 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin';
     for (const chunk of chunks){
       if (onChunk) onChunk(chunk);
-      console.log('[KOKORO] Génération chunk:', chunk.substring(0,30));
-      // Format correct pour Kokoro: pipe(text, { voice: 'af_sky' })
-      const result = await pipe(chunk, { voice: voiceId });
-      console.log('[KOKORO] Résultat brut:', result);
-      // Kokoro retourne { audio: Float32Array, sampling_rate: 24000 }
+      console.log('[SPEECHT5] Génération chunk:', chunk.substring(0,30));
+      const result = await pipe(chunk, { speaker_embeddings: speakerEmbedding });
+      console.log('[SPEECHT5] Résultat brut:', result);
       let audio, samplingRate;
       if (result?.audio && result.sampling_rate) {
         audio = result.audio; samplingRate = result.sampling_rate;
@@ -146,20 +146,20 @@ async function speakKokoro(text, voiceId, onChunk){
       } else if (Array.isArray(result) && result[0]?.audio) {
         audio = result[0].audio; samplingRate = result[0].sampling_rate || result[0].samplingRate;
       } else {
-        console.error('[KOKORO] Format inattendu:', result);
+        console.error('[SPEECHT5] Format inattendu:', result);
         return false;
       }
       if (!audio || !audio.length) {
-        console.error('[KOKORO] Audio vide');
+        console.error('[SPEECHT5] Audio vide');
         return false;
       }
-      console.log('[KOKORO] Audio OK:', audio.length, 'échantillons, sr:', samplingRate);
+      console.log('[SPEECHT5] Audio OK:', audio.length, 'échantillons, sr:', samplingRate);
       const audioBlob = float32ArrayToWavBlob(audio, samplingRate);
       const ok = await playAudioBlob(audioBlob);
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.error('[KOKORO] ERREUR:', e, e?.stack); return false; }
+  } catch(e){ console.error('[SPEECHT5] ERREUR:', e, e?.stack); return false; }
 }
 function float32ArrayToWavBlob(float32Array, sampleRate){
   // Convert Float32Array [-1,1] -> 16-bit PCM WAV blob
@@ -1718,13 +1718,13 @@ async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
-  /* Kokoro TTS (Hugging Face / Transformers.js) — PRIORITÉ #1 */
-  KOKORO_VOICES.forEach(v => {
-    const val = 'kokoro:' + v.id;
+  /* SpeechT5 TTS (Microsoft / Transformers.js) — PRIORITÉ #1 */
+  SPEECHT5_VOICES.forEach(v => {
+    const val = 'speecht5:' + v.id;
     if (!existingOptions.includes(val)){
       const opt = document.createElement('option');
       opt.value = val;
-      opt.textContent = '🌟 Kokoro: ' + v.name;
+      opt.textContent = '🌟 SpeechT5: ' + v.name;
       ttsVoiceSel.appendChild(opt);
     }
   });
@@ -1891,12 +1891,12 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : Kokoro TTS (priorité #1, WebGPU/WASM, FR natif) -> Edge TTS -> Système */
+    /* VOIX : SpeechT5 TTS (priorité #1, WebGPU/WASM, FR natif) -> Edge TTS -> Système */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('kokoro:')){
-      const voiceId = voiceMode.substring(7);
-      chain = [['Kokoro: ' + voiceId, (t) => speakKokoro(t, voiceId, onChunk)], ['Edge (secours)', (t) => speakEdge(t, 'fr-FR-HenriettaNeural', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
+    if (voiceMode.startsWith('speecht5:')){
+      const voiceId = voiceMode.substring(9);
+      chain = [['SpeechT5: ' + voiceId, (t) => speakSpeecht5(t, voiceId, onChunk)], ['Edge (secours)', (t) => speakEdge(t, 'fr-FR-HenriettaNeural', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
     } else if (voiceMode.startsWith('edge:')){
       const voiceId = voiceMode.substring(5);
       chain = [['Edge: ' + voiceId, (t) => speakEdge(t, voiceId, onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
@@ -2133,5 +2133,3 @@ if (!profile){
 if (wakeEnabled && welcomeDone) startWakeRecog();
 /* v9.49 : reveil du cerveau au chargement -> la 1re question repond vite */
 setTimeout(warmUpBrain, 1500);
-/* v9.51 : pré-chargement COMPLET Piper (moteur + 3 voix + sessions) -> INSTANTANÉ */
-setTimeout(preloadPiperVoices, 2000);
