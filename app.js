@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.54-final loading...');
-const APP_VERSION = '9.54-final';
+console.log('[APP] v9.55-final loading...');
+const APP_VERSION = '9.55-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
@@ -69,44 +69,6 @@ function playAudioBlob(blob){
     setTimeout(() => { if (!done && !started) finish(false); }, 8000);
     setTimeout(() => { if (!done) finish(true); }, 30000);
   });
-}
-
-/* ===== QWEN3-TTS LOCAL (Alibaba Qwen voix neuronales multilingues)
-   Gratuit, sans clé, qualité premium. Nécessite le serveur local qwen-tts-server.py
-   (lancez: python qwen-tts-server.py -> http://127.0.0.1:5003) ===== */
-const QWEN_TTS_URL = 'http://127.0.0.1:5003';
-let qwenVoicesCache = null;
-async function fetchQwenVoices(){
-  if (qwenVoicesCache) return qwenVoicesCache;
-  try {
-    const res = await fetch(QWEN_TTS_URL + '/voices', { signal: AbortSignal.timeout(3000) });
-    if (res.ok){
-      const data = await res.json();
-      qwenVoicesCache = data.voices || [];
-      console.log('[QWEN TTS] Voix chargées:', qwenVoicesCache.length);
-      return qwenVoicesCache;
-    }
-  } catch(e){ console.warn('[QWEN TTS] Serveur non dispo:', e && e.message); }
-  return [];
-}
-async function speakQwen(text, voiceId, onChunk){
-  try {
-    const chunks = splitSentences(text, 250);
-    for (const chunk of chunks){
-      if (onChunk) onChunk(chunk);
-      const res = await fetch(QWEN_TTS_URL + '/synthesize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: chunk, voice: voiceId }),
-        signal: AbortSignal.timeout(20000)
-      });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const audioBlob = await res.blob();
-      const ok = await playAudioBlob(audioBlob);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[QWEN TTS] Échec:', e && e.message); return false; }
 }
 
 /* ===== PERSONNALITÉ / HUMEURS (v9.51) =====
@@ -487,11 +449,6 @@ brainSel.addEventListener('change', () => {
 ttsVoiceSel.addEventListener('change', () => {
   const val = ttsVoiceSel.value;
   localStorage.setItem(LS.voice, val);
-  if (val.startsWith('qwen:')){
-    fetch(QWEN_TTS_URL + '/health', { signal: AbortSignal.timeout(2000) })
-      .then(r => { if (!r.ok) throw 0; })
-      .catch(() => toast('⚠️ Voix Qwen sélectionnée — lance le serveur: python qwen-tts-server.py'));
-  }
   toast('Voix choisie');
 });
 testVoiceBtn.addEventListener('click', async () => {
@@ -2042,24 +1999,7 @@ async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
-  /* Qwen3-TTS (Alibaba voix neuronales multilingues) — priorité #1 */
-  const QWEN_VOICES_STATIC = [
-    { id: 'qwen-default', name: 'Qwen (défaut, neutre)' },
-    { id: 'qwen-female-1', name: 'Qwen Femme 1 (douce)' },
-    { id: 'qwen-male-1', name: 'Qwen Homme 1 (profond)' },
-    { id: 'qwen-female-2', name: 'Qwen Femme 2 (expressive)' },
-    { id: 'qwen-male-2', name: 'Qwen Homme 2 (calme)' }
-  ];
-  QWEN_VOICES_STATIC.forEach(v => {
-    const val = 'qwen:' + v.id;
-    if (!existingOptions.includes(val)){
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = '🌐 Qwen: ' + v.name + ' (serveur requis)';
-      ttsVoiceSel.appendChild(opt);
-    }
-  });
-  /* Edge TTS (Microsoft voix neuronales) — priorité #2 */
+  /* Edge TTS (Microsoft voix neuronales) — priorité #1 */
   const edgeVoices = await fetchEdgeVoices();
   edgeVoices.forEach(v => {
     const val = 'edge:' + v.id;
@@ -2070,7 +2010,7 @@ async function populateVoices(){
       ttsVoiceSel.appendChild(opt);
     }
   });
-  /* Piper (local WASM) — priorité #3 */
+  /* Piper (local WASM) — priorité #2 */
   PIPER_VOICES.forEach(v => {
     const val = 'piper:' + v.id;
     if (!existingOptions.includes(val)){
@@ -2232,13 +2172,10 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : Qwen3-TTS (Alibaba neuronales) -> Edge TTS (Microsoft) -> Piper -> Système */
+    /* VOIX : Edge TTS (Microsoft neuronales) -> Piper -> Système */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('qwen:')){
-      const voiceId = voiceMode.substring(5);
-      chain = [['Qwen: ' + voiceId, (t) => speakQwen(t, voiceId, onChunk)], ['Edge (secours)', (t) => speakEdge(t, 'fr-FR-HenriettaNeural', onChunk)], ['Piper (secours)', (t) => speakPiper(t, 'fr_FR-siwis-medium', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
-    } else if (voiceMode.startsWith('edge:')){
+    if (voiceMode.startsWith('edge:')){
       const voiceId = voiceMode.substring(5);
       chain = [['Edge: ' + voiceId, (t) => speakEdge(t, voiceId, onChunk)], ['Piper (secours)', (t) => speakPiper(t, 'fr_FR-siwis-medium', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
     } else if (voiceMode.startsWith('system:')){
