@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.57-final loading...');
-const APP_VERSION = '9.57-final';
+console.log('[APP] v9.58-final loading...');
+const APP_VERSION = '9.58-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
@@ -108,8 +108,9 @@ async function loadKokoroPipeline(){
       progress_callback: (p) => console.log('[KOKORO] Chargement:', Math.round(p * 100) + '%')
     });
     console.log('[KOKORO] Modèle prêt sur', device, 'dtype q8');
-    // Test rapide
-    const test = await kokoroPipeline('Test', { voice: 'af_sky' });
+    // Test rapide avec timeout
+    const testPromise = kokoroPipeline('Test', { voice: 'af_sky' });
+    const test = await Promise.race([testPromise, new Promise((_, r) => setTimeout(() => r(new Error('Test timeout')), 30000))]);
     console.log('[KOKORO] Test OK:', test);
     return kokoroPipeline;
   } catch(e) {
@@ -125,22 +126,35 @@ async function fetchKokoroVoices(){
 }
 async function speakKokoro(text, voiceId, onChunk){
   try {
-    console.log('[KOKORO] speakKokoro appelé avec voiceId:', voiceId);
+    console.log('[KOKORO] speakKokoro appelé, voiceId:', voiceId, 'text:', text.substring(0,50));
     const pipe = await loadKokoroPipeline();
-    console.log('[KOKORO] Pipeline chargé, génération...');
+    if (!pipe) { console.error('[KOKORO] Pipeline null!'); return false; }
+    console.log('[KOKORO] Pipeline OK, génération pour:', voiceId);
     const chunks = splitSentences(text, 250);
     for (const chunk of chunks){
       if (onChunk) onChunk(chunk);
-      // Kokoro attend { text, voice } et retourne { audio: Float32Array, sampling_rate }
+      console.log('[KOKORO] Génération chunk:', chunk.substring(0,30));
       const result = await pipe(chunk, { voice: voiceId });
-      console.log('[KOKORO] Résultat:', result);
-      // result = { audio: Float32Array, sampling_rate: 24000 }
-      const audioBlob = float32ArrayToWavBlob(result.audio, result.sampling_rate);
+      console.log('[KOKORO] Résultat brut:', result);
+      // Gérer différents formats de retour possibles
+      let audio, samplingRate;
+      if (result.audio && result.sampling_rate) {
+        audio = result.audio; samplingRate = result.sampling_rate;
+      } else if (result.audio && result.samplingRate) {
+        audio = result.audio; samplingRate = result.samplingRate;
+      } else if (Array.isArray(result) && result[0]?.audio) {
+        audio = result[0].audio; samplingRate = result[0].sampling_rate || result[0].samplingRate;
+      } else {
+        console.error('[KOKORO] Format inattendu:', result);
+        return false;
+      }
+      console.log('[KOKORO] Audio:', audio?.length, 'samplingRate:', samplingRate);
+      const audioBlob = float32ArrayToWavBlob(audio, samplingRate);
       const ok = await playAudioBlob(audioBlob);
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.error('[KOKORO] ERREUR:', e); return false; }
+  } catch(e){ console.error('[KOKORO] ERREUR:', e, e?.stack); return false; }
 }
 function float32ArrayToWavBlob(float32Array, sampleRate){
   // Convert Float32Array [-1,1] -> 16-bit PCM WAV blob
