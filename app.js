@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.62-final loading...');
-const APP_VERSION = '9.62-final';
+console.log('[APP] v9.63-final loading...');
+const APP_VERSION = '9.63-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'speecht5:fr_female_1'; // Voix SpeechT5 Française 1 par défaut (WebGPU/WASM, FR natif, qualité top)
@@ -96,7 +96,7 @@ async function loadSpeecht5Pipeline(){
   speecht5Loading = true;
   try {
     console.log('[SPEECHT5] Chargement modèle', SPEECHT5_MODEL_ID, '...');
-    const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
+    const { pipeline, Tensor } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
     const device = (navigator.gpu ? 'webgpu' : 'wasm');
     const dtype = 'q8';
     console.log('[SPEECHT5] Device:', device, 'dtype:', dtype);
@@ -106,8 +106,13 @@ async function loadSpeecht5Pipeline(){
       progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
     });
     console.log('[SPEECHT5] Modèle prêt sur', device, 'dtype q8');
-    // Test rapide avec timeout
-    const testPromise = speecht5Pipeline('Test', { speaker_embeddings: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' });
+    // Test rapide avec timeout - charger embedding en tensor
+    const embResponse = await fetch('https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin');
+    const embArrayBuffer = await embResponse.arrayBuffer();
+    const { Tensor } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
+    const embFloat32 = new Float32Array(embArrayBuffer);
+    const testEmbedding = new Tensor(new Float32Array(embArrayBuffer));
+    const testPromise = speecht5Pipeline('Test', { speaker_embeddings: testEmbedding });
     const test = await Promise.race([testPromise, new Promise((_, r) => setTimeout(() => r(new Error('Test timeout')), 30000))]);
     console.log('[SPEECHT5] Test OK - audio length:', test?.audio?.length, 'sr:', test?.sampling_rate || test?.samplingRate);
     return speecht5Pipeline;
@@ -133,20 +138,32 @@ async function speakSpeecht5(text, voiceId, onChunk){
     const voiceDef = SPEECHT5_VOICES.find(v => v.id === voiceId);
     const speakerEmbeddingUrl = voiceDef?.speaker || 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin';
     console.log('[SPEECHT5] Speaker embedding URL:', speakerEmbeddingUrl);
-    // Test fetch de l'embedding pour vérifier l'accès
+    // Fetch et convertir l'embedding en tensor UNE SEULE FOIS
+    let speakerEmbeddingTensor = null;
     try {
       const embResponse = await fetch(speakerEmbeddingUrl);
       console.log('[SPEECHT5] Embedding fetch status:', embResponse.status);
       if (!embResponse.ok) throw new Error('Embedding fetch failed: ' + embResponse.status);
       const embArrayBuffer = await embResponse.arrayBuffer();
       console.log('[SPEECHT5] Embedding size:', embArrayBuffer.byteLength, 'bytes');
+      // Convertir en Float32Array puis tensor
+      const { Tensor } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
+      const embFloat32 = new Float32Array(embArrayBuffer);
+      speakerEmbeddingTensor = new Tensor(embFloat32);
+      console.log('[SPEECHT5] Embedding tensor shape:', speakerEmbeddingTensor.shape);
     } catch(e) {
-      console.warn('[SPEECHT5] Impossible de fetch embedding, on essaie quand même:', e);
+      console.error('[SPEECHT5] Impossible de charger embedding:', e);
+      return false;
+    }
+    if (!speakerEmbeddingTensor) {
+      console.error('[SPEECHT5] Pas de tensor embedding');
+      return false;
     }
     for (const chunk of chunks){
       if (onChunk) onChunk(chunk);
       console.log('[SPEECHT5] Génération chunk:', chunk.substring(0,30));
-      const result = await pipe(chunk, { speaker_embeddings: speakerEmbeddingUrl });
+      // Passer le TENSOR, pas l'URL
+      const result = await pipe(chunk, { speaker_embeddings: speakerEmbeddingTensor });
       console.log('[SPEECHT5] Résultat brut:', result);
       let audio, samplingRate;
       if (result?.audio && result.sampling_rate) {
