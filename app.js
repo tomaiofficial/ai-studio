@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.55-final loading...');
-const APP_VERSION = '9.55-final';
+console.log('[APP] v9.56-final loading...');
+const APP_VERSION = '9.56-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
@@ -69,6 +69,106 @@ function playAudioBlob(blob){
     setTimeout(() => { if (!done && !started) finish(false); }, 8000);
     setTimeout(() => { if (!done) finish(true); }, 30000);
   });
+}
+
+/* ===== KOKORO TTS LOCAL (Hugging Face / Transformers.js) — PRIORITÉ #1
+   Modèle: onnx-community/Kokoro-82M-ONNX (82M params, qualité quasi humaine)
+   Voix FR natives: af_sky, af_bella, af_sarah, af_nicole, af_aoede, af_kore, bf_emma, bf_isabella
+   Tourne 100% navigateur: WebGPU (GPU) + WASM (CPU fallback), quantized q8 pour vitesse
+   Aucun serveur, aucune clé, ~82 Mo téléchargés une fois (cache navigateur) ===== */
+const KOKORO_MODEL_ID = 'onnx-community/Kokoro-82M-ONNX';
+let kokoroPipeline = null;
+let kokoroVoicesCache = null;
+const KOKORO_VOICES = [
+  { id: 'af_sky', name: 'Kokoro: Sky (femme, naturelle, FR/EN)', lang: 'fr' },
+  { id: 'af_bella', name: 'Kokoro: Bella (femme, douce, FR/EN)', lang: 'fr' },
+  { id: 'af_sarah', name: 'Kokoro: Sarah (femme, claire, FR/EN)', lang: 'fr' },
+  { id: 'af_nicole', name: 'Kokoro: Nicole (femme, expressive, FR/EN)', lang: 'fr' },
+  { id: 'af_aoede', name: 'Kokoro: Aoede (femme, chaleureuse, FR/EN)', lang: 'fr' },
+  { id: 'af_kore', name: 'Kokoro: Kore (femme, naturelle, FR/EN)', lang: 'fr' },
+  { id: 'bf_emma', name: 'Kokoro: Emma (femme, britannique, FR/EN)', lang: 'fr' },
+  { id: 'bf_isabella', name: 'Kokoro: Isabella (femme, britannique, FR/EN)', lang: 'fr' },
+];
+let kokoroLoading = false;
+async function loadKokoroPipeline(){
+  if (kokoroPipeline) return kokoroPipeline;
+  if (kokoroLoading) {
+    // Attendre le chargement en cours
+    while (kokoroLoading) await new Promise(r => setTimeout(r, 100));
+    return kokoroPipeline;
+  }
+  kokoroLoading = true;
+  try {
+    console.log('[KOKORO] Chargement modèle', KOKORO_MODEL_ID, '...');
+    const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
+    // WebGPU si dispo, sinon WASM; quantized q8 pour vitesse/poids optimal
+    const device = (navigator.gpu ? 'webgpu' : 'wasm');
+    const dtype = 'q8'; // q8 = bon compromis vitesse/qualité
+    kokoroPipeline = await pipeline('text-to-speech', 'onnx-community/Kokoro-82M-ONNX', {
+      device,
+      dtype,
+      progress_callback: (p) => console.log('[KOKORO] Chargement:', Math.round(p * 100) + '%')
+    });
+    console.log('[KOKORO] Modèle prêt sur', device, 'dtype q8');
+    return kokoroPipeline;
+  } catch(e) {
+    console.error('[KOKORO] Échec chargement:', e);
+    kokoroPipeline = null;
+    throw e;
+  } finally {
+    kokoroLoading = false;
+  }
+}
+async function fetchKokoroVoices(){
+  return KOKORO_VOICES;
+}
+async function speakKokoro(text, voiceId, onChunk){
+  try {
+    const pipe = await loadKokoroPipeline();
+    const chunks = splitSentences(text, 250);
+    for (const chunk of chunks){
+      if (onChunk) onChunk(chunk);
+      // Kokoro attend { text, voice } et retourne { audio: Float32Array, sampling_rate }
+      const result = await pipe(chunk, { voice: voiceId });
+      // result = { audio: Float32Array, sampling_rate: 24000 }
+      const audioBlob = float32ArrayToWavBlob(result.audio, result.sampling_rate);
+      const ok = await playAudioBlob(audioBlob);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[KOKORO] Échec:', e && e.message); return false; }
+}
+function float32ArrayToWavBlob(float32Array, sampleRate){
+  // Convert Float32Array [-1,1] -> 16-bit PCM WAV blob
+  const length = float32Array.length;
+  const buffer = new ArrayBuffer(44 + length * 2);
+  const view = new DataView(buffer);
+  // RIFF header
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + length * 2, true);
+  writeString(view, 8, 'WAVE');
+  // fmt chunk
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true); // block align
+  view.setUint16(34, 16, true); // bits per sample
+  // data chunk
+  writeString(view, 36, 'data');
+  view.setUint32(40, length * 2, true);
+  // PCM data
+  const pcm = new Int16Array(buffer, 44, length);
+  for (let i = 0; i < length; i++){
+    const s = Math.max(-1, Math.min(1, float32Array[i]));
+    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+function writeString(view, offset, str){
+  for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
 }
 
 /* ===== PERSONNALITÉ / HUMEURS (v9.51) =====
@@ -1993,13 +2093,23 @@ async function speakPiper(text, voiceId, onChunk){
   }
 }
 
-/* Remplit le sélecteur avec les voix Piper */
-/* v9.52 : populateVoices — Piper + Edge TTS (si serveur dispo) */
+/* Remplit le sélecteur avec les voix : Kokoro (priorité #1) + Edge + Piper */
+/* v9.56 : Kokoro TTS (priorité #1, WebGPU/WASM, FR natif) + Edge + Piper */
 async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
-  /* Edge TTS (Microsoft voix neuronales) — priorité #1 */
+  /* Kokoro TTS (Hugging Face / Transformers.js) — PRIORITÉ #1 */
+  KOKORO_VOICES.forEach(v => {
+    const val = 'kokoro:' + v.id;
+    if (!existingOptions.includes(val)){
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = '🌟 Kokoro: ' + v.name;
+      ttsVoiceSel.appendChild(opt);
+    }
+  });
+  /* Edge TTS (Microsoft voix neuronales) — priorité #2 */
   const edgeVoices = await fetchEdgeVoices();
   edgeVoices.forEach(v => {
     const val = 'edge:' + v.id;
@@ -2010,7 +2120,7 @@ async function populateVoices(){
       ttsVoiceSel.appendChild(opt);
     }
   });
-  /* Piper (local WASM) — priorité #2 */
+  /* Piper (local WASM) — priorité #3 */
   PIPER_VOICES.forEach(v => {
     const val = 'piper:' + v.id;
     if (!existingOptions.includes(val)){
@@ -2172,10 +2282,13 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : Edge TTS (Microsoft neuronales) -> Piper -> Système */
+    /* VOIX : Kokoro TTS (priorité #1, WebGPU/WASM, FR natif) -> Edge TTS -> Piper -> Système */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('edge:')){
+    if (voiceMode.startsWith('kokoro:')){
+      const voiceId = voiceMode.substring(7);
+      chain = [['Kokoro: ' + voiceId, (t) => speakKokoro(t, voiceId, onChunk)], ['Edge (secours)', (t) => speakEdge(t, 'fr-FR-HenriettaNeural', onChunk)], ['Piper (secours)', (t) => speakPiper(t, 'fr_FR-siwis-medium', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
+    } else if (voiceMode.startsWith('edge:')){
       const voiceId = voiceMode.substring(5);
       chain = [['Edge: ' + voiceId, (t) => speakEdge(t, voiceId, onChunk)], ['Piper (secours)', (t) => speakPiper(t, 'fr_FR-siwis-medium', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
     } else if (voiceMode.startsWith('system:')){
