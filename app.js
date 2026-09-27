@@ -87,7 +87,6 @@ const SPEECHT5_VOICES = [
   { id: 'en_female_1', name: 'SpeechT5: English Female 1', lang: 'en', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
   { id: 'en_male_1', name: 'SpeechT5: English Male 1', lang: 'en', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
 ];
-let speecht5Loading = false;
 async function loadSpeecht5Pipeline(){
   if (speecht5Pipeline) return speecht5Pipeline;
   if (speecht5Loading) {
