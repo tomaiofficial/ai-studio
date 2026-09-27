@@ -1918,20 +1918,14 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : SpeechT5 TTS (priorité #1, WebGPU/WASM, FR natif) -> Edge TTS -> Système */
+    /* VOIX : Kokoro TTS SEUL (priorité #1, WebGPU/WASM, FR natif) */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('speecht5:')){
-      const voiceId = voiceMode.substring(9);
-      chain = [['SpeechT5: ' + voiceId, (t) => speakSpeecht5(t, voiceId, onChunk)], ['Edge (secours)', (t) => speakEdge(t, 'fr-FR-HenriettaNeural', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
-    } else if (voiceMode.startsWith('edge:')){
-      const voiceId = voiceMode.substring(5);
-      chain = [['Edge: ' + voiceId, (t) => speakEdge(t, voiceId, onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
-    } else if (voiceMode.startsWith('system:')){
-      const voiceName = voiceMode.substring(7);
-      chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName, onChunk)]];
+    if (voiceMode.startsWith('kokoro:')) {
+      const voiceId = voiceMode.substring(7);
+      chain = [['Kokoro: ' + voiceId, (t) => speakKokoro(t, voiceId, onChunk)]];
     } else {
-      chain = [['Système', (t) => speakSystem(t, undefined, onChunk)]];
+      chain = [['Kokoro: af_sky', (t) => speakKokoro(t, 'af_sky', onChunk)]];
     }
     let i = 0;
     const next = () => {
