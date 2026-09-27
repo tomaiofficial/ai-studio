@@ -109,9 +109,7 @@ async function loadSpeecht5Pipeline(){
     // Test rapide avec timeout - charger embedding en tensor
     const embResponse = await fetch('https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin');
     const embArrayBuffer = await embResponse.arrayBuffer();
-    const { Tensor } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
-    const embFloat32 = new Float32Array(embArrayBuffer);
-    const testEmbedding = new Tensor(new Float32Array(embArrayBuffer));
+    const testEmbedding = new Tensor(embArrayBuffer);
     const testPromise = speecht5Pipeline('Test', { speaker_embeddings: testEmbedding });
     const test = await Promise.race([testPromise, new Promise((_, r) => setTimeout(() => r(new Error('Test timeout')), 30000))]);
     console.log('[SPEECHT5] Test OK - audio length:', test?.audio?.length, 'sr:', test?.sampling_rate || test?.samplingRate);
