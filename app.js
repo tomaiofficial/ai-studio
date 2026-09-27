@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.46-final loading...');
-const APP_VERSION = '9.46-final';
+console.log('[APP] v9.47-final loading...');
+const APP_VERSION = '9.47-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1636,6 +1636,21 @@ function numToFr(n){
   }
   return String(n);
 }
+/* v9.47 : grands nombres (1 300, 1 000 000, 2 500 000 000) en toutes lettres.
+   numToFr ne gere que jusqu'a 9999 -> on compose par tranches. */
+function numToFrBig(n){
+  if (n < 10000) return numToFr(n);
+  if (n < 1000000){
+    const th = Math.floor(n/1000), r = n%1000;
+    return numToFr(th) + ' mille' + (r ? ' ' + numToFr(r) : '');
+  }
+  if (n < 1000000000){
+    const m = Math.floor(n/1000000), r = n%1000000;
+    return numToFr(m) + ' million' + (m > 1 ? 's' : '') + (r ? ' ' + numToFrBig(r) : '');
+  }
+  const b = Math.floor(n/1000000000), r = n%1000000000;
+  return numToFr(b) + ' milliard' + (b > 1 ? 's' : '') + (r ? ' ' + numToFrBig(r) : '');
+}
 /* v8.86 : NETTOYAGE MARKDOWN des reponses de l'IA (les modeles renvoient
    parfois du markdown : **gras**, *italique*, # titres, - listes, `code`,
    _souligne_, tableaux, liens). On vire tout pour un texte propre a
@@ -1805,6 +1820,14 @@ function normalizeForTTS(text){
     /* HEURES : 10h30 -> "dix heures trente", 10h -> "dix heures" */
     .replace(/\b(\d{1,2})h(\d{2})\b/g, (m, h, mn) => numToFr(parseInt(h, 10)) + ' heures ' + numToFr(parseInt(mn, 10)))
     .replace(/\b(\d{1,2})h\b/g, (m, h) => numToFr(parseInt(h, 10)) + ' heures')
+    /* v9.47 : EXPOSANTS (m², km², m³) -> "metres carres", "kilometres carres"
+       (AVANT la regle des unites simples pour ne pas couper "5 m" de "5 m²".
+       Pas de \b final : ² n'est pas un caractere de mot.) */
+    .replace(/\b(km|cm|mm|dm|m)(\u00B2|\u00B3)(?=\s|[.,!?;:]|$)/g, (m, u, p) => (u === 'km' ? 'kilometres' : u === 'cm' ? 'centimetres' : u === 'mm' ? 'millimetres' : u === 'dm' ? 'decimetres' : 'metres') + (p === '\u00B2' ? ' carres' : ' cubes'))
+    .replace(/(\d+)(\u00B2|\u00B3)(?=\s|[.,!?;:]|$)/g, (m, n, p) => numToFr(parseInt(n, 10)) + (p === '\u00B2' ? ' au carre' : ' au cube'))
+    /* v9.47 : INDICES chimiques (CO₂, H₂O, O₂) -> "CO deux", "H deux O"
+       (charCodeAt - 0x2080 : parseInt ne lit pas les indices Unicode) */
+    .replace(/([A-Za-z])([\u2080-\u2089]+)/g, (m, l, digs) => l + ' ' + Array.from(digs).map(d => numToFr(d.charCodeAt(0) - 0x2080)).join(' ') + ' ')
     /* UNITES avec nombre : 5 km, 10 min, 3 kg... (avant les nombres generiques) */
     .replace(/\b(\d+)\s*km\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' kilometres')
     .replace(/\b(\d+)\s*cm\b/g, (m, n) => numToFr(parseInt(n, 10)) + ' centimetres')
@@ -1828,6 +1851,9 @@ function normalizeForTTS(text){
     .replace(/\b(\d+)e\b/g, (m, n) => numToFr(parseInt(n, 10)) + 'ieme')
     /* DECIMAUX : 3.14 -> "trois virgule quatorze" */
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
+    /* v9.47 : DECIMAUX a virgule : 12,50 -> "douze virgule cinquante"
+       (avant la regle generique qui decoupe en "douze,cinquante") */
+    .replace(/(\d+),(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
     /* ACRONYMES que les TTS lisent mal */
     .replace(/\bTTS\b/g, 'te te esse')
     .replace(/\bURL\b/g, 'u er el')
@@ -1897,6 +1923,9 @@ function normalizeForTTS(text){
     .replace(/!{2,}/g, '!').replace(/\?{2,}/g, '?').replace(/…/g, '...')
     .replace(/\(([^)]{1,20})\)/g, ' $1 ').replace(/;/g, ',').replace(/:/g, ',')
     .replace(/—/g, ',').replace(/–/g, ',')
+    /* v9.47 : NOMBRES avec espaces (1 300, 1 000 000) -> "mille trois cents",
+       "un million" (avant la regle generique qui les decoupe en "un trois cent") */
+    .replace(/\b\d{1,3}(?:[ \u00A0]\d{3})+\b/g, m => numToFrBig(parseInt(m.replace(/[ \u00A0]/g, ''), 10)))
     .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/\s+\./g, '.').trim();
 }
 /* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
@@ -2335,14 +2364,27 @@ async function speakPiper(text, voiceId){
     console.log('[VOIX] Piper: voix chargée, synthèse...');
     const voiceDef = PIPER_VOICES.find(v => v.id === voiceId);
     const chunks = splitSentences(text, 250);
-    for (const c of chunks){
-      const result = await engine.synthesize(c, voice, voiceId, voiceDef?.speakerId || 0);
+    /* v9.47 : synthese du chunk suivant lancee PENDANT la lecture du precedent
+       -> plus de pause au milieu de la reponse (le "ca bug puis ca revient"
+       venait de la synthese du chunk suivant entre deux lectures). */
+    let played = 0;
+    let nextSynth = null;
+    for (let i = 0; i < chunks.length; i++){
+      const synth = (nextSynth || engine.synthesize(chunks[i], voice, voiceId, voiceDef?.speakerId || 0)).catch(() => null);
+      if (i + 1 < chunks.length){
+        nextSynth = engine.synthesize(chunks[i + 1], voice, voiceId, voiceDef?.speakerId || 0).catch(() => null);
+      } else nextSynth = null;
+      const result = await synth;
+      if (!result) break;
       const blob = new Blob([result.audioData], { type: 'audio/wav' });
       const ok = await playPiperWav(blob);
-      if (!ok) return false;
+      if (ok) played++;
+      else break;
     }
-    console.log('[VOIX] Piper: OK');
-    return true;
+    /* v9.47 : si au moins un chunk a ete joue, OK -> on ne repasse PAS toute
+       la reponse avec la voix Systeme (bug de changement de voix au milieu). */
+    console.log('[VOIX] Piper: OK (' + played + '/' + chunks.length + ' chunks)');
+    return played > 0;
   } catch(e){ 
     console.warn('[VOIX] Piper echec:', e && e.message);
     return false; 
