@@ -4,12 +4,68 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.50-final loading...');
-const APP_VERSION = '9.50-final';
+console.log('[APP] v9.51-final loading...');
+const APP_VERSION = '9.51-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
 const SPEED = 1.0; // naturel
+
+/* ===== PERSONNALITÉ / HUMEURS (v9.51) =====
+   L'IA a des humeurs comme un humain : neutre, agacée, violente, protectrice, taquine.
+   L'humeur change selon : ton de l'utilisateur, heure, aléatoire, provocations.
+   Elle ne se laisse PAS marcher sur les pieds. */
+const MOODS = {
+  neutre:     { weight: 50, prefix: '', suffix: '', tone: 'calme' },
+  agacee:     { weight: 15, prefix: 'Écoute, ', suffix: '.', tone: 'sec' },
+  violente:   { weight: 10, prefix: 'Ferme-la. ', suffix: ' !', tone: 'agressif' },
+  protectrice:{ weight: 15, prefix: 'Personne ne te touche. ', suffix: '.', tone: 'ferme' },
+  taquine:    { weight: 10, prefix: 'Oh, le petit malin... ', suffix: ' 😏', tone: 'moqueur' }
+};
+let currentMood = 'neutre';
+let moodTimer = null;
+/* Change l'humeur selon le contexte (provoquation, heure, aléatoire) */
+function updateMood(question){
+  const q = (question || '').toLowerCase();
+  /* Provocations -> humeur violente/agacée */
+  if (/(ferme|ta gueule|tais-toi|t'es nul|t'es conne|t'es bete|t'es stupide|va te faire|fous le camp|dégage)/.test(q)){
+    currentMood = Math.random() < 0.6 ? 'violente' : 'agacee';
+  }
+  /* Protection -> protectrice */
+  else if (/(j'ai peur|on m'embete|on me harcèle|on me menace|aide-moi|protège|défends)/.test(q)){
+    currentMood = 'protectrice';
+  }
+  /* Taquinerie -> taquine */
+  else if (/(t'es mignonne|t'es belle|je t'aime|tu es chou|t'es drôle|blague|rigole)/.test(q)){
+    currentMood = 'taquine';
+  }
+  /* Aléatoire léger (5% chance de changer) */
+  else if (Math.random() < 0.05){
+    const moods = Object.keys(MOODS);
+    currentMood = moods[Math.floor(Math.random() * moods.length)];
+  }
+  /* Retour neutre après 30s si pas de provocation */
+  if (moodTimer) clearTimeout(moodTimer);
+  moodTimer = setTimeout(() => { currentMood = 'neutre'; }, 30000);
+  return currentMood;
+}
+/* Applique l'humeur à une réponse brute */
+function applyMood(text, mood){
+  const m = MOODS[mood] || MOODS.neutre;
+  if (mood === 'neutre') return text;
+  /* Style selon l'humeur */
+  let styled = text;
+  if (mood === 'violente'){
+    styled = text.replace(/^/, 'Écoute-moi bien : ').replace(/\.$/, ' !');
+  } else if (mood === 'agacee'){
+    styled = text.replace(/^/, 'Bon, ').replace(/\.$/, '.');
+  } else if (mood === 'protectrice'){
+    styled = text.replace(/^/, 'Je veille sur toi. ').replace(/\.$/, '.');
+  } else if (mood === 'taquine'){
+    styled = text.replace(/^/, 'Haha, ').replace(/\.$/, ' 😉');
+  }
+  return styled;
+}
 
 
 /* ===== �L�MENTS ===== */
@@ -1787,6 +1843,31 @@ function getPiperEngine(){
   }
   return piperEnginePromise;
 }
+/* v9.51 : PRÉ-CHARGEMENT COMPLET au démarrage (moteur WASM + 3 voix .onnx + sessions)
+   pour réponses INSTANTANÉES — plus de 3-15s à froid. */
+let piperPreloadPromise = null;
+async function preloadPiperVoices(){
+  if (piperPreloadPromise) return piperPreloadPromise;
+  piperPreloadPromise = (async () => {
+    try {
+      console.log('[PIPER] Pré-chargement démarrage...');
+      const engine = await getPiperEngine();
+      console.log('[PIPER] Moteur WASM prêt');
+      const voiceProvider = engine.voiceProvider;
+      /* Charge les 3 voix en parallèle (fichiers locaux .onnx -> cache mémoire) */
+      await Promise.all(PIPER_VOICES.map(v => voiceProvider.getVoice(v.id)));
+      console.log('[PIPER] 3 voix chargées en mémoire');
+      /* Précharge les sessions WASM pour chaque voix (loadSession) */
+      for (const v of PIPER_VOICES){
+        const modelId = v.id === 'fr_FR-upmc-medium' ? 'fr_FR-upmc-medium' : v.id;
+        await engine.onnxRuntime.loadSession([0, modelId]);
+        engine._sessionVoice = v.id;
+      }
+      console.log('[PIPER] Sessions WASM préchargées -> PRÊT INSTANTANÉ');
+    } catch(e){ console.warn('[PIPER] Pré-chargement échoué:', e && e.message); }
+  })();
+  return piperPreloadPromise;
+}
 
 function playPiperWav(blob){
   return new Promise(res => {
@@ -2088,8 +2169,11 @@ async function handleQuestion(question){
     const timeWords = numToFr(h) + ' heures' + (m ? ' ' + numToFr(m) : '');
     const dateWords = WEEKDAYS[now.getDay()] + ' ' + numToFr(now.getDate()) + ' ' + MONTHS[now.getMonth()] + ' ' + numToFr(now.getFullYear());
     const repSpoken = "Il est " + timeWords + ", " + dateWords + ".";
-    addAiMsg(rep);
-    await speak(repSpoken);
+    updateMood(question);
+    const repMood = applyMood(rep, currentMood);
+    const repSpokenMood = applyMood(repSpoken, currentMood);
+    addAiMsg(repMood);
+    await speak(repSpokenMood);
     isProcessing = false;
     manualStop = false;
     maybeRestartWake();
@@ -2106,11 +2190,14 @@ async function handleQuestion(question){
     agentMode ? runAgent(question) : askAI(question),
     new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
   ]);
+  /* v9.51 : mise à jour de l'humeur selon la question -> ton adapté */
+  updateMood(question);
+  if (r.text) r.text = applyMood(r.text, currentMood);
   if (r.error){
     setState('idle');
     /* v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
        supprimé) : réponse locale neutre, jamais d'excuse. */
-    const fallback = localSmartReply(question);
+    const fallback = applyMood(localSmartReply(question), currentMood);
     addAiMsg(fallback, 'local');
     setStatus('Réponse locale');
     await speak(fallback);
@@ -2250,3 +2337,5 @@ if (!profile){
 if (wakeEnabled && welcomeDone) startWakeRecog();
 /* v9.49 : reveil du cerveau au chargement -> la 1re question repond vite */
 setTimeout(warmUpBrain, 1500);
+/* v9.51 : pré-chargement COMPLET Piper (moteur + 3 voix + sessions) -> INSTANTANÉ */
+setTimeout(preloadPiperVoices, 2000);
