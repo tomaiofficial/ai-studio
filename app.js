@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.44-final loading...');
-const APP_VERSION = '9.44-final';
+console.log('[APP] v9.45-final loading...');
+const APP_VERSION = '9.45-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2068,11 +2068,13 @@ let piperEngine = null, piperEnginePromise = null;
 const PIPER_VOICES = [
   { id: 'fr_FR-siwis-medium', name: 'Julie (femme, claire)', lang: 'fr-FR' },
   { id: 'fr_FR-tom-medium', name: 'Tom (homme, naturel)', lang: 'fr-FR' },
+  { id: 'fr_FR-upmc-medium', name: 'Pierre (homme, grave)', lang: 'fr-FR', speakerId: 1 },
 ];
 /* Mapping correct des chemins HuggingFace pour Piper voices */
 const PIPER_VOICE_PATHS = {
   'fr_FR-siwis-medium': 'siwis/medium/fr_FR-siwis-medium.onnx',
   'fr_FR-tom-medium': 'tom/medium/fr_FR-tom-medium.onnx',
+  'fr_FR-upmc-medium': 'upmc/medium/fr_FR-upmc-medium.onnx',
 };
 /* v9.43 : les modèles .onnx sont livrés DANS le repo (piper/models/) -> chargés
    en same-origin (aucun CORS, aucun proxy, instantané). */
@@ -2272,15 +2274,17 @@ function getPiperEngine(){
         /* v9.44 : le bundle piper-tts-web.js n'exporte PAS de classe Piper avec
            synthesize() -> on l'implémente ici. Protocole vérifié empiriquement :
            phonemize(text, [config]), loadSession([0, model]) (session en cache
-           dans le worker), generate(phonemes, [config], sampleRate). */
-        async synthesize(text, voice, voiceId){
+           dans le worker), generate(phonemes, [config], speakerId).
+           v9.45 : le 3e arg de generate est le SPEAKER ID (pas le sample rate) :
+           requis pour les voix multi-locuteurs (upmc = jessica:0, pierre:1). */
+        async synthesize(text, voice, voiceId, speakerId = 0){
           const { model, config } = voice;
           if (this._sessionVoice !== voiceId){
             await onnxRuntime.loadSession([0, model]);
             this._sessionVoice = voiceId;
           }
           const phonemes = await phonemizeRuntime.phonemize(text, [config]);
-          const result = await onnxRuntime.generate(phonemes, [config], config.audio.sample_rate);
+          const result = await onnxRuntime.generate(phonemes, [config], speakerId);
           return { audioData: await result.file.arrayBuffer() };
         }
       };
@@ -2324,9 +2328,10 @@ async function speakPiper(text, voiceId){
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout téléchargement voix')), 15000))
     ]);
     console.log('[VOIX] Piper: voix chargée, synthèse...');
+    const voiceDef = PIPER_VOICES.find(v => v.id === voiceId);
     const chunks = splitSentences(text, 250);
     for (const c of chunks){
-      const result = await engine.synthesize(c, voice, voiceId);
+      const result = await engine.synthesize(c, voice, voiceId, voiceDef?.speakerId || 0);
       const blob = new Blob([result.audioData], { type: 'audio/wav' });
       const ok = await playPiperWav(blob);
       if (!ok) return false;
