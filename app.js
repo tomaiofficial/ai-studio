@@ -8,7 +8,7 @@ console.log('[APP] v9.63-final loading...');
 const APP_VERSION = '9.63-final';
 const LS = { voice: 'va_ttsvoice' };
 
-const DEFAULT_VOICE = 'system:fr-FR-Hortense'; // Voix système française par défaut (toujours dispo, sans serveur, qualité fiable)
+const DEFAULT_VOICE = 'kokoro:af_sky'; // SEULE voix : Kokoro Sky (WebGPU/WASM, FR natif, qualité top)
 const SPEED = 1.0; // naturel
 
 /* ===== EDGE TTS LOCAL (Microsoft voix neuronales : Henrietta, Denise, Remy...)
