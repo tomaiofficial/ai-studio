@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.49-final loading...');
-const APP_VERSION = '9.49-final';
+console.log('[APP] v9.50-final loading...');
+const APP_VERSION = '9.50-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
@@ -1811,7 +1811,7 @@ function playPiperWav(blob){
   });
 }
 
-async function speakPiper(text, voiceId){
+async function speakPiper(text, voiceId, onChunk){
   try {
     console.log('[VOIX] Piper: chargement moteur pour', voiceId);
     const engine = await getPiperEngine();
@@ -1824,11 +1824,12 @@ async function speakPiper(text, voiceId){
     const voiceDef = PIPER_VOICES.find(v => v.id === voiceId);
     const chunks = splitSentences(text, 250);
     /* v9.47 : synthese du chunk suivant lancee PENDANT la lecture du precedent
-       -> plus de pause au milieu de la reponse (le "ca bug puis ca revient"
-       venait de la synthese du chunk suivant entre deux lectures). */
+       -> plus de pause au milieu de la reponse. */
     let played = 0;
     let nextSynth = null;
     for (let i = 0; i < chunks.length; i++){
+      /* v9.50 : callback AVANT de jouer le chunk -> sous-titre synchronisé */
+      if (onChunk) onChunk(chunks[i]);
       const synth = (nextSynth || engine.synthesize(chunks[i], voice, voiceId, voiceDef?.speakerId || 0)).catch(() => null);
       if (i + 1 < chunks.length){
         nextSynth = engine.synthesize(chunks[i + 1], voice, voiceId, voiceDef?.speakerId || 0).catch(() => null);
@@ -1868,7 +1869,7 @@ function populatePiperVoices(){
 }
 
 /* ===== VOIX SYSTÈME SEULE : navigateur, hors ligne, 100% fiable, sans clé. ===== */
-function speakSystem(text, specificVoiceName){
+function speakSystem(text, specificVoiceName, onChunk){
   return new Promise(resolve => {
     try {
       if (!('speechSynthesis' in window)) return resolve(false);
@@ -1881,7 +1882,10 @@ function speakSystem(text, specificVoiceName){
         const finish = ok => { if (done) return; done = true; resolve(ok); };
         const speakNext = () => {
           if (i >= chunks.length) return finish(true);
-          const u = new SpeechSynthesisUtterance(chunks[i++]);
+          const chunk = chunks[i++];
+          /* v9.50 : callback AVANT de parler le chunk -> sous-titre synchronisé */
+          if (onChunk) onChunk(chunk);
+          const u = new SpeechSynthesisUtterance(chunk);
           u.lang = 'fr-FR';
           u.rate = 1.0;
           u.pitch = 1.0;
@@ -1987,7 +1991,7 @@ async function transcribeBlob(blob){
   } catch(e){ console.warn('[STT] Whisper erreur:', e && e.message); return ''; }
 }
 
-function speak(text){
+function speak(text, onChunk){
   return new Promise(resolve => {
     let clean = text;
     try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); }
@@ -2018,12 +2022,12 @@ function speak(text){
     let chain;
     if (voiceMode.startsWith('system:')){
       const voiceName = voiceMode.substring(7);
-      chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName)]];
+      chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName, onChunk)]];
     } else if (voiceMode.startsWith('piper:')){
       const voiceId = voiceMode.substring(6);
-      chain = [['Piper: ' + voiceId, (t) => speakPiper(t, voiceId)], ['Système', speakSystem]];
+      chain = [['Piper: ' + voiceId, (t) => speakPiper(t, voiceId, onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
     } else {
-      chain = [['Système', speakSystem]];
+      chain = [['Système', (t) => speakSystem(t, undefined, onChunk)]];
     }
     let i = 0;
     const next = () => {
@@ -2114,8 +2118,39 @@ async function handleQuestion(question){
     manualStop = false;
     return;
   }
-  addAiMsg(r.text, r.diag);
-  await speak(r.text);
+  /* v9.50 : affichage synchronisé — on crée la bulle vide, puis speak()
+     remplit le texte chunk par chunk (sous-titre + bulle en même temps que la voix). */
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'msg ai';
+  chat.appendChild(msgDiv);
+  chat.scrollTop = chat.scrollHeight;
+  const sub = document.getElementById('subtitle');
+  let fullText = '';
+  await speak(r.text, (chunk) => {
+    fullText += chunk;
+    const cleanFull = cleanMarkdown(fullText);
+    msgDiv.textContent = cleanFull;
+    if (r.diag){
+      const dd = document.createElement('div');
+      dd.className = 'msg-diag';
+      dd.textContent = 'Diagnostic: ' + r.diag;
+      msgDiv.appendChild(dd);
+    }
+    if (sub) sub.textContent = cleanFull;
+    chat.scrollTop = chat.scrollHeight;
+  });
+  /* Sécurité : si speak a échoué sans rien afficher, on met le texte complet */
+  if (!msgDiv.textContent.trim() || (r.diag && msgDiv.textContent === 'Diagnostic: ' + r.diag)){
+    const cleanFull = cleanMarkdown(r.text);
+    msgDiv.textContent = cleanFull;
+    if (r.diag){
+      const dd = document.createElement('div');
+      dd.className = 'msg-diag';
+      dd.textContent = 'Diagnostic: ' + r.diag;
+      msgDiv.appendChild(dd);
+    }
+    if (sub) sub.textContent = cleanFull;
+  }
   isProcessing = false;
   manualStop = false;
   maybeRestartWake();
