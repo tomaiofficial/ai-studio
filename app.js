@@ -2158,5 +2158,21 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
-/* v9.49 : reveil du cerveau au chargement -> la 1re question repond vite */
-setTimeout(warmUpBrain, 1500);
+/* v9.63 : pré-chargement SpeechT5 au démarrage (pas de blocage) */
+setTimeout(async () => {
+  try {
+    console.log('[SPEECHT5] Pré-chargement au démarrage...');
+    const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
+    const device = (navigator.gpu ? 'webgpu' : 'wasm');
+    const dtype = 'q8';
+    const pipe = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
+      device,
+      dtype,
+      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
+    });
+    window.__speecht5Pipeline = pipe;
+    console.log('[SPEECHT5] Pré-chargement terminé — prêt pour utilisation immédiate');
+  } catch(e) {
+    console.warn('[SPEECHT5] Pré-chargement échoué (non bloquant):', e);
+  }
+}, 3000);
