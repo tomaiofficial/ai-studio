@@ -5,13 +5,13 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.41-final loading...');
-const APP_VERSION = '9.41-final';
+console.log('[APP] v9.42-final loading...');
+const APP_VERSION = '9.42-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
 const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
-const DEFAULT_VOICE = 'systeme'; // Voix système navigateur - hors ligne, 100% fiable, sans clé
+const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
 const SPEED = 1.0; // naturel
 
 
@@ -312,7 +312,13 @@ function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim()
 function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
 function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
 function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
-function getVoice(){ return localStorage.getItem(LS.voice) || DEFAULT_VOICE; }
+function getVoice(){
+  const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
+  /* v9.42 : le sélecteur ne contient plus que les voix Piper -> une ancienne
+     voix système sauvegardée revient à la voix Piper par défaut (Julie) */
+  if (v === 'systeme' || v.startsWith('system:')) return DEFAULT_VOICE;
+  return v;
+}
 
 settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
@@ -320,7 +326,6 @@ settingsBtn.addEventListener('click', () => {
   if (openrouterKeyInput) openrouterKeyInput.value = (localStorage.getItem(LS.openrouter) || '').trim();
   if (mistralKeyInput) mistralKeyInput.value = (localStorage.getItem(LS.mistral) || '').trim();
   wakeToggle.checked = wakeEnabled;
-  populateSystemVoices();
   populatePiperVoices();
   settingsModal.classList.remove('hidden');
 });
