@@ -103,7 +103,7 @@ async function loadSpeecht5Pipeline(){
     speecht5Pipeline = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
       device,
       dtype,
-      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
+      progress_callback: (p) => console.log('[SPEECHT5] Chargement: ' + (typeof p === 'number' && !isNaN(p) ? Math.round(p * 100) + '%' : 'en cours'))
     });
     console.log('[SPEECHT5] Modèle prêt sur', device, 'dtype q8');
     // Test rapide avec timeout - charger embedding en tensor
@@ -2162,7 +2162,7 @@ setTimeout(async () => {
     const pipe = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
       device,
       dtype,
-      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
+      progress_callback: (p) => console.log('[SPEECHT5] Chargement: ' + (typeof p === 'number' && !isNaN(p) ? Math.round(p * 100) + '%' : 'en cours'))
     });
     window.__speecht5Pipeline = pipe;
     console.log('[SPEECHT5] Pré-chargement terminé — prêt pour utilisation immédiate');
