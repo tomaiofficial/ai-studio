@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.59-final loading...');
-const APP_VERSION = '9.59-final';
+console.log('[APP] v9.60-final loading...');
+const APP_VERSION = '9.60-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'kokoro:af_sky'; // Voix Kokoro Sky par défaut (WebGPU/WASM, FR natif, qualité top)
@@ -111,7 +111,7 @@ async function loadKokoroPipeline(){
     // Test rapide avec timeout
     const testPromise = kokoroPipeline('Test', { voice: 'af_sky' });
     const test = await Promise.race([testPromise, new Promise((_, r) => setTimeout(() => r(new Error('Test timeout')), 30000))]);
-    console.log('[KOKORO] Test OK:', test);
+    console.log('[KOKORO] Test OK - audio length:', test?.audio?.length, 'sr:', test?.sampling_rate || test?.samplingRate);
     return kokoroPipeline;
   } catch(e) {
     console.error('[KOKORO] Échec chargement:', e);
@@ -134,13 +134,14 @@ async function speakKokoro(text, voiceId, onChunk){
     for (const chunk of chunks){
       if (onChunk) onChunk(chunk);
       console.log('[KOKORO] Génération chunk:', chunk.substring(0,30));
+      // Format correct pour Kokoro: pipe(text, { voice: 'af_sky' })
       const result = await pipe(chunk, { voice: voiceId });
       console.log('[KOKORO] Résultat brut:', result);
-      // Gérer différents formats de retour possibles
+      // Kokoro retourne { audio: Float32Array, sampling_rate: 24000 }
       let audio, samplingRate;
-      if (result.audio && result.sampling_rate) {
+      if (result?.audio && result.sampling_rate) {
         audio = result.audio; samplingRate = result.sampling_rate;
-      } else if (result.audio && result.samplingRate) {
+      } else if (result?.audio && result.samplingRate) {
         audio = result.audio; samplingRate = result.samplingRate;
       } else if (Array.isArray(result) && result[0]?.audio) {
         audio = result[0].audio; samplingRate = result[0].sampling_rate || result[0].samplingRate;
@@ -148,7 +149,11 @@ async function speakKokoro(text, voiceId, onChunk){
         console.error('[KOKORO] Format inattendu:', result);
         return false;
       }
-      console.log('[KOKORO] Audio:', audio?.length, 'samplingRate:', samplingRate);
+      if (!audio || !audio.length) {
+        console.error('[KOKORO] Audio vide');
+        return false;
+      }
+      console.log('[KOKORO] Audio OK:', audio.length, 'échantillons, sr:', samplingRate);
       const audioBlob = float32ArrayToWavBlob(audio, samplingRate);
       const ok = await playAudioBlob(audioBlob);
       if (!ok) return false;
