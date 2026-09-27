@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.39-final loading...');
-const APP_VERSION = '9.40-final';
+console.log('[APP] v9.41-final loading...');
+const APP_VERSION = '9.41-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -1133,6 +1133,7 @@ async function askGoogleAI(question, webCtx, msgs){
     }
     return { error: 'http' + (res ? res.status : 'net') };
   } catch(e){ return { error: 'net' }; }
+}
 
 /* ===== MISTRAL AI : gratuit avec cle (console.mistral.ai -> API Keys).
    Model: mistral-small-latest (rapide, gratuit, excellent en francais). ===== */
@@ -2645,4 +2646,3 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
-}
