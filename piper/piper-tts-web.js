@@ -7,7 +7,7 @@ class o {
 }
 function h(n) {
   return new Worker(
-    "" + new URL("worker/OnnxWebWorker.js", import.meta.url).href,
+    "" + new URL("worker/OnnxWebWorker.js?v=9.44", import.meta.url).href,
     {
       type: "module",
       name: n?.name
@@ -46,7 +46,7 @@ class i {
 }
 function c(n) {
   return new Worker(
-    "" + new URL("worker/PhonemizeWebWorker.js", import.meta.url).href,
+    "" + new URL("worker/PhonemizeWebWorker.js?v=9.44", import.meta.url).href,
     {
       type: "module",
       name: n?.name

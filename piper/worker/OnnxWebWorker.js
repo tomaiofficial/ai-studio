@@ -13012,14 +13012,21 @@ var Ort = /* @__PURE__ */ Object.freeze({
 class OnnxWebRuntime {
   #A = null;
   #I = [];
+  #lastSession = null;
   constructor({ ort: g = Ort, basePath: E = "/onnx/", numThreads: Q = navigator.hardwareConcurrency } = {}) {
     this.#A = g, this.#A.env.wasm.wasmPaths = E, this.#A.env.wasm.numThreads = Q;
   }
   destroy() {
     this.#I = [];
+    this.#lastSession = null;
   }
   async loadSession(g) {
-    return this.#I[g[1]] || (this.#I[g[1]] = await this.#A.InferenceSession.create(g[1])), Promise.resolve(this.#I[g[1]]);
+    if (g.length === 1 && g[0] && typeof g[0] === "object" && g[0].audio) {
+      return Promise.resolve(this.#lastSession);
+    }
+    const session = this.#I[g[1]] || (this.#I[g[1]] = await this.#A.InferenceSession.create(g[1]));
+    this.#lastSession = session;
+    return Promise.resolve(session);
   }
   async generate(g, E, Q = 0) {
     const R = {

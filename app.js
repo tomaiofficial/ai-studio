@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.43-final loading...');
-const APP_VERSION = '9.43-final';
+console.log('[APP] v9.44-final loading...');
+const APP_VERSION = '9.44-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -2060,7 +2060,7 @@ function splitSentences(text, max){
    Moteur piper-tts-web (MIT) : bundle + workers + WASM dans piper/
    Voix : Julie (femme), Tom (homme) - modèles pré-téléchargés.
    Proxy CORS : r.jina.ai (fonctionne). Secours auto : Système. ===== */
-const PIPER_ENGINE_URL = './piper/piper-tts-web.js';
+const PIPER_ENGINE_URL = './piper/piper-tts-web.js?v=9.44';
 const PIPER_BASE = new URL('.', document.baseURI).pathname;
 const PIPER_ONNX_BASE = PIPER_BASE + 'piper/onnx/';
 const PIPER_PHON_BASE = PIPER_BASE + 'piper/piper/';
@@ -2143,18 +2143,27 @@ async function isVoiceCached(voiceId){
 }
 
 /* LocalVoiceProvider : charge les voix depuis les fichiers locaux du repo
-   (same-origin) puis IndexedDB en secours */
+   (same-origin) puis IndexedDB en secours. Cache mémoire pour éviter de
+   re-télécharger 63 Mo à chaque réponse. */
 class LocalVoiceProvider {
+  constructor(){ this._cache = {}; }
   async getVoice(voiceId){
+    if (this._cache[voiceId]) return this._cache[voiceId];
     /* 1) fichiers locaux du repo (aucun CORS, aucun proxy) */
     try {
       const local = await fetchLocalVoiceFiles(voiceId);
-      if (local) return { model: new Uint8Array(local.model), config: local.config };
+      if (local){
+        const voice = { model: new Uint8Array(local.model), config: local.config };
+        this._cache[voiceId] = voice;
+        return voice;
+      }
     } catch(e){ console.warn('[PIPER] Fichiers locaux indisponibles:', e && e.message); }
     /* 2) IndexedDB (voix téléchargées avant) */
     const voiceData = await getVoiceFromDB(voiceId);
     if (!voiceData) throw new Error('Voix non trouvée en local: ' + voiceId);
-    return { model: new Uint8Array(voiceData.model), config: voiceData.config };
+    const voice = { model: new Uint8Array(voiceData.model), config: voiceData.config };
+    this._cache[voiceId] = voice;
+    return voice;
   }
 }
 
@@ -2252,10 +2261,28 @@ function getPiperEngine(){
   if (piperEngine) return Promise.resolve(piperEngine);
   if (!piperEnginePromise){
     piperEnginePromise = import(PIPER_ENGINE_URL).then(m => {
+      const onnxRuntime = new m.OnnxWebWorkerRuntime({ basePath: PIPER_ONNX_BASE });
+      const phonemizeRuntime = new m.PhonemizeWebWorkerRuntime({ basePath: PIPER_PHON_BASE });
+      const voiceProvider = new LocalVoiceProvider();
       const engine = {
-        onnxRuntime: new m.OnnxWebWorkerRuntime({ basePath: PIPER_ONNX_BASE }),
-        phonemizeRuntime: new m.PhonemizeWebWorkerRuntime({ basePath: PIPER_PHON_BASE }),
-        voiceProvider: new LocalVoiceProvider()
+        onnxRuntime,
+        phonemizeRuntime,
+        voiceProvider,
+        _sessionVoice: null,
+        /* v9.44 : le bundle piper-tts-web.js n'exporte PAS de classe Piper avec
+           synthesize() -> on l'implémente ici. Protocole vérifié empiriquement :
+           phonemize(text, [config]), loadSession([0, model]) (session en cache
+           dans le worker), generate(phonemes, [config], sampleRate). */
+        async synthesize(text, voice, voiceId){
+          const { model, config } = voice;
+          if (this._sessionVoice !== voiceId){
+            await onnxRuntime.loadSession([0, model]);
+            this._sessionVoice = voiceId;
+          }
+          const phonemes = await phonemizeRuntime.phonemize(text, [config]);
+          const result = await onnxRuntime.generate(phonemes, [config], config.audio.sample_rate);
+          return { audioData: await result.file.arrayBuffer() };
+        }
       };
       piperEngine = engine;
       return engine;
@@ -2299,7 +2326,7 @@ async function speakPiper(text, voiceId){
     console.log('[VOIX] Piper: voix chargée, synthèse...');
     const chunks = splitSentences(text, 250);
     for (const c of chunks){
-      const result = await engine.synthesize(c, voice);
+      const result = await engine.synthesize(c, voice, voiceId);
       const blob = new Blob([result.audioData], { type: 'audio/wav' });
       const ok = await playPiperWav(blob);
       if (!ok) return false;
