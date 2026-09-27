@@ -4,12 +4,72 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.51-final loading...');
-const APP_VERSION = '9.51-final';
+console.log('[APP] v9.52-final loading...');
+const APP_VERSION = '9.52-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
 const SPEED = 1.0; // naturel
+
+/* ===== EDGE TTS LOCAL (Microsoft voix neuronales : Henrietta, Denise, Remy...)
+   Gratuit, sans clé, qualité premium. Nécessite le serveur local edge-tts-server.py
+   (lancez: python edge-tts-server.py -> http://127.0.0.1:5002) ===== */
+const EDGE_TTS_URL = 'http://127.0.0.1:5002';
+let edgeVoicesCache = null;
+async function fetchEdgeVoices(){
+  if (edgeVoicesCache) return edgeVoicesCache;
+  try {
+    const res = await fetch(EDGE_TTS_URL + '/voices', { signal: AbortSignal.timeout(3000) });
+    if (res.ok){
+      const data = await res.json();
+      edgeVoicesCache = data.voices || [];
+      console.log('[EDGE TTS] Voix chargées:', edgeVoicesCache.length);
+      return edgeVoicesCache;
+    }
+  } catch(e){ console.warn('[EDGE TTS] Serveur non dispo:', e && e.message); }
+  return [];
+}
+async function speakEdge(text, voiceId, onChunk){
+  try {
+    const chunks = splitSentences(text, 250);
+    for (const chunk of chunks){
+      if (onChunk) onChunk(chunk);
+      const res = await fetch(EDGE_TTS_URL + '/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: chunk, voice: voiceId }),
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const audioBlob = await res.blob();
+      const ok = await playAudioBlob(audioBlob);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[EDGE TTS] Échec:', e && e.message); return false; }
+}
+function playAudioBlob(blob){
+  return new Promise(res => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    currentAudios.push(audio);
+    let done = false, started = false;
+    const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
+    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
+    audio.onended = () => finish(true);
+    audio.onerror = () => finish(false);
+    const tryPlay = n => {
+      audio.play().then(() => {}).catch(() => {
+        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+        else finish(false);
+      });
+    };
+    tryPlay(0);
+    setTimeout(() => { if (!done && !started) finish(false); }, 8000);
+    setTimeout(() => { if (!done) finish(true); }, 30000);
+  });
+}
 
 /* ===== PERSONNALITÉ / HUMEURS (v9.51) =====
    L'IA a des humeurs comme un humain : neutre, agacée, violente, protectrice, taquine.
@@ -376,7 +436,7 @@ settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
-  populatePiperVoices();
+  populateVoices();
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
@@ -1933,16 +1993,29 @@ async function speakPiper(text, voiceId, onChunk){
 }
 
 /* Remplit le sélecteur avec les voix Piper */
-function populatePiperVoices(){
+/* v9.52 : populateVoices — Piper + Edge TTS (si serveur dispo) */
+async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
+  /* Piper */
   PIPER_VOICES.forEach(v => {
     const val = 'piper:' + v.id;
     if (!existingOptions.includes(val)){
       const opt = document.createElement('option');
       opt.value = val;
       opt.textContent = '🤖 Piper: ' + v.name;
+      ttsVoiceSel.appendChild(opt);
+    }
+  });
+  /* Edge TTS (Microsoft voix neuronales) — si serveur local dispo */
+  const edgeVoices = await fetchEdgeVoices();
+  edgeVoices.forEach(v => {
+    const val = 'edge:' + v.id;
+    if (!existingOptions.includes(val)){
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = '🎙️ Edge: ' + v.name;
       ttsVoiceSel.appendChild(opt);
     }
   });
@@ -2098,10 +2171,13 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : Piper (si sélectionné) -> Système (secours) */
+    /* VOIX : Edge TTS (Microsoft neuronales) -> Piper -> Système (secours) */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('system:')){
+    if (voiceMode.startsWith('edge:')){
+      const voiceId = voiceMode.substring(5);
+      chain = [['Edge: ' + voiceId, (t) => speakEdge(t, voiceId, onChunk)], ['Piper (secours)', (t) => speakPiper(t, 'fr_FR-siwis-medium', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
+    } else if (voiceMode.startsWith('system:')){
       const voiceName = voiceMode.substring(7);
       chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName, onChunk)]];
     } else if (voiceMode.startsWith('piper:')){
