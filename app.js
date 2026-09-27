@@ -1,16 +1,13 @@
 /* ============================================================
    ASSISTANT VOCAL IA � 100% vocal, sans chat
-   Cerveau par defaut : HuggingFace + serveurs gratuits = GRATUIT,
-   AUCUNE cle, AUCUNE limite, pour tout le monde, a vie.
-   Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
-   Google TTS = voix IA femme (gratuite, sans cle) par defaut
+   v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans cle,
+   comme ChatGPT). Les autres cerveaux ont ete supprimes.
+   Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.47-final loading...');
-const APP_VERSION = '9.47-final';
-const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
+console.log('[APP] v9.48-final loading...');
+const APP_VERSION = '9.48-final';
+const LS = { voice: 'va_ttsvoice' };
 
-const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
-const MISTRAL_TTS_MODEL = 'voxtral-mini-tts-2603';
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
 const SPEED = 1.0; // naturel
 
@@ -20,7 +17,7 @@ const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
-const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel'), openrouterKeyInput = $('openrouterKey'), mistralKeyInput = $('mistralKey');
+const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel');
 const wakeToggle = $('wakeToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
@@ -94,7 +91,7 @@ function escapeHtml(s){
 function isSecoursReply(t){
   return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations|pollinations est temporairement indisponible|pollinations is temporarily unavailable|temporarily unavailable|try again in|rate[- ]?limit|too many requests|quota (epuise|épuisé|exceeded)|temporairement indisponible|maintenance en cours|429/i.test(t);
 }
-function localSmartReply(question, onlineFailed){
+function localSmartReply(question){
   const q = question.toLowerCase().trim();
   /* 1) MEMOIRE : chercher une question similaire deja posee et rejouer la
      reponse, MAIS jamais une reponse de secours (sinon boucle infinie).
@@ -167,25 +164,19 @@ function localSmartReply(question, onlineFailed){
   if (/(tu as des parents|ta famille|tu as une famille)/.test(q)) return "Mon créateur, c'est tom point a i. C'est un peu comme mon papa !";
   if (/(tu as peur|tu as peur du noir|tu as peur de quoi)/.test(q)) return "Je n'ai peur de rien ! Je suis une IA, je n'ai pas d'émotions, mais j'essaie d'être gentille.";
   if (/(tu es libre|tu es gratuite|tu es payante|tu coute|tu coûte)/.test(q)) return "Je suis totalement gratuite, sans limite, et je le resterai !";
-  /* 3) v8.71 : REPONSE DIRECTE — jamais d'excuse, jamais d'echo. Si tout
-     echoue, on repond avec une reponse utile et on invite a changer de
-     cerveau (Pollinations GET natif est la solution fiable).
-     v8.90 : plus JAMAIS le message d'erreur "Pollinations indisponible" :
-     on repond honnetement et on propose une alternative. */
+  /* 3) v8.71 : REPONSE DIRECTE — jamais d'excuse, jamais d'echo.
+     v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
+     supprimé) : on répond honnêtement et on invite à reformuler. */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    /* v9.46 : si les cerveaux en ligne ont échoué, on le dit HONNÊTEMENT au lieu
-       d'une réponse générique hors sujet ("Je suis là et je t'écoute..."). */
-    if (onlineFailed) return "Je n'arrive pas à me connecter à mon cerveau en ligne pour l'instant. Réessaie dans quelques secondes.";
-    return "Je suis là et je t'écoute. Dis-moi ce que tu veux savoir, je vais t'aider.";
+    return "Je n'ai pas encore la réponse à cette question. Redis-la moi autrement, ou demande-moi autre chose.";
   }
   // Réponses contextuelles basées sur mots-clés
   if (/(bonjour|salut|hello|coucou)/.test(q)) return "Salut ! Comment puis-je t'aider aujourd'hui ?";
   if (/(comment|pourquoi|qu'est-ce|quest-ce|c'est quoi)/.test(q)) return "C'est une bonne question. Laisse-moi réfléchir... " + kw.join(' ') + " est un sujet intéressant.";
   if (/(merci|thanks)/.test(q)) return "Avec plaisir ! N'hésite pas si tu as d'autres questions.";
   if (/(au revoir|bye|a plus)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
-  if (onlineFailed) return "Je n'arrive pas à me connecter à mon cerveau en ligne pour l'instant. Réessaie dans quelques secondes.";
-  return "Je suis là. Pose-moi ta question, je vais faire de mon mieux pour t'aider.";
+  return "Je n'ai pas encore la réponse à cette question. Redis-la moi autrement, ou demande-moi autre chose.";
 }
 function renderHistory(){
   const list = $('convList');
@@ -312,10 +303,11 @@ function clearChat(){
 }
 
 /* ===== REGLAGES ===== */
-function getMistralKey(){ return (localStorage.getItem(LS.mistral) || '').trim(); }
-function getCerebrasKey(){ return (localStorage.getItem(LS.cerebras) || '').trim(); }
-function getOpenAIKey(){ return (localStorage.getItem(LS.openai) || '').trim(); }
-function getBrain(){ return localStorage.getItem(LS.brain) || 'auto'; }
+/* v9.48 : plus de clés API (Mistral/OpenRouter/OpenAI/Cerebras supprimés) */
+/* v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans clé, fiable).
+   Les autres cerveaux (Mistral, OpenRouter, LLM7, OVH, Local, GoogleAI)
+   ont été supprimés. */
+function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
   /* v9.42 : le sélecteur ne contient plus que les voix Piper -> une ancienne
@@ -327,26 +319,15 @@ function getVoice(){
 settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
-  if (openrouterKeyInput) openrouterKeyInput.value = (localStorage.getItem(LS.openrouter) || '').trim();
-  if (mistralKeyInput) mistralKeyInput.value = (localStorage.getItem(LS.mistral) || '').trim();
   wakeToggle.checked = wakeEnabled;
   populatePiperVoices();
   settingsModal.classList.remove('hidden');
 });
 closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
-if (openrouterKeyInput) openrouterKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.openrouter, openrouterKeyInput.value.trim());
-  toast('Cle OpenRouter enregistree');
-});
-if (mistralKeyInput) mistralKeyInput.addEventListener('change', () => {
-  localStorage.setItem(LS.mistral, mistralKeyInput.value.trim());
-  toast('Cle Mistral AI enregistree');
-});
 
 brainSel.addEventListener('change', () => {
-  localStorage.setItem(LS.brain, brainSel.value);
-  toast('Cerveau choisi : ' + brainSel.options[brainSel.selectedIndex].text);
+  toast('Cerveau : Pollinations GPT (le seul, gratuit à vie)');
 });
 
 ttsVoiceSel.addEventListener('change', () => {
@@ -805,496 +786,6 @@ function extractReply(msg){
   return '';
 }
 
-/* ===== IA (cerveau) ===== */
-async function askMistral(question, webCtx, msgs){
-  const key = getMistralKey();
-  if (!key) return { error: 'nokey' };
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    /* MEMOIRE GLOBALE : toutes les conversations passees (meme dans une nouvelle) */
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
-    }
-    if (webCtx === undefined) webCtx = await webSearch(question);
-    if (webCtx){
-      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
-      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
-    }
-  }
-  try {
-    /* timeout 8s : reponse rapide, sinon on passe au cerveau suivant.
-       Retry 1x sur 429 : la limite du plan gratuit Mistral est souvent
-       passagere (1 req/s) - attendre 2s suffit generalement. */
-    let res = null;
-    for (let attempt = 0; attempt < 2; attempt++){
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 8000);
-      try {
-        res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages, max_tokens: 400, temperature: 0.7 }),
-          signal: ctrl.signal
-        });
-      } finally { clearTimeout(timer); }
-      if (res.status === 429 && attempt === 0){
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      break;
-    }
-    if (res.status === 429) return { error: 'limit' };
-    if (res.status === 401 || res.status === 403 || res.status === 404) return { error: 'key' };
-    if (!res.ok) return { error: 'api' };
-    const j = await res.json();
-    const msg = j.choices && j.choices[0] && j.choices[0].message || {};
-    const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
-    let reply = extractReply(msg);
-    /* REPONSE COUPEE (finish_reason=length) : continuation pour ne jamais
-       laisser une phrase en suspens */
-    if (reply && fr === 'length'){
-      try {
-        const ctrl2 = new AbortController();
-        const timer2 = setTimeout(() => ctrl2.abort(), 8000);
-        let cres;
-        try {
-          cres = await fetch('https://api.mistral.ai/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-            body: JSON.stringify({ model: MISTRAL_CHAT_MODEL, messages: [...messages, { role: 'assistant', content: reply }, { role: 'user', content: 'Continue ta reponse exactement la ou tu t es arretee, sans repeter ni resumer.' }], max_tokens: 400, temperature: 0.7 }),
-            signal: ctrl2.signal
-          });
-        } finally { clearTimeout(timer2); }
-        if (cres && cres.ok){
-          const cj = await cres.json();
-          const cmsg = cj.choices && cj.choices[0] && cj.choices[0].message || {};
-          const contText = extractReply(cmsg);
-          if (contText) reply += ' ' + contText;
-        }
-      } catch {}
-    }
-    if (!reply) return { error: 'api' };
-    return { text: reply };
-  } catch { return { error: 'net' }; }
-}
-/* ===== IA LOCALE (WebLLM) : tourne DANS le navigateur, sans serveur, sans cle,
-   sans saturation, A VIE. Le modele se telecharge 1 fois (~1 Go) puis reste
-   en cache. Necessite Chrome/Edge recent (WebGPU). ===== */
-let localEngine = null, localStatus = 'idle'; /* idle | loading | ready | error */
-const LOCAL_MODEL = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
-async function initLocalEngine(){
-  if (localEngine || localStatus === 'loading') return;
-  if (!navigator.gpu){ localStatus = 'error'; return; }
-  localStatus = 'loading';
-  try {
-    const webllm = await import('https://esm.sh/@mlc-ai/web-llm@0.2.77');
-    localEngine = await webllm.CreateMLCEngine(LOCAL_MODEL, {
-      initProgressCallback: p => {
-        const pct = Math.round((p.progress || 0) * 100);
-        setStatus('IA locale : telechargement du cerveau ' + pct + '%...');
-      }
-    });
-    localStatus = 'ready';
-    setStatus('IA locale prete - appuie sur le micro');
-  } catch(e){
-    console.warn('[Local] echec:', e?.message);
-    localStatus = 'error';
-  }
-}
-async function askLocal(question, webCtx, msgs){
-  if (localStatus !== 'ready' || !localEngine) return { error: 'nolocal' };
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
-    }
-    if (webCtx === undefined) webCtx = await webSearch(question);
-    if (webCtx){
-      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
-      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
-    }
-  }
-  try {
-    const reply = await localEngine.chat.completions.create({ messages, max_tokens: 300, temperature: 0.7 });
-    const text = ((reply.choices && reply.choices[0] && reply.choices[0].message && reply.choices[0].message.content) || '').trim();
-    if (!text) return { error: 'api' };
-    return { text };
-  } catch(e){ console.warn('[Local] erreur:', e?.message); return { error: 'net' }; }
-}
-/* ===== OPENAI : le meme cerveau que ChatGPT, non stop avec une cle ===== */
-async function askOpenAI(question, webCtx, msgs){
-  const key = getOpenAIKey();
-  if (!key) return { error: 'nokey' };
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages = [{ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem }, ...messages];
-    }
-    if (webCtx === undefined) webCtx = await webSearch(question);
-    if (webCtx){
-      messages = messages.filter(m => !(m.role === 'system' && /^Web \(recherche/.test(m.content)));
-      messages = [{ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx }, ...messages];
-    }
-  }
-  try {
-    let res = null;
-    for (let attempt = 0; attempt < 2; attempt++){
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000);
-      try {
-        res = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model: 'gpt-4o-mini', messages, max_tokens: 400, temperature: 0.7 }),
-          signal: ctrl.signal
-        });
-      } finally { clearTimeout(timer); }
-      if (res.status === 429 && attempt === 0){
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      break;
-    }
-    if (res.status === 429) return { error: 'limit' };
-    if (res.status === 401 || res.status === 403 || res.status === 404) return { error: 'key' };
-    if (!res.ok) return { error: 'api' };
-    const j = await res.json();
-    const msg = j.choices && j.choices[0] && j.choices[0].message || {};
-    const fr = j.choices && j.choices[0] && j.choices[0].finish_reason;
-    let reply = extractReply(msg);
-    if (reply && fr === 'length'){
-      try {
-        const ctrl2 = new AbortController();
-        const timer2 = setTimeout(() => ctrl2.abort(), 15000);
-        let cres;
-        try {
-          cres = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-            body: JSON.stringify({ model: 'gpt-4o-mini', messages: [...messages, { role: 'assistant', content: reply }, { role: 'user', content: 'Continue ta reponse exactement la ou tu t es arretee, sans repeter ni resumer.' }], max_tokens: 400, temperature: 0.7 }),
-            signal: ctrl2.signal
-          });
-        } finally { clearTimeout(timer2); }
-        if (cres && cres.ok){
-          const cj = await cres.json();
-          const cmsg = cj.choices && cj.choices[0] && cj.choices[0].message || {};
-          const contText = extractReply(cmsg);
-          if (contText) reply += ' ' + contText;
-        }
-      } catch {}
-    }
-    if (!reply) return { error: 'api' };
-    return { text: reply };
-  } catch { return { error: 'net' }; }
-}
-async function webSearch(question){
-  /* Internet GRATUIT inclus a vie, aucune cle, aucune limite :
-     1) DuckDuckGo Instant Answer + Wikipedia (faits, definitions) en parallele
-     2) ACTUALITE EN TEMPS REEL : flux Le Monde + France Info (via rss2json, CORS ouvert)
-     3) Recherche ciblee Bing News si la question porte sur l'actualite */
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-  const q = encodeURIComponent(question.replace(/[\r\n]+/g,' ').slice(0, 160));
-  const isNews = /actualit|nouvelle|aujourd|hier|recemment|dernier|actu|news|election|president|guerre|crise|prix|meteo|temps|resultat|score|match|sortie|annonc|deces|attaque|accord|loi|gouvernement|minister|economie|football|ligue|championnat|internet|web|recherche/i.test(question);
-  if (isNews) setStatus('Recherche sur le web...');
-  const parts = [];
-  /* 1) DuckDuckGo + Wikipedia en parallele */
-  const [ddg, wiki] = await Promise.all([
-    (async () => {
-      try {
-        const res = await withTimeout(fetch('https://api.duckduckgo.com/?q=' + q + '&format=json&no_html=1&skip_disambig=1', { mode: 'cors' }), 2500);
-        if (!res || !res.ok) return '';
-        const j = await res.json();
-        const p = [];
-        if (j.AbstractText) p.push(j.AbstractText.slice(0, 600));
-        if (j.Answer) p.push(j.Answer.slice(0, 400));
-        if (j.Heading) p.push(j.Heading.slice(0, 120));
-        if (j.RelatedTopics && j.RelatedTopics.length){
-          const flat = [];
-          const walk = items => items.forEach(it => { if (it.Text) flat.push(it.Text); else if (it.Topics) walk(it.Topics); });
-          walk(j.RelatedTopics);
-          flat.slice(0, 5).forEach(t => p.push(t.slice(0, 300)));
-        }
-        return p.join(' | ').slice(0, 1400).trim();
-      } catch { return ''; }
-    })(),
-    (async () => {
-      try {
-        const res = await withTimeout(fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + q + '&format=json&srlimit=3&origin=*'), 2500);
-        if (!res || !res.ok) return '';
-        const j = await res.json();
-        const hits = (j.query && j.query.search || []).map(s => s.title + ' : ' + s.snippet.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' '));
-        return hits.length ? 'Wikipedia : ' + hits.join(' | ').slice(0, 800) : '';
-      } catch { return ''; }
-    })()
-  ]);
-  if (ddg) parts.push(ddg);
-  if (wiki) parts.push(wiki);
-  /* 2) ACTUALITE EN TEMPS REEL : flux francais UNIQUEMENT si question d'actu
-     (sinon ca ajoute 5s a CHAQUE question pour rien) */
-  if (isNews){
-    const feeds = [
-      ['https://www.lemonde.fr/rss/une.xml', 'Le Monde'],
-      ['https://www.francetvinfo.fr/titres.rss', 'France Info']
-    ];
-    const feedResults = await Promise.all(feeds.map(async ([feed, name]) => {
-      try {
-        const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feed)), 3000);
-        if (!res || !res.ok) return '';
-        const j = await res.json();
-        if (j.status !== 'ok' || !j.items || !j.items.length) return '';
-        const titles = j.items.slice(0, 6).map(it => it.title).filter(Boolean);
-        return titles.length ? 'Actualite ' + name + ' : ' + titles.join(' | ').slice(0, 700) : '';
-      } catch { return ''; }
-    }));
-    feedResults.forEach(r => { if (r) parts.push(r); });
-  }
-  /* 3) Recherche ciblee Bing News si question specifique d'actu */
-  if (isNews){
-    try {
-      const res = await withTimeout(fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.bing.com/news/search?q=' + q + '&format=rss')), 3000);
-      if (res && res.ok){
-        const j = await res.json();
-        if (j.status === 'ok' && j.items && j.items.length){
-          const titles = j.items.slice(0, 4).map(it => it.title).filter(Boolean);
-          if (titles.length) parts.push('Recherche web : ' + titles.join(' | ').slice(0, 600));
-        }
-      }
-    } catch {}
-  }
-  return parts.join(' | ').slice(0, 2600).trim();
-}
-/* Cerveau GRATUIT SANS LIMITE A VIE POUR TOUT LE MONDE.
-   AUCUNE cle, AUCUNE limite, marche pour tout le monde des l'ouverture.
-   Utilise par defaut quand aucune cle Cerebras/Mistral n'est configuree,
-   et en secours silencieux quand Cerebras/Mistral sont en limite.
-   Plusieurs modeles dispo : si un backend est en panne, on bascule
-   sur un autre. */
-/* ===== CERVEAUX GRATUITS SANS CLE (multi-endpoints) =====
-   On essaie plusieurs services 100% gratuits sans cle, sans credits, sans compte.
-   AUCUN Pollinations, AUCUN service qui demande des credits. */
-/* Cerveau CEREBRAS (cle gratuite : 1M tokens/jour, sans carte bancaire,
-   ultra rapide - le plan gratuit le plus genereux du marche) */
-async function askCerebras(question, webCtx, msgs){
-  const key = getCerebrasKey();
-  if (!key) return { error: 'nokey' };
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-    }
-    if (webCtx){
-      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
-    }
-  }
-  const cbModels = ['llama-3.3-70b', 'gpt-oss-120b', 'qwen-3-32b'];
-  for (const model of cbModels){
-    /* retry 1x sur 429 : limite 30 req/min, souvent passagere */
-    for (let attempt = 0; attempt < 2; attempt++){
-      try {
-        const res = await withTimeout(fetch('https://api.cerebras.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
-}), 6000);
-        if (res && res.ok){
-          const data = await res.json();
-          const t = (data?.choices?.[0]?.message?.content || '').trim();
-          if (t) return { text: t };
-        } else if (res && res.status === 429 && attempt === 0){
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        } else if (res && res.status === 429){
-          break; /* limite -> modele suivant */
-        } else if (res && (res.status === 401 || res.status === 403 || res.status === 404)){
-          console.warn('[Cerebras] Cle invalide (401/403/404) -> on passe au cerveau suivant sans bloquer');
-          return { error: 'limit' }; /* cle invalide -> on continue silencieusement vers Mistral/Gratuit */
-        } else if (res){
-          return { error: 'api' };
-        }
-      } catch(e){ console.warn('[Cerebras]', model, 'erreur:', e?.message); }
-      break;
-    }
-  }
-  return { error: 'limit' };
-}
-
-/* ===== GOOGLE AI STUDIO (Gemini) : GRATUIT avec cle Google AI Studio.
-   https://aistudio.google.com/app/apikey -> cle gratuite. ===== */
-async function askGoogleAI(question, webCtx, msgs){
-  const key = (localStorage.getItem('LS.googleai') || '').trim();
-  if (!key) return { error: 'nokey' };
-  try {
-    const messages = msgs || [{ role: 'user', content: question }];
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + key, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: messages.map(m => m.content || '').join(' | ') }] }] })
-    });
-    if (res && res.ok){
-      const data = await res.json();
-      const t = (data?.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
-      if (t) return { text: t };
-    }
-    return { error: 'http' + (res ? res.status : 'net') };
-  } catch(e){ return { error: 'net' }; }
-}
-
-/* ===== MISTRAL AI : gratuit avec cle (console.mistral.ai -> API Keys).
-   Model: mistral-small-latest (rapide, gratuit, excellent en francais). ===== */
-async function askMistral(question, webCtx, msgs){
-  const key = (localStorage.getItem(LS.mistral) || '').trim();
-  if (!key) return { error: 'nokey' };
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-    }
-  }
-  if (webCtx){
-    messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
-  }
-  const mistralModels = ['mistral-small-latest'];
-  for (const model of mistralModels){
-    for (let attempt = 0; attempt < 2; attempt++){
-      try {
-        const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model, messages, max_tokens: 600, temperature: 0.7 })
-        }), 25000);
-        if (res && res.ok){
-          const data = await res.json();
-          const t = (data?.choices?.[0]?.message?.content || '').trim();
-          if (t) return { text: t };
-        } else if (res && res.status === 429 && attempt === 0){
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        } else if (res && (res.status === 401 || res.status === 403)){
-          console.warn('[Mistral] Cle invalide -> retiree pour la session');
-          toast('Cle Mistral invalide - colle une nouvelle cle gratuite');
-          return { error: 'limit' };
-        } else if (res){
-          return { error: 'api' };
-        }
-      } catch(e){ console.warn('[Mistral]', model, 'erreur:', e?.message); }
-      break;
-    }
-  }
-  return { error: 'limit' };
-}
-
-async function askOpenRouter(question, webCtx, msgs){
-  const key = (localStorage.getItem(LS.openrouter) || '').trim();
-  if (!key) return { error: 'nokey' };
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-    }
-  }
-  const orModels = ['meta-llama/llama-3.3-70b', 'openai/gpt-4o-mini'];
-  for (const model of orModels){
-    for (let attempt = 0; attempt < 2; attempt++){
-      try {
-        const res = await withTimeout(fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key, 'HTTP-Referer': 'https://openrouter.ai', 'X-Title': 'VoiceAI' },
-          body: JSON.stringify({ model, messages, max_tokens: 600, temperature: 0.7 })
-        }), 25000);
-        if (res && res.ok){
-          const data = await res.json();
-          const t = (data?.choices?.[0]?.message?.content || '').trim();
-          if (t) return { text: t };
-        } else if (res && res.status === 429 && attempt === 0){
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        } else if (res && (res.status === 401 || res.status === 403)){
-          console.warn('[OpenRouter] Cle invalide -> retiree pour la session');
-          toast('Cle OpenRouter invalide - colle une nouvelle cle gratuite');
-          return { error: 'limit' };
-        } else if (res){
-          return { error: 'api' };
-        }
-      } catch(e){ console.warn('[OpenRouter]', model, 'erreur:', e?.message); }
-      break;
-    }
-  }
-  return { error: 'limit' };
-}
-
-async function askFreeLLM(question, webCtx, msgs){
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
-  let messages = msgs || [{ role: 'system', content: getSystemPrompt() }, ...session];
-  if (!msgs){
-    const mem = buildMemoryContext(currentConvId);
-    if (mem){
-      messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
-    }
-    if (webCtx){
-      messages.unshift({ role: 'system', content: 'Web (recherche en direct : DuckDuckGo, Wikipedia, actualite Le Monde/France Info - gratuit inclus a vie, aucune cle) : ' + webCtx });
-    }
-  }
-  const openaiMessages = messages;
-
-  /* STRATEGIE H24 : LLM7 SEUL en premier (1 requete/question -> 10 questions/min
-     possibles, le quota ne brule plus). OVH n'est appele QUE si LLM7 echoue
-     (secours), pas en parallele : avant, 2 requetes/question dont OVH (2 req/min)
-     -> 2 questions/min max puis "Serveurs satures". */
-  const tryEndpoint = async (url, model) => {
-    try {
-      const res = await withTimeout(fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: openaiMessages, max_tokens: 300, temperature: 0.7 })
-      }), 15000);
-      if (res && res.ok){
-        const data = await res.json();
-        const msg = data?.choices?.[0]?.message || {};
-        /* contenu DIRECT : extractReply etait trop strict pour les petits
-           modeles et rejetait des reponses valides -> Gratuit:limit.
-           GLM-5.3-Flash met sa reponse dans "reasoning" quand "content" est
-           vide -> on prend reasoning en secours sinon tout echoue. */
-        let text = (msg.content || '').trim();
-        if (!text) text = (msg.reasoning_content || msg.reasoning || '').trim();
-        if (text && !/^the user (says|asks|is asking|wants)/i.test(text) && !isSecoursReply(text)) return text;
-        return { err: 'refus' };
-      }
-      /* 429 = QUOTA EPUISE : retenter dans 5s ne sert a rien (fenetre minute
-         pas reinitialisee) et brule le quota. On le distingue du reste. */
-      if (res && res.status === 429) return { err: 'limit' };
-      if (res) return { err: 'http' + res.status };
-      return { err: 'net' };
-    } catch(e){ console.warn('[' + model + ']', 'erreur:', e?.message); return { err: 'net' }; }
-  };
-
-  /* 1. LLM7.IO - anonyme, sans cle, sans compte (10 req/min, 60 req/h).
-     GLM-5.3-Flash : teste 200 OK, repond bien en francais. */
-  let text = await tryEndpoint('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
-  if (typeof text === 'string') return { text };
-
-  /* 2. OVHCLOUD AI ENDPOINTS - anonyme (2 req/min), secours si LLM7 echoue */
-  text = await tryEndpoint('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
-  if (typeof text === 'string') return { text };
-
-  /* Les deux ont echoue : on remonte la cause la plus parlante.
-     limit = quota epuise (transitoire, ~1 min) ; net = reseau ; httpX = autre. */
-  return { error: 'limit' };
-}
-/* Chaine de cerveaux : TOUS les cerveaux partent EN PARALLELE, le premier qui
-   repond gagne -> reponse en ~2-8s au lieu de ~40s en sequentiel.
-   Filtre PRECIS : vraies phrases de limite/refus, pas le mot "limite" seul. */
-/* Cles invalides detectees (401/403/404) : retirees de la chaine pour la session
-   pour ne plus re-echouer a chaque question. */
-let badMistralKey = false, badCerebrasKey = false;
 async function askBrain(messages, webCtx){
    /* CERVEAUX GRATUITS, dans l'ordre :
       0. GOOGLE AI STUDIO (Gemini, gratuit avec cle)
@@ -1356,7 +847,8 @@ async function askBrain(messages, webCtx){
       prompt += ' Question : ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
       const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=' + (model || 'openai');
-      const res = await withTimeout(fetch(url), 8000);
+      /* v9.48 : 12s au lieu de 8s (démarrage à froid de Pollinations : 3-15s) */
+      const res = await withTimeout(fetch(url), 12000);
       if (res && res.ok){
         const text = (await res.text()).trim();
         if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text) && !isSecoursReply(text)) return text;
@@ -1368,86 +860,30 @@ async function askBrain(messages, webCtx){
       return { err: 'net' };
     } catch(e){ return { err: 'net' }; }
   };
-  /* v8.66 : le SELECTEUR DE CERVEAU (reglages -> Cerveau IA) est respecte.
-     auto = Pollinations (gratuit sans clé) -> Local (repond TOUJOURS). */
-  const brain = getBrain();
-  if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
-  if (brain === 'pollinations' || brain === 'auto'){
-    /* RAPIDE : Local instantané + Pollinations en parallèle.
-       v9.46 : budget 15s (les modèles Pollinations démarrent à froid en 3-15s,
-       la course de 5s expirait trop tôt -> repli local hors sujet).
-       Seul model=openai répond sur text.pollinations.ai (mistral -> 404). */
-    const localText = localSmartReply(question, true);
-    const models = ['openai', 'openai'];
-    const pollinationsPromise = (async () => {
-      for (let i = 0; i < 2; i++){
-        if (i > 0) await new Promise(r => setTimeout(r, 400));
-        const t = await tryPollinationsGet(models[i % 2]);
-        if (typeof t === 'string') return t;
-      }
-      return null;
-    })();
-    const pollinationsResult = await Promise.race([
-      pollinationsPromise,
-      new Promise(r => setTimeout(() => r(null), 15000))
-    ]);
-    if (pollinationsResult) return { text: pollinationsResult, diag: 'Pollinations' };
-    /* POST Pollinations en dernier recours (timeout court : souvent lent) */
-    const postResult = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
-    if (typeof postResult === 'string') return { text: postResult, diag: 'Pollinations' };
-    /* Local instantané en secours */
-    return { text: localText, diag: 'local' };
-  }
-  if (brain === 'llm7'){
-    const t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
-    if (typeof t === 'string') return { text: t, diag: 'LLM7' };
-    return { text: localSmartReply(question, true), diag: 'local (LLM7:' + (t && t.err || 'net') + ')' };
-  }
-  if (brain === 'ovh'){
-    const t = await tryWithRetry('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
-    if (typeof t === 'string') return { text: t, diag: 'OVH' };
-    return { text: localSmartReply(question, true), diag: 'local (OVH:' + (t && t.err || 'net') + ')' };
-  }
-  if (brain === 'openrouter'){
-    const o = await askOpenRouter(question, webCtx, messages);
-    if (!o.error && o.text) return { text: o.text, diag: 'OpenRouter' };
-    return { text: localSmartReply(question, true), diag: 'local' };
-  }
-  if (brain === 'mistral'){
-    const m = await askMistral(question, webCtx, messages);
-    if (!m.error && m.text) return { text: m.text, diag: 'Mistral' };
-    return { text: localSmartReply(question, true), diag: 'local' };
-  }
-  /* auto = Google AI Studio (si cle) -> Pollinations GET x4 -> LLM7 -> OVH -> memoire locale. */
-  const diags = [];
-  const gaKey2 = (localStorage.getItem('LS.googleai') || '').trim();
-  if (gaKey2){
-    const ga = await askGoogleAI(question, webCtx, messages);
-    if (!ga.error && ga.text) return { text: ga.text, diag: 'GoogleAI' };
-    diags.push('GoogleAI:' + (ga && ga.err || ga && ga.error || 'net'));
-  }
-  const orKey = (localStorage.getItem(LS.openrouter) || '').trim();
-  if (orKey){
-    const o = await askOpenRouter(question, webCtx, messages);
-    if (!o.error && o.text) return { text: o.text, diag: 'OpenRouter' };
-    diags.push('OpenRouter:' + (o && o.err || o && o.error || 'net'));
-  }
-    const models = ['openai'];
-  for (let i = 0; i < 2; i++){
-    if (i > 0) await new Promise(r => setTimeout(r, 400));
-    const t = await tryPollinationsGet(models[0]);
-    if (typeof t === 'string') return { text: t, diag: 'Pollinations-GET' };
-    diags.push('Pollinations-GET:' + (t && t.err || 'net'));
-  }
-  /* v8.85 : LLM7 en secours (gratuit, vivant) */
-  const llm7 = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
-  if (typeof llm7 === 'string') return { text: llm7, diag: 'LLM7' };
-  diags.push('LLM7:' + (llm7 && llm7.err || 'net'));
-  const ovh = await tryWithRetry('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
-  if (typeof ovh === 'string') return { text: ovh, diag: 'OVH' };
-  diags.push('OVH:' + (ovh && ovh.err || 'net'));
-  /* Secours : memoire locale */
-  return { text: localSmartReply(question, true), diag: 'local (' + diags.join(' ') + ')' };
+  /* v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans clé, fiable).
+     model=openai est le seul qui répond sur text.pollinations.ai (testé :
+     5/5 succès en 93-421ms à chaud, 3-15s à froid). 3 tentatives GET avec
+     budget total 25s, puis POST en dernier recours, puis mémoire locale
+     (jamais de message d'erreur). */
+  const localText = localSmartReply(question);
+  const pollinationsPromise = (async () => {
+    for (let i = 0; i < 3; i++){
+      if (i > 0) await new Promise(r => setTimeout(r, 400));
+      const t = await tryPollinationsGet('openai');
+      if (typeof t === 'string') return t;
+    }
+    return null;
+  })();
+  const pollinationsResult = await Promise.race([
+    pollinationsPromise,
+    new Promise(r => setTimeout(() => r(null), 25000))
+  ]);
+  if (pollinationsResult) return { text: pollinationsResult, diag: 'Pollinations' };
+  /* POST en dernier recours (parfois disponible quand le GET est saturé) */
+  const postResult = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+  if (typeof postResult === 'string') return { text: postResult, diag: 'Pollinations' };
+  /* Secours : mémoire locale (jamais de message d'erreur) */
+  return { text: localText, diag: 'local' };
 }
 /* DETECTION ANGLAIS : si plus de 25% des mots sont des mots anglais courants,
    la reponse est probablement en anglais -> on la traduit en francais pour que
@@ -2637,28 +2073,20 @@ async function handleQuestion(question){
      synthese, avec son travail affiche en direct. Plus de temps (90s) car elle
      fait plusieurs recherches. Validation humaine : interruption a tout moment. */
   const agentMode = isAgentQuestion(question);
-  /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente) */
+  /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente).
+     v9.48 : 45s pour laisser les 3 tentatives Pollinations + POST se terminer. */
   const r = await Promise.race([
     agentMode ? runAgent(question) : askAI(question),
-    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 30000))
+    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
   ]);
   if (r.error){
     setState('idle');
-    if (r.error === 'nokey'){
-      setStatus('Aucune clé API - cerveaux gratuits');
-      toast("Aucune clé API configurée — j'utilise les cerveaux gratuits");
-    } else if (r.error === 'limit' || r.error === 'timeout'){
-      /* v8.90 : plus JAMAIS "Pollinations indisponible" : on repond avec la
-         memoire+logique locale (reponse utile, pas un message d'erreur).
-         v9.46 : si le cerveau en ligne a echoue, message honnete (pas hors sujet). */
-      const fallback = localSmartReply(question, true);
-      addAiMsg(fallback, 'local');
-      setStatus('Cerveau en ligne saturé - réponse locale');
-      await speak(fallback);
-    } else {
-      setStatus('Erreur IA - verifie ta cle');
-      await speak("J'ai eu une petite erreur. Reessaie dans un instant.");
-    }
+    /* v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
+       supprimé) : réponse locale neutre, jamais d'excuse. */
+    const fallback = localSmartReply(question);
+    addAiMsg(fallback, 'local');
+    setStatus('Réponse locale');
+    await speak(fallback);
     isProcessing = false;
     manualStop = false;
     return;
