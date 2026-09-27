@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.48-final loading...');
-const APP_VERSION = '9.48-final';
+console.log('[APP] v9.49-final loading...');
+const APP_VERSION = '9.49-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
@@ -428,6 +428,8 @@ function sendTextQuestion(){
 }
 sendBtn.addEventListener('click', sendTextQuestion);
 textInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendTextQuestion(); });
+/* v9.49 : reveil du cerveau des la premiere lettre tapee -> reponse rapide */
+textInput.addEventListener('input', () => warmUpBrain());
 
 /* ===== RECONNAISSANCE VOCALE ===== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -503,6 +505,9 @@ function startWakeRecog(){
       if (!m) return;
       /* reveil detecte -> on coupe l'oreille et on traite */
       stopWakeRecog();
+      /* v9.49 : reveil du cerveau des maintenant (le modele se charge
+         pendant que l'utilisateur finit sa phrase) */
+      warmUpBrain();
       const rest = txt.slice(m.index + m[0].length).replace(/^[^a-zà-ÿ0-9]+/i, '').trim();
       if (rest){
         /* commande directe : "hey astra quelle heure il est" */
@@ -566,6 +571,8 @@ function cleanupRecorder(){
 async function startRecorder(){
   if (recorderBusy) return;
   recorderBusy = true;
+  /* v9.49 : reveil du cerveau PENDANT que l'utilisateur parle -> reponse rapide */
+  warmUpBrain();
   try {
     setState('listening');
     setStatus('Parle maintenant...');
@@ -862,12 +869,13 @@ async function askBrain(messages, webCtx){
   };
   /* v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans clé, fiable).
      model=openai est le seul qui répond sur text.pollinations.ai (testé :
-     5/5 succès en 93-421ms à chaud, 3-15s à froid). 3 tentatives GET avec
+     5/5 succès en 93-421ms à chaud, 3-15s à froid). 2 tentatives GET avec
      budget total 25s, puis POST en dernier recours, puis mémoire locale
-     (jamais de message d'erreur). */
+     (jamais de message d'erreur). v9.49 : warmUpBrain() réveille le modèle
+     pendant que l'utilisateur parle -> la 1re tentative réussit en ~0.3s. */
   const localText = localSmartReply(question);
   const pollinationsPromise = (async () => {
-    for (let i = 0; i < 3; i++){
+    for (let i = 0; i < 2; i++){
       if (i > 0) await new Promise(r => setTimeout(r, 400));
       const t = await tryPollinationsGet('openai');
       if (typeof t === 'string') return t;
@@ -884,6 +892,21 @@ async function askBrain(messages, webCtx){
   if (typeof postResult === 'string') return { text: postResult, diag: 'Pollinations' };
   /* Secours : mémoire locale (jamais de message d'erreur) */
   return { text: localText, diag: 'local' };
+}
+/* v9.49 : REVEIL DU CERVEAU : petite requete Pollinations envoyee PENDANT que
+   l'utilisateur parle (ou tape) -> le modele se charge en arriere-plan et la
+   vraie question arrive sur un cerveau deja chaud (reponse en ~0.3s au lieu
+   de 3-15s de demarrage a froid). Max 1x / 30s. */
+let brainWarmTimer = null;
+function warmUpBrain(){
+  if (brainWarmTimer) return;
+  brainWarmTimer = setTimeout(() => { brainWarmTimer = null; }, 30000);
+  try {
+    const url = 'https://text.pollinations.ai/' + encodeURIComponent('Reponds juste: ok') + '?model=openai';
+    Promise.race([fetch(url), new Promise(r => setTimeout(() => r(null), 20000))])
+      .then(r => { if (r) r.text().catch(() => {}); })
+      .catch(() => {});
+  } catch {}
 }
 /* DETECTION ANGLAIS : si plus de 25% des mots sont des mots anglais courants,
    la reponse est probablement en anglais -> on la traduit en francais pour que
@@ -2039,7 +2062,7 @@ async function handleQuestion(question){
   if (last && last.classList.contains('user')) last.textContent = question;
   else addUserMsg(question);
   setState('thinking');
-  setStatus('...');
+  setStatus('Je réfléchis...');
   /* COMMANDES LOCALES (fiable 100%, sans passer par l'IA) : heure, date, jour.
      Les petits modeles gratuits ignorent souvent le contexte systeme -> on repond
      directement avec l'horloge de l'appareil. */
@@ -2190,3 +2213,5 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
+/* v9.49 : reveil du cerveau au chargement -> la 1re question repond vite */
+setTimeout(warmUpBrain, 1500);
