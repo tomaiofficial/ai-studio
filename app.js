@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.53-final loading...');
-const APP_VERSION = '9.53-final';
+console.log('[APP] v9.54-final loading...');
+const APP_VERSION = '9.54-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
@@ -485,7 +485,13 @@ brainSel.addEventListener('change', () => {
 });
 
 ttsVoiceSel.addEventListener('change', () => {
-  localStorage.setItem(LS.voice, ttsVoiceSel.value);
+  const val = ttsVoiceSel.value;
+  localStorage.setItem(LS.voice, val);
+  if (val.startsWith('qwen:')){
+    fetch(QWEN_TTS_URL + '/health', { signal: AbortSignal.timeout(2000) })
+      .then(r => { if (!r.ok) throw 0; })
+      .catch(() => toast('⚠️ Voix Qwen sélectionnée — lance le serveur: python qwen-tts-server.py'));
+  }
   toast('Voix choisie');
 });
 testVoiceBtn.addEventListener('click', async () => {
@@ -2037,13 +2043,19 @@ async function populateVoices(){
   const currentValue = ttsVoiceSel.value;
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
   /* Qwen3-TTS (Alibaba voix neuronales multilingues) — priorité #1 */
-  const qwenVoices = await fetchQwenVoices();
-  qwenVoices.forEach(v => {
+  const QWEN_VOICES_STATIC = [
+    { id: 'qwen-default', name: 'Qwen (défaut, neutre)' },
+    { id: 'qwen-female-1', name: 'Qwen Femme 1 (douce)' },
+    { id: 'qwen-male-1', name: 'Qwen Homme 1 (profond)' },
+    { id: 'qwen-female-2', name: 'Qwen Femme 2 (expressive)' },
+    { id: 'qwen-male-2', name: 'Qwen Homme 2 (calme)' }
+  ];
+  QWEN_VOICES_STATIC.forEach(v => {
     const val = 'qwen:' + v.id;
     if (!existingOptions.includes(val)){
       const opt = document.createElement('option');
       opt.value = val;
-      opt.textContent = '🌐 Qwen: ' + v.name;
+      opt.textContent = '🌐 Qwen: ' + v.name + ' (serveur requis)';
       ttsVoiceSel.appendChild(opt);
     }
   });
@@ -2054,7 +2066,7 @@ async function populateVoices(){
     if (!existingOptions.includes(val)){
       const opt = document.createElement('option');
       opt.value = val;
-      opt.textContent = '🎙️ Edge: ' + v.name;
+      opt.textContent = '🎙️ Edge: ' + v.name + (edgeVoices.length ? '' : ' (serveur requis)');
       ttsVoiceSel.appendChild(opt);
     }
   });
