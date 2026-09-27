@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.61-final loading...');
-const APP_VERSION = '9.61-final';
+console.log('[APP] v9.62-final loading...');
+const APP_VERSION = '9.62-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'speecht5:fr_female_1'; // Voix SpeechT5 Française 1 par défaut (WebGPU/WASM, FR natif, qualité top)
@@ -99,6 +99,7 @@ async function loadSpeecht5Pipeline(){
     const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
     const device = (navigator.gpu ? 'webgpu' : 'wasm');
     const dtype = 'q8';
+    console.log('[SPEECHT5] Device:', device, 'dtype:', dtype);
     speecht5Pipeline = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
       device,
       dtype,
@@ -130,11 +131,22 @@ async function speakSpeecht5(text, voiceId, onChunk){
     const chunks = splitSentences(text, 250);
     // Trouver l'embedding pour cette voix
     const voiceDef = SPEECHT5_VOICES.find(v => v.id === voiceId);
-    const speakerEmbedding = voiceDef?.speaker || 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin';
+    const speakerEmbeddingUrl = voiceDef?.speaker || 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin';
+    console.log('[SPEECHT5] Speaker embedding URL:', speakerEmbeddingUrl);
+    // Test fetch de l'embedding pour vérifier l'accès
+    try {
+      const embResponse = await fetch(speakerEmbeddingUrl);
+      console.log('[SPEECHT5] Embedding fetch status:', embResponse.status);
+      if (!embResponse.ok) throw new Error('Embedding fetch failed: ' + embResponse.status);
+      const embArrayBuffer = await embResponse.arrayBuffer();
+      console.log('[SPEECHT5] Embedding size:', embArrayBuffer.byteLength, 'bytes');
+    } catch(e) {
+      console.warn('[SPEECHT5] Impossible de fetch embedding, on essaie quand même:', e);
+    }
     for (const chunk of chunks){
       if (onChunk) onChunk(chunk);
       console.log('[SPEECHT5] Génération chunk:', chunk.substring(0,30));
-      const result = await pipe(chunk, { speaker_embeddings: speakerEmbedding });
+      const result = await pipe(chunk, { speaker_embeddings: speakerEmbeddingUrl });
       console.log('[SPEECHT5] Résultat brut:', result);
       let audio, samplingRate;
       if (result?.audio && result.sampling_rate) {
@@ -153,7 +165,9 @@ async function speakSpeecht5(text, voiceId, onChunk){
       }
       console.log('[SPEECHT5] Audio OK:', audio.length, 'échantillons, sr:', samplingRate);
       const audioBlob = float32ArrayToWavBlob(audio, samplingRate);
+      console.log('[SPEECHT5] Blob size:', audioBlob.size, 'bytes, type:', audioBlob.type);
       const ok = await playAudioBlob(audioBlob);
+      console.log('[SPEECHT5] playAudioBlob result:', ok);
       if (!ok) return false;
     }
     return true;
