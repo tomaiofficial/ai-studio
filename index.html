@@ -348,7 +348,8 @@ select.wide-input{appearance:none}
     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
     <p class="muted">Choisis le cerveau. <b>Mistral AI</b> = gratuit avec clé. <b>Pollinations</b> = gratuit sans clé. <b>Local</b> = hors ligne.</p>
     <select id="brainSel" class="wide-input">
-      <option value="mistral" selected>🟣 Mistral AI (mistral-small-latest) — gratuit avec clé</option>
+      <option value="auto" selected>⚡ Auto (Pollinations GPT) — recommandé, sans clé</option>
+      <option value="mistral">🟣 Mistral AI (mistral-small-latest) — gratuit avec clé</option>
       <option value="pollinations">🌐 Pollinations GPT — gratuit sans clé</option>
       <option value="local">💾 Mémoire locale (hors ligne, répond toujours)</option>
     </select>
@@ -365,6 +366,6 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.45-final"></script>
+<script src="app.js?v=9.46-final"></script>
 </body>
 </html>

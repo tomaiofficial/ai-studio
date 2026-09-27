@@ -5,8 +5,8 @@
    Cerebras/Mistral = optionnels (cles) pour un cerveau plus rapide.
    Google TTS = voix IA femme (gratuite, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.45-final loading...');
-const APP_VERSION = '9.45-final';
+console.log('[APP] v9.46-final loading...');
+const APP_VERSION = '9.46-final';
 const LS = { mistral: 'va_mkey', cerebras: 'va_ckey', openai: 'va_okey', openrouter: 'va_okey2', brain: 'va_brain', voice: 'va_ttsvoice' };
 
 const MISTRAL_CHAT_MODEL = 'mistral-small-latest';
@@ -94,7 +94,7 @@ function escapeHtml(s){
 function isSecoursReply(t){
   return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations|pollinations est temporairement indisponible|pollinations is temporarily unavailable|temporarily unavailable|try again in|rate[- ]?limit|too many requests|quota (epuise|épuisé|exceeded)|temporairement indisponible|maintenance en cours|429/i.test(t);
 }
-function localSmartReply(question){
+function localSmartReply(question, onlineFailed){
   const q = question.toLowerCase().trim();
   /* 1) MEMOIRE : chercher une question similaire deja posee et rejouer la
      reponse, MAIS jamais une reponse de secours (sinon boucle infinie).
@@ -174,6 +174,9 @@ function localSmartReply(question){
      on repond honnetement et on propose une alternative. */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
+    /* v9.46 : si les cerveaux en ligne ont échoué, on le dit HONNÊTEMENT au lieu
+       d'une réponse générique hors sujet ("Je suis là et je t'écoute..."). */
+    if (onlineFailed) return "Je n'arrive pas à me connecter à mon cerveau en ligne pour l'instant. Réessaie dans quelques secondes.";
     return "Je suis là et je t'écoute. Dis-moi ce que tu veux savoir, je vais t'aider.";
   }
   // Réponses contextuelles basées sur mots-clés
@@ -181,6 +184,7 @@ function localSmartReply(question){
   if (/(comment|pourquoi|qu'est-ce|quest-ce|c'est quoi)/.test(q)) return "C'est une bonne question. Laisse-moi réfléchir... " + kw.join(' ') + " est un sujet intéressant.";
   if (/(merci|thanks)/.test(q)) return "Avec plaisir ! N'hésite pas si tu as d'autres questions.";
   if (/(au revoir|bye|a plus)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
+  if (onlineFailed) return "Je n'arrive pas à me connecter à mon cerveau en ligne pour l'instant. Réessaie dans quelques secondes.";
   return "Je suis là. Pose-moi ta question, je vais faire de mon mieux pour t'aider.";
 }
 function renderHistory(){
@@ -1369,49 +1373,50 @@ async function askBrain(messages, webCtx){
   const brain = getBrain();
   if (brain === 'local') return { text: localSmartReply(question), diag: 'local' };
   if (brain === 'pollinations' || brain === 'auto'){
-    /* RAPIDE : Local instantané + Pollinations en parallèle (max 8s) */
-    const localText = localSmartReply(question);
-    let t = null;
-    const models = ['openai', 'mistral'];
+    /* RAPIDE : Local instantané + Pollinations en parallèle.
+       v9.46 : budget 15s (les modèles Pollinations démarrent à froid en 3-15s,
+       la course de 5s expirait trop tôt -> repli local hors sujet).
+       Seul model=openai répond sur text.pollinations.ai (mistral -> 404). */
+    const localText = localSmartReply(question, true);
+    const models = ['openai', 'openai'];
     const pollinationsPromise = (async () => {
       for (let i = 0; i < 2; i++){
-        if (i > 0) await new Promise(r => setTimeout(r, 300));
+        if (i > 0) await new Promise(r => setTimeout(r, 400));
         const t = await tryPollinationsGet(models[i % 2]);
         if (typeof t === 'string') return t;
       }
       return null;
     })();
-    // Attend max 5s pour Pollinations, sinon local
     const pollinationsResult = await Promise.race([
       pollinationsPromise,
-      new Promise(r => setTimeout(() => r(null), 5000))
+      new Promise(r => setTimeout(() => r(null), 15000))
     ]);
     if (pollinationsResult) return { text: pollinationsResult, diag: 'Pollinations' };
-    // POST Pollinations rapide
+    /* POST Pollinations en dernier recours (timeout court : souvent lent) */
     const postResult = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
     if (typeof postResult === 'string') return { text: postResult, diag: 'Pollinations' };
-    // Local instantané en secours
+    /* Local instantané en secours */
     return { text: localText, diag: 'local' };
   }
   if (brain === 'llm7'){
     const t = await tryWithRetry('https://api.llm7.io/v1/chat/completions', 'GLM-5.3-Flash');
     if (typeof t === 'string') return { text: t, diag: 'LLM7' };
-    return { text: localSmartReply(question), diag: 'local (LLM7:' + (t && t.err || 'net') + ')' };
+    return { text: localSmartReply(question, true), diag: 'local (LLM7:' + (t && t.err || 'net') + ')' };
   }
   if (brain === 'ovh'){
     const t = await tryWithRetry('https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions', 'qwen3.5-397b-a17b');
     if (typeof t === 'string') return { text: t, diag: 'OVH' };
-    return { text: localSmartReply(question), diag: 'local (OVH:' + (t && t.err || 'net') + ')' };
+    return { text: localSmartReply(question, true), diag: 'local (OVH:' + (t && t.err || 'net') + ')' };
   }
   if (brain === 'openrouter'){
     const o = await askOpenRouter(question, webCtx, messages);
     if (!o.error && o.text) return { text: o.text, diag: 'OpenRouter' };
-    return { text: localSmartReply(question), diag: 'local' };
+    return { text: localSmartReply(question, true), diag: 'local' };
   }
   if (brain === 'mistral'){
     const m = await askMistral(question, webCtx, messages);
     if (!m.error && m.text) return { text: m.text, diag: 'Mistral' };
-    return { text: localSmartReply(question), diag: 'local' };
+    return { text: localSmartReply(question, true), diag: 'local' };
   }
   /* auto = Google AI Studio (si cle) -> Pollinations GET x4 -> LLM7 -> OVH -> memoire locale. */
   const diags = [];
@@ -1427,10 +1432,10 @@ async function askBrain(messages, webCtx){
     if (!o.error && o.text) return { text: o.text, diag: 'OpenRouter' };
     diags.push('OpenRouter:' + (o && o.err || o && o.error || 'net'));
   }
-    const models = ['openai', 'mistral'];
-  for (let i = 0; i < 4; i++){
-    if (i > 0) await new Promise(r => setTimeout(r, 300 * i));
-    const t = await tryPollinationsGet(models[i % 2]);
+    const models = ['openai'];
+  for (let i = 0; i < 2; i++){
+    if (i > 0) await new Promise(r => setTimeout(r, 400));
+    const t = await tryPollinationsGet(models[0]);
     if (typeof t === 'string') return { text: t, diag: 'Pollinations-GET' };
     diags.push('Pollinations-GET:' + (t && t.err || 'net'));
   }
@@ -1442,7 +1447,7 @@ async function askBrain(messages, webCtx){
   if (typeof ovh === 'string') return { text: ovh, diag: 'OVH' };
   diags.push('OVH:' + (ovh && ovh.err || 'net'));
   /* Secours : memoire locale */
-  return { text: localSmartReply(question), diag: 'local (' + diags.join(' ') + ')' };
+  return { text: localSmartReply(question, true), diag: 'local (' + diags.join(' ') + ')' };
 }
 /* DETECTION ANGLAIS : si plus de 25% des mots sont des mots anglais courants,
    la reponse est probablement en anglais -> on la traduit en francais pour que
@@ -2602,8 +2607,9 @@ async function handleQuestion(question){
       toast("Aucune clé API configurée — j'utilise les cerveaux gratuits");
     } else if (r.error === 'limit' || r.error === 'timeout'){
       /* v8.90 : plus JAMAIS "Pollinations indisponible" : on repond avec la
-         memoire+logique locale (reponse utile, pas un message d'erreur). */
-      const fallback = localSmartReply(question);
+         memoire+logique locale (reponse utile, pas un message d'erreur).
+         v9.46 : si le cerveau en ligne a echoue, message honnete (pas hors sujet). */
+      const fallback = localSmartReply(question, true);
       addAiMsg(fallback, 'local');
       setStatus('Cerveau en ligne saturé - réponse locale');
       await speak(fallback);
