@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.56-final loading...');
-const APP_VERSION = '9.56-final';
+console.log('[APP] v9.57-final loading...');
+const APP_VERSION = '9.57-final';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'piper:fr_FR-siwis-medium'; // Voix Piper Julie par défaut (hors ligne, WASM)
@@ -93,7 +93,6 @@ let kokoroLoading = false;
 async function loadKokoroPipeline(){
   if (kokoroPipeline) return kokoroPipeline;
   if (kokoroLoading) {
-    // Attendre le chargement en cours
     while (kokoroLoading) await new Promise(r => setTimeout(r, 100));
     return kokoroPipeline;
   }
@@ -101,15 +100,17 @@ async function loadKokoroPipeline(){
   try {
     console.log('[KOKORO] Chargement modèle', KOKORO_MODEL_ID, '...');
     const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
-    // WebGPU si dispo, sinon WASM; quantized q8 pour vitesse/poids optimal
     const device = (navigator.gpu ? 'webgpu' : 'wasm');
-    const dtype = 'q8'; // q8 = bon compromis vitesse/qualité
+    const dtype = 'q8';
     kokoroPipeline = await pipeline('text-to-speech', 'onnx-community/Kokoro-82M-ONNX', {
       device,
       dtype,
       progress_callback: (p) => console.log('[KOKORO] Chargement:', Math.round(p * 100) + '%')
     });
     console.log('[KOKORO] Modèle prêt sur', device, 'dtype q8');
+    // Test rapide
+    const test = await kokoroPipeline('Test', { voice: 'af_sky' });
+    console.log('[KOKORO] Test OK:', test);
     return kokoroPipeline;
   } catch(e) {
     console.error('[KOKORO] Échec chargement:', e);
@@ -124,19 +125,22 @@ async function fetchKokoroVoices(){
 }
 async function speakKokoro(text, voiceId, onChunk){
   try {
+    console.log('[KOKORO] speakKokoro appelé avec voiceId:', voiceId);
     const pipe = await loadKokoroPipeline();
+    console.log('[KOKORO] Pipeline chargé, génération...');
     const chunks = splitSentences(text, 250);
     for (const chunk of chunks){
       if (onChunk) onChunk(chunk);
       // Kokoro attend { text, voice } et retourne { audio: Float32Array, sampling_rate }
       const result = await pipe(chunk, { voice: voiceId });
+      console.log('[KOKORO] Résultat:', result);
       // result = { audio: Float32Array, sampling_rate: 24000 }
       const audioBlob = float32ArrayToWavBlob(result.audio, result.sampling_rate);
       const ok = await playAudioBlob(audioBlob);
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.warn('[KOKORO] Échec:', e && e.message); return false; }
+  } catch(e){ console.error('[KOKORO] ERREUR:', e); return false; }
 }
 function float32ArrayToWavBlob(float32Array, sampleRate){
   // Convert Float32Array [-1,1] -> 16-bit PCM WAV blob
