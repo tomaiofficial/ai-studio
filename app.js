@@ -598,7 +598,7 @@ function addAiMsg(text, diag){
   chat.scrollTop = chat.scrollHeight;
   /* v10.0 : sous-titres UNIQUEMENT quand l'utilisateur parle (pas l'IA) */
 }
-/* Sous-titre temps reel : met a jour la derniere bulle utilisateur */
+/* Sous-titre temps reel : met a jour la derniere bulle utilisateur ET le sous-titre */
 function showInterim(text){
   if (chatEmpty) chatEmpty.style.display = 'none';
   let last = chat.lastElementChild;
@@ -610,6 +610,9 @@ function showInterim(text){
     chat.appendChild(d);
   }
   chat.scrollTop = chat.scrollHeight;
+  /* v10.0 : sous-titre UNIQUEMENT quand l'utilisateur parle */
+  const sub = document.getElementById('subtitle');
+  if (sub) sub.textContent = text;
 }
 function clearChat(){
   chat.innerHTML = '';
