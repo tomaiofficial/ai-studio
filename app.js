@@ -2812,7 +2812,8 @@ async function handleQuestion(question){
   manualStop = true;
   /* v9.83 : une nouvelle question relance le mode continu a la fin de la reponse */
   continuousPaused = false;
-  try{ recog && recog.stop(); }catch{}
+  /* v10.0.2 : mobile — NE PAS arreter le micro au debut (il doit rester actif) */
+  /* try{ recog && recog.stop(); }catch{} */
   /* v9.97 : la question est lancee -> on annule le timer de grace en attente */
   if (pendingTimer){ clearTimeout(pendingTimer); pendingTimer = null; }
   pendingSpeech = '';
@@ -3042,7 +3043,7 @@ async function handleQuestion(question){
      (le timer 600ms de maybeRestartListening ne suffit pas sur mobile) */
   continuousPaused = false;
   if (continuousMode && !isSpeaking && state === 'idle'){
-    try { if (recog) { recog.stop(); setTimeout(() => { try { recog.start(); setState('listening'); setStatus('Mode continu - parle...'); } catch { startRecorder(); } }, 300); } else { startRecorder(); } } catch {}
+    try { startRecorder(); } catch {}
   }
   maybeRestartListening();
 }
