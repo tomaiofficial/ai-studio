@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.84';
+const APP_VERSION = '9.85';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -35,6 +35,17 @@ function shortVoiceName(voiceId){
   if (!v) return 'Voxtral';
   return v.name.replace(/^Voxtral: /, '').replace(/\s*\(.*\)$/, '');
 }
+/* v9.85 : AbortSignal.timeout n'existe pas sur Safari iOS < 15.4 et certains
+   navigateurs Android -> sans ce fallback, Voxtral echouait sur mobile et on
+   basculait sur la voix systeme (pas les memes voix que sur PC) */
+function abortSignal(ms){
+  try {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  } catch {}
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
 async function fetchVoxtralVoices(){
   if (voxtralVoicesCache) return voxtralVoicesCache;
   const key = getMistralKey();
@@ -42,7 +53,7 @@ async function fetchVoxtralVoices(){
   try {
     const res = await fetch('https://api.mistral.ai/v1/audio/voices?type=preset&limit=100', {
       headers: { 'Authorization': 'Bearer ' + key },
-      signal: AbortSignal.timeout(10000)
+      signal: abortSignal(10000)
     });
     if (!res.ok) return VOXTRAL_FALLBACK_VOICES;
     const data = await res.json();
@@ -72,7 +83,7 @@ async function speakVoxtral(text, voiceId, onChunk){
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
         body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice_id: voiceId, response_format: 'mp3' }),
-        signal: AbortSignal.timeout(10000)
+        signal: abortSignal(10000)
       });
       if (!res.ok){
         const errText = await res.text().catch(() => '');
@@ -122,7 +133,24 @@ function playAudioBlob(blob){
         /* garde-fou : si onended ne se déclenche pas, on termine après la durée */
         const ms = Math.ceil(buf.duration * 1000) + 500;
         setTimeout(() => finish(true), ms);
-      } catch(e){ finish(false); }
+      } catch(e){
+        /* v9.85 : FALLBACK MOBILE — si Web Audio echoue (decodeAudioData,
+           contexte bloque par l'autoplay), on joue via un element <audio>
+           (support partout, MP3 natif) -> les vraies voix Voxtral marchent
+           aussi sur telephone */
+        try {
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          currentAudios.push(audio);
+          voiceStartedFlag = true;
+          audio.onended = () => { try { URL.revokeObjectURL(url); } catch {} finish(true); };
+          audio.onerror = () => { try { URL.revokeObjectURL(url); } catch {} finish(false); };
+          const p = audio.play();
+          if (p && p.catch) p.catch(() => { try { URL.revokeObjectURL(url); } catch {} finish(false); });
+          /* garde-fou duree : on ne bloque jamais plus de 60s */
+          setTimeout(() => { try { URL.revokeObjectURL(url); } catch {} finish(true); }, 60000);
+        } catch(e2){ finish(false); }
+      }
     })();
   });
 }
