@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.98';
+const APP_VERSION = '9.99';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -1102,6 +1102,9 @@ function getSystemPrompt(){
   } else if (currentMood === 'taquine'){
     base += `\nL'utilisateur est taquin avec toi. Reponds avec humour et complicite.`;
   }
+  /* v9.99 : l'IA SAIT si le tableau de maths est ouvert et ce qui est ecrit */
+  const mathCtx = getMathContext();
+  if (mathCtx) base += '\n' + mathCtx;
   return base + '\n' + getTimeContext();
 }
 const SYSTEM_PROMPT = getSystemPrompt();
@@ -1206,6 +1209,9 @@ async function askBrain(messages, webCtx){
       else if (currentMood === 'agacee') prompt += ' L utilisateur t a agacee : reponds sur un ton sec.';
       else if (currentMood === 'taquine') prompt += ' L utilisateur est taquin : reponds avec humour.';
       else if (currentMood === 'protectrice') prompt += ' L utilisateur a besoin de protection : rassure-le.';
+      /* v9.99 : l'IA sait si le tableau de maths est ouvert (fallback sans cle) */
+      const mathCtx = getMathContext();
+      if (mathCtx) prompt += ' ' + mathCtx;
       if (webCtx) prompt += ' Resultats de recherche web en direct (utilise-les pour repondre) : ' + webCtx.slice(0, 500);
       prompt += ' Question : ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
@@ -2425,21 +2431,34 @@ function mathSteps(parsed){
   steps.push('→ ' + fmt(r));
   return steps;
 }
+/* v9.99 : ETAT DU TABLEAU — l'IA SAIT si le tableau est ouvert, ce qui est
+   ecrit dessus et le dernier resultat (injecte dans son prompt) */
+let mathState = { open: false, lines: [], lastExpr: '', lastResult: '' };
+function getMathContext(){
+  if (!mathState.open) return '';
+  let c = 'Tableau de maths : OUVERT.';
+  if (mathState.lastExpr) c += ' Dernier calcul affiche : ' + mathState.lastExpr + ' = ' + mathState.lastResult + '.';
+  if (mathState.lines.length) c += ' Etapes affichees : ' + mathState.lines.join(' | ');
+  return c;
+}
 function showMathPanel(){
   const p = document.getElementById('mathPanel');
   if (p) p.classList.remove('hidden');
+  mathState.open = true;
 }
 function hideMathPanel(){
   const p = document.getElementById('mathPanel');
   if (p) p.classList.add('hidden');
+  mathState.open = false;
 }
 function clearMathBoard(){
   const b = document.getElementById('mathBoard');
   if (b) b.innerHTML = '';
 }
-function mathWrite(html){
+function mathWrite(html, plain){
   const b = document.getElementById('mathBoard');
   if (b) b.insertAdjacentHTML('beforeend', html);
+  if (plain) mathState.lines.push(plain);
 }
 /* Calculatrice : logique des boutons */
 let calcExpr = '';
@@ -2451,6 +2470,8 @@ function calcPress(key){
   if (key === '='){
     const r = safeCalc(calcExpr);
     screen.textContent = r === null ? 'Erreur' : String(r);
+    /* v9.99 : l'IA connait le dernier calcul de la calculatrice */
+    if (r !== null){ mathState.lastExpr = calcExpr; mathState.lastResult = String(r); }
     calcExpr = r === null ? '' : String(r);
     return;
   }
@@ -2528,10 +2549,39 @@ async function handleQuestion(question){
       const steps = mathSteps(parsed);
       if (steps){
         clearMathBoard();
-        mathWrite('<div class="math-line q">' + escapeHtml(question) + '</div>');
-        steps.forEach(s => mathWrite('<div class="math-line' + (s.indexOf('→') === 0 ? ' result' : '') + '">' + escapeHtml(s) + '</div>'));
+        mathState.lines = [];
+        mathWrite('<div class="math-line q">' + escapeHtml(question) + '</div>', question);
+        steps.forEach(s => mathWrite('<div class="math-line' + (s.indexOf('→') === 0 ? ' result' : '') + '">' + escapeHtml(s) + '</div>', s));
+        /* v9.99 : l'IA connait le dernier calcul et son resultat */
+        if (parsed.type === 'expr'){ mathState.lastExpr = parsed.expr.replace('*', '×').replace('/', '÷'); mathState.lastResult = String(safeCalc(parsed.expr)); }
+        else if (parsed.type === 'percent'){ mathState.lastExpr = parsed.a + '% de ' + parsed.b; mathState.lastResult = String(Math.round(parsed.a / 100 * parsed.b * 1e10) / 1e10); }
+        else if (parsed.type === 'sqrt'){ mathState.lastExpr = '√' + parsed.a; mathState.lastResult = String(Math.round(Math.sqrt(parsed.a) * 1e10) / 1e10); }
+        else if (parsed.type === 'pow'){ mathState.lastExpr = parsed.a + (parsed.b === 2 ? '²' : '³'); mathState.lastResult = String(Math.round(Math.pow(parsed.a, parsed.b) * 1e10) / 1e10); }
       }
     }
+  }
+  /* v9.99 : commandes locales — ouvrir / fermer le tableau de maths */
+  if (/(ferme|fermer|cache|cacher|enlève|enleve|retire)\s*(le|la)?\s*(tableau|panneau)/.test(question)){
+    hideMathPanel();
+    const rep = "Voilà, j'ai fermé le tableau de maths.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  if (/(ouvre|ouvrir|affiche|afficher|montre|montrer)\s*(le|la)?\s*(tableau|panneau)/.test(question)){
+    showMathPanel();
+    const rep = "Voilà, le tableau de maths est ouvert.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
   }
   /* MODE AGENT : si la question demande une tache multi-etapes (planifie, compare,
      analyse, recherche sur...), Astra passe en agent autonome : plan -> etapes ->
