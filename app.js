@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.82';
+const APP_VERSION = '9.83';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -218,6 +218,7 @@ const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
 const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel');
 const wakeToggle = $('wakeToggle');
+const continuousToggle = $('continuousToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
@@ -538,6 +539,7 @@ settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
   wakeToggle.checked = wakeEnabled;
+  if (continuousToggle) continuousToggle.checked = continuousMode;
   populateVoices();
   settingsModal.classList.remove('hidden');
 });
@@ -616,6 +618,11 @@ if (SR){
   };
   recog.onend = () => {
     if (state === 'listening'){
+      /* v9.83 : mode continu -> on relance la reconnaissance directement
+         (pas de fallback enregistrement a chaque silence) */
+      if (continuousMode && !continuousPaused){
+        try { setState('listening'); recog.start(); return; } catch {}
+      }
       setState('idle');
       startRecorder();
     }
@@ -706,6 +713,47 @@ function setWakeEnabled(on){
 }
 wakeToggle.addEventListener('change', () => setWakeEnabled(wakeToggle.checked));
 
+/* ===== MODE VOCAL CONTINU NON STOP (v9.83) =====
+   Quand il est active, Astra reecoute automatiquement apres chaque reponse :
+   conversation mains-libres permanente, sans bouton ni "hey astra".
+   - Arret : bouton stop (continuousPaused = true) ou toggle off.
+   - Une nouvelle question relance le mode (continuousPaused = false). */
+const CONTINUOUS_KEY = 'va_continuous';
+let continuousMode = localStorage.getItem(CONTINUOUS_KEY) === '1';
+let continuousPaused = false;
+let continuousTimer = null;
+function maybeRestartListening(){
+  if (!continuousMode || continuousPaused || !welcomeDone){ maybeRestartWake(); return; }
+  clearTimeout(continuousTimer);
+  continuousTimer = setTimeout(() => {
+    if (isProcessing || continuousPaused || state !== 'idle') return;
+    warmUpBrain(); /* le cerveau se charge pendant que l'utilisateur parle */
+    if (!recog){ startRecorder(); return; }
+    try {
+      setState('listening');
+      setStatus('Mode continu - parle...');
+      recog.start();
+    } catch { startRecorder(); }
+  }, 600);
+}
+function setContinuousMode(on){
+  continuousMode = on;
+  try { localStorage.setItem(CONTINUOUS_KEY, on ? '1' : '0'); } catch {}
+  if (on){
+    continuousPaused = false;
+    /* si l'app est idle, on lance l'ecoute immediatement */
+    if (state === 'idle' && welcomeDone && !isProcessing){
+      warmUpBrain();
+      if (!recog){ startRecorder(); }
+      else { try { setState('listening'); setStatus('Mode continu - parle...'); recog.start(); } catch { startRecorder(); } }
+    }
+  } else {
+    continuousPaused = true;
+    clearTimeout(continuousTimer);
+  }
+}
+if (continuousToggle) continuousToggle.addEventListener('change', () => setContinuousMode(continuousToggle.checked));
+
 /* ===== 2E OREILLE : ENREGISTREMENT + WHISPER ===== */
 let mediaRec = null, mediaChunks = [], recorderBusy = false;
 let recorderTimer = null;
@@ -748,7 +796,7 @@ async function startRecorder(){
       setStatus('Je t\'ecoute...');
       const blob = new Blob(mediaChunks, { type: (mediaChunks[0] && mediaChunks[0].type) || 'audio/webm' });
       recorderBusy = false;
-      if (blob.size < 3000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); return; }
+      if (blob.size < 3000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); if (continuousMode && !continuousPaused) maybeRestartListening(); return; }
       /* Transcription : la reconnaissance vocale du navigateur (gratuite, sans cle)
          est le service principal. Si on est arrive ici, elle a echoue -> on tente
          Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
@@ -903,6 +951,9 @@ if (stopBtn) stopBtn.addEventListener('click', () => {
   stopRecorder();
   try { recog && recog.stop(); } catch {}
   manualStop = true;
+  /* v9.83 : le stop coupe aussi le mode continu */
+  continuousPaused = true;
+  clearTimeout(continuousTimer);
   welcomePlaying = false;
   setState('idle');
   setStatus("Appuie sur le micro et parle");
@@ -2079,6 +2130,8 @@ async function handleQuestion(question){
   stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   isProcessing = true;
   manualStop = true;
+  /* v9.83 : une nouvelle question relance le mode continu a la fin de la reponse */
+  continuousPaused = false;
   try{ recog && recog.stop(); }catch{}
   stopWakeRecog(); /* question en cours -> plus besoin de l'oreille de reveil */
   /* si une bulle utilisateur existe deja (sous-titre interim), on la complete au lieu d'en creer une autre */
@@ -2119,7 +2172,7 @@ async function handleQuestion(question){
     await speak(repSpokenMood);
     isProcessing = false;
     manualStop = false;
-    maybeRestartWake();
+    maybeRestartListening();
     return;
   }
   /* MODE AGENT : si la question demande une tache multi-etapes (planifie, compare,
@@ -2146,6 +2199,7 @@ async function handleQuestion(question){
     await speak(fallback);
     isProcessing = false;
     manualStop = false;
+    maybeRestartListening();
     return;
   }
   /* v9.50 : affichage synchronisé — on crée la bulle vide, puis speak()
@@ -2183,7 +2237,7 @@ async function handleQuestion(question){
   }
   isProcessing = false;
   manualStop = false;
-  maybeRestartWake();
+  maybeRestartListening();
 }
 function versionCompare(a, b){
   const pa = String(a).split('.').map(Number);
