@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.66';
+const APP_VERSION = '9.67';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -792,11 +792,16 @@ async function playWelcome(){
   localStorage.setItem(WELCOME_KEY, '1');
   welcomePlaying = true;
   const name = profile && profile.name ? profile.name : null;
+  /* v9.67 : bienvenue "en vie" — l'heure et la période de la journée */
+  const now = new Date();
+  const h = now.getHours(), m = now.getMinutes();
+  const timeWords = numToFr(h) + ' heures' + (m ? ' ' + numToFr(m) : '');
+  const periodOf = getDayPeriod().of;
   const txt = name
-    ? `Salut ${name} ! Je m'appelle Astra. C'est tom point a i qui a commence a me creer le 10 septembre 2026, mais il n'a pas encore fini. Il corrige et renforce ma securite chaque jour.`
+    ? `Salut ${name} ! Il est ${h} h ${m ? m : '00'}, ${getDayPeriod().label}. Je m'appelle Astra. C'est tom point a i qui a commence a me creer le 10 septembre 2026, mais il n'a pas encore fini. Il corrige et renforce ma securite chaque jour.`
     : DEV_MESSAGE_TXT;
   const spoken = name
-    ? `Salut ${name} ! Moi c'est Astra. C'est tom point a i qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.`
+    ? `Salut ${name} ! Il est ${timeWords} ${periodOf}. Moi c'est Astra. C'est tom point a i qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.`
     : DEV_MESSAGE;
   addAiMsg(txt);
   setState('speaking');
@@ -856,12 +861,23 @@ orb.addEventListener('click', () => {
   }
 });
 
+/* v9.67 : période de la journée — l'IA sait si on est le matin, l'après-midi,
+   le soir ou la nuit, comme un humain. `label` = forme pour le contexte,
+   `of` = forme possessive pour "il est 8h du matin". */
+function getDayPeriod(){
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return { label: 'le matin', of: 'du matin' };
+  if (h >= 12 && h < 14) return { label: 'le début d\'après-midi', of: 'de l\'après-midi' };
+  if (h >= 14 && h < 18) return { label: 'l\'après-midi', of: 'de l\'après-midi' };
+  if (h >= 18 && h < 22) return { label: 'le soir', of: 'du soir' };
+  return { label: 'la nuit', of: 'de la nuit' };
+}
 /* Heure appareil - automatique (sans secondes ni fuseau : juste l'heure et la date) */
 function getTimeContext(){
   const now = new Date();
   const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' };
   const local = now.toLocaleString('fr-FR', opts);
-  return `Heure actuelle sur l'appareil de l'utilisateur : ${local}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure exacte, sans inventer.`;
+  return `Heure actuelle sur l'appareil de l'utilisateur : ${local}. Nous sommes ${getDayPeriod().label}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure exacte, sans inventer. Utilise la periode de la journee dans tes reponses quand c'est naturel (ex: "ce matin", "cet apres-midi", "bonne nuit"), comme un humain qui vit en temps reel.`;
 }
 /* Prompt systeme */
 const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Ton nom : TOUJOURS Astra, jamais un autre. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance et cite des exemples. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur. Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement.`;
@@ -1943,7 +1959,9 @@ async function handleQuestion(question){
     const h = now.getHours(), m = now.getMinutes();
     const timeWords = numToFr(h) + ' heures' + (m ? ' ' + numToFr(m) : '');
     const dateWords = WEEKDAYS[now.getDay()] + ' ' + numToFr(now.getDate()) + ' ' + MONTHS[now.getMonth()] + ' ' + numToFr(now.getFullYear());
-    const repSpoken = "Il est " + timeWords + ", " + dateWords + ".";
+    /* v9.67 : période de la journée -> "Il est 8h42 du matin, lundi..." */
+    const periodOf = getDayPeriod().of;
+    const repSpoken = "Il est " + timeWords + " " + periodOf + ", " + dateWords + ".";
     updateMood(question);
     const repMood = applyMood(rep, currentMood);
     const repSpokenMood = applyMood(repSpoken, currentMood);
