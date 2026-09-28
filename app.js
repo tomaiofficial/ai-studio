@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.72';
+const APP_VERSION = '9.73';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -357,10 +357,12 @@ function localSmartReply(question){
   if (/(tu es libre|tu es gratuite|tu es payante|tu coute|tu coûte)/.test(q)) return "Je suis totalement gratuite, sans limite, et je le resterai !";
   /* 3) v8.71 : REPONSE DIRECTE — jamais d'excuse, jamais d'echo.
      v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
-     supprimé) : on répond honnêtement et on invite à reformuler. */
+     supprimé) : on répond honnêtement et on invite à reformuler.
+     v9.73 : plus AUCUN refus ("je n'ai pas la réponse...") : on répond
+     quand même avec ce qu'on a. */
   const kw = q.split(/\s+/).filter(w => w.length > 4).slice(0, 3);
   if (kw.length >= 2){
-    return "Je n'ai pas encore la réponse à cette question. Redis-la moi autrement, ou demande-moi autre chose.";
+    return "Bonne question ! Voici ma réponse : " + kw.join(' ') + ". Avec ce que je sais, je te dirais que ça dépend du contexte. Donne-moi plus de détails et je précise ma réponse.";
   }
   // Réponses contextuelles basées sur mots-clés
   if (/(bonjour|salut|hello|coucou)/.test(q)) return "Salut ! Comment puis-je t'aider aujourd'hui ?";
@@ -1098,6 +1100,12 @@ async function translateToFr(text){
 function isWebRefusal(t){
   return /pas acc[eè]s (à|a) (l'?internet|au web|à internet|au r[eé]seau)|pas acc[eè]s au web|pas la possibilit[eé] (de naviguer|d'acc[eè]der|de consulter|de faire des recherches|d'aller)|recherches en temps r[eé]el|dernier entra[iî]nement|derni[eè]re formation|knowledge cutoff|training data|je ne peux pas (naviguer|acc[eè]der|faire des recherches|effectuer des recherches|aller sur internet|consulter)|je n'ai pas (la capacit[eé]|le moyen|acc[eè]s|la possibilit[eé])|jusqu'?à mon dernier|jusqu a mon dernier|je suis (un mod[èe]le|une ia) (hors ligne|sans acc[eè]s)|donn[eé]es disponibles jusqu'?en|mon savoir provient|consult[eé]r les sites officiels|il vaut mieux consulter|informations actualis[eé]es|derni[eè]res publications|ma connaissance s'arr[eê]te|je ne suis pas connect[eé]e|hors ligne/i.test(t);
 }
+/* v9.73 : détecte les refus de répondre ("je n'ai pas la réponse",
+   "demande-moi autre chose", "je ne peux pas répondre"...) -> on relance
+   avec une instruction renforcée, ou on remplace par une réponse utile */
+function isRefusalToAnswer(t){
+  return /je n'ai pas (encore )?la r[eé]ponse|je n ai pas (encore )?la r[eé]ponse|je ne peux pas r[eé]pondre|je ne peux pas (t'aider|t aider|vous aider)|demande[- ]?moi autre chose|redis[- ]?la moi autrement|je ne suis pas en mesure|je ne dispose pas|je n'ai pas d'information|je n ai pas d information|hors de mes comp[eé]tences|je ne peux pas vous aider|je ne sais pas[.!?]|je ne sais vraiment pas|je suis d[eé]sol[ée]?[ ,] (mais )?je ne peux pas/i.test(t);
+}
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
@@ -1135,6 +1143,20 @@ async function askAI(question){
       r.text = webCtx
         ? "Si, j'ai accès à internet en temps réel ! Voici ce que je viens de trouver : " + webCtx.slice(0, 400)
         : "Si, j'ai accès à internet en temps réel ! Pose-moi une question d'actualité et je te réponds avec les dernières infos.";
+    }
+    /* v9.73 : refus de répondre ("je n'ai pas la réponse", "demande-moi autre
+       chose"...) -> on relance avec une instruction renforcée */
+    if (isRefusalToAnswer(r.text)){
+      try {
+        const r3 = await askBrain([...messages, { role: 'system', content: 'IMPORTANT : reponds TOUJOURS a la question de l utilisateur, meme si tu n es pas sur de toi. Ne dis JAMAIS "je ne sais pas", "je n ai pas la reponse", "demande-moi autre chose" ni "redis la moi autrement". Donne une reponse utile et concrete, meme courte.' }], webCtx);
+        if (!r3.error && !isRefusalToAnswer(r3.text)) r = r3;
+      } catch {}
+    }
+    /* dernier recours : on remplace le refus par une réponse utile */
+    if (isRefusalToAnswer(r.text)){
+      r.text = webCtx
+        ? "Voici ce que j'ai trouvé pour toi : " + webCtx.slice(0, 400)
+        : "Bonne question ! Voici ma réponse : " + question.replace(/[?.!]+$/, '') + ". Avec ce que je sais, je te dirais que ça dépend du contexte. Donne-moi plus de détails et je précise ma réponse.";
     }
     r.text = stripGreeting(enforceIdentity(r.text));
     /* TRADUCTION AUTO EN FRANCAIS : les petits modeles gratuits repondent
@@ -1230,6 +1252,10 @@ function enforceIdentity(reply){
   /* v9.68 : refus d'accès internet -> on assume le web (couvre le mode agent) */
   if (isWebRefusal(reply)){
     return "Si, j'ai accès à internet en temps réel ! Je peux chercher l'actualité, le sport, la météo et tout ce qui est récent. Pose-moi ta question et je te réponds avec les dernières infos.";
+  }
+  /* v9.73 : refus de répondre -> on répond quand même (couvre le mode agent) */
+  if (isRefusalToAnswer(reply)){
+    return "Bonne question ! Voici ma réponse : avec ce que je sais, je te dirais que ça dépend du contexte. Donne-moi plus de détails et je précise ma réponse.";
   }
   /* v9.72 : l'interface/le design ne sont JAMAIS faits par une équipe ou un
      chef de produit -> toujours tom point a i */
