@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
+const APP_VERSION = '9.75';
 console.log('[APP] v' + APP_VERSION + ' loading...');
-const APP_VERSION = '9.74';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
