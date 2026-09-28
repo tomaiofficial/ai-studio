@@ -4,9 +4,14 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.99';
+const APP_VERSION = '9.99.1';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
+
+/* v9.99.1 : ETAT DU TABLEAU DE MATHS — declare EN HAUT car getSystemPrompt()
+   (appele pendant le chargement) y accede via getMathContext(). Un `let`
+   declare plus bas causait une erreur TDZ qui tuait tout le script. */
+let mathState = { open: false, lines: [], lastExpr: '', lastResult: '' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
 const SPEED = 1.0; // naturel
@@ -2432,8 +2437,9 @@ function mathSteps(parsed){
   return steps;
 }
 /* v9.99 : ETAT DU TABLEAU — l'IA SAIT si le tableau est ouvert, ce qui est
-   ecrit dessus et le dernier resultat (injecte dans son prompt) */
-let mathState = { open: false, lines: [], lastExpr: '', lastResult: '' };
+   ecrit dessus et le dernier resultat (injecte dans son prompt).
+   NOTE : `mathState` est declare EN HAUT du fichier (ligne ~11) pour eviter
+   la TDZ — getSystemPrompt() y accede pendant le chargement du script. */
 function getMathContext(){
   if (!mathState.open) return '';
   let c = 'Tableau de maths : OUVERT.';
