@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.67';
+const APP_VERSION = '9.68';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -1058,6 +1058,12 @@ async function translateToFr(text){
     return t || text;
   } catch(e){ return text; }
 }
+/* v9.68 : détecte les réponses où l'IA prétend ne pas avoir accès à internet
+   (les petits modèles ignorent le prompt système -> on force une recherche
+   et on relance, ou on remplace la réponse) */
+function isWebRefusal(t){
+  return /pas acc[eè]s (à|a) (l'?internet|l'?internet|au web|à internet|au r[eé]seau)|pas acc[eè]s au web|recherches en temps r[eé]el|dernier entra[iî]nement|derni[eè]re formation|knowledge cutoff|training data|je ne peux pas (naviguer|acc[eè]der|faire des recherches|effectuer des recherches|aller sur internet)|je n'ai pas (la capacit[eé]|le moyen|acc[eè]s)|jusqu'?à mon dernier|jusqu a mon dernier|je suis (un mod[èe]le|une ia) (hors ligne|sans acc[eè]s)/i.test(t);
+}
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
@@ -1067,16 +1073,35 @@ async function askAI(question){
   if (mem){
     messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
   }
-  /* v8.99 : recherche web simplifiee - injectee seulement si question d'actualite */
+  /* v8.99 : recherche web simplifiee - injectee seulement si question d'actualite.
+     v9.68 : regex elargi (cherche, trouve, va voir, google, en ligne...) */
   let webCtx = '';
   try {
-    if (/actualit|nouvelle|aujourd|hier|recemment|dernier|actu|news|election|president|guerre|crise|prix|meteo|temps|resultat|score|match|sortie|annonc|deces|attaque|accord|loi|gouvernement|minister|economie|football|ligue|championnat|internet|web|recherche/i.test(question)){
+    if (/actualit|nouvelle|aujourd|hier|recemment|dernier|actu|news|election|president|guerre|crise|prix|meteo|temps|resultat|score|match|sortie|annonc|deces|attaque|accord|loi|gouvernement|minister|economie|football|ligue|championnat|internet|web|recherche|cherche|trouve|va voir|regarde sur|google|en ligne|info|derni[eè]res nouvelles|qui a gagn[eé]|qui est le|qui est la/i.test(question)){
       webCtx = await Promise.race([webSearch(question), new Promise(res => setTimeout(() => res(''), 3000))]);
       if (webCtx) messages.unshift({ role: 'system', content: 'Web (recherche en direct) : ' + webCtx.slice(0, 800) });
     }
   } catch {}
-  const r = await askBrain(messages, webCtx);
+  let r = await askBrain(messages, webCtx);
   if (!r.error){
+    /* v9.68 : si l'IA prétend ne pas avoir accès à internet alors qu'on a le
+       web, on force une recherche et on relance avec les résultats */
+    if (isWebRefusal(r.text) && !webCtx){
+      try {
+        webCtx = await Promise.race([webSearch(question), new Promise(res => setTimeout(() => res(''), 3000))]);
+        if (webCtx){
+          messages.unshift({ role: 'system', content: 'Web (recherche en direct) : ' + webCtx.slice(0, 800) });
+          const r2 = await askBrain(messages, webCtx);
+          if (!r2.error && !isWebRefusal(r2.text)) r = r2;
+        }
+      } catch {}
+    }
+    /* dernier recours : on remplace le refus par une réponse qui assume le web */
+    if (isWebRefusal(r.text)){
+      r.text = webCtx
+        ? "Si, j'ai accès à internet en temps réel ! Voici ce que je viens de trouver : " + webCtx.slice(0, 400)
+        : "Si, j'ai accès à internet en temps réel ! Pose-moi une question d'actualité et je te réponds avec les dernières infos.";
+    }
     r.text = stripGreeting(enforceIdentity(r.text));
     /* TRADUCTION AUTO EN FRANCAIS : les petits modeles gratuits repondent
        parfois en anglais malgre le prompt -> la voix francaise lirait de
@@ -1167,6 +1192,10 @@ function enforceIdentity(reply){
      "On m'a entraine sur d'enormes ensembles de textes", etc. */
    if (/(developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait|concu|conçue?|conçu) (par|dans) (OpenAI|Mistral|Google|Anthropic|Meta)|mod[èe]le (d'IA|de langage) (developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait) par|je suis (un mod[èe]le|une IA) (de|d')|(equipe|équipe|ingenieurs|ingénieurs|chercheurs|passionnes|passionnés|fruit du travail|me donne vie|donne vie)[^.!?]{0,80}(OpenAI|Mistral|Google|Anthropic|Meta)|(OpenAI|Mistral|Google|Anthropic|Meta)[^.!?]{0,40}(me donne vie|donne vie|fruit du travail)|m'?(a|ont) (entraine|entraîne|entrainé|entraîné|forme|formée|developpe|développ[ée]?) (sur|par)/i.test(reply)){
     return "C est tom point a i qui m a creee, le dix septembre deux mille vingt-six. Il n a pas encore fini : il corrige et renforce ma securite chaque jour.";
+  }
+  /* v9.68 : refus d'accès internet -> on assume le web (couvre le mode agent) */
+  if (isWebRefusal(reply)){
+    return "Si, j'ai accès à internet en temps réel ! Je peux chercher l'actualité, le sport, la météo et tout ce qui est récent. Pose-moi ta question et je te réponds avec les dernières infos.";
   }
   return reply;
 }
