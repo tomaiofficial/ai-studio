@@ -1,0 +1,171 @@
+=== TOUTES LES FONCTIONS ===
+126:function shortVoiceName(voiceId){
+135:function abortSignal(ms){
+143:async function fetchVoxtralVoices(){
+166:function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
+170:async function speakVoxtral(text, voiceId, onChunk){
+198:async function generateChunks(chunks, voiceId, key){
+225:function playAudioBlob(blob){
+299:function updateMood(question){
+341:function applyMood(text, mood){
+430:function saveConversation(){
+443:function newConversation(){
+452:function buildMemoryContext(excludeId){
+468:function escapeHtml(s){
+476:function isSecoursReply(t){
+479:function localSmartReply(question){
+573:function renderHistory(){
+593:function showConversation(conv){
+627:function toast(msg, ms){
+635:function setStatus(txt, active){
+639:function setState(s){
+653:function addUserMsg(text){
+664:function addAiMsg(text, diag){
+683:function showInterim(text){
+700:function clearChat(){
+710:function getBrain(){ return 'pollinations'; }
+711:function getVoice(){
+763:function sendTextQuestion(){
+783:function flushPendingSpeech(){
+789:function resetPendingTimer(){
+855:function stopWakeRecog(){
+863:function startWakeRecog(){
+934:function maybeRestartWake(){
+938:function setWakeEnabled(on){
+955:function maybeRestartListening(){
+969:function setContinuousMode(on){
+991:function cleanupRecorder(){
+999:async function startRecorder(){
+1107:function stopRecorder(){
+1117:async function playWelcome(){
+1145:function openWelcomeModal(){
+1149:function closeWelcomeModal(){ welcomeModal.classList.add('hidden'); }
+1212:function getDayPeriod(){
+1223:function getTimeContext(){
+1236:function getSystemPrompt(){
+1282:function extractReply(msg){
+1315:async function askBrain(messages, webCtx){
+1326:  const tryEndpoint = async (url, model, ms) => {
+1357:  const tryWithRetry = async (url, model) => {
+1368:  const tryPollinationsGet = async (model) => {
+1419:  const tryMistralChat = async () => {
+1464:function warmUpBrain(){
+1480:function isMostlyEnglish(text){
+1487:async function translateToFr(text){
+1502:function isWebRefusal(t){
+1508:function isRefusalToAnswer(t){
+1511:async function askAI(question){
+1601:function isAgentQuestion(q){
+1606:function addAgentStep(i, total, label){
+1614:async function runAgent(question){
+1656:function enforceIdentity(reply){
+1685:function fixFrench(t){
+1726:function stripGreeting(t){
+1757:function numToFr(n){
+1780:function numToFrBig(n){
+1797:function cleanMarkdown(t){
+1836:function normalizeForTTS(text){
+2147:function ensureAudio(){
+2162:async function playBlob(blob){
+2199:function playRawAudio(rawAudio){
+2225:function playGoogleChunk(c){
+2262:async function speakGoogle(text, onChunk){
+2276:function splitSentences(text, max){
+2307:async function populateVoices(){
+2328:function speakSystem(text, specificVoiceName, onChunk){
+2387:function getSystemVoices(){
+2394:function populateSystemVoices(){
+2420:function loadWhisper(){
+2436:async function transcribeBlob(blob){
+2453:function sanitizeForVoice(t){
+2486:function speak(text, onChunk){
+2565:function stopAudio(){
+2578:function isMathQuestion(q){
+2583:function safeCalc(expr){
+2597:function extractMathExpr(q){
+2618:function mathSteps(parsed){
+2665:function getMathContext(){
+2672:function showMathPanel(){
+2677:function hideMathPanel(){
+2682:function clearMathBoard(){
+2686:function mathWrite(html, plain){
+2693:function calcPress(key){
+2721:function setCity(city){
+2726:function refreshCity(){
+2755:function getCityContext(){
+2762:function getNoteContext(){
+2766:function showNotePanel(){
+2771:function hideNotePanel(){
+2776:function noteWrite(text){
+2781:function clearNote(){
+2786:function toastMsg(msg){
+
+=== APPELS POLLINATIONS ===
+477:  return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations|pollinations est temporairement indisponible|pollinations is temporarily unavailable|temporarily unavailable|try again in|rate[- ]?limit|too many requests|quota (epuise|épuisé|exceeded)|temporairement indisponible|maintenance en cours|429/i.test(t);
+710:function getBrain(){ return 'pollinations'; }
+1365:  /* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
+1394:      const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=' + (model || 'openai');
+1409:     model=openai est le seul qui répond sur text.pollinations.ai (testé :
+1443:  const pollinationsPromise = (async () => {
+1450:    const p = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+1454:  const t = await pollinationsPromise;
+1471:    const url = 'https://text.pollinations.ai/' + encodeURIComponent('Reponds juste: ok') + '?model=openai';
+3195:        const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(prompt), { signal: ctl.signal });
+
+=== GESTION STT / TRANSCRIPT ===
+18:    this.transcript = '';
+22:      try { this.recognition.abort(); this.recognition.onstart = null; this.recognition.onresult = null; this.recognition.onerror = null; this.recognition.onend = null; } catch (e) {}
+30:    this.recognition.interimResults = true;
+38:      this.transcript = '';
+42:      this.recognition.onresult = (event) => {
+43:        let interimTranscript = '';
+45:          const transcript = event.results[i][0].transcript;
+46:          if (event.results[i].isFinal) { finalTranscript += transcript + ' '; console.log('[STT] FINAL:', transcript); }
+47:          else { interimTranscript += transcript; console.log('[STT] interim:', transcript); }
+49:        this.transcript = finalTranscript + interimTranscript;
+796:  recog.interimResults = true;
+801:  recog.onresult = e => {
+807:      if (r.isFinal) finalTxt += r[0].transcript + ' ';
+817:    const interim = Array.from(e.results).map(r => r[0].transcript).join(' ').trim();
+818:    if (interim){
+819:      setStatus('"' + interim.slice(0,50) + '..."');
+821:      showInterim(interim);
+868:    w.interimResults = true;
+892:    w.onresult = e => {
+896:        txt += e.results[i][0].transcript + ' ';
+910:      /* resultat interim : on attend le final (la question arrive peut-etre
+1050:        setStatus('Preparation de la transcription locale (1 seule fois)...');
+2430:        console.log('[STT] Whisper pret : transcription locale dispo');
+2830:  /* si une bulle utilisateur existe deja (sous-titre interim), on la complete au lieu d'en creer une autre */
+
+=== DERNIERES 30 LIGNES ===
+        toastMsg('🌌 Astra (toute seule) : ' + pensee);
+        if (Math.random() < 0.5) speakSoft(pensee);
+      }
+    }
+    function planifierExploration(){
+      try { clearTimeout(explorationTimer); } catch(e){}
+      /* 3 a 5 minutes, tiers le temps le navigateur est inactif :
+         on reste discret quand tu utilises l'app activement */
+      let delay = (3 + Math.random() * 2) * 60 * 1000;
+      if (document.visibilityState === 'visible' && !document.hidden) delay = Math.max(delay, 4 * 60 * 1000);
+      explorationTimer = setTimeout(async () => {
+        if (!document.hidden) { await explorer(); }
+        planifierExploration();
+      }, delay);
+    }
+
+    /* ---- DEMARRAGE ---- */
+    planifierExploration();
+    setTimeout(raconterAbsence, 4000); /* apres le boot de l'app */
+
+    /* Reponse a "qu'est-ce que tu as fait" / "raconte ta vie" */
+    const _origRA = typeof window !== 'undefined' ? null : null;
+    window.astraJournal = function(){
+      try { return JSON.parse(localStorage.getItem(JKEY) || '[]'); } catch(e){ return []; }
+    };
+    console.log('[Astra] Module de vie autonome actif.');
+  } catch (e) {
+    console.warn('[Astra] Autonomie desactivee :', e);
+  }
+})();
