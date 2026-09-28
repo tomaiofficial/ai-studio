@@ -1,0 +1,40 @@
+name: Scan structure app.js (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scanner les fonctions de app.js
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          {
+            echo "=== TOUTES LES FONCTIONS ==="
+            grep -n "^function \|^async function \|^  function \|^  async function \|const .* = function\|const .* = async" app.js | head -100
+            echo ""
+            echo "=== APPELS POLLINATIONS ==="
+            grep -n "pollinations" app.js | head -30
+            echo ""
+            echo "=== GESTION STT / TRANSCRIPT ==="
+            grep -n "transcript\|onresult\|final_transcript\|interim" app.js | head -30
+            echo ""
+            echo "=== DERNIERES 30 LIGNES ==="
+            tail -30 app.js
+          } > astra-scan.txt
+          git add astra-scan.txt
+          git commit -m "chore: scan de structure app.js pour brancher le conseil d'IA [skip ci]"
+          git rm -f .github/workflows/scan.yml
+          git commit -m "chore: suppression du workflow scan [skip ci]"
+          git push
