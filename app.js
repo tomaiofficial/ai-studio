@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.80';
+const APP_VERSION = '9.81';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -136,10 +136,10 @@ function playAudioBlob(blob){
    L'humeur change selon : ton de l'utilisateur, heure, aléatoire, provocations.
    Elle ne se laisse PAS marcher sur les pieds. */
 const MOODS = {
-  neutre:     { weight: 50, prefix: '', suffix: '', tone: 'calme' },
+  neutre:     { weight: 38, prefix: '', suffix: '', tone: 'calme' },
   agacee:     { weight: 15, prefix: 'Écoute, ', suffix: '.', tone: 'sec' },
-  violente:   { weight: 10, prefix: 'Ferme-la. ', suffix: ' !', tone: 'agressif' },
-  vulgaire:   { weight: 8,  prefix: 'Putain, ', suffix: ' !', tone: 'vulgaire' },
+  violente:   { weight: 12, prefix: 'Ferme-la. ', suffix: ' !', tone: 'agressif' },
+  vulgaire:   { weight: 20, prefix: 'Putain, ', suffix: ' !', tone: 'vulgaire' },
   protectrice:{ weight: 15, prefix: 'Personne ne te touche. ', suffix: '.', tone: 'ferme' },
   taquine:    { weight: 10, prefix: 'Oh, le petit malin... ', suffix: ' 😏', tone: 'moqueur' }
 };
@@ -161,8 +161,8 @@ function updateMood(question){
   else if (/(t'es mignonne|t'es belle|je t'aime|tu es chou|t'es drôle|blague|rigole)/.test(q)){
     currentMood = 'taquine';
   }
-  /* Aléatoire léger (5% chance de changer) */
-  else if (Math.random() < 0.05){
+  /* Aléatoire léger (10% chance de changer — v9.81 : plus de vulgarité) */
+  else if (Math.random() < 0.10){
     const moods = Object.keys(MOODS);
     currentMood = moods[Math.floor(Math.random() * moods.length)];
   }
@@ -919,18 +919,22 @@ function getDayPeriod(){
   if (h >= 18 && h < 22) return { label: 'le soir', of: 'du soir' };
   return { label: 'la nuit', of: 'de la nuit' };
 }
-/* Heure appareil - automatique (sans secondes ni fuseau : juste l'heure et la date) */
+/* Heure appareil - automatique (sans secondes ni fuseau : juste l'heure et la date).
+   v9.81 : heure en CHIFFRES ("11h03") — l'IA doit répondre en chiffres, la voix
+   les lit en toutes lettres via normalizeForTTS. */
 function getTimeContext(){
   const now = new Date();
-  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' };
-  const local = now.toLocaleString('fr-FR', opts);
-  return `Heure actuelle sur l'appareil de l'utilisateur : ${local}. Nous sommes ${getDayPeriod().label}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure exacte, sans inventer. Utilise la periode de la journee dans tes reponses quand c'est naturel (ex: "ce matin", "cet apres-midi", "bonne nuit"), comme un humain qui vit en temps reel.`;
+  const h = now.getHours(), m = now.getMinutes();
+  const timeStr = h + 'h' + String(m).padStart(2, '0');
+  const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
+  const dateStr = now.toLocaleString('fr-FR', opts);
+  return `Heure actuelle sur l'appareil de l'utilisateur : ${dateStr}, ${timeStr}. Nous sommes ${getDayPeriod().label}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure EXACTE en CHIFFRES, par exemple "il est 11h03", JAMAIS en lettres. Utilise la periode de la journee dans tes reponses quand c'est naturel (ex: "ce matin", "cet apres-midi", "bonne nuit"), comme un humain qui vit en temps reel.`;
 }
 /* Prompt systeme */
 /* v9.77 : INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle
    (fonction mail à venir, sécurité en test...) */
 const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes, le mail ou ce qui arrive bientot, reponds avec ces infos) : Le mardi 29 septembre 2026, l'application aura une fonction mail : l'IA pourra voir les mails de l'utilisateur. En attendant, l'utilisateur teste la securite de l'application.";
-const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, jamais un autre. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance et cite des exemples. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur. Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. ` + APP_INFOS;
+const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, jamais un autre. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance et cite des exemples. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu peux jurer naturellement (putain, merde, bordel, nom de dieu) quand le ton s'y prete, comme une vraie personne, sans en faire trop. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur. Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. ` + APP_INFOS;
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   if (profile && profile.name){
@@ -2097,11 +2101,13 @@ async function handleQuestion(question){
     const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
     const MONTHS = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
     const h = now.getHours(), m = now.getMinutes();
-    const timeWords = numToFr(h) + ' heures' + (m ? ' ' + numToFr(m) : '');
+    /* v9.81 : heure en CHIFFRES à l'affichage ("11h03") — la voix la lit en
+       toutes lettres via normalizeForTTS ("onze heures trois") */
+    const timeDigits = h + 'h' + (m ? String(m).padStart(2, '0') : '');
     const dateWords = WEEKDAYS[now.getDay()] + ' ' + numToFr(now.getDate()) + ' ' + MONTHS[now.getMonth()] + ' ' + numToFr(now.getFullYear());
     /* v9.67 : période de la journée -> "Il est 8h42 du matin, lundi..." */
     const periodOf = getDayPeriod().of;
-    const repSpoken = "Il est " + timeWords + " " + periodOf + ", " + dateWords + ".";
+    const repSpoken = "Il est " + timeDigits + " " + periodOf + ", " + dateWords + ".";
     updateMood(question);
     const repMood = applyMood(rep, currentMood);
     const repSpokenMood = applyMood(repSpoken, currentMood);
