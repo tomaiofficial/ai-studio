@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.85';
+const APP_VERSION = '9.86';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -671,7 +671,7 @@ if (SR){
    - "hey astra" seul -> elle repond "Oui ? Je t'ecoute" puis ecoute la suite */
 const WAKE_KEY = 'va_wake';
 let wakeEnabled = localStorage.getItem(WAKE_KEY) === '1';
-let wakeRecog = null, wakeRestartTimer = null, suppressWake = false;
+let wakeRecog = null, wakeRestartTimer = null, suppressWake = false, wakeListenTimer = null, wakePendingTimer = null;
 function stopWakeRecog(){
   clearTimeout(wakeRestartTimer);
   if (wakeRecog){
@@ -688,34 +688,49 @@ function startWakeRecog(){
     w.interimResults = true;
     w.maxAlternatives = 1;
     w.continuous = true;
-    w.onresult = e => {
-      let txt = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript + ' ';
-      txt = txt.trim();
-      if (!txt) return;
-      const m = txt.match(/(?:hey|ok|okay|salut|allo|dis|ecoute|écoute)?\s*astra\b/i);
-      if (!m) return;
-      /* reveil detecte -> on coupe l'oreille et on traite */
+    /* v9.86 : reveil declenche -> ecoute directe (sans "Oui ? Je t'ecoute")
+       ou traitement direct si la question est dans le meme segment */
+    function wakeTriggered(rest){
       stopWakeRecog();
-      /* v9.49 : reveil du cerveau des maintenant (le modele se charge
-         pendant que l'utilisateur finit sa phrase) */
       warmUpBrain();
-      const rest = txt.slice(m.index + m[0].length).replace(/^[^a-zà-ÿ0-9]+/i, '').trim();
       if (rest){
         /* commande directe : "hey astra quelle heure il est" */
         setStatus('"' + rest.slice(0, 40) + '..."');
         handleQuestion(rest);
       } else {
-        /* juste "hey astra" -> elle repond puis ecoute la suite */
+        /* juste "hey astra" -> elle ecoute DIRECTEMENT, SANS parler */
         suppressWake = true;
         setState('listening');
-        setStatus('Oui ? Je t\'ecoute...');
-        speak('Oui ? Je t\'ecoute.').then(() => {
-          suppressWake = false;
-          if (!recog){ startRecorder(); }
-          else { try { setState('listening'); recog.start(); } catch { startRecorder(); } }
-        });
+        setStatus('Je t\'écoute...');
+        if (!recog){ startRecorder(); }
+        else { try { setState('listening'); recog.start(); } catch { startRecorder(); } }
+        /* relache le wake apres 15s si l'utilisateur n'a rien dit */
+        clearTimeout(wakeListenTimer);
+        wakeListenTimer = setTimeout(() => { suppressWake = false; }, 15000);
       }
+    }
+    w.onresult = e => {
+      let txt = '';
+      let hasFinal = false;
+      for (let i = e.resultIndex; i < e.results.length; i++){
+        txt += e.results[i][0].transcript + ' ';
+        if (e.results[i].isFinal) hasFinal = true;
+      }
+      txt = txt.trim();
+      if (!txt) return;
+      const m = txt.match(/(?:hey|ok|okay|salut|allo|dis|ecoute|écoute)?\s*astra\b/i);
+      if (!m) return;
+      const rest = txt.slice(m.index + m[0].length).replace(/^[^a-zà-ÿ0-9]+/i, '').trim();
+      if (hasFinal){
+        /* resultat final : la question complete est la -> traitement direct */
+        clearTimeout(wakePendingTimer);
+        wakeTriggered(rest);
+        return;
+      }
+      /* resultat interim : on attend le final (la question arrive peut-etre
+         dans le meme segment), garde-fou 3s pour ne jamais bloquer le reveil */
+      clearTimeout(wakePendingTimer);
+      wakePendingTimer = setTimeout(() => wakeTriggered(rest), 3000);
     };
     w.onend = () => {
       wakeRecog = null;
