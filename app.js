@@ -6,6 +6,78 @@
    ============================================================ */
 const APP_VERSION = '10.0.2';
 console.log('[APP] v' + APP_VERSION + ' loading...');
+
+/* ============================================
+   FIX STT MOBILE - SpeechToTextHandler
+   Instance neuve a chaque utilisation (bug mobile fixe)
+   ============================================ */
+class SpeechToTextHandler {
+  constructor() {
+    this.recognition = null;
+    this.isListening = false;
+    this.transcript = '';
+  }
+  initRecognition() {
+    if (this.recognition) {
+      try { this.recognition.abort(); this.recognition.onstart = null; this.recognition.onresult = null; this.recognition.onerror = null; this.recognition.onend = null; } catch (e) {}
+      this.recognition = null;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
+    if (!SpeechRecognition) { console.error('[STT] Non supporte'); return false; }
+    this.recognition = new SpeechRecognition();
+    this.recognition.lang = 'fr-FR';
+    this.recognition.continuous = false;
+    this.recognition.interimResults = true;
+    this.recognition.maxAlternatives = 1;
+    console.log('[STT] Instance neuve');
+    return true;
+  }
+  async listen() {
+    return new Promise((resolve, reject) => {
+      if (!this.initRecognition()) { reject(new Error('STT non supporte')); return; }
+      this.transcript = '';
+      let finalTranscript = '';
+      let timeoutId = null;
+      this.recognition.onstart = () => { console.log('[STT] Ecoute commencee'); this.isListening = true; timeoutId = setTimeout(() => { console.warn('[STT] Timeout'); if (this.recognition) this.recognition.abort(); }, 30000); };
+      this.recognition.onresult = (event) => {
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) { finalTranscript += transcript + ' '; console.log('[STT] FINAL:', transcript); }
+          else { interimTranscript += transcript; console.log('[STT] interim:', transcript); }
+        }
+        this.transcript = finalTranscript + interimTranscript;
+      };
+      this.recognition.onend = () => {
+        console.log('[STT] Ecoute terminee');
+        this.isListening = false;
+        if (timeoutId) clearTimeout(timeoutId);
+        if (this.recognition) { this.recognition = null; }
+        resolve(finalTranscript.trim());
+      };
+      this.recognition.onerror = (event) => {
+        console.error('[STT] Erreur:', event.error);
+        this.isListening = false;
+        if (timeoutId) clearTimeout(timeoutId);
+        if (this.recognition) { this.recognition = null; }
+        resolve(finalTranscript.trim());
+      };
+      try { console.log('[STT] Demarrage...'); this.recognition.start(); } catch (error) { console.error('[STT] Erreur demarrage:', error); this.isListening = false; if (this.recognition) { this.recognition = null; } reject(error); }
+    });
+  }
+  stop() {
+    if (this.recognition && this.isListening) {
+      console.log('[STT] Arret force');
+      try { this.recognition.abort(); } catch {}
+      this.recognition = null;
+      this.isListening = false;
+    }
+  }
+  isSupported() {
+    return !!(window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition);
+  }
+}
+const stt = new SpeechToTextHandler();
 const LS = { voice: 'va_ttsvoice' };
 
 /* v9.99.1 : ETAT DU TABLEAU DE MATHS — declare EN HAUT car getSystemPrompt()
@@ -917,16 +989,28 @@ function cleanupRecorder(){
 }
 async function startRecorder(){
   if (recorderBusy) return;
-  /* v9.84 : jamais d'enregistrement pendant que l'IA parle */
   if (isSpeaking) return;
   recorderBusy = true;
-  /* v9.49 : reveil du cerveau PENDANT que l'utilisateur parle -> reponse rapide */
   warmUpBrain();
   try {
     setState('listening');
     setStatus('Parle maintenant...');
-    /* AudioContext cree AVANT le await getUserMedia : il reste dans le geste utilisateur
-       -> il demarre sur iOS (sinon il reste suspendu et aucun son n'est detecte) */
+    /* v10.0.2 : FIX MOBILE — utilise SpeechToTextHandler (instance neuve)
+       au lieu du MediaRecorder + recog global qui reste bloque */
+    if (stt.isSupported()){
+      const txt = await stt.listen();
+      recorderBusy = false;
+      if (txt && txt.trim().length >= 2){
+        setState('idle');
+        handleQuestion(txt.trim());
+      } else {
+        setState('idle');
+        setStatus("Je n'ai rien entendu - rapproche-toi du micro");
+        if (continuousMode && !continuousPaused) maybeRestartListening();
+      }
+      return;
+    }
+    /* Fallback : ancien MediaRecorder si STT non supporte */
     let ac = null;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
