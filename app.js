@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.75';
+const APP_VERSION = '9.76';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -326,6 +326,9 @@ function localSmartReply(question){
   if (/(ça va|ca va|comment va|comment tu vas|tu vas bien)/.test(q)) return "Ça va très bien, merci ! Et toi ?";
   if (/(merci|thank)/.test(q)) return "Avec plaisir ! N'hésite pas si tu as besoin d'autre chose.";
   if (/(qui es[- ]tu|tu es qui|ton nom|comment tu t'appelles|t'appelles comment)/.test(q)) return "Je m'appelle Astra, ton assistante vocale créée par tom point a i. Je réponds à toutes tes questions, gratuitement et sans limite.";
+  /* v9.76 : qui a fait l'interface/le design/l'app -> reponse INTERFACE
+     (AVANT le pattern "qui t'a cree" pour ne pas confondre) */
+  if (/(qui (a )?(cree|créé|fait|concu|conçu|developpe|développé) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))|(qui (fait|a fait) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))/i.test(q)) return "L'interface, c'est tom point a i qui l'a faite, comme tout le reste. Il la corrige et l'améliore chaque jour.";
   if (/(qui t'a cree|qui t a cree|ton createur|qui t'a fait|qui t a fait)/.test(q)) return "J'ai été créée par tom point a i le 10 septembre 2026, mais il n'a pas encore fini : il corrige et renforce ma sécurité.";
   if (/(tu te souviens|tu me souviens|memoire|mémoire|tu as de la memoire|tu as de la mémoire)/.test(q)){
     const mem = buildMemoryContext(currentConvId);
@@ -1164,6 +1167,12 @@ async function askAI(question){
       r.text = webCtx
         ? "Si, j'ai accès à internet en temps réel ! Voici ce que je viens de trouver : " + webCtx.slice(0, 400)
         : "Si, j'ai accès à internet en temps réel ! Pose-moi une question d'actualité et je te réponds avec les dernières infos.";
+    }
+    /* v9.76 : si la question parle de l'interface/du design mais la réponse
+       parle de "qui m'a créée" (confusion des petits modèles) -> on répond
+       sur l'interface */
+    if (/(interface|design|ui[- ]?ux|ergonomie)/i.test(question) && /(creee|créée|cree|créé|nee|née|naissance|m'a fait|m a fait)/i.test(r.text) && !/interface/i.test(r.text)){
+      r.text = "L'interface, c'est tom point a i qui l'a faite, comme tout le reste. Il la corrige et l'améliore chaque jour.";
     }
     /* v9.73 : refus de répondre ("je n'ai pas la réponse", "demande-moi autre
        chose"...) -> on relance avec une instruction renforcée */
