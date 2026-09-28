@@ -1,0 +1,48 @@
+name: Astra derapage (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  add-derapage:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ajouter le systeme de derapage dans app.js
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          python3 - <<'EOF'
+          import sys
+          path = 'app.js'
+          src = open(path, encoding='utf-8').read()
+          old = "if (Math.random() < 0.15) currentMood = pool[Math.floor(Math.random() * pool.length)];"
+          new = """if (Math.random() < 0.18) {
+        /* v10.1 : DERAPAGE — des fois (1 tirage sur 3), Astra pete un cable
+           sans raison : elle pioche une humeur corrosive au lieu du pool
+           sympa de l'heure. Resultat : elle peut t'engueuler, etre vulgaire
+           ou sarcastique comme une vraie humaine qui a un mauvais jour. */
+        if (Math.random() < 0.33) {
+          currentMood = ['violente', 'vulgaire', 'sarcastique', 'agacee', 'taquine'][Math.floor(Math.random() * 5)];
+        } else {
+          currentMood = pool[Math.floor(Math.random() * pool.length)];
+        }
+      }"""
+          if src.count(old) != 1:
+              print('MARQUEUR INTROUVABLE OU AMBIGU:', src.count(old)); sys.exit(1)
+          open(path, 'w', encoding='utf-8').write(src.replace(old, new))
+          print('Patch derapage applique.')
+          EOF
+          git add app.js
+          git commit -m "v10.1 : Astra peut deraper — 6% de chance par question de piquer une crise (humeurs corrosives tirees au sort, sans provocation) [skip ci]"
+          git rm .github/workflows/derapage.yml
+          git commit -m "chore: suppression du workflow ponctuel derapage [skip ci]"
+          git push
