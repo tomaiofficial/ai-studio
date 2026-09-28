@@ -4,8 +4,8 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.73';
+console.log('[APP] v' + APP_VERSION + ' loading...');
+const APP_VERSION = '9.74';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -997,11 +997,12 @@ async function askBrain(messages, webCtx){
       return { err: 'net' };
     } catch(e){ return { err: 'net' }; }
   };
-/* v8.67 : retry 1x sur 429 (rate limit transitoire ~1 req/5s par IP) */
+/* v8.67 : retry 1x sur 429 (rate limit transitoire ~1 req/5s par IP).
+   v9.74 : backoff 2s au lieu de 1s (Pollinations souvent saturé) */
   const tryWithRetry = async (url, model) => {
     let t = await tryEndpoint(url, model, 5000);
     if (t && t.err === 'limit'){
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 2000));
       t = await tryEndpoint(url, model, 5000);
     }
     return t;
@@ -1054,6 +1055,26 @@ async function askBrain(messages, webCtx){
   /* POST en dernier recours (parfois disponible quand le GET est saturé) */
   const postResult = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
   if (typeof postResult === 'string') return { text: postResult, diag: 'Pollinations' };
+  /* v9.74 : SECOURS MISTRAL CHAT — si Pollinations est saturé (429), on
+     utilise la clé Mistral (déjà configurée pour la voix) pour répondre.
+     open-mistral-nemo est le modèle gratuit de Mistral. */
+  const mistralKey = getMistralKey();
+  if (mistralKey){
+    for (const model of ['open-mistral-nemo', 'mistral-small-latest']){
+      try {
+        const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mistralKey },
+          body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
+        }), 15000);
+        if (res && res.ok){
+          const data = await res.json();
+          const text = (data?.choices?.[0]?.message?.content || '').trim();
+          if (text) return { text, diag: 'Mistral' };
+        }
+      } catch {}
+    }
+  }
   /* Secours : mémoire locale (jamais de message d'erreur) */
   return { text: localText, diag: 'local' };
 }
