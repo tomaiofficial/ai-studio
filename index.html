@@ -313,15 +313,16 @@ select.wide-input{appearance:none}
     <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🌟 <b>SpeechT5 TTS</b> — 5 voix FR/EN (Microsoft, WebGPU/WASM, ~200 Mo, sans serveur). Secours : Edge TTS / voix système.</p>
+    <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium, 9 langues, zéro-shot voice cloning. Nécessite une clé API Mistral (gratuite sur console.mistral.ai).</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="speecht5:fr_female_1" selected>🌟 SpeechT5: Française 1 (naturelle)</option>
-      <option value="speecht5:fr_female_2">🌟 SpeechT5: Française 2 (douce)</option>
-      <option value="speecht5:fr_male_1">🌟 SpeechT5: Français 1 (profond)</option>
-      <option value="speecht5:en_female_1">🌟 SpeechT5: English Female 1</option>
-      <option value="speecht5:en_male_1">🌟 SpeechT5: English Male 1</option>
+      <option value="voxtral:marie" selected>🎙️ Voxtral: Marie (français, naturelle)</option>
+      <option value="voxtral:paul">🎙️ Voxtral: Paul (anglais US)</option>
+      <option value="voxtral:oliver">🎙️ Voxtral: Oliver (anglais UK)</option>
     </select>
-    <button class="primary" id="testVoice">🔊 Tester la voix</button>
+    <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
+    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
+    <button class="primary" id="saveMistralKey" style="margin-top:6px">💾 Enregistrer la clé</button>
+    <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
 
     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
     <p class="muted">Un seul cerveau : <b>Pollinations GPT</b> — gratuit, sans clé, répond comme ChatGPT.</p>
@@ -341,6 +342,6 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.63-final"></script>
+<script src="app.js?v=9.64"></script>
 </body>
 </html>

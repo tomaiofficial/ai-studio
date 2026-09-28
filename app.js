@@ -5,48 +5,56 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.63-final';
+const APP_VERSION = '9.64';
 const LS = { voice: 'va_ttsvoice' };
 
-const DEFAULT_VOICE = 'system:fr-FR-Hortense'; // Voix système française par défaut (toujours dispo, sans serveur, qualité fiable)
+const DEFAULT_VOICE = 'voxtral:marie'; // SEULE voix : Voxtral TTS (Mistral AI) — Marie, français naturel
 const SPEED = 1.0; // naturel
 
-/* ===== EDGE TTS LOCAL (Microsoft voix neuronales : Henrietta, Denise, Remy...)
-   Gratuit, sans clé, qualité premium. Nécessite le serveur local edge-tts-server.py
-   (lancez: python edge-tts-server.py -> http://127.0.0.1:5002) ===== */
-const EDGE_TTS_URL = 'http://127.0.0.1:5002';
-let edgeVoicesCache = null;
-async function fetchEdgeVoices(){
-  if (edgeVoicesCache) return edgeVoicesCache;
-  try {
-    const res = await fetch(EDGE_TTS_URL + '/voices', { signal: AbortSignal.timeout(3000) });
-    if (res.ok){
-      const data = await res.json();
-      edgeVoicesCache = data.voices || [];
-      console.log('[EDGE TTS] Voix chargées:', edgeVoicesCache.length);
-      return edgeVoicesCache;
-    }
-  } catch(e){ console.warn('[EDGE TTS] Serveur non dispo:', e && e.message); }
-  return [];
-}
-async function speakEdge(text, voiceId, onChunk){
+/* ===== VOXTRAL TTS (Mistral AI) — VOIX PRINCIPALE =====
+   API: POST https://api.mistral.ai/v1/audio/speech
+   Modèle: voxtral-mini-tts-2603 (4B, 9 langues, zéro-shot voice cloning)
+   Voix prédéfinies: marie (FR), paul (EN-US), oliver (EN-UK)
+   Nécessite une clé API Mistral (Réglages → Clé API Mistral)
+   Coût: $0.016 / 1000 caractères. Réponse: { audio_data: base64 } */
+const VOXTRAL_API_URL = 'https://api.mistral.ai/v1/audio/speech';
+const VOXTRAL_MODEL = 'voxtral-mini-tts-2603';
+const VOXTRAL_VOICES = [
+  { id: 'marie', name: 'Voxtral: Marie (français, naturelle)', lang: 'fr' },
+  { id: 'paul', name: 'Voxtral: Paul (anglais US)', lang: 'en' },
+  { id: 'oliver', name: 'Voxtral: Oliver (anglais UK)', lang: 'en' },
+];
+const MISTRAL_KEY_LS = 'va_mistral_key';
+function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
+async function speakVoxtral(text, voiceId, onChunk){
+  const key = getMistralKey();
+  if (!key){ console.warn('[VOXTRAL] Pas de clé API Mistral — ajoute-la dans Réglages'); return false; }
   try {
     const chunks = splitSentences(text, 250);
     for (const chunk of chunks){
       if (onChunk) onChunk(chunk);
-      const res = await fetch(EDGE_TTS_URL + '/synthesize', {
+      const res = await fetch(VOXTRAL_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: chunk, voice: voiceId }),
-        signal: AbortSignal.timeout(15000)
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+        body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice_id: voiceId, response_format: 'mp3' }),
+        signal: AbortSignal.timeout(30000)
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const audioBlob = await res.blob();
-      const ok = await playAudioBlob(audioBlob);
+      if (!res.ok){
+        const errText = await res.text().catch(() => '');
+        console.warn('[VOXTRAL] HTTP', res.status, errText.slice(0, 200));
+        return false;
+      }
+      const data = await res.json();
+      if (!data || !data.audio_data){ console.warn('[VOXTRAL] Pas de audio_data dans la réponse'); return false; }
+      const binary = atob(data.audio_data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'audio/mpeg' });
+      const ok = await playAudioBlob(blob);
       if (!ok) return false;
     }
     return true;
-  } catch(e){ console.warn('[EDGE TTS] Échec:', e && e.message); return false; }
+  } catch(e){ console.warn('[VOXTRAL] Échec:', e && e.message); return false; }
 }
 function playAudioBlob(blob){
   return new Promise(res => {
@@ -71,155 +79,9 @@ function playAudioBlob(blob){
   });
 }
 
-/* ===== SPEECHT5 TTS LOCAL (Microsoft / Transformers.js) — PRIORITÉ #1
-   Modèle: Xenova/speecht5_tts (Microsoft, multilingue, qualité premium)
-   Voix: speaker embeddings (x-vectors) pour multiples locuteurs FR/EN
-   Tourne 100% navigateur: WebGPU (GPU) + WASM (CPU fallback), quantized q8 pour vitesse
-   Aucun serveur, aucune clé, ~200 Mo téléchargés une fois (cache navigateur) ===== */
-const SPEECHT5_MODEL_ID = 'Xenova/speecht5_tts';
-let speecht5Pipeline = null;
-let speecht5Loading = false;
-/* Voix SpeechT5 : speaker embeddings (x-vectors) — on utilise des presets FR/EN */
-const SPEECHT5_VOICES = [
-  { id: 'fr_female_1', name: 'SpeechT5: Française 1 (naturelle)', lang: 'fr', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
-  { id: 'fr_female_2', name: 'SpeechT5: Française 2 (douce)', lang: 'fr', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
-  { id: 'fr_male_1', name: 'SpeechT5: Français 1 (profond)', lang: 'fr', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
-  { id: 'en_female_1', name: 'SpeechT5: English Female 1', lang: 'en', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
-  { id: 'en_male_1', name: 'SpeechT5: English Male 1', lang: 'en', speaker: 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin' },
-];
-async function loadSpeecht5Pipeline(){
-  if (speecht5Pipeline) return speecht5Pipeline;
-  if (speecht5Loading) {
-    while (speecht5Loading) await new Promise(r => setTimeout(r, 100));
-    return speecht5Pipeline;
-  }
-  speecht5Loading = true;
-  try {
-    console.log('[SPEECHT5] Chargement modèle', SPEECHT5_MODEL_ID, '...');
-    const { pipeline, Tensor } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
-    const device = (navigator.gpu ? 'webgpu' : 'wasm');
-    const dtype = 'q8';
-    console.log('[SPEECHT5] Device:', device, 'dtype:', dtype);
-    speecht5Pipeline = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
-      device,
-      dtype,
-      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
-    });
-    console.log('[SPEECHT5] Modèle prêt sur', device, 'dtype q8');
-    // Test rapide avec timeout - charger embedding en tensor
-    const embResponse = await fetch('https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin');
-    const embArrayBuffer = await embResponse.arrayBuffer();
-    const testEmbedding = new Tensor(embArrayBuffer);
-    const testPromise = speecht5Pipeline('Test', { speaker_embeddings: testEmbedding });
-    const test = await Promise.race([testPromise, new Promise((_, r) => setTimeout(() => r(new Error('Test timeout')), 30000))]);
-    console.log('[SPEECHT5] Test OK - audio length:', test?.audio?.length, 'sr:', test?.sampling_rate || test?.samplingRate);
-    return speecht5Pipeline;
-  } catch(e) {
-    console.error('[SPEECHT5] Échec chargement:', e);
-    speecht5Pipeline = null;
-    throw e;
-  } finally {
-    speecht5Loading = false;
-  }
-}
-async function fetchSpeecht5Voices(){
-  return SPEECHT5_VOICES;
-}
-async function speakSpeecht5(text, voiceId, onChunk){
-  try {
-    console.log('[SPEECHT5] speakSpeecht5 appelé, voiceId:', voiceId, 'text:', text.substring(0,50));
-    const pipe = await loadSpeecht5Pipeline();
-    if (!pipe) { console.error('[SPEECHT5] Pipeline null!'); return false; }
-    console.log('[SPEECHT5] Pipeline OK, génération pour:', voiceId);
-    const chunks = splitSentences(text, 250);
-    // Trouver l'embedding pour cette voix
-    const voiceDef = SPEECHT5_VOICES.find(v => v.id === voiceId);
-    const speakerEmbeddingUrl = voiceDef?.speaker || 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/speaker_embeddings.bin';
-    console.log('[SPEECHT5] Speaker embedding URL:', speakerEmbeddingUrl);
-    // Fetch et convertir l'embedding en tensor UNE SEULE FOIS
-    let speakerEmbeddingTensor = null;
-    try {
-      const embResponse = await fetch(speakerEmbeddingUrl);
-      console.log('[SPEECHT5] Embedding fetch status:', embResponse.status);
-      if (!embResponse.ok) throw new Error('Embedding fetch failed: ' + embResponse.status);
-      const embArrayBuffer = await embResponse.arrayBuffer();
-      console.log('[SPEECHT5] Embedding size:', embArrayBuffer.byteLength, 'bytes');
-      // Convertir en Float32Array puis tensor
-      const { Tensor } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
-      const embFloat32 = new Float32Array(embArrayBuffer);
-      speakerEmbeddingTensor = new Tensor(embFloat32);
-      console.log('[SPEECHT5] Embedding tensor shape:', speakerEmbeddingTensor.shape);
-    } catch(e) {
-      console.error('[SPEECHT5] Impossible de charger embedding:', e);
-      return false;
-    }
-    if (!speakerEmbeddingTensor) {
-      console.error('[SPEECHT5] Pas de tensor embedding');
-      return false;
-    }
-    for (const chunk of chunks){
-      if (onChunk) onChunk(chunk);
-      console.log('[SPEECHT5] Génération chunk:', chunk.substring(0,30));
-      // Passer le TENSOR, pas l'URL
-      const result = await pipe(chunk, { speaker_embeddings: speakerEmbeddingTensor });
-      console.log('[SPEECHT5] Résultat brut:', result);
-      let audio, samplingRate;
-      if (result?.audio && result.sampling_rate) {
-        audio = result.audio; samplingRate = result.sampling_rate;
-      } else if (result?.audio && result.samplingRate) {
-        audio = result.audio; samplingRate = result.samplingRate;
-      } else if (Array.isArray(result) && result[0]?.audio) {
-        audio = result[0].audio; samplingRate = result[0].sampling_rate || result[0].samplingRate;
-      } else {
-        console.error('[SPEECHT5] Format inattendu:', result);
-        return false;
-      }
-      if (!audio || !audio.length) {
-        console.error('[SPEECHT5] Audio vide');
-        return false;
-      }
-      console.log('[SPEECHT5] Audio OK:', audio.length, 'échantillons, sr:', samplingRate);
-      const audioBlob = float32ArrayToWavBlob(audio, samplingRate);
-      console.log('[SPEECHT5] Blob size:', audioBlob.size, 'bytes, type:', audioBlob.type);
-      const ok = await playAudioBlob(audioBlob);
-      console.log('[SPEECHT5] playAudioBlob result:', ok);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.error('[SPEECHT5] ERREUR:', e, e?.stack); return false; }
-}
-function float32ArrayToWavBlob(float32Array, sampleRate){
-  // Convert Float32Array [-1,1] -> 16-bit PCM WAV blob
-  const length = float32Array.length;
-  const buffer = new ArrayBuffer(44 + length * 2);
-  const view = new DataView(buffer);
-  // RIFF header
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + length * 2, true);
-  writeString(view, 8, 'WAVE');
-  // fmt chunk
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true); // byte rate
-  view.setUint16(32, 2, true); // block align
-  view.setUint16(34, 16, true); // bits per sample
-  // data chunk
-  writeString(view, 36, 'data');
-  view.setUint32(40, length * 2, true);
-  // PCM data
-  const pcm = new Int16Array(buffer, 44, length);
-  for (let i = 0; i < length; i++){
-    const s = Math.max(-1, Math.min(1, float32Array[i]));
-    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-  }
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-function writeString(view, offset, str){
-  for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-}
+/* ===== SPEECHT5 / KOKORO : SUPPRIMÉS (v9.64) — remplacés par Voxtral TTS (Mistral AI).
+   Les modèles locaux (transformers.js) ne chargeaient pas chez l'utilisateur
+   (réseau/CDN bloqués). Voxtral = API cloud Mistral, fiable, qualité premium. ===== */
 
 /* ===== PERSONNALITÉ / HUMEURS (v9.51) =====
    L'IA a des humeurs comme un humain : neutre, agacée, violente, protectrice, taquine.
@@ -576,9 +438,10 @@ function clearChat(){
 function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
-  /* v9.42 : le sélecteur ne contient plus que les voix Piper -> une ancienne
-     voix système sauvegardée revient à la voix Piper par défaut (Julie) */
-  if (v === 'systeme' || v.startsWith('system:')) return DEFAULT_VOICE;
+  /* v9.64 : les anciennes voix (Kokoro/SpeechT5/Edge/Piper/Système) sont
+     supprimées -> toute valeur obsolète revient à Voxtral par défaut (Marie) */
+  if (v === 'systeme' || v.startsWith('system:') || v.startsWith('kokoro:')
+      || v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')) return DEFAULT_VOICE;
   return v;
 }
 
@@ -606,6 +469,14 @@ testVoiceBtn.addEventListener('click', async () => {
   setStatus('Test de la voix...', true);
   const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
   setStatus(ok ? 'Voix OK - appuie sur le micro et parle' : 'Voix système active', !ok);
+});
+
+/* v9.64 : clé API Mistral (Voxtral TTS) — stockée localement, jamais envoyée ailleurs */
+const mistralKeyInput = $('mistralKey'), saveMistralKeyBtn = $('saveMistralKey');
+if (mistralKeyInput) mistralKeyInput.value = getMistralKey();
+if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(MISTRAL_KEY_LS, (mistralKeyInput.value || '').trim());
+  toast('Clé API Mistral enregistrée ✓');
 });
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
@@ -1739,33 +1610,24 @@ function splitSentences(text, max){
     }
   return final.length ? final : [text];
 }
-/* Remplit le sélecteur avec les voix : Kokoro (priorité #1) + Edge */
-/* v9.59 : Kokoro TTS (priorité #1, WebGPU/WASM, FR natif) + Edge TTS (si serveur) */
+/* Remplit le sélecteur avec les voix : Voxtral (Mistral AI, priorité #1) + Système */
+/* v9.64 : Voxtral TTS (Mistral AI, API cloud, qualité premium) + voix système */
 async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
-  /* SpeechT5 TTS (Microsoft / Transformers.js) — PRIORITÉ #1 */
-  SPEECHT5_VOICES.forEach(v => {
-    const val = 'speecht5:' + v.id;
+  /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 */
+  VOXTRAL_VOICES.forEach(v => {
+    const val = 'voxtral:' + v.id;
     if (!existingOptions.includes(val)){
       const opt = document.createElement('option');
       opt.value = val;
-      opt.textContent = '🌟 SpeechT5: ' + v.name;
+      opt.textContent = '🎙️ ' + v.name;
       ttsVoiceSel.appendChild(opt);
     }
   });
-  /* Edge TTS (Microsoft voix neuronales) — priorité #2 */
-  const edgeVoices = await fetchEdgeVoices();
-  edgeVoices.forEach(v => {
-    const val = 'edge:' + v.id;
-    if (!existingOptions.includes(val)){
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = '🎙️ Edge: ' + v.name + (edgeVoices.length ? '' : ' (serveur requis)');
-      ttsVoiceSel.appendChild(opt);
-    }
-  });
+  /* Voix système (navigateur) — secours sans clé */
+  populateSystemVoices();
   if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
 }
 
@@ -1918,20 +1780,23 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : SpeechT5 TTS (priorité #1, WebGPU/WASM, FR natif) -> Edge TTS -> Système */
+    /* VOIX : Voxtral TTS (Mistral AI) — priorité #1, secours Système */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('speecht5:')){
-      const voiceId = voiceMode.substring(9);
-      chain = [['SpeechT5: ' + voiceId, (t) => speakSpeecht5(t, voiceId, onChunk)], ['Edge (secours)', (t) => speakEdge(t, 'fr-FR-HenriettaNeural', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
-    } else if (voiceMode.startsWith('edge:')){
-      const voiceId = voiceMode.substring(5);
-      chain = [['Edge: ' + voiceId, (t) => speakEdge(t, voiceId, onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
-    } else if (voiceMode.startsWith('system:')){
+    if (voiceMode.startsWith('voxtral:')) {
+      const voiceId = voiceMode.substring(8);
+      chain = [
+        ['Voxtral: ' + voiceId, (t) => speakVoxtral(t, voiceId, onChunk)],
+        ['Système', (t) => speakSystem(t, null, onChunk)]
+      ];
+    } else if (voiceMode.startsWith('system:')) {
       const voiceName = voiceMode.substring(7);
-      chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName, onChunk)]];
+      chain = [['Système: ' + voiceName, (t) => speakSystem(t, voiceName, onChunk)]];
     } else {
-      chain = [['Système', (t) => speakSystem(t, undefined, onChunk)]];
+      chain = [
+        ['Voxtral: marie', (t) => speakVoxtral(t, 'marie', onChunk)],
+        ['Système', (t) => speakSystem(t, null, onChunk)]
+      ];
     }
     let i = 0;
     const next = () => {
@@ -2158,21 +2023,6 @@ if (!profile){
 }
 /* REVEIL "HEY ASTRA" : si active et accueil deja fait -> oreille en arriere-plan */
 if (wakeEnabled && welcomeDone) startWakeRecog();
-/* v9.63 : pré-chargement SpeechT5 au démarrage (pas de blocage) */
-setTimeout(async () => {
-  try {
-    console.log('[SPEECHT5] Pré-chargement au démarrage...');
-    const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0');
-    const device = (navigator.gpu ? 'webgpu' : 'wasm');
-    const dtype = 'q8';
-    const pipe = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
-      device,
-      dtype,
-      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
-    });
-    window.__speecht5Pipeline = pipe;
-    console.log('[SPEECHT5] Pré-chargement terminé — prêt pour utilisation immédiate');
-  } catch(e) {
-    console.warn('[SPEECHT5] Pré-chargement échoué (non bloquant):', e);
-  }
-}, 3000);
+/* v9.64 : plus de pré-chargement de modèle local — Voxtral est une API cloud
+   (aucun téléchargement navigateur, réponse ~1-3s). */
+console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'configurée' : 'MANQUANTE (Réglages → Clé API Mistral)'));
