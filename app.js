@@ -698,12 +698,12 @@ let recog = null;
    pause en parlant (respirer, chercher ses mots) sans se faire couper. */
 let pendingSpeech = '';
 let pendingTimer = null;
-const PENDING_MS = 1500;
+const PENDING_MS = /Mobi|Android|iPhone/i.test(navigator.userAgent || '') ? 500 : 1500;
 function flushPendingSpeech(){
   if (pendingTimer){ clearTimeout(pendingTimer); pendingTimer = null; }
   const txt = pendingSpeech.trim();
   pendingSpeech = '';
-  if (txt) handleQuestion(txt);
+  if (txt) { if (txt.length < 3) return; handleQuestion(txt); }
 }
 function resetPendingTimer(){
   if (pendingTimer) clearTimeout(pendingTimer);
@@ -2716,7 +2716,10 @@ async function handleQuestion(question){
     /* v9.67 : période de la journée -> "Il est 8h42 du matin, lundi..." */
     const periodOf = getDayPeriod().of;
     const repSpoken = "Il est " + timeDigits + " " + periodOf + ", " + dateWords + ".";
-    updateMood(question);
+  /* v10.0.2 : mobile — nettoyer le timer de grace au debut d'une nouvelle question */
+  if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+  pendingSpeech = '';
+  updateMood(question);
     const repMood = applyMood(rep, currentMood);
     const repSpokenMood = applyMood(repSpoken, currentMood);
     addAiMsg(repMood);
