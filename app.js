@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.83';
+const APP_VERSION = '9.84';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -233,6 +233,9 @@ let state = 'idle';
 let session = [];
 let toastTimer = null;
 let isProcessing = false;
+/* v9.84 : l'IA n'ecoute JAMAIS pendant qu'elle parle (sinon le micro capte sa
+   propre voix -> elle s'interrompt elle-meme en boucle en mode continu) */
+let isSpeaking = false;
 let manualStop = false;
 let lastReplyText = ''; /* anti-repetition : jamais 2 fois la meme reponse */
 
@@ -593,6 +596,8 @@ if (SR){
   recog.maxAlternatives = 1;
   recog.continuous = false;
   recog.onresult = e => {
+    /* v9.84 : on ignore tout ce que le micro capte pendant que l'IA parle */
+    if (isSpeaking) return;
     let finalTxt = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i];
@@ -612,6 +617,8 @@ if (SR){
   };
   recog.onerror = e => {
     setState('idle');
+    /* v9.84 : jamais d'enregistrement pendant que l'IA parle (elle s'ecouterait) */
+    if (isSpeaking) return;
     if (e.error === 'not-allowed') setStatus('Micro bloque - autorise le micro');
     else if (e.error === 'no-speech'){ startRecorder(); }
     else { setStatus('Erreur micro (' + e.error + ') - j\'essaye l\'enregistrement'); startRecorder(); }
@@ -620,7 +627,7 @@ if (SR){
     if (state === 'listening'){
       /* v9.83 : mode continu -> on relance la reconnaissance directement
          (pas de fallback enregistrement a chaque silence) */
-      if (continuousMode && !continuousPaused){
+      if (continuousMode && !continuousPaused && !isSpeaking){
         try { setState('listening'); recog.start(); return; } catch {}
       }
       setState('idle');
@@ -726,7 +733,7 @@ function maybeRestartListening(){
   if (!continuousMode || continuousPaused || !welcomeDone){ maybeRestartWake(); return; }
   clearTimeout(continuousTimer);
   continuousTimer = setTimeout(() => {
-    if (isProcessing || continuousPaused || state !== 'idle') return;
+    if (isProcessing || continuousPaused || state !== 'idle' || isSpeaking) return;
     warmUpBrain(); /* le cerveau se charge pendant que l'utilisateur parle */
     if (!recog){ startRecorder(); return; }
     try {
@@ -768,6 +775,8 @@ function cleanupRecorder(){
 }
 async function startRecorder(){
   if (recorderBusy) return;
+  /* v9.84 : jamais d'enregistrement pendant que l'IA parle */
+  if (isSpeaking) return;
   recorderBusy = true;
   /* v9.49 : reveil du cerveau PENDANT que l'utilisateur parle -> reponse rapide */
   warmUpBrain();
@@ -2055,6 +2064,7 @@ function speak(text, onChunk){
     let clean = text;
     try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); }
     voiceStartedFlag = false;
+    isSpeaking = true;
     setState('speaking');
     setStatus('...');
     let settled = false;
@@ -2062,6 +2072,7 @@ function speak(text, onChunk){
       if (settled) return;
       settled = true;
       clearTimeout(globalTimer);
+      isSpeaking = false;
       setState('idle');
       if (ok) setStatus("Appuie sur le micro et parle");
       maybeRestartWake(); /* app inactive -> l'oreille "hey astra" se rallume */
@@ -2118,6 +2129,7 @@ let currentAudios = [];
    global ne doit pas afficher "Voix indisponible" si du son est deja sorti */
 let voiceStartedFlag = false;
 function stopAudio(){
+  isSpeaking = false; /* v9.84 : plus de parole -> le micro peut reecouter */
   currentAudios.forEach(a => { try { a.pause(); a.src = ''; a.remove(); } catch {} });
   currentAudios = [];
   currentSources.forEach(s => { try { s.stop(); s.disconnect(); } catch {} });
