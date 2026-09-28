@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.94';
+const APP_VERSION = '9.95';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -1185,22 +1185,11 @@ async function askBrain(messages, webCtx){
      (jamais de message d'erreur). v9.49 : warmUpBrain() réveille le modèle
      pendant que l'utilisateur parle -> la 1re tentative réussit en ~0.3s. */
   const localText = localSmartReply(question);
-  /* v9.91 : Pollinations ET Mistral chat en PARALLELE -> la premiere reponse
-     fiable gagne. Quand Pollinations est sature (429), Mistral repond en
-     quelques secondes au lieu d'attendre toutes les tentatives Pollinations. */
   const mistralKey = getMistralKey();
-  const pollinationsPromise = (async () => {
-    for (let i = 0; i < 2; i++){
-      if (i > 0) await new Promise(r => setTimeout(r, 400));
-      const t = await tryPollinationsGet('openai');
-      if (typeof t === 'string') return t;
-    }
-    /* POST en dernier recours (parfois disponible quand le GET est saturé) */
-    const p = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
-    if (typeof p === 'string') return p;
-    return null;
-  })();
-  const mistralPromise = mistralKey ? (async () => {
+  /* v9.95 : POLLINATIONS SUPPRIME quand la cle Mistral existe — le service est
+     sature en permanence (429 sur GET ET POST) -> bruit console + lenteur.
+     Mistral chat seul : fiable, rapide, repond toujours. */
+  const tryMistralChat = async () => {
     for (const model of ['open-mistral-nemo', 'mistral-small-latest']){
       try {
         const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -1216,13 +1205,27 @@ async function askBrain(messages, webCtx){
       } catch {}
     }
     return null;
-  })() : Promise.resolve(null);
-  const winner = await Promise.race([
-    pollinationsPromise.then(t => (t && typeof t === 'string') ? { text: t, diag: 'Pollinations' } : null),
-    mistralPromise.then(t => t ? { text: t, diag: 'Mistral' } : null),
-    new Promise(r => setTimeout(() => r(null), 25000))
-  ]);
-  if (winner) return { text: fixFrench(winner.text), diag: winner.diag };
+  };
+  if (mistralKey){
+    const t = await tryMistralChat();
+    if (t) return { text: fixFrench(t), diag: 'Mistral' };
+    /* Secours : mémoire locale (jamais de message d'erreur) */
+    return { text: localText, diag: 'local' };
+  }
+  /* Pas de cle Mistral -> Pollinations (gratuit, sans cle) puis local */
+  const pollinationsPromise = (async () => {
+    for (let i = 0; i < 2; i++){
+      if (i > 0) await new Promise(r => setTimeout(r, 400));
+      const t = await tryPollinationsGet('openai');
+      if (typeof t === 'string') return t;
+    }
+    /* POST en dernier recours (parfois disponible quand le GET est saturé) */
+    const p = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+    if (typeof p === 'string') return p;
+    return null;
+  })();
+  const t = await pollinationsPromise;
+  if (t) return { text: fixFrench(t), diag: 'Pollinations' };
   /* Secours : mémoire locale (jamais de message d'erreur) */
   return { text: localText, diag: 'local' };
 }
@@ -1234,6 +1237,9 @@ let brainWarmTimer = null;
 function warmUpBrain(){
   if (brainWarmTimer) return;
   brainWarmTimer = setTimeout(() => { brainWarmTimer = null; }, 30000);
+  /* v9.95 : plus de warm-up Pollinations quand la cle Mistral existe
+     (Mistral est toujours chaud ; Pollinations 429 = bruit inutile) */
+  if (getMistralKey()) return;
   try {
     const url = 'https://text.pollinations.ai/' + encodeURIComponent('Reponds juste: ok') + '?model=openai';
     Promise.race([fetch(url), new Promise(r => setTimeout(() => r(null), 20000))])
