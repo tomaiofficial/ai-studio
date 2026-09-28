@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.96';
+const APP_VERSION = '9.97';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -637,12 +637,30 @@ textInput.addEventListener('input', () => warmUpBrain());
 /* ===== RECONNAISSANCE VOCALE ===== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog = null;
+/* v9.97 : ANTI-COUPURE — la reconnaissance ACCUMULE le texte et attend un
+   silence de 1.5s avant de traiter la question. L'utilisateur peut faire une
+   pause en parlant (respirer, chercher ses mots) sans se faire couper. */
+let pendingSpeech = '';
+let pendingTimer = null;
+const PENDING_MS = 1500;
+function flushPendingSpeech(){
+  if (pendingTimer){ clearTimeout(pendingTimer); pendingTimer = null; }
+  const txt = pendingSpeech.trim();
+  pendingSpeech = '';
+  if (txt) handleQuestion(txt);
+}
+function resetPendingTimer(){
+  if (pendingTimer) clearTimeout(pendingTimer);
+  pendingTimer = setTimeout(flushPendingSpeech, PENDING_MS);
+}
 if (SR){
   recog = new SR();
   recog.lang = 'fr-FR';
   recog.interimResults = true;
   recog.maxAlternatives = 1;
-  recog.continuous = false;
+  /* v9.97 : continuous=true -> la reconnaissance ne s'arrete plus au premier
+     silence (avant : elle coupait des que l'utilisateur faisait une pause) */
+  recog.continuous = true;
   recog.onresult = e => {
     /* v9.84 : on ignore tout ce que le micro capte pendant que l'IA parle */
     if (isSpeaking) return;
@@ -653,7 +671,10 @@ if (SR){
     }
     finalTxt = finalTxt.trim();
     if (finalTxt) {
-      handleQuestion(finalTxt);
+      /* v9.97 : on ACCUMULE le texte + timer de grace -> une pause courte
+         pendant la parole ne coupe plus la question */
+      pendingSpeech += finalTxt + ' ';
+      resetPendingTimer();
       return;
     }
     const interim = Array.from(e.results).map(r => r[0].transcript).join(' ').trim();
@@ -661,6 +682,8 @@ if (SR){
       setStatus('"' + interim.slice(0,50) + '..."');
       // Sous-titre temps reel
       showInterim(interim);
+      /* v9.97 : l'utilisateur parle encore -> on repousse le timer */
+      resetPendingTimer();
     }
   };
   recog.onerror = e => {
@@ -1026,6 +1049,9 @@ if (stopBtn) stopBtn.addEventListener('click', () => {
   /* v9.83 : le stop coupe aussi le mode continu */
   continuousPaused = true;
   clearTimeout(continuousTimer);
+  /* v9.97 : stop -> on annule aussi la question en attente (timer de grace) */
+  if (pendingTimer){ clearTimeout(pendingTimer); pendingTimer = null; }
+  pendingSpeech = '';
   welcomePlaying = false;
   setState('idle');
   setStatus("Appuie sur le micro et parle");
@@ -2320,6 +2346,9 @@ async function handleQuestion(question){
   /* v9.83 : une nouvelle question relance le mode continu a la fin de la reponse */
   continuousPaused = false;
   try{ recog && recog.stop(); }catch{}
+  /* v9.97 : la question est lancee -> on annule le timer de grace en attente */
+  if (pendingTimer){ clearTimeout(pendingTimer); pendingTimer = null; }
+  pendingSpeech = '';
   stopWakeRecog(); /* question en cours -> plus besoin de l'oreille de reveil */
   /* si une bulle utilisateur existe deja (sous-titre interim), on la complete au lieu d'en creer une autre */
   const last = chat.lastElementChild;
