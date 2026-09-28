@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.91';
+const APP_VERSION = '9.92';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -77,13 +77,33 @@ async function speakVoxtral(text, voiceId, onChunk){
     const chunks = splitSentences(text, 500);
     /* v9.66 : tous les chunks sont générés EN PARALLÈLE (Promise.all) puis joués
        dans l'ordre -> latence = max(générations) au lieu de la somme.
-       Timeout 10s par chunk : si l'API pend, on bascule vite sur la voix suivante. */
-    const results = await Promise.all(chunks.map(async (chunk) => {
+       Timeout 15s par chunk (v9.92 : 10s -> 15s, l'API pend parfois). */
+    let results = await generateChunks(chunks, voiceId, key);
+    /* v9.92 : RETRY 1x si la generation a echoue (429/timeout transitoire)
+       -> on evite de basculer sur la voix systeme pour un simple raté */
+    if (results.some(r => !r)){
+      console.warn('[VOXTRAL] Generation partielle -> retry 1x');
+      await new Promise(r => setTimeout(r, 1200));
+      results = await generateChunks(chunks, voiceId, key);
+    }
+    if (results.some(r => !r)) return false; /* toujours en echec -> bascule */
+    for (let i = 0; i < results.length; i++){
+      if (onChunk) onChunk(chunks[i]);
+      const ok = await playAudioBlob(results[i]);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOXTRAL] Échec:', e && e.message); return false; }
+}
+/* v9.92 : generation des chunks Voxtral (extrait pour le retry) */
+async function generateChunks(chunks, voiceId, key){
+  return await Promise.all(chunks.map(async (chunk) => {
+    try {
       const res = await fetch(VOXTRAL_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
         body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice_id: voiceId, response_format: 'mp3' }),
-        signal: abortSignal(10000)
+        signal: abortSignal(15000)
       });
       if (!res.ok){
         const errText = await res.text().catch(() => '');
@@ -96,15 +116,8 @@ async function speakVoxtral(text, voiceId, onChunk){
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       return new Blob([bytes], { type: 'audio/mpeg' });
-    }));
-    if (results.some(r => !r)) return false; /* un chunk a échoué -> bascule */
-    for (let i = 0; i < results.length; i++){
-      if (onChunk) onChunk(chunks[i]);
-      const ok = await playAudioBlob(results[i]);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[VOXTRAL] Échec:', e && e.message); return false; }
+    } catch(e){ console.warn('[VOXTRAL] chunk echec:', e && e.message); return null; }
+  }));
 }
 /* v9.65 : volume BOOSTÉ (gain 1.8) via le contexte partagé — le volume max d'un
    élément <audio> est 1.0, le Web Audio permet de dépasser. Débloque aussi
@@ -2198,6 +2211,10 @@ function speak(text, onChunk){
       setStatus('Voix ' + name + '...');
       Promise.resolve().then(() => fn(clean)).then(ok => {
         if (ok) { console.log('[VOIX] ' + name + ' OK'); done(true); }
+        /* v9.92 : si une voix a DEJA joue du son mais echoue en cours de route
+           (chunk suivant), on ne bascule PAS sur la voix suivante -> sinon la
+           voix systeme rejoue tout en double par-dessus */
+        else if (voiceStartedFlag) { console.warn('[VOIX] ' + name + ' partiel -> on garde'); done(true); }
         else { console.warn('[VOIX] ' + name + ' bloque'); next(); }
       }).catch(e => { console.warn('[VOIX] ' + name + ' erreur:', e && e.message); next(); });
     };
