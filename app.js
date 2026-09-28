@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.65';
+const APP_VERSION = '9.66';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -55,27 +55,33 @@ async function speakVoxtral(text, voiceId, onChunk){
   const key = getMistralKey();
   if (!key){ console.warn('[VOXTRAL] Pas de clé API Mistral — ajoute-la dans Réglages'); return false; }
   try {
-    const chunks = splitSentences(text, 250);
-    for (const chunk of chunks){
-      if (onChunk) onChunk(chunk);
+    const chunks = splitSentences(text, 500);
+    /* v9.66 : tous les chunks sont générés EN PARALLÈLE (Promise.all) puis joués
+       dans l'ordre -> latence = max(générations) au lieu de la somme.
+       Timeout 10s par chunk : si l'API pend, on bascule vite sur la voix suivante. */
+    const results = await Promise.all(chunks.map(async (chunk) => {
       const res = await fetch(VOXTRAL_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
         body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice_id: voiceId, response_format: 'mp3' }),
-        signal: AbortSignal.timeout(30000)
+        signal: AbortSignal.timeout(10000)
       });
       if (!res.ok){
         const errText = await res.text().catch(() => '');
         console.warn('[VOXTRAL] HTTP', res.status, errText.slice(0, 200));
-        return false;
+        return null;
       }
       const data = await res.json();
-      if (!data || !data.audio_data){ console.warn('[VOXTRAL] Pas de audio_data dans la réponse'); return false; }
+      if (!data || !data.audio_data){ console.warn('[VOXTRAL] Pas de audio_data dans la réponse'); return null; }
       const binary = atob(data.audio_data);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'audio/mpeg' });
-      const ok = await playAudioBlob(blob);
+      return new Blob([bytes], { type: 'audio/mpeg' });
+    }));
+    if (results.some(r => !r)) return false; /* un chunk a échoué -> bascule */
+    for (let i = 0; i < results.length; i++){
+      if (onChunk) onChunk(chunks[i]);
+      const ok = await playAudioBlob(results[i]);
       if (!ok) return false;
     }
     return true;
@@ -1634,10 +1640,10 @@ function playGoogleChunk(c){
       });
     };
     tryPlay(0);
-    /* si rien ne joue apres 6s (reseau bloque) -> voix suivante, pas 25s d'attente */
-    setTimeout(() => { if (!done && !started) finish(false); }, 6000);
+    /* si rien ne joue apres 4s (reseau bloque) -> voix suivante, pas 25s d'attente */
+    setTimeout(() => { if (!done && !started) finish(false); }, 4000);
     /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
-    setTimeout(() => { if (!done) finish(true); }, 30000);
+    setTimeout(() => { if (!done) finish(true); }, 15000);
   });
 }
 /* v9.64 : Google TTS = dernier recours universel (gratuit, sans clé, marche partout) */
@@ -1853,8 +1859,9 @@ function speak(text, onChunk){
       if (!voiceStartedFlag) setStatus("Voix système - pret");
       done(false);
     };
-    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
+    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 20s sans son
+       (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large) */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 20000);
     /* VOIX : Voxtral TTS (Mistral AI) — priorité #1, secours Système puis Google */
     const voiceMode = getVoice();
     let chain;
