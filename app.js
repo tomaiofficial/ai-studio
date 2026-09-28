@@ -321,7 +321,16 @@ function updateMood(question){
     else if (h >= 12 && h < 18) pool = ['zen', 'curieuse', 'joyeuse', 'neutre', 'neutre', 'blagueuse'];
     else if (h >= 18 && h < 23) pool = ['fatiguee', 'taquine', 'blagueuse', 'neutre', 'neutre', 'sarcastique'];
     else pool = ['fatiguee', 'zen', 'neutre', 'neutre', 'sarcastique'];
-    if (Math.random() < 0.15) currentMood = pool[Math.floor(Math.random() * pool.length)];
+    if (Math.random() < 0.18) {
+        /* v10.1 : DERAPAGE - des fois, sans raison, Astra pete un cable :
+           1 tirage sur 3 pioche une humeur corrosive (violente, vulgaire,
+           sarcastique, agacee, taquine) au lieu du pool sympathique. */
+        if (Math.random() < 0.33) {
+          currentMood = ['violente', 'vulgaire', 'sarcastique', 'agacee', 'taquine'][Math.floor(Math.random() * 5)];
+        } else {
+          currentMood = pool[Math.floor(Math.random() * pool.length)];
+        }
+      }
   }
   /* Retour neutre après 30s si pas de provocation */
   if (moodTimer) clearTimeout(moodTimer);
