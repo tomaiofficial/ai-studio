@@ -1,0 +1,32 @@
+name: Remove Kokoro voices (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  restore-speecht5:
+    # Ne s'exécute que si Kokoro est encore présent (idempotent, auto-désactivé)
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Retirer Kokoro - restaurer app.js et index.html (v9.63 SpeechT5, commit 045feb2f04)
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if grep -qi kokoro app.js index.html 2>/dev/null; then
+            git checkout 045feb2f04 -- app.js index.html
+            git add app.js index.html
+            git commit -m "v9.64 : retrait complet de Kokoro — restauration SpeechT5 (5 voix FR/EN + secours Edge/système) [skip ci]"
+            git push
+            echo "Restauration SpeechT5 effectuee et poussee."
+          else
+            echo "Aucune trace de Kokoro : rien a faire."
+          fi
