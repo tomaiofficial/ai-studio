@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.97';
+const APP_VERSION = '9.98';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -2338,6 +2338,134 @@ function stopAudio(){
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
   try { audioCtx && audioCtx.close(); } catch {}
 }
+/* ===== TABLEAU DE MATHS + CALCULATRICE (v9.98) =====
+   Quand l'utilisateur pose une question de maths, le tableau s'ouvre et
+   l'IA y ecrit les etapes du calcul (comme un prof au tableau). Une
+   calculatrice est integree en bas du panneau. */
+function isMathQuestion(q){
+  const s = (q || '').toLowerCase();
+  return /(calcul|calcule|combien font|combien fait|combien ça fait|combien ca fait|addition|soustraction|multiplication|division|équation|equation|résous|resous|résoudre|resoudre|pourcent|fraction|au carré|au carre|au cube|racine|table de (multiplication|addition|soustraction|division)|table des|\d+\s*[+\-×÷*/x]\s*\d+|\d+\s*(fois|plus|moins|divis))/i.test(s);
+}
+/* Calculatrice securisee : valide l'expression puis l'evalue (pas de eval brut) */
+function safeCalc(expr){
+  try {
+    let e = String(expr)
+      .replace(/×/g, '*').replace(/÷/g, '/').replace(/x/gi, '*')
+      .replace(/,/g, '.').replace(/\s+/g, '')
+      .replace(/%/g, '/100');
+    if (!/^[\d+\-*/().]+$/.test(e)) return null;
+    if (!/\d/.test(e)) return null;
+    const v = Function('"use strict";return (' + e + ')')();
+    if (typeof v !== 'number' || !isFinite(v)) return null;
+    return Math.round(v * 1e10) / 1e10;
+  } catch { return null; }
+}
+/* Extrait le calcul de la question : "combien font 15 × 7" -> 15*7 */
+function extractMathExpr(q){
+  const s = (q || '').toLowerCase();
+  let m = s.match(/(\d+(?:[.,]\d+)?)\s*(?:pourcent|%)\s*(?:de|d')\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return { type: 'percent', a: parseFloat(m[1].replace(',', '.')), b: parseFloat(m[2].replace(',', '.')) };
+  m = s.match(/racine\s*(?:carrée|carree)?\s*(?:de|d')\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return { type: 'sqrt', a: parseFloat(m[1].replace(',', '.')) };
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*au\s*(carré|carre|cube)/);
+  if (m) return { type: 'pow', a: parseFloat(m[1].replace(',', '.')), b: m[2].indexOf('cube') === 0 ? 3 : 2 };
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*fois\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return { type: 'expr', expr: m[1] + '*' + m[2] };
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*divis[ée]?\s*par\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return { type: 'expr', expr: m[1] + '/' + m[2] };
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*plus\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return { type: 'expr', expr: m[1] + '+' + m[2] };
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*moins\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return { type: 'expr', expr: m[1] + '-' + m[2] };
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*([+\-×÷*/x])\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return { type: 'expr', expr: m[1] + m[2] + m[3] };
+  return null;
+}
+/* Genere les etapes pedagogiques du calcul (affichage tableau) */
+function mathSteps(parsed){
+  if (!parsed) return null;
+  const fmt = n => { const r = Math.round(n * 1e10) / 1e10; return String(r); };
+  if (parsed.type === 'percent'){
+    const r = parsed.a / 100 * parsed.b;
+    return [
+      parsed.a + '% de ' + parsed.b,
+      '1) ' + parsed.a + ' ÷ 100 = ' + fmt(parsed.a / 100),
+      '2) ' + fmt(parsed.a / 100) + ' × ' + parsed.b + ' = ' + fmt(r),
+      '→ ' + fmt(r)
+    ];
+  }
+  if (parsed.type === 'sqrt'){
+    const r = Math.sqrt(parsed.a);
+    return [
+      '√' + parsed.a,
+      'Quel nombre multiplié par lui-même donne ' + parsed.a + ' ?',
+      '→ ' + fmt(r)
+    ];
+  }
+  if (parsed.type === 'pow'){
+    const r = Math.pow(parsed.a, parsed.b);
+    return [
+      parsed.a + (parsed.b === 2 ? '²' : '³'),
+      parsed.a + ' × ' + parsed.a + (parsed.b === 3 ? ' × ' + parsed.a : ''),
+      '→ ' + fmt(r)
+    ];
+  }
+  const expr = parsed.expr;
+  const r = safeCalc(expr);
+  if (r === null) return null;
+  const mm = expr.match(/(\d+(?:\.\d+)?)\s*([+\-*/])\s*(\d+(?:\.\d+)?)/);
+  if (!mm) return [expr.replace('*', '×').replace('/', '÷') + ' = ' + fmt(r)];
+  const A = parseFloat(mm[1]), B = parseFloat(mm[3]), op = mm[2];
+  const pretty = expr.replace('*', '×').replace('/', '÷');
+  const steps = [pretty + ' = ' + fmt(r)];
+  if (op === '+') steps.push(A + ' + ' + B + ' : on additionne les deux nombres');
+  else if (op === '-') steps.push(A + ' - ' + B + ' : on retire ' + B + ' à ' + A);
+  else if (op === '*') steps.push(A + ' × ' + B + ' : on multiplie les deux nombres');
+  else if (op === '/') steps.push(A + ' ÷ ' + B + ' : on partage ' + A + ' en ' + B + ' parts égales');
+  steps.push('→ ' + fmt(r));
+  return steps;
+}
+function showMathPanel(){
+  const p = document.getElementById('mathPanel');
+  if (p) p.classList.remove('hidden');
+}
+function hideMathPanel(){
+  const p = document.getElementById('mathPanel');
+  if (p) p.classList.add('hidden');
+}
+function clearMathBoard(){
+  const b = document.getElementById('mathBoard');
+  if (b) b.innerHTML = '';
+}
+function mathWrite(html){
+  const b = document.getElementById('mathBoard');
+  if (b) b.insertAdjacentHTML('beforeend', html);
+}
+/* Calculatrice : logique des boutons */
+let calcExpr = '';
+function calcPress(key){
+  const screen = document.getElementById('calcScreen');
+  if (!screen) return;
+  if (key === 'C'){ calcExpr = ''; screen.textContent = '0'; return; }
+  if (key === '⌫'){ calcExpr = calcExpr.slice(0, -1); screen.textContent = calcExpr || '0'; return; }
+  if (key === '='){
+    const r = safeCalc(calcExpr);
+    screen.textContent = r === null ? 'Erreur' : String(r);
+    calcExpr = r === null ? '' : String(r);
+    return;
+  }
+  calcExpr += key;
+  screen.textContent = calcExpr;
+}
+/* Bindings calculatrice + fermeture du panneau */
+(function(){
+  const closeBtn = document.getElementById('mathClose');
+  if (closeBtn) closeBtn.addEventListener('click', hideMathPanel);
+  document.querySelectorAll('.calc-btn').forEach(btn => {
+    btn.addEventListener('click', () => calcPress(btn.getAttribute('data-k')));
+  });
+})();
+
 async function handleQuestion(question){
   if (isProcessing) return;
   stopAudio(); /* nettoyage etat precedent avant nouvelle question */
@@ -2390,6 +2518,20 @@ async function handleQuestion(question){
     manualStop = false;
     maybeRestartListening();
     return;
+  }
+  /* v9.98 : TABLEAU DE MATHS — si la question est math, on ouvre le tableau
+     et on ecrit les etapes du calcul (le cerveau explique en plus a l'oral) */
+  if (isMathQuestion(question)){
+    showMathPanel();
+    const parsed = extractMathExpr(question);
+    if (parsed){
+      const steps = mathSteps(parsed);
+      if (steps){
+        clearMathBoard();
+        mathWrite('<div class="math-line q">' + escapeHtml(question) + '</div>');
+        steps.forEach(s => mathWrite('<div class="math-line' + (s.indexOf('→') === 0 ? ' result' : '') + '">' + escapeHtml(s) + '</div>'));
+      }
+    }
   }
   /* MODE AGENT : si la question demande une tache multi-etapes (planifie, compare,
      analyse, recherche sur...), Astra passe en agent autonome : plan -> etapes ->

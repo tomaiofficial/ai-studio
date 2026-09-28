@@ -308,6 +308,58 @@ select.wide-input{appearance:none}
 }
 .conv-msg.user{border-left-color:#ff9f2e}
 .conv-msg.ai{border-left-color:#3cdca0}
+/* ===== TABLEAU DE MATHS + CALCULATRICE (v9.98) ===== */
+.math-panel{
+  position:fixed;right:16px;top:70px;bottom:16px;width:300px;z-index:20;
+  background:rgba(16,16,30,.94);backdrop-filter:blur(14px);
+  border:1px solid rgba(124,92,255,.3);border-radius:18px;
+  display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.5);
+}
+.math-panel.hidden{display:none}
+.math-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;background:rgba(124,92,255,.15);
+  border-bottom:1px solid rgba(124,92,255,.2);font-weight:700;font-size:14px;color:#fff;
+  flex-shrink:0;
+}
+.math-close{
+  background:none;border:none;color:#9a9ab5;font-size:18px;cursor:pointer;padding:2px 6px;
+}
+.math-close:active{transform:scale(.9)}
+.math-board{
+  flex:1;overflow-y:auto;padding:14px;font-family:'Courier New',monospace;
+  background:rgba(8,22,14,.55);
+  border-bottom:1px solid rgba(124,92,255,.15);
+}
+.math-empty{color:#5a8a6a;font-size:13px;font-family:'Inter',sans-serif;text-align:center;margin-top:20px;line-height:1.5}
+.math-line{
+  color:#c8f0d8;font-size:15px;line-height:1.7;padding:3px 0;
+  border-bottom:1px dashed rgba(200,240,216,.12);
+  white-space:pre-wrap;word-break:break-word;
+}
+.math-line.result{color:#7cffb0;font-weight:700;font-size:17px}
+.math-line.q{color:#ffd27c;font-weight:600}
+.calc{padding:10px;background:#10101e;flex-shrink:0}
+.calc-screen{
+  background:#0a0a14;border:1px solid #2a2a45;border-radius:10px;
+  padding:12px;text-align:right;font-size:22px;font-weight:600;color:#fff;
+  margin-bottom:10px;min-height:48px;overflow:hidden;white-space:nowrap;
+  font-family:'Courier New',monospace;
+}
+.calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.calc-btn{
+  padding:12px 0;border-radius:10px;border:none;cursor:pointer;
+  background:#1c1c33;color:#e8e8f0;font-size:17px;font-weight:600;
+  transition:transform .1s ease;
+}
+.calc-btn:active{transform:scale(.94)}
+.calc-btn.op{background:#2a2145;color:#b9a6ff}
+.calc-btn.eq{background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;grid-column:span 2}
+/* mobile : le panneau prend le bas de l'ecran */
+@media (max-width:640px){
+  .math-panel{left:10px;right:10px;top:auto;bottom:10px;height:48vh;width:auto}
+}
 </style>
 </head>
 <body>
@@ -429,6 +481,41 @@ select.wide-input{appearance:none}
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.97"></script>
+<!-- TABLEAU DE MATHS + CALCULATRICE (v9.98) : s'ouvre quand l'IA fait des maths -->
+<div id="mathPanel" class="math-panel hidden">
+  <div class="math-header">
+    <span>📐 Tableau de maths</span>
+    <button class="math-close" id="mathClose" aria-label="Fermer">✕</button>
+  </div>
+  <div class="math-board" id="mathBoard">
+    <div class="math-empty">Pose une question de maths :<br>« combien font 15 × 7 ? »</div>
+  </div>
+  <div class="calc">
+    <div class="calc-screen" id="calcScreen">0</div>
+    <div class="calc-grid">
+      <button class="calc-btn op" data-k="C">C</button>
+      <button class="calc-btn op" data-k="⌫">⌫</button>
+      <button class="calc-btn op" data-k="%">%</button>
+      <button class="calc-btn op" data-k="÷">÷</button>
+      <button class="calc-btn" data-k="7">7</button>
+      <button class="calc-btn" data-k="8">8</button>
+      <button class="calc-btn" data-k="9">9</button>
+      <button class="calc-btn op" data-k="×">×</button>
+      <button class="calc-btn" data-k="4">4</button>
+      <button class="calc-btn" data-k="5">5</button>
+      <button class="calc-btn" data-k="6">6</button>
+      <button class="calc-btn op" data-k="-">−</button>
+      <button class="calc-btn" data-k="1">1</button>
+      <button class="calc-btn" data-k="2">2</button>
+      <button class="calc-btn" data-k="3">3</button>
+      <button class="calc-btn op" data-k="+">+</button>
+      <button class="calc-btn" data-k="0">0</button>
+      <button class="calc-btn" data-k=".">.</button>
+      <button class="calc-btn eq" data-k="=">=</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=9.98"></script>
 </body>
 </html>
