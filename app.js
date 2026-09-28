@@ -596,9 +596,7 @@ function addAiMsg(text, diag){
   }
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
-  /* SOUS-TITRES : affiche ce que dit l'IA sous la bulle (interface vocale) */
-  const sub = document.getElementById('subtitle');
-  if (sub) sub.textContent = cleanMarkdown(text);
+  /* v10.0 : sous-titres UNIQUEMENT quand l'utilisateur parle (pas l'IA) */
 }
 /* Sous-titre temps reel : met a jour la derniere bulle utilisateur */
 function showInterim(text){
@@ -2835,7 +2833,10 @@ async function handleQuestion(question){
     agentMode ? runAgent(question) : askAI(question),
     new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
   ]);
-  if (r.text) r.text = applyMood(r.text, currentMood);
+  if (r.text) {
+    r.text = r.text.replace(/\betc\.?\b/gi, 'et cetera');  /* v10.0 : "etc." -> "et cetera" (le bon) */
+    r.text = applyMood(r.text, currentMood);
+  }
   if (r.error){
     writingMode = false;
     setState('idle');
@@ -2868,7 +2869,7 @@ async function handleQuestion(question){
       dd.textContent = 'Diagnostic: ' + r.diag;
       msgDiv.appendChild(dd);
     }
-    if (sub) sub.textContent = cleanFull;
+    /* v10.0 : sous-titre UNIQUEMENT quand l'utilisateur parle (pas l'IA) */
     chat.scrollTop = chat.scrollHeight;
   });
   /* Sécurité : si speak a échoué sans rien afficher, on met le texte complet */
@@ -2881,13 +2882,16 @@ async function handleQuestion(question){
       dd.textContent = 'Diagnostic: ' + r.diag;
       msgDiv.appendChild(dd);
     }
-    if (sub) sub.textContent = cleanFull;
+    if (sub) sub.textContent = '';  /* v10.0 : sous-titre vide quand l'IA parle */
   }
+  /* v10.0 : sous-titre UNIQUEMENT quand l'utilisateur parle — on ne met pas le texte de l'IA dans le sous-titre */
   /* v10.0 : BLOC-NOTES — si demande d'ecriture, l'IA ecrit le texte dans le
      bloc-notes (elle ecrit, pas l'utilisateur) */
   if (writingMode){
     showNotePanel();
-    noteWrite(cleanMarkdown(r.text));
+    let noteText = cleanMarkdown(r.text);
+    noteText = noteText.replace(/\betc\.?\b/gi, 'et cetera');  /* v10.0 : "etc." -> "et cetera" */
+    noteWrite(noteText);
   }
   writingMode = false;
   isProcessing = false;
