@@ -360,6 +360,37 @@ select.wide-input{appearance:none}
 @media (max-width:640px){
   .math-panel{left:10px;right:10px;top:auto;bottom:10px;height:48vh;width:auto}
 }
+/* ===== BLOC-NOTES (v10.0) : l'IA y ecrit (lettres, textes, notes...) ===== */
+.note-panel{
+  position:fixed;left:16px;top:70px;bottom:16px;width:300px;z-index:20;
+  background:rgba(16,16,30,.94);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,159,46,.3);border-radius:18px;
+  display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.5);
+}
+.note-panel.hidden{display:none}
+.note-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;background:rgba(255,159,46,.15);
+  border-bottom:1px solid rgba(255,159,46,.2);font-weight:700;font-size:14px;color:#fff;
+  flex-shrink:0;
+}
+.note-actions{display:flex;align-items:center;gap:6px}
+.note-btn{
+  background:rgba(255,159,46,.2);border:1px solid rgba(255,159,46,.35);
+  color:#ffd27c;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;
+  cursor:pointer;
+}
+.note-btn:active{transform:scale(.94)}
+.note-area{
+  flex:1;resize:none;border:none;outline:none;background:#10101e;color:#e8e8f0;
+  padding:14px;font-size:14px;line-height:1.6;font-family:'Inter',sans-serif;
+}
+.note-area::placeholder{color:#5a5a7a}
+/* mobile : le bloc-notes prend le haut de l'ecran */
+@media (max-width:640px){
+  .note-panel{left:10px;right:10px;top:10px;bottom:auto;height:40vh;width:auto}
+}
 </style>
 </head>
 <body>
@@ -516,6 +547,19 @@ select.wide-input{appearance:none}
   </div>
 </div>
 
-<script src="app.js?v=9.99.1"></script>
+<!-- BLOC-NOTES (v10.0) : l'IA y ecrit (lettres, textes, notes, poemes...) -->
+<div id="notePanel" class="note-panel hidden">
+  <div class="note-header">
+    <span>📝 Bloc-notes</span>
+    <div class="note-actions">
+      <button class="note-btn" id="noteCopy">Copier</button>
+      <button class="note-btn" id="noteClear">Effacer</button>
+      <button class="math-close" id="noteClose" aria-label="Fermer">✕</button>
+    </div>
+  </div>
+  <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
+</div>
+
+<script src="app.js?v=10.0"></script>
 </body>
 </html>

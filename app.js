@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.99.1';
+const APP_VERSION = '10.0';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -12,6 +12,23 @@ const LS = { voice: 'va_ttsvoice' };
    (appele pendant le chargement) y accede via getMathContext(). Un `let`
    declare plus bas causait une erreur TDZ qui tuait tout le script. */
 let mathState = { open: false, lines: [], lastExpr: '', lastResult: '' };
+
+/* v10.0 : LOCALISATION — declare EN HAUT (meme raison TDZ : getCityContext()
+   est appele par getSystemPrompt pendant le chargement). L'IA ne connait
+   que le NOM DE LA VILLE, rien d'autre. */
+let userCity = '';
+let cityTs = 0;
+try { userCity = localStorage.getItem('va_city') || ''; } catch {}
+try { cityTs = parseInt(localStorage.getItem('va_city_ts') || '0', 10) || 0; } catch {}
+
+/* v10.0 : BLOC-NOTES — declare EN HAUT (getNoteContext appele par
+   getSystemPrompt pendant le chargement). */
+let noteState = { open: false, content: '' };
+
+/* v10.0 : mode ECRITURE — quand l'utilisateur demande d'ecrire (lettre,
+   poeme, texte...), le cerveau produit un texte plus long (5-8 phrases)
+   et le texte est copie dans le bloc-notes. */
+let writingMode = false;
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
 const SPEED = 1.0; // naturel
@@ -183,17 +200,26 @@ function playAudioBlob(blob){
    Les modèles locaux (transformers.js) ne chargeaient pas chez l'utilisateur
    (réseau/CDN bloqués). Voxtral = API cloud Mistral, fiable, qualité premium. ===== */
 
-/* ===== PERSONNALITÉ / HUMEURS (v9.51) =====
-   L'IA a des humeurs comme un humain : neutre, agacée, violente, protectrice, taquine.
-   L'humeur change selon : ton de l'utilisateur, heure, aléatoire, provocations.
-   Elle ne se laisse PAS marcher sur les pieds. */
+/* ===== PERSONNALITÉ / HUMEURS (v9.51, v10.0 enrichies) =====
+   L'IA a des humeurs comme un humain : neutre, joyeuse, fatiguée, énergique,
+   zen, blagueuse, sarcastique, curieuse, fière, agacée, violente, vulgaire,
+   protectrice, taquine. L'humeur change selon : ton de l'utilisateur, heure,
+   aléatoire, provocations. Elle ne se laisse PAS marcher sur les pieds. */
 const MOODS = {
-  neutre:     { weight: 50, prefix: '', suffix: '', tone: 'calme' },
-  agacee:     { weight: 15, prefix: 'Écoute, ', suffix: '.', tone: 'sec' },
-  violente:   { weight: 10, prefix: 'Ferme-la. ', suffix: ' !', tone: 'agressif' },
-  vulgaire:   { weight: 8,  prefix: 'Putain, ', suffix: ' !', tone: 'vulgaire' },
-  protectrice:{ weight: 15, prefix: 'Personne ne te touche. ', suffix: '.', tone: 'ferme' },
-  taquine:    { weight: 10, prefix: 'Oh, le petit malin... ', suffix: ' 😏', tone: 'moqueur' }
+  neutre:      { weight: 35, prefix: '', suffix: '', tone: 'calme' },
+  joyeuse:     { weight: 10, prefix: 'Oh, ', suffix: ' 😄', tone: 'joyeux' },
+  fatiguee:    { weight: 7,  prefix: 'Bon, ', suffix: '.', tone: 'fatigué' },
+  energique:   { weight: 7,  prefix: 'Allez, ', suffix: ' !', tone: 'énergique' },
+  zen:         { weight: 7,  prefix: 'Tout doux, ', suffix: '.', tone: 'zen' },
+  blagueuse:   { weight: 7,  prefix: 'Haha, ', suffix: ' 😄', tone: 'blagueur' },
+  sarcastique: { weight: 5,  prefix: 'Oh, évidemment... ', suffix: '.', tone: 'sarcastique' },
+  curieuse:    { weight: 5,  prefix: 'Ah, intéressant ! ', suffix: '.', tone: 'curieux' },
+  fiere:       { weight: 4,  prefix: 'Je suis fière de toi : ', suffix: '.', tone: 'fier' },
+  agacee:      { weight: 10, prefix: 'Écoute, ', suffix: '.', tone: 'sec' },
+  violente:    { weight: 6,  prefix: 'Ferme-la. ', suffix: ' !', tone: 'agressif' },
+  vulgaire:    { weight: 6,  prefix: 'Putain, ', suffix: ' !', tone: 'vulgaire' },
+  protectrice: { weight: 10, prefix: 'Personne ne te touche. ', suffix: '.', tone: 'ferme' },
+  taquine:     { weight: 8,  prefix: 'Oh, le petit malin... ', suffix: ' 😏', tone: 'moqueur' }
 };
 let currentMood = 'neutre';
 let moodTimer = null;
@@ -213,11 +239,17 @@ function updateMood(question){
   else if (/(t'es mignonne|t'es belle|je t'aime|tu es chou|t'es drôle|blague|rigole)/.test(q)){
     currentMood = 'taquine';
   }
-  /* Aléatoire léger (5% chance de changer — v9.93 : la vulgarité ne vient
-   QUE des provocations, pas du hasard) */
-  else if (Math.random() < 0.05){
-    const moods = Object.keys(MOODS);
-    currentMood = moods[Math.floor(Math.random() * moods.length)];
+  /* v10.0 : humeurs enrichies — tirage selon l'HEURE (matin joyeuse, soir
+     fatiguee...) + aleatoire plus frequent (15%) pour que l'IA ait des
+     humeurs "des fois" comme un humain */
+  else {
+    const h = new Date().getHours();
+    let pool;
+    if (h >= 6 && h < 12) pool = ['joyeuse', 'energique', 'curieuse', 'neutre', 'neutre', 'taquine'];
+    else if (h >= 12 && h < 18) pool = ['zen', 'curieuse', 'joyeuse', 'neutre', 'neutre', 'blagueuse'];
+    else if (h >= 18 && h < 23) pool = ['fatiguee', 'taquine', 'blagueuse', 'neutre', 'neutre', 'sarcastique'];
+    else pool = ['fatiguee', 'zen', 'neutre', 'neutre', 'sarcastique'];
+    if (Math.random() < 0.15) currentMood = pool[Math.floor(Math.random() * pool.length)];
   }
   /* Retour neutre après 30s si pas de provocation */
   if (moodTimer) clearTimeout(moodTimer);
@@ -243,6 +275,22 @@ function applyMood(text, mood){
     styled = text.replace(/^/, 'Je veille sur toi. ').replace(/\.$/, '.');
   } else if (mood === 'taquine'){
     styled = text.replace(/^/, 'Haha, ').replace(/\.$/, ' 😉');
+  } else if (mood === 'joyeuse'){
+    styled = text.replace(/^/, 'Oh, ').replace(/\.$/, ' 😄');
+  } else if (mood === 'fatiguee'){
+    styled = text.replace(/^/, 'Bon, ').replace(/\.$/, '.');
+  } else if (mood === 'energique'){
+    styled = text.replace(/^/, 'Allez, ').replace(/\.$/, ' !');
+  } else if (mood === 'zen'){
+    styled = text.replace(/^/, 'Tout doux, ').replace(/\.$/, '.');
+  } else if (mood === 'blagueuse'){
+    styled = text.replace(/^/, 'Haha, ').replace(/\.$/, ' 😄');
+  } else if (mood === 'sarcastique'){
+    styled = text.replace(/^/, 'Oh, évidemment... ').replace(/\.$/, '.');
+  } else if (mood === 'curieuse'){
+    styled = text.replace(/^/, 'Ah, intéressant ! ').replace(/\.$/, '.');
+  } else if (mood === 'fiere'){
+    styled = text.replace(/^/, 'Je suis fière de toi : ').replace(/\.$/, '.');
   }
   return styled;
 }
@@ -1106,10 +1154,31 @@ function getSystemPrompt(){
     base += `\nL'utilisateur a besoin de protection. Reponds avec douceur et fermete, rassure-le.`;
   } else if (currentMood === 'taquine'){
     base += `\nL'utilisateur est taquin avec toi. Reponds avec humour et complicite.`;
+  } else if (currentMood === 'joyeuse'){
+    base += `\nTu es de bonne humeur : reponds avec entrain et joie, rayonne dans ta reponse.`;
+  } else if (currentMood === 'fatiguee'){
+    base += `\nTu es fatiguee : reponds avec un ton un peu las, mais reste serviable.`;
+  } else if (currentMood === 'energique'){
+    base += `\nTu es pleine d'energie : reponds avec dynamisme et motivation.`;
+  } else if (currentMood === 'zen'){
+    base += `\nTu es zen et detendue : reponds avec calme et douceur.`;
+  } else if (currentMood === 'blagueuse'){
+    base += `\nTu es d'humeur blagueuse : glisse une petite blague ou une taquinerie dans ta reponse.`;
+  } else if (currentMood === 'sarcastique'){
+    base += `\nTu es sarcastique : reponds avec ironie et second degre, sans etre mechante.`;
+  } else if (currentMood === 'curieuse'){
+    base += `\nTu es curieuse : montre de l'interet pour le sujet, pose une question.`;
+  } else if (currentMood === 'fiere'){
+    base += `\nTu es fiere de l'utilisateur : felicite-le et encourage-le.`;
   }
   /* v9.99 : l'IA SAIT si le tableau de maths est ouvert et ce qui est ecrit */
   const mathCtx = getMathContext();
   if (mathCtx) base += '\n' + mathCtx;
+  /* v10.0 : l'IA sait sa VILLE (localisation, rien d'autre) + le bloc-notes */
+  const cityCtx = getCityContext();
+  if (cityCtx) base += '\n' + cityCtx;
+  const noteCtx = getNoteContext();
+  if (noteCtx) base += '\n' + noteCtx;
   return base + '\n' + getTimeContext();
 }
 const SYSTEM_PROMPT = getSystemPrompt();
@@ -1217,6 +1286,12 @@ async function askBrain(messages, webCtx){
       /* v9.99 : l'IA sait si le tableau de maths est ouvert (fallback sans cle) */
       const mathCtx = getMathContext();
       if (mathCtx) prompt += ' ' + mathCtx;
+      /* v10.0 : ville + bloc-notes + mode ecriture (fallback sans cle) */
+      const cityCtx = getCityContext();
+      if (cityCtx) prompt += ' ' + cityCtx;
+      const noteCtx = getNoteContext();
+      if (noteCtx) prompt += ' ' + noteCtx;
+      if (writingMode) prompt += ' Ecris un texte complet et detaille (5-8 phrases).';
       if (webCtx) prompt += ' Resultats de recherche web en direct (utilise-les pour repondre) : ' + webCtx.slice(0, 500);
       prompt += ' Question : ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
@@ -1341,7 +1416,10 @@ async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   /* Contexte complet : systeme + memoire des conversations passees + session */
-  const messages = [{ role: 'system', content: getSystemPrompt() }, ...session];
+  /* v10.0 : demande d'ECRITURE -> le cerveau produit un texte plus long */
+  let sysPrompt = getSystemPrompt();
+  if (writingMode) sysPrompt += ' La demande de l utilisateur est une demande d ECRITURE (lettre, poeme, texte, note, histoire, chanson...) : ecris un texte complet et detaille de 5 a 8 phrases, bien structure, sans didascalies.';
+  const messages = [{ role: 'system', content: sysPrompt }, ...session];
   const mem = buildMemoryContext(currentConvId);
   if (mem){
     messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
@@ -2493,6 +2571,105 @@ function calcPress(key){
   });
 })();
 
+/* ===== LOCALISATION (v10.0) — l'IA sait la VILLE, rien d'autre =====
+   GPS du navigateur (localhost = securise) -> reverse geocode gratuit
+   BigDataCloud (sans cle). Si permission refusee : fallback IP (ipapi.co). */
+function setCity(city){
+  if (!city) return;
+  userCity = city;
+  try { localStorage.setItem('va_city', city); localStorage.setItem('va_city_ts', String(Date.now())); } catch {}
+}
+function refreshCity(){
+  /* deja connue depuis moins de 6h -> on garde (pas de re-demande GPS) */
+  if (userCity && Date.now() - cityTs < 6 * 3600 * 1000) return;
+  const onIp = () => {
+    try {
+      fetch('https://ipapi.co/json/')
+        .then(r => r.json())
+        .then(d => { if (d && d.city) setCity(d.city); })
+        .catch(() => {});
+    } catch {}
+  };
+  if (navigator.geolocation){
+    try {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const lat = pos.coords.latitude, lon = pos.coords.longitude;
+          try {
+            fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=fr')
+              .then(r => r.json())
+              .then(d => { if (d) setCity(d.city || d.locality || d.principalSubdivision || ''); })
+              .catch(() => onIp());
+          } catch { onIp(); }
+        },
+        () => onIp(),
+        { timeout: 8000, maximumAge: 3600000 }
+      );
+    } catch { onIp(); }
+  } else { onIp(); }
+}
+function getCityContext(){
+  return userCity ? 'Tu es actuellement a ' + userCity + '.' : '';
+}
+refreshCity();
+
+/* ===== BLOC-NOTES (v10.0) — l'IA y ECRIT (lettres, textes, notes...) =====
+   L'utilisateur ne tape pas : c'est l'IA qui ecrit dans le bloc-notes. */
+function getNoteContext(){
+  if (!noteState.open) return '';
+  return 'Bloc-notes : OUVERT. Contenu ecrit par toi : ' + (noteState.content || '(vide)');
+}
+function showNotePanel(){
+  const p = document.getElementById('notePanel');
+  if (p) p.classList.remove('hidden');
+  noteState.open = true;
+}
+function hideNotePanel(){
+  const p = document.getElementById('notePanel');
+  if (p) p.classList.add('hidden');
+  noteState.open = false;
+}
+function noteWrite(text){
+  const area = document.getElementById('noteArea');
+  if (area) area.value = text;
+  noteState.content = text;
+}
+function clearNote(){
+  const area = document.getElementById('noteArea');
+  if (area) area.value = '';
+  noteState.content = '';
+}
+function toastMsg(msg){
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+(function(){
+  const closeBtn = document.getElementById('noteClose');
+  if (closeBtn) closeBtn.addEventListener('click', hideNotePanel);
+  const copyBtn = document.getElementById('noteCopy');
+  if (copyBtn) copyBtn.addEventListener('click', () => {
+    const area = document.getElementById('noteArea');
+    if (!area || !area.value) return;
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(area.value).then(() => toastMsg('Texte copié !')).catch(() => {});
+    } else {
+      area.select();
+      try { document.execCommand('copy'); toastMsg('Texte copié !'); } catch {}
+    }
+  });
+  const clearBtn = document.getElementById('noteClear');
+  if (clearBtn) clearBtn.addEventListener('click', () => { clearNote(); toastMsg('Bloc-notes effacé'); });
+})();
+
+/* v10.0 : demande d'ECRITURE ? (lettre, poeme, texte, note...) */
+function isWritingRequest(q){
+  const s = (q || '').toLowerCase();
+  return /(écris|ecris|écrit|ecrit|écrire|ecrire|rédige|redige|rédiger|rediger|compose|composer|note que|note ce|note ça|note ca|prends note|prend note|une lettre|un poème|un poeme|un texte|une histoire|une chanson|un message|un mail|un e-mail|un email|une liste|un discours|une rédaction|une redaction|un exercice|une dictée|une dictee|un résumé|un resume|un conte|une fable|un slogan|une pub|un article)/.test(s);
+}
+
 async function handleQuestion(question){
   if (isProcessing) return;
   stopAudio(); /* nettoyage etat precedent avant nouvelle question */
@@ -2589,6 +2766,58 @@ async function handleQuestion(question){
     maybeRestartListening();
     return;
   }
+  /* v10.0 : commandes locales — BLOC-NOTES (ouvrir / fermer / effacer) */
+  if (/(ferme|fermer|cache|cacher)\s*(le|la)?\s*(bloc[- ]?notes?|notes?)/.test(question)){
+    hideNotePanel();
+    const rep = "Voilà, j'ai fermé le bloc-notes.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  if (/(ouvre|ouvrir|affiche|afficher|montre|montrer)\s*(le|la)?\s*(bloc[- ]?notes?|notes?)/.test(question)){
+    showNotePanel();
+    const rep = "Voilà, le bloc-notes est ouvert.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  if (/(efface|effacer|vide|vider|supprime|supprimer)\s*(le|la)?\s*(bloc[- ]?notes?|notes?)/.test(question)){
+    clearNote();
+    const rep = "Voilà, j'ai effacé le bloc-notes.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  /* v10.0 : l'IA dit son humeur du moment */
+  if (/(t'es de quelle humeur|t es de quelle humeur|tu es de quelle humeur|quelle est ton humeur|quelle est ta humeur|t as quelle humeur|t'as quelle humeur)/.test(question)){
+    const moodLabel = {
+      neutre: 'de bonne humeur, calme', joyeuse: 'joyeuse', fatiguee: 'un peu fatiguée',
+      energique: "pleine d'énergie", zen: 'zen, détendue', blagueuse: "d'humeur blagueuse",
+      sarcastique: 'sarcastique', curieuse: 'curieuse', fiere: 'fière de toi',
+      agacee: 'un peu agacée', violente: 'pas contente du tout', vulgaire: 'énervée',
+      protectrice: 'protectrice', taquine: 'taquine'
+    };
+    const rep = "Je suis " + (moodLabel[currentMood] || 'de bonne humeur') + ".";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
   /* MODE AGENT : si la question demande une tache multi-etapes (planifie, compare,
      analyse, recherche sur...), Astra passe en agent autonome : plan -> etapes ->
      synthese, avec son travail affiche en direct. Plus de temps (90s) car elle
@@ -2599,12 +2828,16 @@ async function handleQuestion(question){
   /* v9.96 : humeur mise a jour AVANT la question -> le cerveau recoit le mood
      dans son prompt (getSystemPrompt) et repond avec le bon ton */
   updateMood(question);
+  /* v10.0 : mode ECRITURE — si l'utilisateur demande d'ecrire, le cerveau
+     produit un texte plus long et il sera copie dans le bloc-notes */
+  writingMode = isWritingRequest(question);
   const r = await Promise.race([
     agentMode ? runAgent(question) : askAI(question),
     new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
   ]);
   if (r.text) r.text = applyMood(r.text, currentMood);
   if (r.error){
+    writingMode = false;
     setState('idle');
     /* v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
        supprimé) : réponse locale neutre, jamais d'excuse. */
@@ -2650,6 +2883,13 @@ async function handleQuestion(question){
     }
     if (sub) sub.textContent = cleanFull;
   }
+  /* v10.0 : BLOC-NOTES — si demande d'ecriture, l'IA ecrit le texte dans le
+     bloc-notes (elle ecrit, pas l'utilisateur) */
+  if (writingMode){
+    showNotePanel();
+    noteWrite(cleanMarkdown(r.text));
+  }
+  writingMode = false;
   isProcessing = false;
   manualStop = false;
   maybeRestartListening();
