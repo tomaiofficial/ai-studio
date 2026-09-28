@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.93';
+const APP_VERSION = '9.94';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -70,6 +70,9 @@ async function fetchVoxtralVoices(){
 }
 const MISTRAL_KEY_LS = 'va_mistral_key';
 function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
+/* v9.94 : passe a true si Mistral TTS bloque le texte (403 guardrail) ->
+   le retry est INUTILE (blocage definitif), on bascule direct */
+let voxtralBlocked = false;
 async function speakVoxtral(text, voiceId, onChunk){
   const key = getMistralKey();
   if (!key){ console.warn('[VOXTRAL] Pas de clé API Mistral — ajoute-la dans Réglages'); return false; }
@@ -78,10 +81,12 @@ async function speakVoxtral(text, voiceId, onChunk){
     /* v9.66 : tous les chunks sont générés EN PARALLÈLE (Promise.all) puis joués
        dans l'ordre -> latence = max(générations) au lieu de la somme.
        Timeout 15s par chunk (v9.92 : 10s -> 15s, l'API pend parfois). */
+    voxtralBlocked = false;
     let results = await generateChunks(chunks, voiceId, key);
     /* v9.92 : RETRY 1x si la generation a echoue (429/timeout transitoire)
-       -> on evite de basculer sur la voix systeme pour un simple raté */
-    if (results.some(r => !r)){
+       -> on evite de basculer sur la voix systeme pour un simple raté.
+       v9.94 : PAS de retry si c'est un 403 guardrail (blocage definitif). */
+    if (results.some(r => !r) && !voxtralBlocked){
       console.warn('[VOXTRAL] Generation partielle -> retry 1x');
       await new Promise(r => setTimeout(r, 1200));
       results = await generateChunks(chunks, voiceId, key);
@@ -108,6 +113,7 @@ async function generateChunks(chunks, voiceId, key){
       if (!res.ok){
         const errText = await res.text().catch(() => '');
         console.warn('[VOXTRAL] HTTP', res.status, errText.slice(0, 200));
+        if (res.status === 403) voxtralBlocked = true; /* guardrail : blocage definitif, retry inutile */
         return null;
       }
       const data = await res.json();
@@ -2159,10 +2165,49 @@ async function transcribeBlob(blob){
   } catch(e){ console.warn('[STT] Whisper erreur:', e && e.message); return ''; }
 }
 
+/* v9.94 : FILTRE JURONS POUR LA VOIX — le guardrail de Mistral TTS bloque
+   (403 guardrail_violation) tout texte vulgaire -> la VOIX dit une version
+   propre (punaise, mince...), le texte AFFICHE garde les jurons. */
+function sanitizeForVoice(t){
+  if (!t) return t;
+  const swaps = [
+    [/\bputain de\b/gi, 'sacré'],
+    [/\bbordel de\b/gi, 'sacré'],
+    [/\bnom de dieu\b/gi, 'bon sang'],
+    [/\bputain\b/gi, 'punaise'],
+    [/\bmerde\b/gi, 'mince'],
+    [/\bbordel\b/gi, 'bon sang'],
+    [/\bconnard(s|e|es)?\b/gi, 'crétin$1'],
+    [/\bconne(s)?\b/gi, 'idiote$1'],
+    [/\bcons\b/gi, 'idiots'],
+    [/\bcon\b/gi, 'idiot'],
+    [/\bencul[ée]s?\b/gi, 'imbécile'],
+    [/\bsalope(s)?\b/gi, 'idiote$1'],
+    [/\bpute(s)?\b/gi, 'idiote$1'],
+    [/\bsalaud(s)?\b/gi, 'sale type'],
+    [/\bbatard(s|e|es)?\b/gi, 'salaud$1'],
+    [/\bconnerie(s)?\b/gi, 'bêtise$1'],
+    [/\bdebile(s)?\b/gi, 'idiot$1'],
+    [/\babruti(e|s)?\b/gi, 'idiot$1'],
+    [/\bchiant(e|s)?\b/gi, 'embêtant$1'],
+    [/\bchier\b/gi, 'embêter'],
+    [/\bfoutu(e|s)?\b/gi, 'fichu$1'],
+    [/\bfoutre\b/gi, 'fiche'],
+    [/\bgueule(s)?\b/gi, 'bouche$1'],
+    [/\bnique(r)?\b/gi, 'embête$1'],
+    [/\bfdp\b/gi, 'sale type'],
+    [/\btg\b/gi, 'ta bouche']
+  ];
+  for (const [re, rep] of swaps) t = t.replace(re, rep);
+  return t;
+}
 function speak(text, onChunk){
   return new Promise(resolve => {
     let clean = text;
     try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); }
+    /* v9.94 : la voix ne dit JAMAIS de jurons -> Mistral TTS ne bloque plus
+       (403 guardrail) -> Voxtral reste la voix, jamais de bascule systeme */
+    clean = sanitizeForVoice(clean);
     voiceStartedFlag = false;
     isSpeaking = true;
     setState('speaking');
@@ -2185,9 +2230,10 @@ function speak(text, onChunk){
       if (!voiceStartedFlag) setStatus("Voix système - pret");
       done(false);
     };
-    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 20s sans son
-       (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large) */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 20000);
+    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 30s sans son
+       (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
+        v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 30000);
     /* VOIX : Voxtral TTS (Mistral AI) — priorité #1, secours Système puis Google */
     const voiceMode = getVoice();
     let chain;
