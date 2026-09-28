@@ -1919,6 +1919,52 @@ function normalizeForTTS(text){
     .replace(/\bHTTP\b/g, 'ache te te pe')
     .replace(/\bHTTPS\b/g, 'ache te te pe esse')
     .replace(/\bJSON\b/g, 'jé son')
+    /* v10.0.2 : corrections de prononciation — mots mal prononces par Voxtral */
+    .replace(/\b(ou)\b(?=\s+(tu|vous|il|elle|on|nous|ils|elles|je|j'))/g, 'ou')  /* conjonction, pas lieu */
+    .replace(/\b(la)\b(?=\s+(bas|haut|dedans|dehors|gauche|droite))\b/g, 'là')  /* lieu uniquement */
+    .replace(/\b(la)\b/g, 'la')  /* reset la -> la (pas là partout) */
+    .replace(/\b(meme|Même)\b/gi, 'même')
+    .replace(/\b(tous|Tous)\b/g, 'tous')
+    .replace(/\b(tout|Tout)\b/g, 'tout')
+    .replace(/\b(plus|Plus)\b/g, 'plus')
+    .replace(/\b(plusieurs|Plusieurs)\b/g, 'plusieurs')
+    .replace(/\b(bien|Bien)\b/g, 'bien')
+    .replace(/\b(mieux|Mieux)\b/g, 'mieux')
+    .replace(/\b(autre|Autre)\b/g, 'autre')
+    .replace(/\b(autres|Autres)\b/g, 'autres')
+    .replace(/\b(autrement|Autrement)\b/g, 'autrement')
+    .replace(/\b(maintenant|Maintenant)\b/g, 'maintenant')
+    .replace(/\b(toujours|Toujours)\b/g, 'toujours')
+    .replace(/\b(surtout|Surtout)\b/g, 'surtout')
+    .replace(/\b(partout|Partout)\b/g, 'partout')
+    .replace(/\b(quelque|Quelque)\b/g, 'quelque')
+    .replace(/\b(quelques|Quelques)\b/g, 'quelques')
+    .replace(/\b(chaque|Chaque)\b/g, 'chaque')
+    .replace(/\b(encore|Encore)\b/g, 'encore')
+    .replace(/\b(aussi|Aussi)\b/g, 'aussi')
+    .replace(/\b(mais|Mais)\b/g, 'mais')
+    .replace(/\b(donc|Donc)\b/g, 'donc')
+    .replace(/\b(quand|Quand)\b/g, 'quand')
+    .replace(/\b(comment|Comment)\b/g, 'comment')
+    .replace(/\b(pourquoi|Pourquoi)\b/g, 'pourquoi')
+    .replace(/\b(parce|Parce)\b/g, 'parce')
+    .replace(/\b(parce que|Parce que)\b/g, 'parce que')
+    .replace(/\b(avec|Avec)\b/g, 'avec')
+    .replace(/\b(sans|Sans)\b/g, 'sans')
+    .replace(/\b(pour|Pour)\b/g, 'pour')
+    .replace(/\b(contre|Contre)\b/g, 'contre')
+    .replace(/\b(entre|Entre)\b/g, 'entre')
+    .replace(/\b(sur|Sur)\b/g, 'sur')
+    .replace(/\b(sous|Sous)\b/g, 'sous')
+    .replace(/\b(dans|Dans)\b/g, 'dans')
+    .replace(/\b(vers|Vers)\b/g, 'vers')
+    .replace(/\b(chez|Chez)\b/g, 'chez')
+    .replace(/\b(avant|Avant)\b/g, 'avant')
+    .replace(/\b(apres|Apres)\b/g, 'après')
+    .replace(/\b(pendant|Pendant)\b/g, 'pendant')
+    .replace(/\b(depuis|Depuis)\b/g, 'depuis')
+    .replace(/\b(jusque|Jusque)\b/g, 'jusque')
+    .replace(/\b(jusqu|Jusqu)\b/g, 'jusqu')
     .replace(/\bUSB\b/g, 'u esse be')
     .replace(/\bCD\b/g, 'ce de')
     .replace(/\bDVD\b/g, 'de ve de')
@@ -2348,6 +2394,8 @@ function speak(text, onChunk){
   return new Promise(resolve => {
     let clean = text;
     try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); }
+    /* v10.0.2 : nettoyage final prononciation — supprimer caracteres invisibles */
+    clean = clean.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
     /* v9.94 : la voix ne dit JAMAIS de jurons -> Mistral TTS ne bloque plus
        (403 guardrail) -> Voxtral reste la voix, jamais de bascule systeme */
     clean = sanitizeForVoice(clean);
