@@ -2954,6 +2954,12 @@ async function handleQuestion(question){
   writingMode = false;
   isProcessing = false;
   manualStop = false;
+  /* v10.0.2 : mobile — forcer le redemarrage immediat du micro apres reponse
+     (le timer 600ms de maybeRestartListening ne suffit pas sur mobile) */
+  continuousPaused = false;
+  if (continuousMode && !isSpeaking && state === 'idle'){
+    try { if (recog) { recog.stop(); setTimeout(() => { try { recog.start(); setState('listening'); setStatus('Mode continu - parle...'); } catch { startRecorder(); } }, 300); } else { startRecorder(); } } catch {}
+  }
   maybeRestartListening();
 }
 function versionCompare(a, b){
