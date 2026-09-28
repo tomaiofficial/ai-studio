@@ -8,7 +8,7 @@ console.log('[APP] v9.63-final loading...');
 const APP_VERSION = '9.64';
 const LS = { voice: 'va_ttsvoice' };
 
-const DEFAULT_VOICE = 'voxtral:marie'; // SEULE voix : Voxtral TTS (Mistral AI) — Marie, français naturel
+const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
 const SPEED = 1.0; // naturel
 
 /* ===== VOXTRAL TTS (Mistral AI) — VOIX PRINCIPALE =====
@@ -19,11 +19,36 @@ const SPEED = 1.0; // naturel
    Coût: $0.016 / 1000 caractères. Réponse: { audio_data: base64 } */
 const VOXTRAL_API_URL = 'https://api.mistral.ai/v1/audio/speech';
 const VOXTRAL_MODEL = 'voxtral-mini-tts-2603';
-const VOXTRAL_VOICES = [
-  { id: 'marie', name: 'Voxtral: Marie (français, naturelle)', lang: 'fr' },
-  { id: 'paul', name: 'Voxtral: Paul (anglais US)', lang: 'en' },
-  { id: 'oliver', name: 'Voxtral: Oliver (anglais UK)', lang: 'en' },
+/* Voix preset de secours (UUID officiels Mistral) — la vraie liste est chargée
+   dynamiquement via GET /v1/audio/voices?type=preset avec la clé API */
+const VOXTRAL_FALLBACK_VOICES = [
+  { id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', name: 'Voxtral: Paul (anglais US, neutre)', lang: 'en' },
+  { id: 'e3596645-b1af-469e-b857-f18ddedc7652', name: 'Voxtral: Oliver (anglais UK, neutre)', lang: 'en' },
+  { id: 'a3e41ea8-020b-44c0-8d8b-f6cc03524e31', name: 'Voxtral: Jane (anglais UK, sarcastique)', lang: 'en' },
 ];
+let voxtralVoicesCache = null;
+async function fetchVoxtralVoices(){
+  if (voxtralVoicesCache) return voxtralVoicesCache;
+  const key = getMistralKey();
+  if (!key) return VOXTRAL_FALLBACK_VOICES;
+  try {
+    const res = await fetch('https://api.mistral.ai/v1/audio/voices?type=preset&limit=100', {
+      headers: { 'Authorization': 'Bearer ' + key },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!res.ok) return VOXTRAL_FALLBACK_VOICES;
+    const data = await res.json();
+    const items = (data.items || []).filter(v => v && v.id && v.name);
+    if (!items.length) return VOXTRAL_FALLBACK_VOICES;
+    voxtralVoicesCache = items.map(v => ({
+      id: v.id,
+      name: 'Voxtral: ' + v.name,
+      lang: Array.isArray(v.languages) ? (v.languages[0] || '') : ''
+    }));
+    console.log('[VOXTRAL] Voix preset chargées:', voxtralVoicesCache.length);
+    return voxtralVoicesCache;
+  } catch(e){ console.warn('[VOXTRAL] Liste voix échouée:', e && e.message); return VOXTRAL_FALLBACK_VOICES; }
+}
 const MISTRAL_KEY_LS = 'va_mistral_key';
 function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
 async function speakVoxtral(text, voiceId, onChunk){
@@ -439,9 +464,15 @@ function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
   /* v9.64 : les anciennes voix (Kokoro/SpeechT5/Edge/Piper/Système) sont
-     supprimées -> toute valeur obsolète revient à Voxtral par défaut (Marie) */
+     supprimées -> toute valeur obsolète revient à Voxtral par défaut */
   if (v === 'systeme' || v.startsWith('system:') || v.startsWith('kokoro:')
       || v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')) return DEFAULT_VOICE;
+  /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
+     -> les vraies voix preset utilisent des UUID */
+  if (v.startsWith('voxtral:')){
+    const id = v.substring(8);
+    if (id === 'marie' || id === 'paul' || id === 'oliver') return DEFAULT_VOICE;
+  }
   return v;
 }
 
@@ -1578,6 +1609,18 @@ function playGoogleChunk(c){
     setTimeout(() => { if (!done) finish(true); }, 30000);
   });
 }
+/* v9.64 : Google TTS = dernier recours universel (gratuit, sans clé, marche partout) */
+async function speakGoogle(text, onChunk){
+  try {
+    const chunks = splitSentences(text, 200);
+    for (const chunk of chunks){
+      if (onChunk) onChunk(chunk);
+      const ok = await playGoogleChunk(chunk);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] Google TTS échec:', e && e.message); return false; }
+}
 /* Decoupe aux fins de phrases (prosodie naturelle), max caracteres par chunk.
    Les phrases PLUS LONGUES que max sont decoupees en sous-chunks (sinon Google
    TTS echoue au-dela de ~200 caracteres et prononce mal). */
@@ -1616,8 +1659,9 @@ async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
-  /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 */
-  VOXTRAL_VOICES.forEach(v => {
+  /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 : vraies voix preset (UUID) */
+  const voices = await fetchVoxtralVoices();
+  voices.forEach(v => {
     const val = 'voxtral:' + v.id;
     if (!existingOptions.includes(val)){
       const opt = document.createElement('option');
@@ -1780,22 +1824,27 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : Voxtral TTS (Mistral AI) — priorité #1, secours Système */
+    /* VOIX : Voxtral TTS (Mistral AI) — priorité #1, secours Système puis Google */
     const voiceMode = getVoice();
     let chain;
     if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
       chain = [
         ['Voxtral: ' + voiceId, (t) => speakVoxtral(t, voiceId, onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)]
+        ['Système', (t) => speakSystem(t, null, onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)]
       ];
     } else if (voiceMode.startsWith('system:')) {
       const voiceName = voiceMode.substring(7);
-      chain = [['Système: ' + voiceName, (t) => speakSystem(t, voiceName, onChunk)]];
+      chain = [
+        ['Système: ' + voiceName, (t) => speakSystem(t, voiceName, onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)]
+      ];
     } else {
       chain = [
-        ['Voxtral: marie', (t) => speakVoxtral(t, 'marie', onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)]
+        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Système', (t) => speakSystem(t, null, onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)]
       ];
     }
     let i = 0;
