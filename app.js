@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.70';
+const APP_VERSION = '9.71';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -191,6 +191,21 @@ function applyMood(text, mood){
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const stopBtn = $('stopBtn');
+
+/* v9.71 : particules lumineuses du fond (générées aléatoirement) */
+(function(){
+  const wrap = document.getElementById('bgParticles');
+  if (!wrap) return;
+  const colors = ['rgba(124,92,255,.85)','rgba(255,92,168,.75)','rgba(61,220,160,.75)','rgba(255,159,46,.75)','rgba(255,255,255,.85)'];
+  for (let i = 0; i < 18; i++){
+    const s = document.createElement('span');
+    const size = 3 + Math.random() * 5;
+    s.style.cssText = 'left:' + (Math.random() * 100) + 'vw;width:' + size + 'px;height:' + size + 'px;' +
+      'animation-duration:' + (9 + Math.random() * 14) + 's;animation-delay:' + (Math.random() * 12) + 's;' +
+      'background:radial-gradient(circle,' + colors[i % colors.length] + ',transparent 70%);';
+    wrap.appendChild(s);
+  }
+})();
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
 const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel');
