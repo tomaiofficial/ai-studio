@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.69';
+const APP_VERSION = '9.70';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -190,6 +190,7 @@ function applyMood(text, mood){
 /* ===== �L�MENTS ===== */
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
+const stopBtn = $('stopBtn');
 const chat = $('chat'), chatEmpty = $('chatEmpty');
 const settingsBtn = $('settingsBtn'), settingsModal = $('settingsModal');
 const closeSettings = $('closeSettings'), ttsVoiceSel = $('ttsVoice'), testVoiceBtn = $('testVoice'), brainSel = $('brainSel');
@@ -425,6 +426,11 @@ function setState(s){
   if (s === 'listening') orb.classList.add('listening');
   else if (s === 'thinking') orb.classList.add('thinking');
   else if (s === 'speaking') orb.classList.add('speaking');
+  /* v9.70 : bouton stop visible pendant l'activité vocale (style ChatGPT) */
+  if (stopBtn){
+    if (s === 'listening' || s === 'thinking' || s === 'speaking') stopBtn.classList.add('show');
+    else stopBtn.classList.remove('show');
+  }
 }
 
 /* ===== CHAT (bulles type ChatGPT) ===== */
@@ -859,6 +865,17 @@ orb.addEventListener('click', () => {
     setState('idle');
     startRecorder();
   }
+});
+
+/* v9.70 : bouton stop (style mode vocal ChatGPT) — arrête tout : audio, micro, agent */
+if (stopBtn) stopBtn.addEventListener('click', () => {
+  stopAudio();
+  stopRecorder();
+  try { recog && recog.stop(); } catch {}
+  manualStop = true;
+  welcomePlaying = false;
+  setState('idle');
+  setStatus("Appuie sur le micro et parle");
 });
 
 /* v9.67 : période de la journée — l'IA sait si on est le matin, l'après-midi,
