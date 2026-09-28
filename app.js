@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.90';
+const APP_VERSION = '9.91';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -1165,27 +1165,22 @@ async function askBrain(messages, webCtx){
      (jamais de message d'erreur). v9.49 : warmUpBrain() réveille le modèle
      pendant que l'utilisateur parle -> la 1re tentative réussit en ~0.3s. */
   const localText = localSmartReply(question);
+  /* v9.91 : Pollinations ET Mistral chat en PARALLELE -> la premiere reponse
+     fiable gagne. Quand Pollinations est sature (429), Mistral repond en
+     quelques secondes au lieu d'attendre toutes les tentatives Pollinations. */
+  const mistralKey = getMistralKey();
   const pollinationsPromise = (async () => {
     for (let i = 0; i < 2; i++){
       if (i > 0) await new Promise(r => setTimeout(r, 400));
       const t = await tryPollinationsGet('openai');
       if (typeof t === 'string') return t;
     }
+    /* POST en dernier recours (parfois disponible quand le GET est saturé) */
+    const p = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
+    if (typeof p === 'string') return p;
     return null;
   })();
-  const pollinationsResult = await Promise.race([
-    pollinationsPromise,
-    new Promise(r => setTimeout(() => r(null), 25000))
-  ]);
-  if (pollinationsResult) return { text: fixFrench(pollinationsResult), diag: 'Pollinations' };
-  /* POST en dernier recours (parfois disponible quand le GET est saturé) */
-  const postResult = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
-  if (typeof postResult === 'string') return { text: fixFrench(postResult), diag: 'Pollinations' };
-  /* v9.74 : SECOURS MISTRAL CHAT — si Pollinations est saturé (429), on
-     utilise la clé Mistral (déjà configurée pour la voix) pour répondre.
-     open-mistral-nemo est le modèle gratuit de Mistral. */
-  const mistralKey = getMistralKey();
-  if (mistralKey){
+  const mistralPromise = mistralKey ? (async () => {
     for (const model of ['open-mistral-nemo', 'mistral-small-latest']){
       try {
         const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -1196,11 +1191,18 @@ async function askBrain(messages, webCtx){
         if (res && res.ok){
           const data = await res.json();
           const text = (data?.choices?.[0]?.message?.content || '').trim();
-          if (text) return { text: fixFrench(text), diag: 'Mistral' };
+          if (text) return text;
         }
       } catch {}
     }
-  }
+    return null;
+  })() : Promise.resolve(null);
+  const winner = await Promise.race([
+    pollinationsPromise.then(t => (t && typeof t === 'string') ? { text: t, diag: 'Pollinations' } : null),
+    mistralPromise.then(t => t ? { text: t, diag: 'Mistral' } : null),
+    new Promise(r => setTimeout(() => r(null), 25000))
+  ]);
+  if (winner) return { text: fixFrench(winner.text), diag: winner.diag };
   /* Secours : mémoire locale (jamais de message d'erreur) */
   return { text: localText, diag: 'local' };
 }
@@ -2132,7 +2134,7 @@ async function transcribeBlob(blob){
     const decoded = await dctx.decodeAudioData(audioBuf);
     const pcm = decoded.getChannelData(0);
     try { dctx.close(); } catch {}
-    const out = await whisperASR(pcm, { language: 'french', task: 'transcribe' });
+    const out = await whisperASR(pcm, { language: 'french', task: 'transcribe', chunk_length_s: 30, stride_length_s: 5 });
     return (out && out.text || '').trim();
   } catch(e){ console.warn('[STT] Whisper erreur:', e && e.message); return ''; }
 }
