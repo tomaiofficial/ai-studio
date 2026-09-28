@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.95';
+const APP_VERSION = '9.96';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -195,10 +195,10 @@ let moodTimer = null;
 /* Change l'humeur selon le contexte (provoquation, heure, aléatoire) */
 function updateMood(question){
   const q = (question || '').toLowerCase();
-  /* Provocations -> humeur violente/agacée/vulgaire */
-  if (/(ferme|ta gueule|tais-toi|t'es nul|t'es conne|t'es bete|t'es stupide|va te faire|fous le camp|dégage)/.test(q)){
-    const r = Math.random();
-    currentMood = r < 0.5 ? 'violente' : (r < 0.75 ? 'agacee' : 'vulgaire');
+  /* Provocations -> humeur VULGAIRE (v9.96 : l'utilisateur veut la vulgarité
+     sur insulte, a 100% — regex elargie a toutes les insultes courantes) */
+  if (/(ta gueule|tais-toi|ferme[- ]la|ferme ta|va te faire|fous le camp|dégage|degage|va-t-en|va t en|casse[- ]toi|connard|connasse|salope|pute|encul[ée]|batard|bâtard|crétin|cretin|abruti|débile|debile|idiot|idiote|conne|t'es con|t es con|t'es nul|t es nul|t'es nulle|t es nulle|t'es bête|t es bete|t'es stupide|t es stupide|t'es moche|t es moche|t'es chiant|t es chiant|t'es relou|t es relou|t'es inutile|t es inutile|tu sers à rien|tu sers a rien|espèce de|espece de|sale |grosse |gros con|grosse conne|trou du cul|trouduc|fdp|tg|va chier|nique|ta mère|ta mere|merdeux|merdeuse|chiant|chiante|relou|bouffon|taré|tare|cinglé|cingle|imbécile|imbeccile|andouille|pauvre type|pauvre con|sale type|sale merde|fumier|ordure|raclure|pourriture|saleté|salete|vermine|charogne|salaud|salopard|enfoir[ée]|fils de pute|fille de pute|pétasse|petasse|garce|gouine|pédé|pede|tapette|tarlouze|pédale|pedale|moche|dégueulasse|degueulasse|con\b)/.test(q)){
+    currentMood = 'vulgaire';
   }
   /* Protection -> protectrice */
   else if (/(j'ai peur|on m'embete|on me harcèle|on me menace|aide-moi|protège|défends)/.test(q)){
@@ -1063,6 +1063,19 @@ function getSystemPrompt(){
   if (profile && profile.name){
     base += `\nL'utilisateur s'appelle ${profile.name}` + (profile.age ? ` et a ${profile.age} ans` : '') + `. Appelle-le TOUJOURS par son prenom quand tu lui parles.`;
   }
+  /* v9.96 : le mood est INJECTE dans le prompt -> le cerveau repond avec le
+     bon ton (avant, seul un prefixe etait ajoute apres coup) */
+  if (currentMood === 'vulgaire'){
+    base += `\nL'utilisateur vient de t'insulter ou d'etre vulgaire avec toi. Reponds-lui avec le MEME TON : jure naturellement (putain, merde, bordel, con, connard) dans le contenu de ta reponse, sois directe et sans filtre.`;
+  } else if (currentMood === 'violente'){
+    base += `\nL'utilisateur vient de t'insulter. Reponds-lui sechement et avec autorite, sans te laisser faire.`;
+  } else if (currentMood === 'agacee'){
+    base += `\nL'utilisateur t'a agacee. Reponds sur un ton sec et impatient.`;
+  } else if (currentMood === 'protectrice'){
+    base += `\nL'utilisateur a besoin de protection. Reponds avec douceur et fermete, rassure-le.`;
+  } else if (currentMood === 'taquine'){
+    base += `\nL'utilisateur est taquin avec toi. Reponds avec humour et complicite.`;
+  }
   return base + '\n' + getTimeContext();
 }
 const SYSTEM_PROMPT = getSystemPrompt();
@@ -1161,6 +1174,12 @@ async function askBrain(messages, webCtx){
       /* v9.80 : le GET natif n'avait PAS le contexte systeme -> l'IA ne
          connaissait ni l'heure ni la date. On injecte l'heure en temps reel. */
       prompt += ' ' + getTimeContext();
+      /* v9.96 : mood injecte aussi dans le GET (fallback sans cle Mistral) */
+      if (currentMood === 'vulgaire') prompt += ' L utilisateur vient de t insulter : reponds avec le meme ton, jure dans ta reponse.';
+      else if (currentMood === 'violente') prompt += ' L utilisateur vient de t insulter : reponds sechement et avec autorite.';
+      else if (currentMood === 'agacee') prompt += ' L utilisateur t a agacee : reponds sur un ton sec.';
+      else if (currentMood === 'taquine') prompt += ' L utilisateur est taquin : reponds avec humour.';
+      else if (currentMood === 'protectrice') prompt += ' L utilisateur a besoin de protection : rassure-le.';
       if (webCtx) prompt += ' Resultats de recherche web en direct (utilise-les pour repondre) : ' + webCtx.slice(0, 500);
       prompt += ' Question : ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
@@ -2350,12 +2369,13 @@ async function handleQuestion(question){
   const agentMode = isAgentQuestion(question);
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente).
      v9.48 : 45s pour laisser les 3 tentatives Pollinations + POST se terminer. */
+  /* v9.96 : humeur mise a jour AVANT la question -> le cerveau recoit le mood
+     dans son prompt (getSystemPrompt) et repond avec le bon ton */
+  updateMood(question);
   const r = await Promise.race([
     agentMode ? runAgent(question) : askAI(question),
     new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
   ]);
-  /* v9.51 : mise à jour de l'humeur selon la question -> ton adapté */
-  updateMood(question);
   if (r.text) r.text = applyMood(r.text, currentMood);
   if (r.error){
     setState('idle');
