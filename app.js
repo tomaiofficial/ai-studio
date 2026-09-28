@@ -8,7 +8,7 @@ console.log('[APP] v9.63-final loading...');
 const APP_VERSION = '9.63-final';
 const LS = { voice: 'va_ttsvoice' };
 
-const DEFAULT_VOICE = 'kokoro:af_sky'; // SEULE voix : Kokoro Sky (WebGPU/WASM, FR natif, qualité top)
+const DEFAULT_VOICE = 'system:fr-FR-Hortense'; // Voix système française par défaut (toujours dispo, sans serveur, qualité fiable)
 const SPEED = 1.0; // naturel
 
 /* ===== EDGE TTS LOCAL (Microsoft voix neuronales : Henrietta, Denise, Remy...)
@@ -103,7 +103,7 @@ async function loadSpeecht5Pipeline(){
     speecht5Pipeline = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
       device,
       dtype,
-      progress_callback: (p) => console.log('[SPEECHT5] Chargement: ' + (typeof p === 'number' && !isNaN(p) ? Math.round(p * 100) + '%' : 'en cours'))
+      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
     });
     console.log('[SPEECHT5] Modèle prêt sur', device, 'dtype q8');
     // Test rapide avec timeout - charger embedding en tensor
@@ -1918,14 +1918,20 @@ function speak(text, onChunk){
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 45s sans son */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 45000);
-    /* VOIX : Kokoro TTS SEUL (priorité #1, WebGPU/WASM, FR natif) */
+    /* VOIX : SpeechT5 TTS (priorité #1, WebGPU/WASM, FR natif) -> Edge TTS -> Système */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('kokoro:')) {
-      const voiceId = voiceMode.substring(7);
-      chain = [['Kokoro: ' + voiceId, (t) => speakKokoro(t, voiceId, onChunk)]];
+    if (voiceMode.startsWith('speecht5:')){
+      const voiceId = voiceMode.substring(9);
+      chain = [['SpeechT5: ' + voiceId, (t) => speakSpeecht5(t, voiceId, onChunk)], ['Edge (secours)', (t) => speakEdge(t, 'fr-FR-HenriettaNeural', onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
+    } else if (voiceMode.startsWith('edge:')){
+      const voiceId = voiceMode.substring(5);
+      chain = [['Edge: ' + voiceId, (t) => speakEdge(t, voiceId, onChunk)], ['Système', (t) => speakSystem(t, undefined, onChunk)]];
+    } else if (voiceMode.startsWith('system:')){
+      const voiceName = voiceMode.substring(7);
+      chain = [['Système (' + voiceName + ')', (t) => speakSystem(t, voiceName, onChunk)]];
     } else {
-      chain = [['Kokoro: af_sky', (t) => speakKokoro(t, 'af_sky', onChunk)]];
+      chain = [['Système', (t) => speakSystem(t, undefined, onChunk)]];
     }
     let i = 0;
     const next = () => {
@@ -2162,7 +2168,7 @@ setTimeout(async () => {
     const pipe = await pipeline('text-to-speech', 'Xenova/speecht5_tts', {
       device,
       dtype,
-      progress_callback: (p) => console.log('[SPEECHT5] Chargement: ' + (typeof p === 'number' && !isNaN(p) ? Math.round(p * 100) + '%' : 'en cours'))
+      progress_callback: (p) => console.log('[SPEECHT5] Chargement:', Math.round(p * 100) + '%')
     });
     window.__speecht5Pipeline = pipe;
     console.log('[SPEECHT5] Pré-chargement terminé — prêt pour utilisation immédiate');
