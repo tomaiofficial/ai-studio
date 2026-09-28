@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.79';
+const APP_VERSION = '9.80';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -1031,7 +1031,10 @@ async function askBrain(messages, webCtx){
       const lastUser = messages.filter(m => m.role === 'user').pop();
       const q = lastUser ? lastUser.content : '';
       let prompt = 'Reponds en francais avec 2-4 phrases completes et naturelles, sans excuses ni meta-discours.';
-      if (webCtx) prompt += ' Resultats de recherche web en direct (utilise-les pour repondre) : ' + webCtx.slice(0, 700);
+      /* v9.80 : le GET natif n'avait PAS le contexte systeme -> l'IA ne
+         connaissait ni l'heure ni la date. On injecte l'heure en temps reel. */
+      prompt += ' ' + getTimeContext();
+      if (webCtx) prompt += ' Resultats de recherche web en direct (utilise-les pour repondre) : ' + webCtx.slice(0, 500);
       prompt += ' Question : ' + q;
       if (prompt.length > 1400) prompt = prompt.slice(-1400);
       const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=' + (model || 'openai');
