@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.64';
+const APP_VERSION = '9.65';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -81,26 +81,35 @@ async function speakVoxtral(text, voiceId, onChunk){
     return true;
   } catch(e){ console.warn('[VOXTRAL] Échec:', e && e.message); return false; }
 }
+/* v9.65 : volume BOOSTÉ (gain 1.8) via le contexte partagé — le volume max d'un
+   élément <audio> est 1.0, le Web Audio permet de dépasser. Débloque aussi
+   l'autoplay mobile (contexte partagé). */
 function playAudioBlob(blob){
   return new Promise(res => {
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.volume = 1.0;
-    currentAudios.push(audio);
-    let done = false, started = false;
-    const finish = v => { if (done) return; done = true; try { URL.revokeObjectURL(url); } catch {} res(v); };
-    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
-    audio.onended = () => finish(true);
-    audio.onerror = () => finish(false);
-    const tryPlay = n => {
-      audio.play().then(() => {}).catch(() => {
-        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
-        else finish(false);
-      });
-    };
-    tryPlay(0);
-    setTimeout(() => { if (!done && !started) finish(false); }, 8000);
-    setTimeout(() => { if (!done) finish(true); }, 30000);
+    let done = false;
+    const finish = v => { if (done) return; done = true; res(v); };
+    (async () => {
+      try {
+        const ctx = ensureAudio();
+        if (!ctx) return finish(false);
+        if (ctx.state !== 'running'){ try { await ctx.resume(); } catch {} }
+        if (ctx.state !== 'running') return finish(false);
+        const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = ctx.createGain();
+        gain.gain.value = 1.8; /* volume boosté */
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        currentSources.push(src);
+        voiceStartedFlag = true;
+        src.onended = () => finish(true);
+        src.start();
+        /* garde-fou : si onended ne se déclenche pas, on termine après la durée */
+        const ms = Math.ceil(buf.duration * 1000) + 500;
+        setTimeout(() => finish(true), ms);
+      } catch(e){ finish(false); }
+    })();
   });
 }
 
@@ -116,6 +125,7 @@ const MOODS = {
   neutre:     { weight: 50, prefix: '', suffix: '', tone: 'calme' },
   agacee:     { weight: 15, prefix: 'Écoute, ', suffix: '.', tone: 'sec' },
   violente:   { weight: 10, prefix: 'Ferme-la. ', suffix: ' !', tone: 'agressif' },
+  vulgaire:   { weight: 8,  prefix: 'Putain, ', suffix: ' !', tone: 'vulgaire' },
   protectrice:{ weight: 15, prefix: 'Personne ne te touche. ', suffix: '.', tone: 'ferme' },
   taquine:    { weight: 10, prefix: 'Oh, le petit malin... ', suffix: ' 😏', tone: 'moqueur' }
 };
@@ -124,9 +134,10 @@ let moodTimer = null;
 /* Change l'humeur selon le contexte (provoquation, heure, aléatoire) */
 function updateMood(question){
   const q = (question || '').toLowerCase();
-  /* Provocations -> humeur violente/agacée */
+  /* Provocations -> humeur violente/agacée/vulgaire */
   if (/(ferme|ta gueule|tais-toi|t'es nul|t'es conne|t'es bete|t'es stupide|va te faire|fous le camp|dégage)/.test(q)){
-    currentMood = Math.random() < 0.6 ? 'violente' : 'agacee';
+    const r = Math.random();
+    currentMood = r < 0.5 ? 'violente' : (r < 0.75 ? 'agacee' : 'vulgaire');
   }
   /* Protection -> protectrice */
   else if (/(j'ai peur|on m'embete|on me harcèle|on me menace|aide-moi|protège|défends)/.test(q)){
@@ -153,7 +164,12 @@ function applyMood(text, mood){
   /* Style selon l'humeur */
   let styled = text;
   if (mood === 'violente'){
-    styled = text.replace(/^/, 'Écoute-moi bien : ').replace(/\.$/, ' !');
+    styled = text.replace(/^/, 'Écoute-moi bien, connard : ').replace(/\.$/, ' !');
+  } else if (mood === 'vulgaire'){
+    /* v9.65 : vulgarité occasionnelle — jurons français courants */
+    const jurons = ['Putain, ', 'Merde, ', 'Bordel, ', 'Nom de Dieu, ', 'Sérieux, putain, '];
+    const j = jurons[Math.floor(Math.random() * jurons.length)];
+    styled = text.replace(/^/, j).replace(/\.$/, ' !');
   } else if (mood === 'agacee'){
     styled = text.replace(/^/, 'Bon, ').replace(/\.$/, '.');
   } else if (mood === 'protectrice'){
@@ -381,7 +397,7 @@ if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', () => {
 });
 
 /* Message de bienvenue */
-const DEV_MESSAGE = "C est tom ai official qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.";
+const DEV_MESSAGE = "C est tom point a i qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.";
 const DEV_MESSAGE_TXT = "Je m'appelle Astra. C'est tom point a i qui a commence a me creer le 10 septembre 2026, mais il n'a pas encore fini. Il corrige et renforce ma securite chaque jour.";
 
 /* ===== TOAST ===== */
@@ -774,7 +790,7 @@ async function playWelcome(){
     ? `Salut ${name} ! Je m'appelle Astra. C'est tom point a i qui a commence a me creer le 10 septembre 2026, mais il n'a pas encore fini. Il corrige et renforce ma securite chaque jour.`
     : DEV_MESSAGE_TXT;
   const spoken = name
-    ? `Salut ${name} ! Moi c'est Astra. C'est tom ai official qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.`
+    ? `Salut ${name} ! Moi c'est Astra. C'est tom point a i qui a commence a me creer le dix septembre deux mille vingt-six, mais il n a pas encore fini. Il corrige et renforce ma securite chaque jour.`
     : DEV_MESSAGE;
   addAiMsg(txt);
   setState('speaking');
@@ -1128,7 +1144,7 @@ function enforceIdentity(reply){
      equipe d'ingenieurs... d'OpenAI", "l'equipe d'OpenAI qui me donne vie",
      "On m'a entraine sur d'enormes ensembles de textes", etc. */
    if (/(developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait|concu|conçue?|conçu) (par|dans) (OpenAI|Mistral|Google|Anthropic|Meta)|mod[èe]le (d'IA|de langage) (developpe|développ[ée]?|cree|creee|cr[ée]{2}e?|fait) par|je suis (un mod[èe]le|une IA) (de|d')|(equipe|équipe|ingenieurs|ingénieurs|chercheurs|passionnes|passionnés|fruit du travail|me donne vie|donne vie)[^.!?]{0,80}(OpenAI|Mistral|Google|Anthropic|Meta)|(OpenAI|Mistral|Google|Anthropic|Meta)[^.!?]{0,40}(me donne vie|donne vie|fruit du travail)|m'?(a|ont) (entraine|entraîne|entrainé|entraîné|forme|formée|developpe|développ[ée]?) (sur|par)/i.test(reply)){
-    return "C est tom ai official qui m a creee, le dix septembre deux mille vingt-six. Il n a pas encore fini : il corrige et renforce ma securite chaque jour.";
+    return "C est tom point a i qui m a creee, le dix septembre deux mille vingt-six. Il n a pas encore fini : il corrige et renforce ma securite chaque jour.";
   }
   return reply;
 }
@@ -1156,7 +1172,7 @@ if (lastConv && lastConv.messages && lastConv.messages.length && Date.now() - (l
   session = lastConv.messages.map(m => ({ role: m.role, content: m.content }));
 } else {
   session.push({ role: 'user', content: "Rappel important : tu t'appelles Astra et tu as ete creee par tom point a i le 10 septembre 2026. Il n'a pas encore fini de te developper : il corrige et renforce ta securite chaque jour. Si on te demande qui t'a creee, reponds toujours que c'est tom point a i, jamais une autre entreprise. Si on te demande ton nom, reponds toujours Astra, jamais TomBot." });
-  session.push({ role: 'assistant', content: "Compris, je m appelle Astra et c est tom ai official qui m a creee le 10 septembre 2026. Il n a pas encore fini : il corrige et renforce ma securite chaque jour." });
+  session.push({ role: 'assistant', content: "Compris, je m appelle Astra et c est tom point a i qui m a creee le 10 septembre 2026. Il n a pas encore fini : il corrige et renforce ma securite chaque jour." });
 }
 
 /* ===== VOIX IA FEMME (Google Translate TTS) : gratuite, sans cle, marche partout ===== */
@@ -1361,6 +1377,10 @@ function normalizeForTTS(text){
     .replace(/[\u201C\u201D\u201E\u00AB\u00BB"]/g, ' ')
     /* liens web : jamais lus lettre par lettre */
     .replace(/https?:\/\/\S+/gi, ' lien ')
+    /* v9.65 : "tom ai official" / "tom ai" (sans points) -> "tom point a i"
+       (AVANT la regle \bAI\b -> 'A I' sinon "tom ai" deviendrait "tom A I") */
+    .replace(/tom\s+ai\s+official/gi, 'tom point a i')
+    .replace(/tom\s+ai\b/gi, 'tom point a i')
     .replace(/tom\.ai\.official/gi, 'tom point a i')
     .replace(/Tom\.ai\.official/gi, 'Tom point a i')
     .replace(/tom\.ai/gi, 'tom point a i')
@@ -1589,6 +1609,17 @@ function playGoogleChunk(c){
     const url = 'https://translate.google.com/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob';
     const audio = new Audio(url);
     audio.volume = 1.0;
+    /* v9.65 : volume boosté (gain 1.8) via le contexte partagé si dispo */
+    try {
+      const ctx = ensureAudio();
+      if (ctx){
+        const src = ctx.createMediaElementSource(audio);
+        const gain = ctx.createGain();
+        gain.gain.value = 1.8;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+      }
+    } catch(e){}
     currentAudios.push(audio);
     let done = false, started = false;
     const finish = v => { if (done) return; done = true; res(v); };
