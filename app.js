@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.77';
+const APP_VERSION = '9.78';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -330,7 +330,7 @@ function localSmartReply(question){
      (AVANT le pattern "qui t'a cree" pour ne pas confondre) */
   if (/(qui (a )?(cree|créé|fait|concu|conçu|developpe|développé) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))|(qui (fait|a fait) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))/i.test(q)) return "L'interface, c'est tom point a i qui l'a faite, comme tout le reste. Il la corrige et l'améliore chaque jour.";
   /* v9.77 : infos sur l'app — fonction mail à venir, sécurité en test */
-  if (/(mail|e[- ]?mail|email|courriel|fonction mail|29 septembre|nouveautes|nouveautés|quoi de neuf|infos sur l'app|infos sur l app|infos sur l'application|infos sur l application)/.test(q)) return "Bientôt, le mardi 29 septembre, l'application aura une fonction mail : je pourrai voir tes mails. En attendant, tom point a i teste la sécurité de l'application.";
+  if (/(mail|e[- ]?mail|email|courriel|fonction mail|29 septembre|nouveautes|nouveautés|quoi de neuf|infos sur l'app|infos sur l app|infos sur l'application|infos sur l application)/.test(q)) return "Bientôt, le mardi 29 septembre, l'application aura une fonction mail : je pourrai voir tes mails. En attendant, tom.ai teste la sécurité de l'application.";
   if (/(qui t'a cree|qui t a cree|ton createur|qui t'a fait|qui t a fait)/.test(q)) return "J'ai été créée par tom point a i le 10 septembre 2026, mais il n'a pas encore fini : il corrige et renforce ma sécurité.";
   if (/(tu te souviens|tu me souviens|memoire|mémoire|tu as de la memoire|tu as de la mémoire)/.test(q)){
     const mem = buildMemoryContext(currentConvId);

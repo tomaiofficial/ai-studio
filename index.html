@@ -209,6 +209,13 @@ body{
   font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
   pointer-events:none;
 }
+/* v9.78 : bandeau d'info dans la scene vocale (fonction mail a venir) */
+.app-info{
+  max-width:88%;text-align:center;font-size:12.5px;line-height:1.45;color:#8f8fb0;
+  background:rgba(18,16,42,.4);backdrop-filter:blur(8px);
+  border:1px solid rgba(124,92,255,.15);border-radius:12px;
+  padding:8px 14px;pointer-events:none;
+}
 .muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
 .wide-input{
   width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
@@ -332,6 +339,7 @@ select.wide-input{appearance:none}
   </button>
   <div class="subtitle" id="subtitle"></div>
   <button class="stop-btn" id="stopBtn" aria-label="Arrêter">■</button>
+  <div class="app-info" id="appInfo">📧 Bientôt (mardi 29 septembre) : fonction mail — l'IA pourra voir tes mails. En attendant, tom.ai teste la sécurité de l'app.</div>
   <div class="version-tag" id="versionTag"></div>
 </div>
 
@@ -398,15 +406,12 @@ select.wide-input{appearance:none}
       <span>Réveil « Hey Astra »</span>
     </label>
 
-    <h4 class="settings-title">📧 Bientôt : fonction mail</h4>
-    <p class="muted">Le <b>mardi 29 septembre</b>, l'app aura une <b>fonction mail</b> : l'IA pourra voir tes mails. En attendant, tom point a i teste la sécurité de l'app.</p>
-
     <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=9.77"></script>
+<script src="app.js?v=9.78"></script>
 </body>
 </html>
