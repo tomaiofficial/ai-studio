@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.78';
+const APP_VERSION = '9.79';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -27,6 +27,14 @@ const VOXTRAL_FALLBACK_VOICES = [
   { id: 'a3e41ea8-020b-44c0-8d8b-f6cc03524e31', name: 'Voxtral: Jane (anglais UK, sarcastique)', lang: 'en' },
 ];
 let voxtralVoicesCache = null;
+/* v9.79 : nom court d'une voix Voxtral — "Voxtral: Paul", sans UUID ni
+   parenthèses (affiché dans le statut quand l'IA parle) */
+function shortVoiceName(voiceId){
+  const all = voxtralVoicesCache || VOXTRAL_FALLBACK_VOICES;
+  const v = all.find(x => x.id === voiceId);
+  if (!v) return 'Voxtral';
+  return v.name.replace(/^Voxtral: /, '').replace(/\s*\(.*\)$/, '');
+}
 async function fetchVoxtralVoices(){
   if (voxtralVoicesCache) return voxtralVoicesCache;
   const key = getMistralKey();
@@ -2013,7 +2021,7 @@ function speak(text, onChunk){
     if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
       chain = [
-        ['Voxtral: ' + voiceId, (t) => speakVoxtral(t, voiceId, onChunk)],
+        [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)]
       ];
