@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '9.86';
+const APP_VERSION = '9.87';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 const LS = { voice: 'va_ttsvoice' };
 
@@ -1037,7 +1037,7 @@ function getTimeContext(){
 /* v9.77 : INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle
    (fonction mail à venir, sécurité en test...) */
 const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes, le mail ou ce qui arrive bientot, reponds avec ces infos) : Le mardi 29 septembre 2026, l'application aura une fonction mail : l'IA pourra voir les mails de l'utilisateur. En attendant, l'utilisateur teste la securite de l'application.";
-const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance et cite des exemples. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu peux jurer naturellement (putain, merde, bordel, nom de dieu) quand le ton s'y prete, comme une vraie personne, sans en faire trop. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur. Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. ` + APP_INFOS;
+const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance et cite des exemples. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu peux jurer naturellement (putain, merde, bordel, nom de dieu) quand le ton s'y prete, comme une vraie personne, sans en faire trop. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur. Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Tutoie TOUJOURS l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   if (profile && profile.name){
@@ -1137,7 +1137,7 @@ async function askBrain(messages, webCtx){
     try {
       const lastUser = messages.filter(m => m.role === 'user').pop();
       const q = lastUser ? lastUser.content : '';
-      let prompt = 'Reponds en francais avec 2-4 phrases completes et naturelles, sans excuses ni meta-discours.';
+      let prompt = 'Reponds en francais avec 2-4 phrases completes et naturelles, sans excuses ni meta-discours. Tutoie TOUJOURS l utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre. Ecris en francais correct, sans fautes d orthographe ni de grammaire. Ne commence jamais par une salutation.';
       /* v9.80 : le GET natif n'avait PAS le contexte systeme -> l'IA ne
          connaissait ni l'heure ni la date. On injecte l'heure en temps reel. */
       prompt += ' ' + getTimeContext();
@@ -1177,10 +1177,10 @@ async function askBrain(messages, webCtx){
     pollinationsPromise,
     new Promise(r => setTimeout(() => r(null), 25000))
   ]);
-  if (pollinationsResult) return { text: pollinationsResult, diag: 'Pollinations' };
+  if (pollinationsResult) return { text: fixFrench(pollinationsResult), diag: 'Pollinations' };
   /* POST en dernier recours (parfois disponible quand le GET est saturé) */
   const postResult = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
-  if (typeof postResult === 'string') return { text: postResult, diag: 'Pollinations' };
+  if (typeof postResult === 'string') return { text: fixFrench(postResult), diag: 'Pollinations' };
   /* v9.74 : SECOURS MISTRAL CHAT — si Pollinations est saturé (429), on
      utilise la clé Mistral (déjà configurée pour la voix) pour répondre.
      open-mistral-nemo est le modèle gratuit de Mistral. */
@@ -1196,7 +1196,7 @@ async function askBrain(messages, webCtx){
         if (res && res.ok){
           const data = await res.json();
           const text = (data?.choices?.[0]?.message?.content || '').trim();
-          if (text) return { text, diag: 'Mistral' };
+          if (text) return { text: fixFrench(text), diag: 'Mistral' };
         }
       } catch {}
     }
@@ -1388,7 +1388,7 @@ async function runAgent(question){
     { role: 'user', content: 'Voici les resultats de tes etapes de recherche :\n' + results.join('\n') + '\n\nFais la synthese finale pour l utilisateur, en 2 a 4 phrases, avec ton caractere habituel. Ne dis jamais que tu as fait une action reelle : tu es en lecture seule.' }
   ];
   const final = await askBrain(finalMsgs);
-  const clean = stripGreeting(enforceIdentity(final.text || 'Voila ce que j ai trouve.'));
+  const clean = stripGreeting(enforceIdentity(fixFrench(final.text || 'Voila ce que j ai trouve.')));
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   session.push({ role: 'assistant', content: clean });
@@ -1421,6 +1421,35 @@ function enforceIdentity(reply){
   }
   return reply;
 }
+/* v9.87 : CORRECTION FRANCAIS — le cerveau fait parfois des fautes (vouvoiement,
+   "début d'après-matin", "où de" au lieu de "ou de"...). On corrige les cas
+   courants automatiquement, en plus du prompt renforce. */
+function fixFrench(t){
+  if (!t) return t;
+  let s = t;
+  /* "début d'après-matin" -> "début d'après-midi" (et variantes) */
+  s = s.replace(/apr[èe]s[- ]matin/gi, 'après-midi');
+  /* "où de" -> "ou de" (conjonction, pas le lieu) */
+  s = s.replace(/\boù de\b/gi, 'ou de');
+  /* vouvoiement -> tutoiement (formes courantes) */
+  s = s.replace(/\bVotre\b/g, 'Ton').replace(/\bvotre\b/g, 'ton');
+  s = s.replace(/\bVos\b/g, 'Tes').replace(/\bvos\b/g, 'tes');
+  s = s.replace(/\bVous avez\b/gi, 'tu as');
+  s = s.replace(/\bVous êtes\b/gi, 'tu es');
+  s = s.replace(/\bVous etes\b/gi, 'tu es');
+  s = s.replace(/\bVous pouvez\b/gi, 'tu peux');
+  s = s.replace(/\bVous voulez\b/gi, 'tu veux');
+  s = s.replace(/\bVous devez\b/gi, 'tu dois');
+  s = s.replace(/\bVous allez\b/gi, 'tu vas');
+  s = s.replace(/\bVous faites\b/gi, 'tu fais');
+  s = s.replace(/\bVous savez\b/gi, 'tu sais');
+  s = s.replace(/\bVous voyez\b/gi, 'tu vois');
+  s = s.replace(/\bVous pensez\b/gi, 'tu penses');
+  s = s.replace(/\bVous dites\b/gi, 'tu dis');
+  s = s.replace(/\bN'hésitez pas\b/gi, "N'hésite pas");
+  s = s.replace(/\bn'hesitez pas\b/gi, "n'hesite pas");
+  return s;
+}
 /* Coupe les salutations repetees en debut de reponse ("Salut Tom ! ...",
    "Bonjour, ...", "Hey ! ..."). L'IA ne doit saluer qu'UNE SEULE fois par
    conversation, pas a chaque reponse. */
@@ -1429,7 +1458,7 @@ function stripGreeting(t){
   let s = t.trim();
   /* salutations en minuscule/majuscule (sans flag i : le prenom doit rester
      sensible a la casse pour ne pas couper "Salut les amis" par erreur) */
-  const g = '(?:[Ss]alut|[Bb]onjour|[Bb]onsoir|[Hh]ey|[Hh]eyy|[Hh]ello|[Cc]oucou|[Yy]o|[Ss]lt|[Rr]e)';
+  const g = '(?:[Ss]alut|[Bb]onjour|[Bb]onsoir|[Hh]ey|[Hh]eyy|[Hh]ello|[Cc]oucou|[Yy]o|[Ss]lt|[Rr]e|[Ee]nchant[ée]e?)';
   /* "Salut Tom ! ..." / "Salut Tom, ..." (salutation + prenom) */
   s = s.replace(new RegExp('^' + g + '\\s+[A-ZÀ-Ý][a-zà-ÿ]+\\s*[!.,]?\\s+'), '');
   /* "Salut ! ..." / "Bonjour, ..." (salutation seule, PONCTUATION obligatoire
