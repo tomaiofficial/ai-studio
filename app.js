@@ -5,7 +5,7 @@
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 console.log('[APP] v9.63-final loading...');
-const APP_VERSION = '9.68';
+const APP_VERSION = '9.69';
 const LS = { voice: 'va_ttsvoice' };
 
 const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // Voxtral TTS (Mistral AI) — Paul, anglais US neutre
@@ -1060,9 +1060,11 @@ async function translateToFr(text){
 }
 /* v9.68 : détecte les réponses où l'IA prétend ne pas avoir accès à internet
    (les petits modèles ignorent le prompt système -> on force une recherche
-   et on relance, ou on remplace la réponse) */
+   et on relance, ou on remplace la réponse).
+   v9.69 : regex élargi — "pas la possibilité de naviguer", "données disponibles
+   jusqu'en", "consulter les sites officiels", "mon savoir provient"... */
 function isWebRefusal(t){
-  return /pas acc[eè]s (à|a) (l'?internet|l'?internet|au web|à internet|au r[eé]seau)|pas acc[eè]s au web|recherches en temps r[eé]el|dernier entra[iî]nement|derni[eè]re formation|knowledge cutoff|training data|je ne peux pas (naviguer|acc[eè]der|faire des recherches|effectuer des recherches|aller sur internet)|je n'ai pas (la capacit[eé]|le moyen|acc[eè]s)|jusqu'?à mon dernier|jusqu a mon dernier|je suis (un mod[èe]le|une ia) (hors ligne|sans acc[eè]s)/i.test(t);
+  return /pas acc[eè]s (à|a) (l'?internet|au web|à internet|au r[eé]seau)|pas acc[eè]s au web|pas la possibilit[eé] (de naviguer|d'acc[eè]der|de consulter|de faire des recherches|d'aller)|recherches en temps r[eé]el|dernier entra[iî]nement|derni[eè]re formation|knowledge cutoff|training data|je ne peux pas (naviguer|acc[eè]der|faire des recherches|effectuer des recherches|aller sur internet|consulter)|je n'ai pas (la capacit[eé]|le moyen|acc[eè]s|la possibilit[eé])|jusqu'?à mon dernier|jusqu a mon dernier|je suis (un mod[èe]le|une ia) (hors ligne|sans acc[eè]s)|donn[eé]es disponibles jusqu'?en|mon savoir provient|consult[eé]r les sites officiels|il vaut mieux consulter|informations actualis[eé]es|derni[eè]res publications|ma connaissance s'arr[eê]te|je ne suis pas connect[eé]e|hors ligne/i.test(t);
 }
 async function askAI(question){
   session.push({ role: 'user', content: question });
