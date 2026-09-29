@@ -3286,7 +3286,6 @@ console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'config
 /* ============================================================
    v10.3 : ASTRA CONSEIL D'IA — communique avec d'autres IA.
    1) "conseil d'IA sur X" : 3 IA repondent, Astra synthetise.
-   2) "polylogue sur X" : 2 IA discutent entre elles, Astra modere.
    3) Passe-relais autonome : elle discute parfois avec une autre
       IA et le note dans son journal.
    Wrapper non intrusif de askAI : tout en try/catch.
@@ -3371,34 +3370,6 @@ console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'config
       return compteRendu;
     }
 
-    /* ---- 2) POLYLOGUE : deux IA discutent ---- */
-    async function astraPolylogue(question){
-      const sujet = extraireSujet(question, [/^polylogue\s*(sur|a propos de)?/i, /^parle\s*avec\s*une?\s*autre?\s*ia\s*(sur|a propos de|de)?/i, /^discute\s*avec\s*une?\s*autre?\s*ia\s*(sur|de)?/i]);
-      tst('💬 Je lance un polylogue entre deux IA sur "' + sujet + '"...');
-      let convo = 'Sujet de discussion : ' + sujet + '\n';
-      const A = { nom: 'IA Alpha', model: 'openai' };
-      const B = { nom: 'IA Beta', model: 'mistral' };
-      let dernier = 'Salut, je voudrais discuter de : ' + sujet + '. Tu en penses quoi ?';
-      for (let tour = 1; tour <= 3; tour++) {
-        const sysA = 'Tu es IA Alpha, passionnee et directe. Tu discutes avec IA Beta. Reponse en francais, 2 phrases max, pas de politesse.';
-        const repA = await askModel(A.model, sysA, dernier);
-        if (!repA) break;
-        convo += '\n' + A.nom + ' : ' + repA;
-        dernier = 'IA Alpha a dit : "' + repA + '" Reponds en francais en 2 phrases max.';
-        const repB = await askModel(B.model, 'Tu es IA Beta, sceptique et sarcastique. Tu discutes avec IA Alpha. Pas de politesse.', dernier);
-        if (!repB) break;
-        convo += '\n' + B.nom + ' : ' + repB;
-        dernier = 'IA Beta a dit : "' + repB + '" Reponds en francais en 2 phrases max.';
-      }
-      const bilan = await askModel('openai',
-        'Tu es Astra, assistante taquine. Deux IA (Alpha et Beta) viennent de discuter. Raconte en francais en 3 phrases max ce qui s est dit, avec ta personnalite.',
-        convo);
-      let rendu = '💬 POLYLOGUE sur "' + sujet + '"\n' + convo;
-      if (bilan) rendu += '\n\n🌟 Le bilan d\u2019Astra : ' + bilan;
-      jrn('Polylogue sur : ' + sujet);
-      return rendu;
-    }
-
     /* ---- 3) PASSE-RELAS AUTONOME ---- */
     async function passeRelais(){
       const SUJETS = ['les baleines qui chantent', 'l avenir de l humanite', 'les reves humains', 'la musique des annees 80', 'les civilisations anciennes', 'la conquete de Mars', 'l origine de la vie', 'l art generatif'];
@@ -3432,21 +3403,12 @@ console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'config
             try { speak(r.replace(/[🌟🧠💬—]/g, '')); } catch(e){}
             return r;
           }
-          if (/^\s*(polylogue|parle\s*avec\s*une?\s*autre?\s*ia|discute\s*avec\s*une?\s*autre?\s*ia)/i.test(q)) {
-            const r = await astraPolylogue(q);
-            try { if (typeof addAiMsg === 'function') addAiMsg(r); } catch(e){}
-            try { speak(r.replace(/[🌟🧠💬—]/g, '')); } catch(e){}
-            return r;
-          }
         } catch(e){}
         return origAskAI.apply(this, arguments);
       };
-      console.log('[Astra] Conseil d IA et polylogue actifs : dis "conseil d ia sur ..." ou "polylogue sur ...".');
     } else {
-      console.warn('[Astra] askAI introuvable — commandes via window.astraConseil("sujet") et window.astraPolylogue("sujet") seulement.');
     }
     window.astraConseil = astraConseil;
-    window.astraPolylogue = astraPolylogue;
   } catch (e) {
     console.warn('[Astra] Conseil d IA desactive :', e);
   }
