@@ -1090,7 +1090,7 @@ async function startRecorder(){
       setStatus('Je t\'ecoute...');
       const blob = new Blob(mediaChunks, { type: (mediaChunks[0] && mediaChunks[0].type) || 'audio/webm' });
       recorderBusy = false;
-      if (blob.size < 8000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); if (continuousMode && !continuousPaused) { setTimeout(() => { try { startRecorder(); } catch {} }, 800); } return; }
+      if (blob.size < 8000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); isProcessing = false; manualStop = false; if (continuousMode && !continuousPaused) { setTimeout(() => { try { startRecorder(); } catch {} }, 800); } return; }
       /* Transcription : la reconnaissance vocale du navigateur (gratuite, sans cle)
          est le service principal. Si on est arrive ici, elle a echoue -> on tente
          Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
