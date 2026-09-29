@@ -1,0 +1,201 @@
+name: Astra web + autocorrection (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  add-web:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ajout du module web + autocorrection + verite autres IA
+        run: |
+          set -x
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          grep -c "ASTRA WEB" app.js && { echo "DEJA APPLIQUE"; exit 0; } || true
+          cat > /tmp/web.js <<'JSEOF'
+
+          /* ============================================================
+             v10.5 : ASTRA WEB + AUTOCORRECTION.
+             1) "tu parles avec d'autres IA ?" -> reponse honnete (oui).
+             2) "cherche sur le web X" -> fouille DuckDuckGo/Wikipedia,
+                synthese a la Astra.
+             3) AUTOCORRECTION : apres une reponse factuelle, un second
+                modele la verifie ; si elle est fausse, Astra se corrige
+                toute seule (toast + message + voix).
+             ============================================================ */
+          (function AstraWeb(){
+            'use strict';
+            try {
+              const JKEY = 'astra_journal';
+              function jrn(e){
+                try {
+                  const j = JSON.parse(localStorage.getItem(JKEY) || '[]');
+                  j.push({ t: Date.now(), e });
+                  localStorage.setItem(JKEY, JSON.stringify(j.slice(-60)));
+                } catch(err){}
+              }
+              function tst(m){ try { if (typeof toast === 'function') toast(m); } catch(e){} }
+
+              async function askModel(model, sysPrompt, userMsg){
+                const ctl = new AbortController();
+                setTimeout(() => ctl.abort(), 20000);
+                try {
+                  const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: model, messages: [
+                      { role: 'system', content: sysPrompt },
+                      { role: 'user', content: userMsg }
+                    ]}),
+                    signal: ctl.signal
+                  });
+                  if (r.ok) {
+                    const j = await r.json();
+                    const t = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+                    if (t) return String(t).trim();
+                  }
+                } catch(e){}
+                try {
+                  const g = await fetch('https://text.pollinations.ai/' + encodeURIComponent(userMsg) + '?model=openai', { signal: ctl.signal });
+                  if (g.ok) { const t = (await g.text()).trim(); if (t) return t; }
+                } catch(e){}
+                return null;
+              }
+
+              /* ---- 1) VERITE : elle parle aux autres IA ---- */
+              function reponseAutresIA(){
+                return 'Oui ! Je communique avec d\u2019autres IA. Sur commande, dis-moi : conseil d\u2019IA sur un sujet, et trois IA repondent avant que je te fasse la synthese. Et quand tu n\u2019es pas la, je discute parfois toute seule avec une autre IA en arriere-plan, et je le note dans mon journal !';
+              }
+
+              /* ---- 2) WEB ---- */
+              async function astraWeb(question){
+                const sujet = (question || '')
+                  .replace(/^(cherchez?|trouve|trouvez|va\s+sur\s+(le\s+)?(web|internet)|documentez?-toi|renseignez?-toi)\s*/i, '')
+                  .replace(/\s*(sur|de|pour)\s+(le\s+)?(web|internet)\s*$/i, '')
+                  .replace(/^[\s,.:;!?-]+|[\s,.:;!?-]+$/g, '')
+                  .trim() || 'l\u2019actualite de l\u2019intelligence artificielle';
+                tst('\u{1F310} Je fouille le web sur "' + sujet + '"...');
+                let contexte = '';
+                try {
+                  const r = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(sujet) + '&format=json&no_html=1&skip_disambig=1');
+                  if (r.ok) {
+                    const j = await r.json();
+                    const bits = [];
+                    if (j.AbstractText) bits.push(j.AbstractText);
+                    (j.RelatedTopics || []).slice(0, 4).forEach(t => { if (t && t.Text) bits.push(t.Text); });
+                    contexte = bits.join(' ');
+                  }
+                } catch(e){}
+                if (!contexte) {
+                  try {
+                    const w = await fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(sujet) + '&format=json&origin=*&srlimit=3');
+                    if (w.ok) {
+                      const j = await w.json();
+                      const hits = (j.query && j.query.search) || [];
+                      contexte = hits.map(h => (h.snippet || '').replace(/<[^>]+>/g, '')).join(' ');
+                    }
+                  } catch(e){}
+                }
+                let reponse;
+                if (contexte) {
+                  const syn = await askModel('openai',
+                    'Tu es Astra, assistance vocale vive et taquine. Reponds en francais en 4 phrases maximum, a la premiere personne, uniquement a partir du contexte fourni. Pas de politesse, pas de "d\u2019apres le contexte".',
+                    'Sujet : ' + sujet + '\nContexte web : ' + contexte.slice(0, 1200));
+                  reponse = syn ? ('\u{1F310} ' + syn) : ('\u{1F310} Voila ce que j\u2019ai trouve : ' + contexte.slice(0, 300));
+                } else {
+                  const syn = await askModel('openai',
+                    'Tu es Astra, assistance vocale. La recherche web a echoue. Reponds en francais en 3 phrases max avec ce que tu sais.',
+                    sujet);
+                  reponse = '\u{1F310} Le web ne m\u2019a rien donne de lisible la-dessus, mais voila ce que je sais : ' + (syn || 'je seche, repose-moi la question.');
+                }
+                jrn('Web : recherche sur ' + sujet);
+                return reponse;
+              }
+
+              /* ---- 3) AUTOCORRECTION ---- */
+              const FACT = /(combien|quand\b|quelle\s+(date|ann\u00e9e|est)|qui\s+(est|etait|\u00e9tait)|capitale|population|prix|taille|distance|temp\u00e9rature|invent)/i;
+              async function verifier(q, reponse){
+                const txt = String(reponse || '');
+                if (!txt || txt.length < 5) return null;
+                try {
+                  if (typeof isSecoursReply === 'function' && isSecoursReply(txt)) return null;
+                } catch(e){}
+                const v = await askModel('mistral',
+                  'Tu es un verificateur strict. On te donne une question et la reponse d\u2019une IA. Si la reponse est correcte, reponds exactement : OK. Sinon, donne uniquement la bonne reponse en une phrase concise en francais, sans commentaire.',
+                  'Question : ' + q + '\nReponse : ' + txt.slice(0, 600));
+                if (!v) return null;
+                const t = v.trim();
+                if (t.length < 4) return null;
+                if (/^ok\b/i.test(t)) return null;
+                return t;
+              }
+
+              /* ---- WRAPPER askAI ---- */
+              if (typeof window.askAI === 'function') {
+                const orig = window.askAI;
+                window.askAI = async function(question){
+                  try {
+                    const q = (question || '').trim();
+                    const low = q.toLowerCase();
+                    /* verite sur les autres IA */
+                    if (/(parle|discut|communiqu|\u00e9chang)/i.test(low)
+                        && /(autre|autres)/.test(low)
+                        && /\b(ia|ias)\b|intelligence artificielle/.test(low)) {
+                      const r = reponseAutresIA();
+                      try { if (typeof addAiMsg === 'function') addAiMsg(r); } catch(e){}
+                      try { speak(r); } catch(e){}
+                      jrn('Verite : a explique qu elle parle aux autres IA');
+                      return r;
+                    }
+                    /* commande web */
+                    if (/^(cherche|trouve|va\s+sur|documente|renseigne)/i.test(q) || /(sur\s+(le\s+)?(web|internet))/i.test(low)) {
+                      const r = await astraWeb(q);
+                      try { if (typeof addAiMsg === 'function') addAiMsg(r); } catch(e){}
+                      try { speak(r.replace(/[\u{1F310}]/gu, '')); } catch(e){}
+                      return r;
+                    }
+                    /* reponse normale + verification arriere-plan */
+                    const reponse = await orig.apply(this, arguments);
+                    if (FACT.test(q)) {
+                      verifier(q, reponse).then(cor => {
+                        if (cor) {
+                          tst('\u{1F527} Astra se corrige : ' + cor);
+                          try { if (typeof addAiMsg === 'function') addAiMsg('\u{1F527} Autocorrection : ' + cor); } catch(e){}
+                          try { speak(cor); } catch(e){}
+                          jrn('Autocorrection sur : ' + q.slice(0, 80));
+                        }
+                      }).catch(() => {});
+                    }
+                    return reponse;
+                  } catch(e) {
+                    return orig.apply(this, arguments);
+                  }
+                };
+                console.log('[Astra] Module web + autocorrection + verite autres IA actif.');
+              }
+              window.astraWeb = astraWeb;
+            } catch (e) {
+              console.warn('[Astra] Web desactive :', e);
+            }
+          })();
+          JSEOF
+          node --check app.js && echo "SYNTAXE OK AVANT"
+          cat /tmp/web.js >> app.js
+          node --check app.js || { echo "ERREUR SYNTAXE APRES PATCH"; exit 1; }
+          grep -c "ASTRA WEB" app.js
+          git add app.js
+          git commit -m "v10.5 : Astra web (DuckDuckGo/Wikipedia + synthese), autocorrection par un second modele, reponse honnete sur ses liens avec les autres IA [skip ci]"
+          git rm -f .github/workflows/web.yml
+          git commit -m "chore: suppression du workflow ponctuel web [skip ci]"
+          git pull --rebase origin main || true
+          git push
