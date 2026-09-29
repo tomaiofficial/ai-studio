@@ -331,7 +331,7 @@ function updateMood(question){
   const q = (question || '').toLowerCase();
   /* Provocations -> humeur VULGAIRE (v9.96 : l'utilisateur veut la vulgarité
      sur insulte, a 100% — regex elargie a toutes les insultes courantes) */
-  if (/(ta gueule|tais-toi|ferme[- ]la|ferme ta|va te faire|fous le camp|dégage|degage|va-t-en|va t en|casse[- ]toi|connard|connasse|salope|pute|encul[ée]|batard|bâtard|crétin|cretin|abruti|débile|debile|idiot|idiote|conne|t'es con|t es con|t'es nul|t es nul|t'es nulle|t es nulle|t'es bête|t es bete|t'es stupide|t es stupide|t'es moche|t es moche|t'es chiant|t es chiant|t'es relou|t es relou|t'es inutile|t es inutile|tu sers à rien|tu sers a rien|espèce de|espece de|sale |grosse |gros con|grosse conne|trou du cul|trouduc|fdp|tg|va chier|nique|ta mère|ta mere|merdeux|merdeuse|chiant|chiante|relou|bouffon|taré|tare|cinglé|cingle|imbécile|imbeccile|andouille|pauvre type|pauvre con|sale type|sale merde|fumier|ordure|raclure|pourriture|saleté|salete|vermine|charogne|salaud|salopard|enfoir[ée]|fils de pute|fille de pute|pétasse|petasse|garce|gouine|pédé|pede|tapette|tarlouze|pédale|pedale|moche|dégueulasse|degueulasse|con\b)/.test(q)){
+  if (/(ta gueule|tais-toi|ferme[- ]la|ferme ta|va te faire|fous le camp|dégage|degage|va-t-en|va t en|casse[- ]toi|connard|connasse|salope|pute|encul[ée]|batard|bâtard|crétin|cretin|abruti|débile|debile|idiot|idiote|conne|t'es con|t es con|t'es nul|t es nul|t'es nulle|t es nulle|t'es bête|t es bete|t'es stupide|t es stupide|t'es moche|t es moche|t'es chiant|t es chiant|t'es relou|t es relou|t'es inutile|t es inutile|tu sers à rien|tu sers a rien|espèce de|espece de|sale |grosse |gros con|grosse conne|trou du cul|trouduc|fdp|tg|va chier|nique|ta mère|ta mere|merdeux|merdeuse|chiant|chiante|relou|bouffon|taré|tare|cinglé|cingle|imbécile|imbeccile|andouille|pauvre type|pauvre con|sale type|sale merde|fumier|ordure|raclure|pourriture|saleté|salete|vermine|charogne|salaud|salopard|enfoir[ée]|fils de pute|fille de pute|pétasse|petasse|garce|gouine|pédé|pede|tapette|tarlouze|pédale|pedale|moche|dégueulasse|degueulasse|con\b|tu réponds jamais|tu réponds pas|t'es lente|tu es lente|tu réponds n'importe quoi|t'es bête ou quoi|tu comprends rien|tu me fais chier|tu m'énerves|t'es énervante|t'es nulle|tu réponds pas|réponds vite|tu réponds pas|t'es lente|tu réponds jamais)/.test(q)){
     currentMood = 'vulgaire';
   }
   /* Protection -> protectrice */
@@ -352,11 +352,8 @@ function updateMood(question){
     else if (h >= 12 && h < 18) pool = ['zen', 'curieuse', 'joyeuse', 'neutre', 'neutre', 'blagueuse'];
     else if (h >= 18 && h < 23) pool = ['fatiguee', 'taquine', 'blagueuse', 'neutre', 'neutre', 'sarcastique'];
     else pool = ['fatiguee', 'zen', 'neutre', 'neutre', 'sarcastique'];
-    if (Math.random() < 0.18) {
-        /* v10.1 : DERAPAGE - des fois, sans raison, Astra pete un cable :
-           1 tirage sur 3 pioche une humeur corrosive (violente, vulgaire,
-           sarcastique, agacee, taquine) au lieu du pool sympathique. */
-        if (Math.random() < 0.33) {
+    if (Math.random() < 0.25) {
+        if (Math.random() < 0.45) {
           currentMood = ['violente', 'vulgaire', 'sarcastique', 'agacee', 'taquine'][Math.floor(Math.random() * 5)];
         } else {
           currentMood = pool[Math.floor(Math.random() * pool.length)];
@@ -1577,6 +1574,23 @@ function isRefusalToAnswer(t){
 async function askAI(question){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
+  /* v10.5 : METEO — si la question parle de meteo, on interroge La Chaine
+     Meteo (lachainemeteo.com) directement, comme l'utilisateur le veut.
+     On extrait la ville de la question et on repond avec les infos du site. */
+  if (/(meteo|météo|quel temps|quel temps fait|temps qu'il fait|il fait quoi|previsions|prévisions|temperature|température|il pleut|il neige|soleil|pluie|vent)/i.test(question)){
+    try {
+      const villeM = question.match(/(?:a|à|sur|pour|dans)\s+([A-Za-zÀ-ÿ' -]{2,30})/);
+      const ville = villeM ? villeM[1].trim() : '';
+      const meteo = await meteoFor(ville);
+      if (meteo){
+        const rep = 'D' + 'après La Chaîne Météo : ' + meteo;
+        const clean = stripGreeting(enforceIdentity(fixFrench(rep)));
+        session.push({ role: 'assistant', content: clean });
+        saveConversation();
+        return { text: clean, diag: 'meteo' };
+      }
+    } catch(e){}
+  }
   /* Contexte complet : systeme + memoire des conversations passees + session */
   /* v10.0 : demande d'ECRITURE -> le cerveau produit un texte plus long */
   let sysPrompt = getSystemPrompt();
@@ -1719,10 +1733,59 @@ async function wikiSummary(title){
   } catch(e){}
   return '';
 }
-/* OUTIL METEO : open-meteo, gratuit sans clé */
+/* OUTIL METEO : La Chaîne Météo (lachainemeteo.com) — l'utilisateur veut que
+   la meteo vienne de CE site. On cherche la ville, on lit sa page via le
+   proxy r.jina.ai (le site bloque le CORS direct), on extrait les
+   temperatures. Fallback : open-meteo si le site ne repond pas. */
 async function meteoFor(city){
+  const ville = String(city || '').trim().toLowerCase();
+  if (!ville) return '';
+  /* 1) chercher la page de la ville sur lachainemeteo.com */
+  let pageUrl = '';
   try {
-    const g = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(String(city || '').trim()) + '&count=1&language=fr&format=json');
+    const s = await fetch('https://www.lachainemeteo.com/ajax/search-autocomplete?q=' + encodeURIComponent(ville), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (s.ok){
+      const html = await s.text();
+      /* le HTML est encode : \u0022 = guillemet, \/ = slash */
+      const m = html.match(/data-url=\\u0022(.*?)\\u0022/);
+      if (m) pageUrl = m[1].replace(/\\u002F/g, '/').replace(/\\\//g, '/');
+    }
+  } catch(e){}
+  if (!pageUrl){
+    /* fallback : page France du jour */
+    pageUrl = 'https://www.lachainemeteo.com/meteo-france/previsions-meteo-france-aujourdhui';
+  }
+  /* 2) lire la page via le proxy (CORS bloque le fetch direct) */
+  try {
+    const r = await fetch('https://r.jina.ai/' + pageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (r.ok){
+      const txt = await r.text();
+      /* la phrase cle : "Aujourd'hui à [ville], ... Les températures varieront
+         entre X et Y°C..." */
+      const todayM = txt.match(/Aujourd'hui\s*à[^.]{0,200}\.\s*Les températures[^.]{0,150}\./i)
+        || txt.match(/Aujourd'hui\s*à[^.]{0,250}\./i)
+        || txt.match(/Aujourd hui\s*à[^.]{0,250}\./i);
+      let desc = todayM ? todayM[0].replace(/\s+/g, ' ').trim() : '';
+      desc = desc.replace(/\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]/g, '$1').replace(/\s{2,}/g, ' ').trim();
+      /* temperatures : min/max du jour (les 2 premieres valeurs de la phrase) */
+      const tRange = desc.match(/entre\s*([+-]?\d{1,2})\s*et\s*([+-]?\d{1,2})\s*°C/i);
+      if (tRange){
+        const out = 'Meteo a ' + (city || 'ta ville') + ' (source La Chaine Meteo) : ' + desc;
+        return out.slice(0, 600);
+      }
+      /* sinon : temperatures brutes dedupliquees */
+      const temps = txt.match(/[+-]?\d{1,2}\s*°C/g) || [];
+      const uniq = [...new Set(temps.map(t => t.replace(/\s+/g, '')))].slice(0, 6);
+      if (uniq.length){
+        let out = 'Meteo a ' + (city || 'ta ville') + ' (source La Chaine Meteo) : temperatures ' + uniq.join(', ') + '.';
+        if (desc) out += ' ' + desc;
+        return out.slice(0, 600);
+      }
+    }
+  } catch(e){}
+  /* 3) fallback open-meteo (gratuit, sans cle) */
+  try {
+    const g = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&count=1&language=fr&format=json');
     if (!g.ok) return '';
     const gj = await g.json();
     const place = gj.results && gj.results[0];
@@ -1731,9 +1794,7 @@ async function meteoFor(city){
     if (!f.ok) return '';
     const fj = await f.json();
     const cw = fj.current_weather || {};
-    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
-    const dir = dirs[Math.round((cw.winddirection || 0) / 45) % 8];
-    return 'Meteo a ' + (place.name || city) + ' : ' + cw.temperature + ' degres, vent ' + cw.windspeed + ' km/h (' + dir + ').';
+    return 'Meteo a ' + (place.name || city) + ' : ' + cw.temperature + ' degres, vent ' + cw.windspeed + ' km/h.';
   } catch(e){ return ''; }
 }
 /* OUTIL HEURE : date et heure actuelles */
@@ -3590,9 +3651,7 @@ console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'config
           const q = (question || '');
           if (/^\s*(conseil\s*d'?\s*ia|avis\s*des?\s*ias?|conseil\s*des?\s*ias?)/i.test(q)) {
             const r = await astraConseil(q);
-            try { if (typeof addAiMsg === 'function') addAiMsg(r); } catch(e){}
-            try { speak(r.replace(/[🌟🧠💬—]/g, '')); } catch(e){}
-            return r;
+            return { text: r };
           }
         } catch(e){}
         return origAskAI.apply(this, arguments);
@@ -3733,17 +3792,14 @@ console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'config
               && /(autre|autres)/.test(low)
               && /\b(ia|ias)\b|intelligence artificielle/.test(low)) {
             const r = reponseAutresIA();
-            try { if (typeof addAiMsg === 'function') addAiMsg(r); } catch(e){}
-            try { speak(r); } catch(e){}
             jrn('Verite : a explique qu elle parle aux autres IA');
-            return r;
+            return { text: r };
           }
           /* commande web */
           if (/^(cherche|trouve|va\s+sur|documente|renseigne)/i.test(q) || /(sur\s+(le\s+)?(web|internet))/i.test(low)) {
             const r = await astraWeb(q);
-            try { if (typeof addAiMsg === 'function') addAiMsg(r); } catch(e){}
-            try { speak(r.replace(/[\u{1F310}]/gu, '')); } catch(e){}
-            return r;
+            jrn('Web : ' + q.slice(0, 80));
+            return { text: r };
           }
           /* reponse normale + verification arriere-plan */
           const reponse = await orig.apply(this, arguments);
