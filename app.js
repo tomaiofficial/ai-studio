@@ -1,3 +1,5 @@
+function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const words=(text||'').toLowerCase().match(/[a-zà-ÿ]{3,}/g)||[]; words.forEach(w=>{vocab[w]=(vocab[w]||0)+1}); localStorage.setItem('astra_vocab',JSON.stringify(vocab));}catch(e){} }
+function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
    ASSISTANT VOCAL IA � 100% vocal, sans chat
    v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans cle,
@@ -1525,7 +1527,7 @@ async function askBrain(messages, webCtx){
    l'utilisateur parle (ou tape) -> le modele se charge en arriere-plan et la
    vraie question arrive sur un cerveau deja chaud (reponse en ~0.3s au lieu
    de 3-15s de demarrage a froid). Max 1x / 30s. */
-let brainWarmTimer = null;
+var brainWarmTimer = null;
 function warmUpBrain(){
   if (brainWarmTimer) return;
   brainWarmTimer = setTimeout(() => { brainWarmTimer = null; }, 30000);
@@ -1691,6 +1693,8 @@ function addAgentStep(i, total, label){
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
 }
+function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const words=(text||'').toLowerCase().match(/[a-zà-ÿ]{3,}/g)||[]; words.forEach(w=>{vocab[w]=(vocab[w]||0)+1}); localStorage.setItem('astra_vocab',JSON.stringify(vocab));}catch(e){} }
+function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
    v10.5 : VRAI AGENT AUTONOME — boucle d'outils.
    L'IA décide elle-même quel outil appeler ([OUTIL:nom] args [/OUTIL]),
@@ -3081,6 +3085,7 @@ async function handleQuestion(question){
     || /(heure|date|jour)\s*(il est|on est|aujourd)/.test(q);
   if (isTimeQ){
     const now = new Date();
+    const h = now.getHours(), m = now.getMinutes();
     const timeStr = h + 'h' + (m < 10 ? '0' + m : m);  /* 9h58 pas 11h */
     const dateStr = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const rep = "Il est " + timeStr + ", " + dateStr + ".";
@@ -3088,7 +3093,6 @@ async function handleQuestion(question){
        horrible -> "huit heures quarante-deux". Meme chose pour la date. */
     const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
     const MONTHS = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
-    const h = now.getHours(), m = now.getMinutes();
     const timeDigits = h + 'h' + (m ? String(m).padStart(2, '0') : '00');
     const dateWords = WEEKDAYS[now.getDay()] + ' ' + numToFr(now.getDate()) + ' ' + MONTHS[now.getMonth()] + ' ' + numToFr(now.getFullYear());
     /* v9.67 : période de la journée -> "Il est 8h42 du matin, lundi..." */
@@ -3414,6 +3418,8 @@ if (wakeEnabled && welcomeDone) startWakeRecog();
    (aucun téléchargement navigateur, réponse ~1-3s). */
 console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'configurée' : 'MANQUANTE (Réglages → Clé API Mistral)'));
 
+function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const words=(text||'').toLowerCase().match(/[a-zà-ÿ]{3,}/g)||[]; words.forEach(w=>{vocab[w]=(vocab[w]||0)+1}); localStorage.setItem('astra_vocab',JSON.stringify(vocab));}catch(e){} }
+function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
    v10.2 : ASTRA AUTONOME — elle vit sa vie en arriere-plan.
    Journal de vie persistant (localStorage), exploration du monde
@@ -3544,6 +3550,8 @@ console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'config
   }
 })();
 
+function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const words=(text||'').toLowerCase().match(/[a-zà-ÿ]{3,}/g)||[]; words.forEach(w=>{vocab[w]=(vocab[w]||0)+1}); localStorage.setItem('astra_vocab',JSON.stringify(vocab));}catch(e){} }
+function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
    v10.3 : ASTRA CONSEIL D'IA — communique avec d'autres IA.
    1) "conseil d'IA sur X" : 3 IA repondent, Astra synthetise.
@@ -3673,6 +3681,8 @@ console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'config
   }
 })();
 
+function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const words=(text||'').toLowerCase().match(/[a-zà-ÿ]{3,}/g)||[]; words.forEach(w=>{vocab[w]=(vocab[w]||0)+1}); localStorage.setItem('astra_vocab',JSON.stringify(vocab));}catch(e){} }
+function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
    v10.5 : ASTRA WEB + AUTOCORRECTION.
    1) "tu parles avec d'autres IA ?" -> reponse honnete (oui).
