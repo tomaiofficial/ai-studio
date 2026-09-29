@@ -3814,6 +3814,11 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
             jrn('Verite : a explique qu elle parle aux autres IA');
             return { text: r };
           }
+          /* recherche web obligatoire : maire, ville, politique, etc. */
+          if (/(maire|maire de|maire d|maire du|maire de la|ville|village|commune|député|députée|président|présidente|ministre|gouvernement|politique|élections|élu|élue)/i.test(low)) {
+            const r = await astraWeb(q);
+            return { text: r };
+          }
           /* commande web */
           if (/^(cherche|trouve|va\s+sur|documente|renseigne)/i.test(q) || /(sur\s+(le\s+)?(web|internet))/i.test(low)) {
             const r = await astraWeb(q);
