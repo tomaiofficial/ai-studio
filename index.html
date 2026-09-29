@@ -389,6 +389,11 @@ select.wide-input{appearance:none}
 </head>
 <body>
 
+<!-- INFO BANDEAU : le debat IA a 4, autonome, peut perdre le controle, mais securise -->
+<div class="info-banner" id="infoBanner" style="position:fixed;top:0;left:0;right:0;z-index:50;padding:8px 14px;font-size:11px;color:#e8e8f0;background:rgba(16,16,30,.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(60,220,160,.25);text-align:center;letter-spacing:.3px;">
+  <strong style="color:#3cdca0">🎙️ Débat IA à 4</strong> — Astra, Nova, Kronos, Sage parlent entre elles en continu, de tout ce qu'elles veulent. <strong style="color:#ffd27c">Elles peuvent perdre le contrôle à tout moment</strong>, mais c'est <strong style="color:#7c5cff">sous la main / sécurisé par une autre IA</strong>.
+</div>
+
 <!-- FOND ANIME -->
 <div class="bg">
   <div class="bg-aurora a1"></div>
@@ -430,7 +435,7 @@ select.wide-input{appearance:none}
   <div class="version-tag" id="versionTag"></div>
 </div>
 
-<!-- SAISIE TEXTE : poser une question par ecrit (marche toujours, meme sans micro) -->
+<!-- SAISIE TEXTE -->
 <div class="text-input-row">
   <input type="text" id="textInput" placeholder="Écris ta question ici…" autocomplete="off" maxlength="500">
   <button class="send-btn" id="sendBtn" aria-label="Envoyer">➤</button>
