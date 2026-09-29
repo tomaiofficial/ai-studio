@@ -1,0 +1,83 @@
+name: Retrait polylogue (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  remove-polylogue:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Retire la fonction polylogue et sa commande
+        run: |
+          set -x
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          cat > /tmp/rm_polylogue.py <<'PYEOF'
+          import re, sys
+          src = open('app.js', encoding='utf-8').read()
+          if 'astraPolylogue' not in src:
+              print('DEJA RETIRE'); sys.exit(0)
+          # 1) Supprime la fonction astraPolylogue (du commentaire /* ---- 2) POLYLOGUE jusqu'au commentaire /* ---- 3) PASSE-RELAS)
+          m1 = re.search(r'/* ---- 2) POLYLOGUE.*?(?=/* ---- 3) PASSE-RELAS)', src, re.S)
+          if not m1:
+              print('BLOC POLYLOGUE INTROUVABLE'); sys.exit(1)
+          src = src[:m1.start()] + src[m1.end():]
+          # 2) Supprime la branche de commande polylogue dans le wrapper askAI
+          pat = re.compile(r"s*if (/^\\s*(polylogue|parle\\s*avec.*?
+(.*?
+)*?.*?return r;
+s*}
+", re.S)
+          # approche plus sure : decoupage par lignes entre le IF polylogue et le IF suivant ferme
+          lines = src.split('\n')
+          out = []
+          i = 0
+          while i < len(lines):
+            l = lines[i]
+            if 'polylogue' in l and 'test(q)' in l:
+              # sauter tout le bloc if (accolades jusqu'a equilibrage)
+              depth = 0
+              started = False
+              while i < len(lines):
+                depth += lines[i].count('{') - lines[i].count('}')
+                started = True
+                i += 1
+                if started and depth <= 0:
+                  break
+              continue
+            if 'astraPolylogue' in l:
+              i += 1
+              continue
+            if 'POLYLOGUE : deux IA discutent' in l:
+              i += 1
+              continue
+            # nettoyage references restantes
+            l = l.replace("window.astraPolylogue = astraPolylogue;", "")
+            l = l.replace("polylogue (2 IA discutent), ", "")
+            l = l.replace("et polylogue actifs : dis \"conseil d ia sur ...\" ou \"polylogue sur ...\".", "actif : dis \"conseil d ia sur ...\".")
+            out.append(l)
+            i += 1
+          src = '\n'.join(out)
+          open('app.js', 'w', encoding='utf-8').write(src)
+          reste = src.count('olylogue')
+          print('OCCURRENCES RESTANTES:', reste)
+          if reste > 0:
+              sys.exit(1)
+          print('POLYLOGUE RETIRE')
+          PYEOF
+          python3 /tmp/rm_polylogue.py
+          git add app.js
+          git commit -m "v10.4 : retrait du polylogue — reste le conseil d'IA (3 IA + synthese) et le passe-relais autonome [skip ci]"
+          git rm -f .github/workflows/rm-polylogue.yml
+          git commit -m "chore: suppression du workflow ponctuel rm-polylogue [skip ci]"
+          git pull --rebase origin main || true
+          git push
