@@ -509,6 +509,25 @@ function isSecoursReply(t){
 }
 function localSmartReply(question){
   const q = question.toLowerCase().trim();
+  /* v10.5 : ANTI-REPETITION — la derniere reponse deja donnee + test de
+     similarite. On ne rejoue JAMAIS une reponse quasi identique. */
+  const lastReply = (() => {
+    try {
+      for (let i = session.length - 1; i >= 0; i--){
+        if (session[i] && session[i].role === 'assistant') return String(session[i].content || '');
+      }
+    } catch {}
+    return '';
+  })();
+  const similar = (a, b) => {
+    if (!a || !b) return false;
+    const na = a.toLowerCase().replace(/[^a-z0-9à-ÿ ]/g, '').split(/\s+/).filter(w => w.length > 3);
+    const nb = b.toLowerCase().replace(/[^a-z0-9à-ÿ ]/g, '').split(/\s+/).filter(w => w.length > 3);
+    if (!na.length || !nb.length) return false;
+    let hit = 0;
+    for (const w of na){ if (nb.includes(w)) hit++; }
+    return hit / Math.min(na.length, nb.length) >= 0.6;
+  };
   /* 1) MEMOIRE : chercher une question similaire deja posee et rejouer la
      reponse, MAIS jamais une reponse de secours (sinon boucle infinie).
      Cherche d'abord dans la SESSION en cours (echanges recents), puis dans
@@ -529,6 +548,10 @@ function localSmartReply(question){
          memorisee soit vraiment similaire (>= 40% de ses mots retrouves dans
          la question posee). Sinon on rejoue des reponses hors sujet. */
       if (score > bestScore && score >= 2 && mw.length > 0 && score >= Math.ceil(mw.length * 0.4)){
+        /* v10.5 : ANTI-REPETITION — on ne rejoue JAMAIS une reponse quasi
+           identique a la derniere deja donnee (bug "elle repete la meme
+           phrase"). */
+        if (similar(next.content, lastReply)) continue;
         bestScore = score; best = next.content;
       }
     }
@@ -1467,20 +1490,35 @@ async function askBrain(messages, webCtx){
     /* Secours : mémoire locale (jamais de message d'erreur) */
     return { text: localText, diag: 'local' };
   }
-  /* Pas de cle Mistral -> Pollinations (gratuit, sans cle) puis local */
-  const pollinationsPromise = (async () => {
-    for (let i = 0; i < 2; i++){
-      if (i > 0) await new Promise(r => setTimeout(r, 400));
-      const t = await tryPollinationsGet('openai');
-      if (typeof t === 'string') return t;
-    }
-    /* POST en dernier recours (parfois disponible quand le GET est saturé) */
-    const p = await tryWithRetry('https://text.pollinations.ai/openai/v1/chat/completions', 'openai');
-    if (typeof p === 'string') return p;
+  /* Pas de cle Mistral -> cerveaux gratuits sans cle (LLM7, OVH, Pollinations)
+     puis local. v10.5 : LLM7 + OVH ajoutes AVANT Pollinations (sature) pour
+     que l'IA reponde correctement meme sans cle. */
+  const tryFreeChat = async (url, model) => {
+    try {
+      const res = await withTimeout(fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
+      }), 12000);
+      if (res && res.ok){
+        const data = await res.json();
+        const msg = data?.choices?.[0]?.message || {};
+        let text = (msg.content || '').trim();
+        if (!text) text = (msg.reasoning_content || msg.reasoning || '').trim();
+        if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return text;
+      }
+    } catch {}
     return null;
-  })();
-  const t = await pollinationsPromise;
-  if (t) return { text: fixFrench(t), diag: 'Pollinations' };
+  };
+  const freeBrains = [
+    () => tryFreeChat('https://llm7.xyz/api/v1/chat/completions', 'glm-5.3-flash'),
+    () => tryFreeChat('https://ovh.llm7.xyz/api/v1/chat/completions', 'qwen3.5'),
+    () => tryFreeChat('https://text.pollinations.ai/openai/v1/chat/completions', 'openai')
+  ];
+  for (const brain of freeBrains){
+    const t = await brain();
+    if (t) return { text: fixFrench(t), diag: 'gratuit' };
+  }
   /* Secours : mémoire locale (jamais de message d'erreur) */
   return { text: localText, diag: 'local' };
 }
