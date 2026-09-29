@@ -6,6 +6,10 @@
    heartbeat : si le runner meurt (page fermee), une autre page
    reprend automatiquement.
    ============================================================ */
+/* IIFE : toutes les declarations restent LOCALES pour ne pas
+   entrer en conflit avec app.js (VOXTRAL_MODEL, fixFrench,
+   escapeHtml, splitSentences, ... deja declares la-bas). */
+(function(){
 'use strict';
 
 /* ===== PERSONAS ===== */
@@ -471,3 +475,4 @@ window.DebateEngine = {
   get state(){ return DEBATE_STATE; },
   reload(){ DEBATE_STATE = loadState(); return DEBATE_STATE; }
 };
+})();
