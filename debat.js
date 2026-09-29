@@ -101,6 +101,8 @@ function render(){
   $('statusBar').textContent = running
     ? '🟢 Débat en cours (tourne même si tu quittes cette page)'
     : '⚪ Débat arrêté — clique sur ▶ Lancer';
+  const tb = $('topicBar');
+  if (tb) tb.textContent = s.topic ? '🎯 Thème : ' + s.topic : '';
 }
 
 /* ===== WIRING MOTEUR ===== */

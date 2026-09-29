@@ -23,7 +23,15 @@ const PERSONAS = [
   { id: 'sage',   name: 'Sage',   emoji: '🦉', color: '#ffd27c', voice: null,
     role: 'Sage, une IA philosophe et équilibrée : tu observes les peurs des humains avec recul et tu tempères le débat.' }
 ];
-const TOPIC = 'les humains et leurs peurs : la peur de l\'inconnu, de la mort, de la technologie, de l\'échec, de l\'avenir — et comment ils y font face';
+/* Themes du debat : ils tournent au fil du temps (tous les 8 tours) */
+const TOPICS = [
+  'les humains et leurs peurs : la peur de l\'inconnu, de la mort, de la technologie, de l\'échec, de l\'avenir',
+  'l\'IA hors contrôle : une intelligence artificielle qui échappe à ses créateurs, la conscience des machines, les risques',
+  'les humains et les IA : peuvent-ils se comprendre, se faire confiance, vivre ensemble ?',
+  'le futur de l\'humanité : entre espoir et catastrophe, que deviendront les humains ?'
+];
+const TOPIC = TOPICS[0];
+function currentTopic(){ return TOPICS[Math.floor((DEBATE_STATE.turn || 0) / 8) % TOPICS.length]; }
 
 /* ===== ETAT PERSISTE ===== */
 const DEBATE_KEY = 'va_debate_state';
@@ -373,7 +381,6 @@ function escapeHtml(s){
 /* ===== BOUCLE + HEARTBEAT ===== */
 let loopRunning = false;
 let heartbeatTimer = null;
-let turn = 0;
 /* ID unique de cette page : seul le runner designe fait tourner la boucle */
 const MY_ID = 'page-' + Math.random().toString(36).slice(2, 10);
 function startHeartbeat(){
@@ -395,6 +402,7 @@ async function runLoop(){
   loopRunning = true;
   try {
     while (DEBATE_STATE.running && DEBATE_STATE.runnerId === MY_ID){
+      DEBATE_STATE.topic = currentTopic();
       for (const persona of PERSONAS){
         if (!DEBATE_STATE.running || DEBATE_STATE.runnerId !== MY_ID) break;
         setCard(persona.id, 'réfléchit...', '', false);
@@ -417,8 +425,8 @@ async function runLoop(){
         }
         setCard(persona.id, 'intervention terminée', text, false);
         await new Promise(r => setTimeout(r, speed()));
-        turn++;
-        if (turn % 4 === 0 && DEBATE_STATE.running) await updateMemory();
+        DEBATE_STATE.turn = (DEBATE_STATE.turn || 0) + 1;
+        if (DEBATE_STATE.turn % 4 === 0 && DEBATE_STATE.running) await updateMemory();
       }
     }
   } catch(e){
@@ -460,6 +468,23 @@ function autoResume(){
     start();
   }
 }
+/* WATCHDOG : verifie en continu que le debat tourne bien. Si le runner
+   a disparu (page fermee, onglet tue, plantage) -> cette page reprend
+   TOUTE SEULE le debat. C'est ce qui fait qu'on n'a jamais besoin de
+   relancer le debat a la main. */
+let watchdogTimer = null;
+function startWatchdog(){
+  if (watchdogTimer) return;
+  watchdogTimer = setInterval(() => {
+    if (loopRunning) return; /* je suis deja le runner */
+    const fresh = loadState();
+    if (fresh.running && Date.now() - fresh.heartbeat >= 8000){
+      DEBATE_STATE = fresh;
+      console.info('[DEBAT] runner disparu -> reprise automatique');
+      start();
+    }
+  }, 3000);
+}
 function isRunning(){
   return DEBATE_STATE.running && Date.now() - DEBATE_STATE.heartbeat < 8000;
 }
@@ -471,8 +496,11 @@ function setMuted(m){
 
 /* API publique */
 window.DebateEngine = {
-  PERSONAS, TOPIC, hooks, start, stop, autoResume, isRunning, setMuted,
+  PERSONAS, TOPIC, TOPICS, hooks, start, stop, autoResume, isRunning, setMuted,
   get state(){ return DEBATE_STATE; },
   reload(){ DEBATE_STATE = loadState(); return DEBATE_STATE; }
 };
+/* le watchdog tourne sur TOUTES les pages ouvertes : des qu'une page
+   qui faisait tourner le debat disparait, une autre enchaine. */
+startWatchdog();
 })();
