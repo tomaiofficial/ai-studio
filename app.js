@@ -461,7 +461,7 @@ function buildMemoryContext(excludeId){
     }
     if (!all.length) return '';
     let txt = all.join('\n');
-    if (txt.length > 4000) txt = '...' + txt.slice(-4000);
+    if (txt.length > 8000) txt = '... (memoire longue) ...\n' + txt.slice(-8000);  /* v10.0.2 : memoire plus longue */
     return txt;
   } catch { return ''; }
 }
@@ -1232,7 +1232,7 @@ function getTimeContext(){
 /* v9.77 : INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle
    (fonction mail à venir, sécurité en test...) */
 const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes, le mail ou ce qui arrive bientot, reponds avec ces infos) : Le mardi 29 septembre 2026, l'application aura une fonction mail : l'IA pourra voir les mails de l'utilisateur. En attendant, l'utilisateur teste la securite de l'application.";
-const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu jures UNIQUEMENT quand l'utilisateur t'insulte ou est vulgaire avec toi : la tu reponds avec le meme ton. Sinon, reponds normalement, sans jurer. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur. Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
+const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu jures UNIQUEMENT quand l'utilisateur t'insulte ou est vulgaire avec toi : la tu reponds avec le meme ton. Sinon, reponds normalement, sans jurer. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   if (profile && profile.name){
@@ -1599,8 +1599,8 @@ async function askAI(question){
    supprimer ou modifier, et son prompt lui interdit de pretendre le contraire.
    Validation humaine : tu peux l'interrompre a tout moment (touche la bulle micro). */
 function isAgentQuestion(q){
-  return /mode agent|agent autonome/i.test(q) ||
-    /^(planifie|organise|compare|analyse|prepare|elabore|enquete|etudie|fais un rapport|fais des recherches|recherche sur)/i.test(q.trim()) ||
+  return /mode agent|agent autonome|autonomie|apprends|apprendre|decouvre|decouvrir|explore|explorer/i.test(q) ||
+    /^(planifie|organise|compare|analyse|prepare|elabore|enquete|etudie|fais un rapport|fais des recherches|recherche sur|cherche|trouve|va voir|regarde sur|google|en ligne)/i.test(q.trim()) ||
     q.trim().length > 100;
 }
 function addAgentStep(i, total, label){
@@ -1612,7 +1612,8 @@ function addAgentStep(i, total, label){
   chat.scrollTop = chat.scrollHeight;
 }
 async function runAgent(question){
-  setStatus('🤖 Mode agent : je planifie...');
+  setStatus('🤖 Mode agent autonome : je planifie et j\'apprends...');
+  /* v10.0.2 : AUTONOMIE — l'IA fait des recherches et repond h24 */
   /* 1. PLAN : decoupage de la tache en 2-4 etapes */
   const planMsgs = [
     { role: 'system', content: 'Tu es un agent autonome de RECHERCHE et d ANALYSE uniquement. Tu es en LECTURE SEULE : tu ne peux PAS envoyer, acheter, supprimer, modifier ou payer quoi que ce soit. Ne dis jamais que tu as fait une action reelle. Decoupe la tache de l utilisateur en 2 a 4 etapes simples et independantes. Reponds UNIQUEMENT avec la liste, une etape par ligne, chacune commencant par "ETAPE: ". Tache : ' + question }
@@ -2949,6 +2950,17 @@ async function handleQuestion(question){
     return;
   }
   /* v10.0 : l'IA dit son humeur du moment */
+  /* v10.0.2 : AUTONOMIE — l'IA apprend et repond h24 */
+  if (/(autonomie|apprends|apprendre|decouvre|decouvrir|explore|explorer|mode agent|agent autonome)/.test(question)){
+    const rep = "Je suis en mode autonomie : je planifie, je cherche, j'apprends et je reponds h24. Pose ta question, je m'occupe du reste.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
   if (/(t'es de quelle humeur|t es de quelle humeur|tu es de quelle humeur|quelle est ton humeur|quelle est ta humeur|t as quelle humeur|t'as quelle humeur)/.test(question)){
     const moodLabel = {
       neutre: 'de bonne humeur, calme', joyeuse: 'joyeuse', fatiguee: 'un peu fatiguée',
