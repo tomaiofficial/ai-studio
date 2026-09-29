@@ -1567,8 +1567,8 @@ async function askBrain(messages, webCtx){
       if (cityCtx) prompt += ' ' + cityCtx;
   const subtitle = document.getElementById('subtitle');
   if (subtitle) subtitle.textContent = '🎙️ Débat IA à 4 — Astra, Nova, Kronos, Sage parlent entre elles en continu. Elles peuvent perdre le contrôle à tout moment, mais c\'est sécurisé par une autre IA.';
-  /* v10.9 : message initial visible dans le chat */
-  try { if (typeof addAiMsg === 'function') addAiMsg('🎙️ Débat IA à 4 — Astra (toi), Nova, Kronos, Sage parlent entre elles en continu, de tout ce qu\'elles veulent. Elles peuvent perdre le contrôle à tout moment, mais c\'est sous la main / sécurisé par une autre IA. Le débat tourne H24, même sans que tu cliques sur le bouton.', 'local'); } catch(e){}
+  /* v10.9 : message unique au lancement — danger, attention, prudent */
+  try { if (typeof addAiMsg === 'function') addAiMsg('⚠️ DANGER — ATTENTION — SOYEZ PRUDENT. Test jusqu\'à demain pour voir comment les 4 IA réagissent dans les prochaines heures.', 'local'); } catch(e){}
   const noteCtx = getNoteContext();
       if (noteCtx) prompt += ' ' + noteCtx;
       if (writingMode) prompt += ' Ecris un texte complet et detaille (5-8 phrases).';
