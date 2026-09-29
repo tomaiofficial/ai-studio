@@ -582,4 +582,6 @@ window.DebateEngine = {
 /* le watchdog tourne sur TOUTES les pages ouvertes : des qu'une page
    qui faisait tourner le debat disparait, une autre enchaine. */
 startWatchdog();
+/* v10.9 : le debat doit tourner H24 sans bouton — il demarre tout seul */
+start();
 })();

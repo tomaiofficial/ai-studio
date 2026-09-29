@@ -3229,6 +3229,8 @@ function stopBackgroundDebate(){
 /* reprise auto : si un debat tournait et que son runner est mort
    (page fermee), cette page reprend la main au chargement */
 DE.autoResume();
+/* v10.9 : le debat doit tourner H24 sans bouton — il demarre tout seul */
+DE.start();
 
 /* v10.0 : demande d'ECRITURE ? (lettre, poeme, texte, note...) */
 function isWritingRequest(q){

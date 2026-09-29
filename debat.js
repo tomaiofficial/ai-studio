@@ -152,6 +152,8 @@ setInterval(() => {
 /* ===== DEMARRAGE ===== */
 buildCards();
 render();
+/* v10.9 : le debat doit tourner H24 sans bouton — il demarre tout seul */
+E.start();
 /* si un debat tournait et que son runner est mort, on reprend la main */
 E.autoResume();
 setTimeout(render, 1500);
