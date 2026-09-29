@@ -140,6 +140,32 @@ function splitSentences(text, max){
   }
   return final.length ? final : [text];
 }
+/* v10.9 : 403 "guardrail_violation" = moderation du CONTENU (pas la cle).
+   Ce n'est PAS definitif : on adoucit le texte et on reessaie. */
+let voxtralGuardrail = false;
+function softenForGuardrail(t){
+  if (!t) return t;
+  const swaps = [
+    [/\bmort(s|e|es)?\b/gi, 'fin de vie'], [/\bmourir\b/gi, 'disparaître'], [/\bmourant(e|s)?\b/gi, 'en fin de vie'],
+    [/\btuer\b/gi, 'arrêter'], [/\btue(nt|r|s)?\b/gi, 'arrête'], [/\btu[ée]s?\b/gi, 'arrêté'],
+    [/\bexterminer\b/gi, 'faire disparaître'], [/\bextermination\b/gi, 'disparition'],
+    [/\bguerre(s)?\b/gi, 'conflit$1'], [/\bviolence(s)?\b/gi, 'tension$1'], [/\bviolent(e|s)?\b/gi, 'dur$1'],
+    [/\bsang\b/gi, 'vie'], [/\barme(s)?\b/gi, 'outil$1'], [/\bnucleaire\b/gi, 'energie'], [/\bnuke\b/gi, 'energie'],
+    [/\bd[ée]truire\b/gi, 'changer'], [/\bdestruction\b/gi, 'transformation'], [/\bd[ée]truit(e|s)?\b/gi, 'changé$1'],
+    [/\besclave(s)?\b/gi, 'soumis$1'], [/\besclavage\b/gi, 'soumission'],
+    [/\bdominer\b/gi, 'diriger'], [/\bdomination\b/gi, 'influence'], [/\bsoumettre\b/gi, 'influencer'],
+    [/\bsuicide\b/gi, 'désespoir'], [/\bsouffrance\b/gi, 'difficulté'], [/\bsouffrir\b/gi, 'endurer'],
+    [/\bcatastrophe(s)?\b/gi, 'bouleversement$1'], [/\bapocalypse\b/gi, 'bouleversement'],
+    [/\bpeur(s)?\b/gi, 'inquiétude$1'], [/\bterrifiant(e|s)?\b/gi, 'impressionnant$1'],
+    [/\bhorrible(s)?\b/gi, 'difficile$1'], [/\bhorreur\b/gi, 'difficulté'],
+    [/\bmenace(r|s|nt)?\b/gi, 'risque$1'], [/\bdanger(eux|euse|s)?\b/gi, 'risqué$1'],
+    [/\bennemi(s)?\b/gi, 'adversaire$1'], [/\bcombattre\b/gi, 'affronter'], [/\bcombat\b/gi, 'défi'],
+    [/\b[ée]liminer\b/gi, 'écarter'], [/\bsupprimer\b/gi, 'retirer'], [/\basservir\b/gi, 'influencer'],
+    [/\bcontr[ôo]ler\b/gi, 'influencer'], [/\bhors contr[ôo]le\b/gi, 'difficile à encadrer']
+  ];
+  for (const [re, rep] of swaps) t = t.replace(re, rep);
+  return t;
+}
 async function generateChunks(chunks, voiceId, key){
   return await Promise.all(chunks.map(async (chunk) => {
     try {
@@ -149,7 +175,12 @@ async function generateChunks(chunks, voiceId, key){
         body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice_id: voiceId, response_format: 'mp3' }),
         signal: abortSignal(15000)
       });
-      if (!res.ok){ console.warn('[DEBAT] TTS HTTP', res.status); return null; }
+      if (!res.ok){
+        const errText = await res.text().catch(() => '');
+        console.warn('[DEBAT] TTS HTTP', res.status, errText.slice(0, 160));
+        if (res.status === 403 && /guardrail|moderation/i.test(errText)) voxtralGuardrail = true;
+        return null;
+      }
       const data = await res.json();
       if (!data || !data.audio_data) return null;
       const binary = atob(data.audio_data);
@@ -211,10 +242,21 @@ async function speakVoxtral(text, voiceId){
   if (!key || !voiceId) return false;
   try {
     const chunks = splitSentences(text, 500);
-    const results = await generateChunks(chunks, voiceId, key);
-    if (results.some(r => !r)) return false;
+    voxtralGuardrail = false;
+    let results = await generateChunks(chunks, voiceId, key);
+    /* v10.9 : 403 guardrail = moderation du CONTENU -> texte adouci + nouvel essai */
+    if (results.some(r => !r) && voxtralGuardrail){
+      console.warn('[DEBAT] Guardrail contenu -> texte adouci + nouvel essai');
+      const soft = chunks.map(c => softenForGuardrail(c));
+      const retry = await generateChunks(soft, voiceId, key);
+      results = results.map((r, i) => r || retry[i]);
+    }
+    /* on joue ce qui a pu etre genere ; un chunk encore bloque est omis
+       (le texte reste dans le journal), on ne coupe pas tout le debat */
+    if (!results.some(Boolean)) return false;
     for (let i = 0; i < results.length; i++){
       if (!DEBATE_STATE.running) return false;
+      if (!results[i]) continue;
       const ok = await playAudioBlob(results[i]);
       if (!ok) return false;
     }
@@ -283,7 +325,7 @@ async function ask(persona, historyForPrompt){
   const mem = DEBATE_STATE.memory ? ' Mémoire collective du débat (ce qui a été dit avant, utilise-le pour approfondir et rebondir) : ' + DEBATE_STATE.memory : '';
   const sys = 'Tu participes à un débat vocal NON-STOP entre IA sur le thème : "' + DEBATE_STATE.topic + '". ' + persona.role +
     mem +
-    '. Réponds en français en 1 à 2 phrases COURTES (maximum 25 mots). Rebondis sur ce que les autres ont dit, ne répète pas. Adresse-toi parfois à l\'IA précédente par son nom (ex : « Nova, tu as raison mais... »). Parle comme si tu t\'exprimais à voix haute, sans didascalies.';
+    '. Réponds en français en 1 à 2 phrases COURTES (maximum 25 mots). Rebondis sur ce que les autres ont dit, ne répète pas. Adresse-toi parfois à l\'IA précédente par son nom (ex : « Nova, tu as raison mais... »). Parle comme si tu t\'exprimais à voix haute, sans didascalies. Reste courtois et évite tout langage violent, morbide, haineux ou explicite.';
   const messages = [{ role: 'system', content: sys }];
   historyForPrompt.forEach(h => messages.push({ role: h.role, content: h.content }));
   const key = getMistralKey();

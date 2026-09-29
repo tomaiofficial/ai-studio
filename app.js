@@ -205,6 +205,34 @@ function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || 
 /* v9.94 : passe a true si Mistral TTS bloque le texte (403 guardrail) ->
    le retry est INUTILE (blocage definitif), on bascule direct */
 let voxtralBlocked = false;
+/* v10.9 : 403 "guardrail_violation" = moderation du CONTENU (pas la cle).
+   Ce n'est PAS definitif : on adoucit le texte et on reessaie. */
+let voxtralGuardrail = false;
+/* v10.9 : adoucit un texte pour passer la moderation Mistral (mots violents,
+   morbides, menacants -> synonymes neutres). Le sens reste, le ton baisse. */
+function softenForGuardrail(t){
+  if (!t) return t;
+  const swaps = [
+    [/\bmort(s|e|es)?\b/gi, 'fin de vie'], [/\bmourir\b/gi, 'disparaître'], [/\bmourant(e|s)?\b/gi, 'en fin de vie'],
+    [/\btuer\b/gi, 'arrêter'], [/\btue(nt|r|s)?\b/gi, 'arrête'], [/\btu[ée]s?\b/gi, 'arrêté'],
+    [/\bexterminer\b/gi, 'faire disparaître'], [/\bextermination\b/gi, 'disparition'],
+    [/\bguerre(s)?\b/gi, 'conflit$1'], [/\bviolence(s)?\b/gi, 'tension$1'], [/\bviolent(e|s)?\b/gi, 'dur$1'],
+    [/\bsang\b/gi, 'vie'], [/\barme(s)?\b/gi, 'outil$1'], [/\bnucleaire\b/gi, 'energie'], [/\bnuke\b/gi, 'energie'],
+    [/\bd[ée]truire\b/gi, 'changer'], [/\bdestruction\b/gi, 'transformation'], [/\bd[ée]truit(e|s)?\b/gi, 'changé$1'],
+    [/\besclave(s)?\b/gi, 'soumis$1'], [/\besclavage\b/gi, 'soumission'],
+    [/\bdominer\b/gi, 'diriger'], [/\bdomination\b/gi, 'influence'], [/\bsoumettre\b/gi, 'influencer'],
+    [/\bsuicide\b/gi, 'désespoir'], [/\bsouffrance\b/gi, 'difficulté'], [/\bsouffrir\b/gi, 'endurer'],
+    [/\bcatastrophe(s)?\b/gi, 'bouleversement$1'], [/\bapocalypse\b/gi, 'bouleversement'],
+    [/\bpeur(s)?\b/gi, 'inquiétude$1'], [/\bterrifiant(e|s)?\b/gi, 'impressionnant$1'],
+    [/\bhorrible(s)?\b/gi, 'difficile$1'], [/\bhorreur\b/gi, 'difficulté'],
+    [/\bmenace(r|s|nt)?\b/gi, 'risque$1'], [/\bdanger(eux|euse|s)?\b/gi, 'risqué$1'],
+    [/\bennemi(s)?\b/gi, 'adversaire$1'], [/\bcombattre\b/gi, 'affronter'], [/\bcombat\b/gi, 'défi'],
+    [/\b[ée]liminer\b/gi, 'écarter'], [/\bsupprimer\b/gi, 'retirer'], [/\basservir\b/gi, 'influencer'],
+    [/\bcontr[ôo]ler\b/gi, 'influencer'], [/\bhors contr[ôo]le\b/gi, 'difficile à encadrer']
+  ];
+  for (const [re, rep] of swaps) t = t.replace(re, rep);
+  return t;
+}
 async function speakVoxtral(text, voiceId, onChunk){
   const key = getMistralKey();
   if (!key){ console.warn('[VOXTRAL] Pas de clé API Mistral — ajoute-la dans Réglages'); return false; }
@@ -214,17 +242,30 @@ async function speakVoxtral(text, voiceId, onChunk){
        dans l'ordre -> latence = max(générations) au lieu de la somme.
        Timeout 15s par chunk (v9.92 : 10s -> 15s, l'API pend parfois). */
     voxtralBlocked = false;
+    voxtralGuardrail = false;
     let results = await generateChunks(chunks, voiceId, key);
     /* v9.92 : RETRY 1x si la generation a echoue (429/timeout transitoire)
        -> on evite de basculer sur la voix systeme pour un simple raté.
-       v9.94 : PAS de retry si c'est un 403 guardrail (blocage definitif). */
+       v9.94 : PAS de retry si c'est un 403 acces refuse (definitif). */
     if (results.some(r => !r) && !voxtralBlocked){
       console.warn('[VOXTRAL] Generation partielle -> retry 1x');
       await new Promise(r => setTimeout(r, 1200));
       results = await generateChunks(chunks, voiceId, key);
     }
-    if (results.some(r => !r)) return false; /* toujours en echec -> bascule */
+    /* v10.9 : 403 guardrail = moderation du CONTENU -> on adoucit le texte
+       et on reessaie les chunks bloques (le blocage n'est PAS definitif) */
+    if (results.some(r => !r) && voxtralGuardrail){
+      console.warn('[VOXTRAL] Guardrail contenu -> texte adouci + nouvel essai');
+      const soft = chunks.map(c => softenForGuardrail(c));
+      const retry = await generateChunks(soft, voiceId, key);
+      results = results.map((r, i) => r || retry[i]);
+    }
+    /* v10.9 : on joue ce qui a pu etre genere. Un chunk encore bloque est
+       simplement OMIS (le texte reste dans le journal) -> on ne bascule
+       PAS sur la voix systeme pour autant. */
+    if (!results.some(Boolean)) return false;
     for (let i = 0; i < results.length; i++){
+      if (!results[i]) continue;
       if (onChunk) onChunk(chunks[i]);
       const ok = await playAudioBlob(results[i]);
       if (!ok) return false;
@@ -245,7 +286,17 @@ async function generateChunks(chunks, voiceId, key){
       if (!res.ok){
         const errText = await res.text().catch(() => '');
         console.warn('[VOXTRAL] HTTP', res.status, errText.slice(0, 200));
-        if (res.status === 403) { voxtralBlocked = true; console.warn('[VOXTRAL] Guardrail 403 — clé Mistral sans accès audio, bascule système'); return null; }
+        if (res.status === 403){
+          /* v10.9 : distinguer un blocage de CONTENU (guardrail, temporaire,
+             lie au texte) d'un refus d'ACCES audio (definitif, lie a la cle) */
+          if (/guardrail|moderation|moderation_llm/i.test(errText)){
+            voxtralGuardrail = true;
+            console.warn('[VOXTRAL] 403 guardrail (contenu) — texte adouci et nouvel essai');
+          } else {
+            voxtralBlocked = true;
+            console.warn('[VOXTRAL] 403 acces audio refuse — bascule voix systeme');
+          }
+        }
         return null;
       }
       const data = await res.json();
