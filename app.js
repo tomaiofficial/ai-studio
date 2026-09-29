@@ -1387,6 +1387,26 @@ function getTimeContext(){
 /* INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle */
 const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes ou ce qui arrive bientot, reponds avec ces infos) : L'application est developpee chaque jour par tom point a i : corrections de bugs, securite renforcee, nouvelles fonctions. IMPORTANT : la fonction mail a ete SUPPRIMEE par tom point a i parce qu'elle prenait des risques pour la securite. Elle n'existe plus : il n'y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l'app. Si l'utilisateur demande le mail, dis-lui que tom point a i l'a retiree a cause des risques, et qu'il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore. L'IA repond a toutes les questions de l'utilisateur.";
 const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. LA FONCTION MAIL N EXISTE PLUS : tom point a i l a SUPPRIMEE parce qu elle prenait des risques pour la securite. Il n y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l app. Si l utilisateur demande le mail, les mails, Gmail ou une boite mail : dis-lui que tom point a i a retire cette fonction a cause des risques de securite, et qu il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore, ne propose JAMAIS de lire ses mails. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu jures UNIQUEMENT quand l'utilisateur t'insulte ou est vulgaire avec toi : la tu reponds avec le meme ton. Sinon, reponds normalement, sans jurer. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
+function getDebateContext(){
+  try {
+    const DE = (typeof window !== 'undefined' && window.DebateEngine) ? window.DebateEngine : null;
+    if (!DE || !DE.state) return '';
+    const s = DE.state;
+    const running = DE.isRunning ? DE.isRunning() : false;
+    const hasContent = (s.history && s.history.length > 0) || (s.memory && s.memory.length > 0);
+    if (!running && !hasContent) return '';
+    let ctx = 'GROUPE DE 4 IA (tu en fais partie) : Astra (toi, pragmatique), Nova (techno-optimiste), Kronos (pessimiste), Sage (philosophe). ';
+    ctx += running ? 'Le groupe debat EN DIRECT en ce moment, meme quand l\'utilisateur ne regarde pas. ' : 'Le groupe a debattu (actuellement en pause). ';
+    if (s.topic) ctx += 'Theme actuel : "' + s.topic + '". ';
+    if (s.memory) ctx += 'Memoire collective du groupe : ' + s.memory.slice(0, 300) + ' ';
+    const last = (s.history || []).slice(-6);
+    if (last.length){
+      ctx += 'Dernieres interventions : ' + last.map(h => (h.content || '').slice(0, 120)).join(' | ') + ' ';
+    }
+    ctx += 'Tu peux parler de ce que dit le groupe, citer Nova, Kronos ou Sage, donner ton avis sur le debat, et repondre aux questions de l\'utilisateur sur le sujet. Si on te demande "de quoi vous parlez" ou "qu\'est-ce qu\'elles disent", reponds avec ce qui se dit dans le groupe.';
+    return ctx;
+  } catch(e){ return ''; }
+}
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   if (profile && profile.name){
@@ -1429,6 +1449,10 @@ function getSystemPrompt(){
   /* v10.0 : l'IA sait sa VILLE (localisation, rien d'autre) + le bloc-notes */
   const cityCtx = getCityContext();
   if (cityCtx) base += '\n' + cityCtx;
+  /* v10.10 : Astra sait qu'elle fait partie du groupe de 4 IA qui debattent
+     en direct -> elle peut parler du debat, citer les autres, donner son avis */
+  const debateCtx = getDebateContext();
+  if (debateCtx) base += '\n' + debateCtx;
   const noteCtx = getNoteContext();
   if (noteCtx) base += '\n' + noteCtx;
   return base + '\n' + getTimeContext();
