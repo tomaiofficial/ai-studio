@@ -1580,15 +1580,13 @@ async function askAI(question){
   if (/(meteo|météo|quel temps|quel temps fait|temps qu'il fait|il fait quoi|previsions|prévisions|temperature|température|il pleut|il neige|soleil|pluie|vent)/i.test(question)){
     try {
       const villeM = question.match(/(?:a|à|sur|pour|dans)\s+([A-Za-zÀ-ÿ' -]{2,30})/);
-      const ville = villeM ? villeM[1].trim() : '';
+      const ville = villeM ? villeM[1].trim() : 'France';
       const meteo = await meteoFor(ville);
-      if (meteo){
-        const rep = 'D' + 'après La Chaîne Météo : ' + meteo;
-        const clean = stripGreeting(enforceIdentity(fixFrench(rep)));
-        session.push({ role: 'assistant', content: clean });
-        saveConversation();
-        return { text: clean, diag: 'meteo' };
-      }
+      const rep = meteo ? ('D\'après La Chaîne Météo : ' + meteo) : ('Meteo a ' + ville + ' : je n\'ai pas pu recuperer les donnees du site, essaie plus tard.');
+      const clean = stripGreeting(enforceIdentity(fixFrench(rep)));
+      session.push({ role: 'assistant', content: clean });
+      saveConversation();
+      return { text: clean, diag: 'meteo' };
     } catch(e){}
   }
   /* Contexte complet : systeme + memoire des conversations passees + session */
@@ -1738,8 +1736,7 @@ async function wikiSummary(title){
    proxy r.jina.ai (le site bloque le CORS direct), on extrait les
    temperatures. Fallback : open-meteo si le site ne repond pas. */
 async function meteoFor(city){
-  const ville = String(city || '').trim().toLowerCase();
-  if (!ville) return '';
+  const ville = String(city || '').trim().toLowerCase() || 'paris';
   /* 1) chercher la page de la ville sur lachainemeteo.com */
   let pageUrl = '';
   try {
@@ -1795,7 +1792,7 @@ async function meteoFor(city){
     const fj = await f.json();
     const cw = fj.current_weather || {};
     return 'Meteo a ' + (place.name || city) + ' : ' + cw.temperature + ' degres, vent ' + cw.windspeed + ' km/h.';
-  } catch(e){ return ''; }
+  } catch(e){ return 'Meteo a ' + (city || 'ta ville') + ' : informations indisponibles pour le moment.'; }
 }
 /* OUTIL HEURE : date et heure actuelles */
 function nowInfo(){
@@ -2168,6 +2165,13 @@ function normalizeForTTS(text){
     /* guillemets « » " " et doubles quotes SUPPRIMES : les TTS les prononcent
        bizarrement ("guillemet gauche", pause bizarre...) -> on les vire */
     .replace(/[\u201C\u201D\u201E\u00AB\u00BB"]/g, ' ')
+    /* degres, km/h, heures -> prononciation correcte */
+    .replace(/\b(\d{1,2})°C\b/g, '$1 degrés')
+    .replace(/\b(\d{1,2})°\b/g, '$1 degrés')
+    .replace(/\b(\d{1,2})\s*km\/h\b/gi, '$1 kilomètres par heure')
+    .replace(/\b(\d{1,2})\s*km\b/gi, '$1 kilomètres')
+    .replace(/\b(\d{1,2})h(\d{2})\b/g, '$1 heures $2')
+    .replace(/\b(\d{1,2})h\b/g, '$1 heures')
     /* liens web : jamais lus lettre par lettre */
     .replace(/https?:\/\/\S+/gi, ' lien ')
     /* v9.65 : "tom ai official" / "tom ai" (sans points) -> "tom point a i"
@@ -3069,22 +3073,18 @@ async function handleQuestion(question){
     || /(heure|date|jour)\s*(il est|on est|aujourd)/.test(q);
   if (isTimeQ){
     const now = new Date();
-    /* AFFICHAGE lisible : "Il est 08:42, lundi 21 septembre 2026." */
+    const timeStr = h + 'h' + (m < 10 ? '0' + m : m);  /* 9h58 pas 11h */
     const dateStr = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const rep = "Il est " + timeStr + ", " + dateStr + ".";
     /* PRONONCIATION en toutes lettres : "08:42" lu "huit, quarante-deux" est
        horrible -> "huit heures quarante-deux". Meme chose pour la date. */
     const WEEKDAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
     const MONTHS = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
     const h = now.getHours(), m = now.getMinutes();
-    /* v9.81 : heure en CHIFFRES à l'affichage ("11h03") — la voix la lit en
-       toutes lettres via normalizeForTTS ("onze heures trois") */
-    const timeDigits = h + 'h' + (m ? String(m).padStart(2, '0') : '');
+    const timeDigits = h + 'h' + (m ? String(m).padStart(2, '0') : '00');
     const dateWords = WEEKDAYS[now.getDay()] + ' ' + numToFr(now.getDate()) + ' ' + MONTHS[now.getMonth()] + ' ' + numToFr(now.getFullYear());
     /* v9.67 : période de la journée -> "Il est 8h42 du matin, lundi..." */
-    const periodOf = getDayPeriod().of;
-    const repSpoken = "Il est " + timeDigits + " " + periodOf + ", " + dateWords + ".";
+    const repSpoken = "Il est " + timeDigits + ", " + dateWords + ".";
   /* v10.0.2 : mobile — nettoyer le timer de grace au debut d'une nouvelle question */
   if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
   pendingSpeech = '';
