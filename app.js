@@ -2726,7 +2726,27 @@ function sanitizeForVoice(t){
     [/\bgueule(s)?\b/gi, 'bouche$1'],
     [/\bnique(r)?\b/gi, 'embête$1'],
     [/\bfdp\b/gi, 'sale type'],
-    [/\btg\b/gi, 'ta bouche']
+    [/\btg\b/gi, 'ta bouche'],
+    [/\bmerde\b/gi, 'mince'],
+    [/\bputain\b/gi, 'punaise'],
+    [/\bbordel\b/gi, 'bon sang'],
+    [/\bconnard\b/gi, 'crétin'],
+    [/\bconne\b/gi, 'idiote'],
+    [/\benculé\b/gi, 'imbécile'],
+    [/\bsalope\b/gi, 'idiote'],
+    [/\bpute\b/gi, 'idiote'],
+    [/\bsalaud\b/gi, 'sale type'],
+    [/\bbatard\b/gi, 'salaud'],
+    [/\bconnerie\b/gi, 'bêtise'],
+    [/\bdébile\b/gi, 'idiot'],
+    [/\babruti\b/gi, 'idiot'],
+    [/\bchiant\b/gi, 'embêtant'],
+    [/\bchier\b/gi, 'embêter'],
+    [/\bfoutu\b/gi, 'fichu'],
+    [/\bfoutre\b/gi, 'fiche'],
+    [/\bgueule\b/gi, 'bouche'],
+    [/\bnique\b/gi, 'embête'],
+    [/\bfdp\b/gi, 'sale type']
   ];
   for (const [re, rep] of swaps) t = t.replace(re, rep);
   return t;
@@ -2777,16 +2797,8 @@ function speak(text, onChunk){
     let chain;
     if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
-      if (voxtralBlocked) {
-        console.log('[VOIX] Voxtral bloqué (403) — bascule directe système');
-        chain = [['Système', (t) => speakSystem(t, null, onChunk)]];
-      } else {
-        chain = [
-          [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
-          ['Système', (t) => speakSystem(t, null, onChunk)],
-          ['Google', (t) => speakGoogle(t, onChunk)]
-        ];
-      }
+      /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
+      chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
     } else if (voiceMode.startsWith('system:')) {
       const voiceName = voiceMode.substring(7);
       chain = [
