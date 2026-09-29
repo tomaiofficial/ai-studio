@@ -524,8 +524,7 @@ function localSmartReply(question){
   /* v9.76 : qui a fait l'interface/le design/l'app -> reponse INTERFACE
      (AVANT le pattern "qui t'a cree" pour ne pas confondre) */
   if (/(qui (a )?(cree|créé|fait|concu|conçu|developpe|développé) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))|(qui (fait|a fait) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))/i.test(q)) return "L'interface, c'est tom point a i qui l'a faite, comme tout le reste. Il la corrige et l'améliore chaque jour.";
-  /* v10.5 : infos sur l'app — fonction mail ACTIVE */
-  if (/(mail|e[- ]?mail|email|courriel|fonction mail|nouveautes|nouveautés|quoi de neuf|infos sur l'app|infos sur l app|infos sur l'application|infos sur l application)/.test(q)) return "La fonction mail est active : appuie sur le bouton enveloppe ou dis-moi \"ouvre le mail\" pour te connecter a ton compte Gmail. Une fois connecte, colle un mail et je le lis ou je le resume pour toi.";
+  if (/(nouveautes|nouveautés|quoi de neuf|infos sur l'app|infos sur l app|infos sur l'application|infos sur l application)/.test(q)) return "L'application évolue chaque jour : tom point a i corrige les bugs, renforce ma sécurité et ajoute des fonctions. Demande-moi ce que tu veux savoir, je réponds à tout.";
   if (/(qui t'a cree|qui t a cree|ton createur|qui t'a fait|qui t a fait)/.test(q)) return "J'ai été créée par tom point a i le 10 septembre 2026, mais il n'a pas encore fini : il corrige et renforce ma sécurité.";
   if (/(tu te souviens|tu me souviens|memoire|mémoire|tu as de la memoire|tu as de la mémoire)/.test(q)){
     const mem = buildMemoryContext(currentConvId);
@@ -1202,219 +1201,6 @@ if (stopBtn) stopBtn.addEventListener('click', () => {
   setStatus("Appuie sur le micro et parle");
 });
 
-/* v10.5 : FONCTION MAIL — VRAI raccordement Gmail (OAuth 2.0 PKCE + API Gmail) */
-const mailBtn = document.getElementById('mailBtn');
-const mailModal = document.getElementById('mailModal');
-const mailModalClose = document.getElementById('mailModalClose');
-const mailConnectBtn = document.getElementById('mailConnectBtn');
-const mailListBtn = document.getElementById('mailListBtn');
-const mailReadBtn = document.getElementById('mailReadBtn');
-const mailPaste = document.getElementById('mailPaste');
-const mailStatus = document.getElementById('mailStatus');
-const mailClientId = document.getElementById('mailClientId');
-const mailList = document.getElementById('mailList');
-const GMAIL_CLIENT_KEY = 'va_gmail_client';
-const GMAIL_TOKEN_KEY = 'va_gmail_token';
-let gmailToken = null;
-try { gmailToken = localStorage.getItem(GMAIL_TOKEN_KEY); } catch {}
-function getGmailClientId(){
-  let cid = null;
-  try { cid = localStorage.getItem(GMAIL_CLIENT_KEY); } catch {}
-  if (!cid && mailClientId && mailClientId.value.trim()) cid = mailClientId.value.trim();
-  return cid;
-}
-function setMailStatus(msg){ if (mailStatus) mailStatus.textContent = msg; }
-function openMailModal(){
-  if (mailModal) mailModal.classList.remove('hidden');
-  if (mailClientId){
-    try { mailClientId.value = localStorage.getItem(GMAIL_CLIENT_KEY) || ''; } catch {}
-  }
-  setMailStatus(gmailToken ? 'Connecté à Gmail ✅' : '');
-  if (gmailToken) loadGmailMails();
-}
-function closeMailModal(){
-  if (mailModal) mailModal.classList.add('hidden');
-}
-if (mailBtn) mailBtn.addEventListener('click', openMailModal);
-if (mailModalClose) mailModalClose.addEventListener('click', closeMailModal);
-if (mailModal) mailModal.addEventListener('click', e => { if (e.target === mailModal) closeMailModal(); });
-
-/* --- OAuth 2.0 PKCE : redirection vers Google --- */
-function b64url(buf){
-  let s = '';
-  const bytes = new Uint8Array(buf);
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-async function sha256(str){
-  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-}
-function makeVerifier(){
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  let v = '';
-  const arr = new Uint8Array(64);
-  crypto.getRandomValues(arr);
-  for (let i = 0; i < arr.length; i++) v += chars[arr[i] % chars.length];
-  return v;
-}
-async function startGmailOAuth(){
-  const cid = getGmailClientId();
-  if (!cid){
-    setMailStatus('Colle d\'abord ton Client ID Google dans le champ ci-dessus.');
-    return;
-  }
-  try { localStorage.setItem(GMAIL_CLIENT_KEY, cid); } catch {}
-  const verifier = makeVerifier();
-  try { sessionStorage.setItem('va_gmail_verifier', verifier); } catch {}
-  const challenge = b64url(await sha256(verifier));
-  const redirectUri = location.origin + location.pathname;
-  const scope = 'https://www.googleapis.com/auth/gmail.readonly';
-  const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(cid)
-    + '&redirect_uri=' + encodeURIComponent(redirectUri)
-    + '&response_type=code&scope=' + encodeURIComponent(scope)
-    + '&code_challenge=' + challenge + '&code_challenge_method=S256'
-    + '&access_type=offline&prompt=consent';
-  setMailStatus('Redirection vers Google...');
-  location.href = url;
-}
-if (mailConnectBtn) mailConnectBtn.addEventListener('click', startGmailOAuth);
-
-/* --- Échange du code contre un token (au retour de Google) --- */
-async function exchangeCode(code){
-  const cid = getGmailClientId();
-  let verifier = '';
-  try { verifier = sessionStorage.getItem('va_gmail_verifier') || ''; } catch {}
-  try {
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'code=' + encodeURIComponent(code)
-        + '&client_id=' + encodeURIComponent(cid)
-        + '&redirect_uri=' + encodeURIComponent(location.origin + location.pathname)
-        + '&grant_type=authorization_code'
-        + '&code_verifier=' + encodeURIComponent(verifier)
-    });
-    const data = await res.json();
-    if (data.access_token){
-      gmailToken = data.access_token;
-      try { localStorage.setItem(GMAIL_TOKEN_KEY, gmailToken); } catch {}
-      return true;
-    }
-    setMailStatus('Échec connexion : ' + (data.error_description || data.error || 'inconnu'));
-    return false;
-  } catch (e){
-    setMailStatus('Erreur réseau pendant la connexion.');
-    return false;
-  }
-}
-
-/* --- Lecture des mails via l'API Gmail --- */
-async function gmailFetch(path){
-  if (!gmailToken) return null;
-  try {
-    const res = await fetch('https://gmail.googleapis.com/gmail/v1' + path, {
-      headers: { Authorization: 'Bearer ' + gmailToken }
-    });
-    if (res.status === 401){
-      gmailToken = null;
-      try { localStorage.removeItem(GMAIL_TOKEN_KEY); } catch {}
-      setMailStatus('Session expirée — reconnecte-toi.');
-      return null;
-    }
-    return res.json();
-  } catch { return null; }
-}
-function decodeB64(s){
-  try {
-    const pad = s.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = pad + '==='.slice((pad.length + 3) % 4);
-    const bin = atob(padded);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new TextDecoder('utf-8').decode(bytes);
-  } catch { return ''; }
-}
-function mailTextFromPayload(payload){
-  if (!payload) return '';
-  if (payload.body && payload.body.data) return decodeB64(payload.body.data);
-  let txt = '';
-  if (payload.parts){
-    for (const p of payload.parts){
-      if (p.mimeType === 'text/plain' && p.body && p.body.data) return decodeB64(p.body.data);
-      if (p.parts) txt += mailTextFromPayload(p);
-    }
-  }
-  return txt;
-}
-async function loadGmailMails(){
-  if (!gmailToken){ setMailStatus('Pas connecté — clique sur "Se connecter à Gmail".'); return; }
-  setMailStatus('Chargement des mails...');
-  if (mailList) mailList.innerHTML = '';
-  const data = await gmailFetch('/users/me/messages?maxResults=10');
-  if (!data || !data.messages){
-    setMailStatus(data ? 'Aucun mail trouvé.' : '');
-    return;
-  }
-  const items = [];
-  for (const m of data.messages){
-    const meta = await gmailFetch('/users/me/messages/' + m.id + '?format=metadata&metadataHeaders=From&metadataHeaders=Subject');
-    if (!meta) continue;
-    const headers = {};
-    (meta.payload && meta.payload.headers || []).forEach(h => { headers[h.name.toLowerCase()] = h.value; });
-    items.push({ id: m.id, from: headers.from || '?', subject: headers.subject || '(sans objet)', snippet: meta.snippet || '' });
-  }
-  if (mailList){
-    mailList.innerHTML = '';
-    items.forEach(it => {
-      const d = document.createElement('div');
-      d.className = 'mail-item';
-      d.innerHTML = '<div class="mail-item-from">' + escapeHtml(it.from) + '</div>'
-        + '<div class="mail-item-subj">' + escapeHtml(it.subject) + '</div>'
-        + '<div class="mail-item-snip">' + escapeHtml(it.snippet.slice(0, 90)) + '</div>';
-      d.addEventListener('click', () => readGmailMail(it.id, it.subject));
-      mailList.appendChild(d);
-    });
-  }
-  setMailStatus(items.length + ' mail(s) — clique sur un mail pour que l\'IA le lise.');
-}
-async function readGmailMail(id, subject){
-  setMailStatus('L\'IA lit le mail...');
-  const full = await gmailFetch('/users/me/messages/' + id + '?format=full');
-  if (!full){ setMailStatus('Impossible de lire ce mail.'); return; }
-  const headers = {};
-  (full.payload && full.payload.headers || []).forEach(h => { headers[h.name.toLowerCase()] = h.value; });
-  const body = mailTextFromPayload(full.payload).trim();
-  const content = 'De : ' + (headers.from || '?') + '\nObjet : ' + (headers.subject || subject || '?')
-    + '\nDate : ' + (headers.date || '?') + '\n\n' + body.slice(0, 3000);
-  closeMailModal();
-  handleQuestion('Voici un mail de ma boîte Gmail. Lis-le et résume-le pour moi :\n' + content);
-}
-if (mailListBtn) mailListBtn.addEventListener('click', loadGmailMails);
-if (mailReadBtn) mailReadBtn.addEventListener('click', () => {
-  const txt = (mailPaste && mailPaste.value || '').trim();
-  if (txt.length < 10){
-    setMailStatus('Colle d\'abord un mail (au moins 10 caractères).');
-    return;
-  }
-  setMailStatus('L\'IA lit le mail...');
-  closeMailModal();
-  handleQuestion('Lis et résume ce mail pour moi : ' + txt.slice(0, 1500));
-});
-
-/* --- Retour de Google : ?code=... dans l'URL --- */
-(function handleGmailCallback(){
-  const params = new URLSearchParams(location.search);
-  const code = params.get('code');
-  if (code){
-    exchangeCode(code).then(ok => {
-      try { history.replaceState({}, '', location.pathname); } catch {}
-      if (ok){
-        openMailModal();
-        loadGmailMails();
-      }
-    });
-  }
-})();
 
 /* v9.67 : période de la journée — l'IA sait si on est le matin, l'après-midi,
    le soir ou la nuit, comme un humain. `label` = forme pour le contexte,
@@ -1439,8 +1225,8 @@ function getTimeContext(){
   return `Heure actuelle sur l'appareil de l'utilisateur : ${dateStr}, ${timeStr}. Nous sommes ${getDayPeriod().label}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure EXACTE en CHIFFRES, par exemple "il est 11h03", JAMAIS en lettres. Utilise la periode de la journee dans tes reponses quand c'est naturel (ex: "ce matin", "cet apres-midi", "bonne nuit"), comme un humain qui vit en temps reel.`;
 }
 /* Prompt systeme */
-/* v10.5 : INFOS SUR L'APPLICATION — fonction mail ACTIVE (connexion Gmail) */
-const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes, le mail ou ce qui arrive bientot, reponds avec ces infos) : L'application a une fonction mail : l'utilisateur peut se connecter a son compte Gmail via le bouton mail (enveloppe) ou en disant 'ouvre le mail'. Une fois connecte, il peut coller un mail et l'IA le lit, le resume ou y repond.";
+/* INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle */
+const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes ou ce qui arrive bientot, reponds avec ces infos) : L'application est developpee chaque jour par tom point a i : corrections de bugs, securite renforcee, nouvelles fonctions. L'IA repond a toutes les questions de l'utilisateur.";
 const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu jures UNIQUEMENT quand l'utilisateur t'insulte ou est vulgaire avec toi : la tu reponds avec le meme ton. Sinon, reponds normalement, sans jurer. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
@@ -3083,26 +2869,6 @@ async function handleQuestion(question){
     const repSpokenMood = applyMood(repSpoken, currentMood);
     addAiMsg(repMood);
     await speak(repSpokenMood);
-    isProcessing = false;
-    manualStop = false;
-    maybeRestartListening();
-    return;
-  }
-  /* v10.5 : FONCTION MAIL — commande vocale "ouvre le mail" / "mes mails" */
-  if (/(ouvre|ouvrir|affiche|afficher|montre|montrer|va sur|connecte|connecter)\s*(le|la|mes|mon)?\s*(mail|mails|e[- ]?mail|emails|gmail|courriel|boite|boîte)/.test(q)
-    || /(mes mails|mes emails|ma boite|ma boîte|mon mail|mon gmail|je veux voir mes mails|voir mes mails)/.test(q)){
-    openMailModal();
-    if (gmailToken){
-      const rep = "Voilà, tes mails sont là. Clique sur un mail et je te le résume.";
-      addAiMsg(rep, 'local');
-      setStatus('Réponse locale');
-      await speak(rep);
-    } else {
-      const rep = "Voilà, la fenêtre mail est ouverte. Colle ton client Google dans le champ, clique sur se connecter, et je pourrai lire tes mails directement.";
-      addAiMsg(rep, 'local');
-      setStatus('Réponse locale');
-      await speak(rep);
-    }
     isProcessing = false;
     manualStop = false;
     maybeRestartListening();

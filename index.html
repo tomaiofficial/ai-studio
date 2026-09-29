@@ -220,68 +220,6 @@ body{
   font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
   pointer-events:none;
 }
-/* v10.5 : bouton mail + modale de connexion Gmail */
-.mail-btn{
-  position:fixed;bottom:150px;right:16px;z-index:60;
-  width:46px;height:46px;border-radius:50%;border:1px solid rgba(124,92,255,.35);
-  background:rgba(18,16,42,.85);backdrop-filter:blur(8px);
-  color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .15s;
-}
-.mail-btn:hover{transform:scale(1.08);border-color:#7c5cff}
-.mail-modal{
-  position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
-  background:rgba(5,4,15,.7);backdrop-filter:blur(4px);
-}
-.mail-modal.hidden{display:none}
-.mail-modal-box{
-  width:min(420px,92vw);background:#14122a;border:1px solid rgba(124,92,255,.3);
-  border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);overflow:hidden;
-}
-.mail-modal-head{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:14px 16px;background:rgba(124,92,255,.12);font-weight:600;color:#fff;
-}
-.mail-modal-close{background:none;border:none;color:#8f8fb0;font-size:16px;cursor:pointer}
-.mail-modal-close:hover{color:#fff}
-.mail-modal-body{padding:16px;display:flex;flex-direction:column;gap:10px}
-.mail-modal-hint{font-size:13px;color:#a5a5c5;line-height:1.5;margin:0}
-.mail-client{
-  width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2a2a45;
-  background:#10101e;color:#fff;font-size:13px;outline:none;box-sizing:border-box;
-}
-.mail-client:focus{border-color:#7c5cff}
-.mail-list-btn{
-  padding:12px;border-radius:12px;border:1px solid #2a2a45;background:#1a1833;color:#fff;
-  font-size:15px;font-weight:600;cursor:pointer;
-}
-.mail-list-btn:hover{border-color:#7c5cff}
-.mail-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto}
-.mail-item{
-  padding:10px 12px;border-radius:10px;border:1px solid #2a2a45;background:#10101e;
-  cursor:pointer;transition:border-color .15s;
-}
-.mail-item:hover{border-color:#7c5cff}
-.mail-item-from{font-size:12px;color:#7c5cff;font-weight:600}
-.mail-item-subj{font-size:13px;color:#fff;margin-top:2px}
-.mail-item-snip{font-size:11.5px;color:#8a8aa5;margin-top:2px}
-.mail-connect-btn{
-  padding:12px;border-radius:12px;border:none;background:#7c5cff;color:#fff;
-  font-size:15px;font-weight:600;cursor:pointer;
-}
-.mail-connect-btn:hover{background:#8f6fff}
-.mail-divider{text-align:center;font-size:12px;color:#6a6a8a}
-.mail-paste{
-  width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2a2a45;
-  background:#10101e;color:#fff;font-size:14px;resize:vertical;outline:none;box-sizing:border-box;
-}
-.mail-paste:focus{border-color:#7c5cff}
-.mail-read-btn{
-  padding:12px;border-radius:12px;border:1px solid #7c5cff;background:transparent;color:#fff;
-  font-size:15px;font-weight:600;cursor:pointer;
-}
-.mail-read-btn:hover{background:rgba(124,92,255,.15)}
-.mail-status{font-size:12.5px;color:#8f8fb0;min-height:16px;text-align:center}
 .muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
 .wide-input{
   width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
@@ -488,29 +426,7 @@ select.wide-input{appearance:none}
   </button>
   <div class="subtitle" id="subtitle"></div>
   <button class="stop-btn" id="stopBtn" aria-label="Arrêter">■</button>
-  <button class="mail-btn" id="mailBtn" role="button" aria-label="Mail">📧</button>
   <div class="version-tag" id="versionTag"></div>
-</div>
-
-<!-- MODALE MAIL (v10.5) : VRAI raccordement Gmail (OAuth + API) -->
-<div class="mail-modal hidden" id="mailModal">
-  <div class="mail-modal-box">
-    <div class="mail-modal-head">
-      <span>📧 Mail</span>
-      <button class="mail-modal-close" id="mailModalClose" aria-label="Fermer">✕</button>
-    </div>
-    <div class="mail-modal-body">
-      <p class="mail-modal-hint">Raccorde ton compte Gmail à l'app : l'IA lira tes mails directement.</p>
-      <input class="mail-client" id="mailClientId" placeholder="Colle ton Client ID Google (…apps.googleusercontent.com)" autocomplete="off" />
-      <button class="mail-connect-btn" id="mailConnectBtn">🔗 Se connecter à Gmail</button>
-      <button class="mail-list-btn" id="mailListBtn">📥 Mes mails</button>
-      <div class="mail-list" id="mailList"></div>
-      <div class="mail-divider">ou colle un mail</div>
-      <textarea class="mail-paste" id="mailPaste" rows="4" placeholder="Colle ici un mail que tu veux que l'IA lise ou résume..."></textarea>
-      <button class="mail-read-btn" id="mailReadBtn">🤖 L'IA lit ce mail</button>
-      <div class="mail-status" id="mailStatus"></div>
-    </div>
-  </div>
 </div>
 
 <!-- SAISIE TEXTE : poser une question par ecrit (marche toujours, meme sans micro) -->
