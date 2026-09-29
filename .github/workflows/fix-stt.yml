@@ -1,0 +1,56 @@
+name: Fix STT mobile interim (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fix interim mobile + version 10.6
+        run: |
+          set -x
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          cat > /tmp/fix.py <<'PYEOF'
+          import sys
+          src = open('app.js', encoding='utf-8').read()
+          if 'FIX MOBILE INTERIM' in src:
+              print('DEJA APPLIQUE'); sys.exit(0)
+          old = "resolve(finalTranscript.trim());"
+          if src.count(old) != 1:
+              print('MARQUEUR FINISH INTROUVABLE:', src.count(old)); sys.exit(1)
+          new = """/* v10.6 : FIX MOBILE INTERIM — sur mobile, la reconnaissance rend souvent
+           les mots en interim SANS jamais les promouvoir en final ; l'abort()
+           de fin de phrase les jetait -> "Je n'ai rien entendu" 2s apres
+           avoir parle. Si le final est vide mais qu'un interim existe, on
+           l'utilise comme transcription. */
+          resolve((finalTranscript.trim() || this.transcript.trim()));"""
+          src = src.replace(old, new)
+          # un peu plus de marge sur le silence initial (1.8s -> 2.5s)
+          src = src.replace("const SILENCE_MS = 1800;", "const SILENCE_MS = 2500;")
+          # version
+          src = src.replace("const APP_VERSION = '10.5';", "const APP_VERSION = '10.6';")
+          open('app.js', 'w', encoding='utf-8').write(src)
+          print('PATCH OK')
+          PYEOF
+          python3 /tmp/fix.py
+          node --check app.js || { echo "ERREUR SYNTAXE"; exit 1; }
+          echo '{"version":"10.6"}' > version.json
+          git add app.js version.json
+          git commit -m "v10.6 : FIX mobile 'je n'ai rien entendu' — l'interim non promu en final etait jete a l'abort ; on l'utilise en repli + silence initial 2.5s [skip ci]"
+          git rm -f .github/workflows/fix-stt.yml || true
+          git rm -f .github/workflows/stt-scan.yml || true
+          git rm -f astra-stt-scan.txt || true
+          git commit -m "chore: suppression des workflows ponctuels [skip ci]"
+          git pull --rebase origin main || true
+          git push
