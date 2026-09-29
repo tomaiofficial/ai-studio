@@ -1606,43 +1606,135 @@ function addAgentStep(i, total, label){
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
 }
+/* ============================================================
+   v10.5 : VRAI AGENT AUTONOME — boucle d'outils.
+   L'IA décide elle-même quel outil appeler ([OUTIL:nom] args [/OUTIL]),
+   on exécute, on lui redonne le résultat, elle continue jusqu'à
+   [REPONSE] ou 6 itérations max. Outils : web, wikipedia, meteo,
+   calcul, heure, memoire. Lecture seule, jamais d'action réelle.
+   ============================================================ */
+/* OUTIL WEB (définit enfin webSearch, appelé mais jamais défini avant) */
+async function webSearch(query){
+  try {
+    const q = String(query || '').slice(0, 120);
+    const r = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_html=1&skip_disambig=1');
+    if (r.ok){
+      const j = await r.json();
+      const bits = [];
+      if (j.AbstractText) bits.push(j.AbstractText);
+      (j.RelatedTopics || []).slice(0, 4).forEach(t => { if (t && t.Text) bits.push(t.Text); });
+      if (bits.length) return bits.join(' ').slice(0, 1200);
+    }
+  } catch(e){}
+  try {
+    const w = await fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(q) + '&format=json&origin=*&srlimit=3');
+    if (w.ok){
+      const j = await w.json();
+      const hits = (j.query && j.query.search) || [];
+      const s = hits.map(h => (h.snippet || '').replace(/<[^>]+>/g, '')).join(' ');
+      if (s) return s.slice(0, 1200);
+    }
+  } catch(e){}
+  return '';
+}
+/* OUTIL WIKIPEDIA : résumé d'un article */
+async function wikiSummary(title){
+  try {
+    const r = await fetch('https://fr.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(String(title || '').trim()));
+    if (r.ok){
+      const j = await r.json();
+      if (j.extract) return j.extract.slice(0, 1200);
+    }
+  } catch(e){}
+  return '';
+}
+/* OUTIL METEO : open-meteo, gratuit sans clé */
+async function meteoFor(city){
+  try {
+    const g = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(String(city || '').trim()) + '&count=1&language=fr&format=json');
+    if (!g.ok) return '';
+    const gj = await g.json();
+    const place = gj.results && gj.results[0];
+    if (!place) return '';
+    const f = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + place.latitude + '&longitude=' + place.longitude + '&current_weather=true&timezone=auto');
+    if (!f.ok) return '';
+    const fj = await f.json();
+    const cw = fj.current_weather || {};
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+    const dir = dirs[Math.round((cw.winddirection || 0) / 45) % 8];
+    return 'Meteo a ' + (place.name || city) + ' : ' + cw.temperature + ' degres, vent ' + cw.windspeed + ' km/h (' + dir + ').';
+  } catch(e){ return ''; }
+}
+/* OUTIL HEURE : date et heure actuelles */
+function nowInfo(){
+  const d = new Date();
+  const jours = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  const mois = ['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
+  return 'Nous sommes le ' + jours[d.getDay()] + ' ' + d.getDate() + ' ' + mois[d.getMonth()] + ' ' + d.getFullYear() + ', il est ' + d.getHours() + 'h' + String(d.getMinutes()).padStart(2, '0') + '.';
+}
+/* OUTIL MEMOIRE : ce que l'IA a appris */
+function memoryInfo(){
+  try { return buildMemoryContext() || 'Aucune fiche memoire pour l instant.'; } catch(e){ return ''; }
+}
+/* REGISTRE DES OUTILS */
+const AGENT_TOOLS = {
+  web:      { desc: 'recherche sur le web (actualite, sport, prix, infos recentes)', run: q => webSearch(q) },
+  wikipedia:{ desc: 'resume d un article Wikipedia', run: q => wikiSummary(q) },
+  meteo:    { desc: 'meteo actuelle d une ville', run: q => meteoFor(q) },
+  calcul:   { desc: 'calcul arithmetique (ex: 15*7+3)', run: q => { const v = safeCalc(q); return v === null ? 'Calcul impossible.' : 'Resultat : ' + v; } },
+  heure:    { desc: 'date et heure actuelles', run: () => nowInfo() },
+  memoire:  { desc: 'ce que l IA a appris sur l utilisateur', run: () => memoryInfo() }
+};
+function agentToolList(){
+  return Object.keys(AGENT_TOOLS).map(k => 'OUTIL:' + k + ' — ' + AGENT_TOOLS[k].desc).join('\n');
+}
 async function runAgent(question){
-  setStatus('🤖 Mode agent autonome : je planifie et j\'apprends...');
-  /* v10.0.2 : AUTONOMIE — l'IA fait des recherches et repond h24 */
-  /* 1. PLAN : decoupage de la tache en 2-4 etapes */
-  const planMsgs = [
-    { role: 'system', content: 'Tu es un agent autonome de RECHERCHE et d ANALYSE uniquement. Tu es en LECTURE SEULE : tu ne peux PAS envoyer, acheter, supprimer, modifier ou payer quoi que ce soit. Ne dis jamais que tu as fait une action reelle. Decoupe la tache de l utilisateur en 2 a 4 etapes simples et independantes. Reponds UNIQUEMENT avec la liste, une etape par ligne, chacune commencant par "ETAPE: ". Tache : ' + question }
-  ];
-  const plan = await askBrain(planMsgs);
-  const steps = (plan.text || '').split('\n').map(l => l.replace(/^ETAPE:\s*/i, '').trim()).filter(l => l.length > 3).slice(0, 4);
-  if (!steps.length){
-    /* pas de plan exploitable -> reponse normale */
-    return askAI(question);
-  }
-  /* 2. EXECUTION : chaque etape = recherche web + analyse */
-  const results = [];
-  for (let i = 0; i < steps.length; i++){
+  setStatus('🤖 Agent autonome : je choisis mes outils...');
+  const toolList = agentToolList();
+  const sys = 'Tu es Astra, agent autonome en LECTURE SEULE (tu ne peux JAMAIS envoyer, acheter, supprimer, modifier ou payer quoi que ce soit ; ne dis jamais que tu as fait une action reelle). Tu dois resoudre la tache de l utilisateur en utilisant les outils disponibles, un a la fois.\n\nOutils disponibles :\n' + toolList + '\n\nRegles :\n- Pour utiliser un outil, reponds EXACTEMENT sur une seule ligne : [OUTIL:nom] arguments [/OUTIL]\n- Quand tu as assez d infos, reponds EXACTEMENT : [REPONSE] ta reponse finale en francais, 2 a 5 phrases, avec ton caractere habituel, en tutoyant [/REPONSE]\n- Utilise les outils un par un, attends le resultat avant de continuer.\n- Ne reponds JAMAIS directement a la tache sans avoir utilise au moins un outil (sauf si la tache est triviale).';
+  const history = [{ role: 'system', content: sys }, { role: 'user', content: 'Tache : ' + question }];
+  let final = '';
+  for (let it = 0; it < 6; it++){
     if (manualStop) break;
-    addAgentStep(i + 1, steps.length, steps[i]);
-    setStatus('🤖 Étape ' + (i + 1) + '/' + steps.length);
-    const web = await webSearch(steps[i]);
-    const stepMsgs = [
-      { role: 'system', content: 'Tu es un agent autonome en LECTURE SEULE (tu ne peux rien envoyer, acheter, supprimer ou modifier). Tu travailles sur une etape d une tache. Reponds en 1 a 2 phrases courtes : ce que tu as trouve pour cette etape.' },
-      { role: 'user', content: 'Etape : ' + steps[i] + (web ? '\nResultats web : ' + web : '') }
-    ];
-    const r = await askBrain(stepMsgs);
-    results.push('Etape ' + (i + 1) + ' (' + steps[i] + ') : ' + (r.text || 'Rien trouve'));
-    /* YIELD : rend la main au thread principal entre les etapes pour eviter le gel */
-    await new Promise(res => setTimeout(res, 0));
+    setStatus('🤖 Agent autonome : itération ' + (it + 1) + '/6');
+    const r = await askBrain(history);
+    const txt = (r && r.text) || '';
+    const m = txt.match(/\[OUTIL:(\w+)\]([\s\S]*?)\[\/OUTIL\]/i);
+    const fm = txt.match(/\[REPONSE\]([\s\S]*?)\[\/REPONSE\]/i);
+    if (fm){
+      final = fm[1].trim();
+      break;
+    }
+    if (m){
+      const name = m[1].toLowerCase();
+      const args = m[2].trim();
+      const tool = AGENT_TOOLS[name];
+      if (tool){
+        addAgentStep(it + 1, 6, 'Outil ' + name + (args ? ' : ' + args.slice(0, 60) : ''));
+        let out = '';
+        try { out = await tool.run(args); } catch(e){ out = ''; }
+        history.push({ role: 'assistant', content: '[OUTIL:' + name + '] ' + args });
+        history.push({ role: 'user', content: 'Resultat de l outil ' + name + ' : ' + (out || 'Aucun resultat. Essaie un autre outil ou reponds avec ce que tu sais.') });
+        await new Promise(res => setTimeout(res, 0));
+        continue;
+      }
+      history.push({ role: 'user', content: 'Outil inconnu : ' + name + '. Choisis parmi : ' + toolList });
+      continue;
+    }
+    /* pas de balise -> on garde le texte comme reponse finale */
+    final = txt;
+    break;
   }
-  /* 3. SYNTHESE : reponse finale */
-  setStatus('🤖 Mode agent : synthese...');
-  const finalMsgs = [
-    { role: 'system', content: getSystemPrompt() },
-    { role: 'user', content: 'Voici les resultats de tes etapes de recherche :\n' + results.join('\n') + '\n\nFais la synthese finale pour l utilisateur, en 2 a 4 phrases, avec ton caractere habituel. Ne dis jamais que tu as fait une action reelle : tu es en lecture seule.' }
-  ];
-  const final = await askBrain(finalMsgs);
-  const clean = stripGreeting(enforceIdentity(fixFrench(final.text || 'Voila ce que j ai trouve.')));
+  if (!final){
+    /* boucle epuisee sans reponse -> synthese de ce qu'on a */
+    setStatus('🤖 Agent autonome : synthese...');
+    const syn = await askBrain([
+      { role: 'system', content: getSystemPrompt() },
+      { role: 'user', content: 'Fais la synthese finale pour l utilisateur, en 2 a 4 phrases, avec ton caractere habituel. Tache initiale : ' + question + '\nHistorique des outils : ' + history.filter(m => m.role === 'user').map(m => m.content).join(' | ').slice(0, 1500) }
+    ]);
+    final = syn.text || 'Voila ce que j ai trouve.';
+  }
+  const clean = stripGreeting(enforceIdentity(fixFrench(final)));
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   session.push({ role: 'assistant', content: clean });
