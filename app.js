@@ -1286,6 +1286,8 @@ function getSystemPrompt(){
   if (profile && profile.name){
     base += `\nL'utilisateur s'appelle ${profile.name}` + (profile.age ? ` et a ${profile.age} ans` : '') + `. Appelle-le TOUJOURS par son prenom quand tu lui parles.`;
   }
+  const userProfile = buildUserProfile();
+  if (userProfile) base += '\n' + userProfile + ' Sois plus performante sur ces sujets que lui.';
   /* v9.96 : le mood est INJECTE dans le prompt -> le cerveau repond avec le
      bon ton (avant, seul un prefixe etait ajoute apres coup) */
   if (currentMood === 'vulgaire'){
@@ -3214,6 +3216,7 @@ async function handleQuestion(question){
   /* v9.96 : humeur mise a jour AVANT la question -> le cerveau recoit le mood
      dans son prompt (getSystemPrompt) et repond avec le bon ton */
   updateMood(question);
+  learnFromUser(question);  /* apprend ton vocabulaire */
   /* v10.0 : mode ECRITURE — si l'utilisateur demande d'ecrire, le cerveau
      produit un texte plus long et il sera copie dans le bloc-notes */
   writingMode = isWritingRequest(question);
