@@ -257,6 +257,31 @@ async function generateChunks(chunks, voiceId, key){
     } catch(e){ console.warn('[VOXTRAL] chunk echec:', e && e.message); return null; }
   }));
 }
+/* v10.6 : FIX MOBILE — transcription audio via Mistral Voxtral
+   (POST /v1/audio/transcriptions, multipart). Fonctionne sur mobile :
+   iOS Safari n'a PAS de SpeechRecognition, et Android le bloque sans HTTPS.
+   Reutilise la cle API Mistral deja configuree pour la voix. */
+async function transcribeWithMistral(blob, key){
+  try {
+    const type = (blob && blob.type) || 'audio/webm';
+    const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : type.includes('m4a') ? 'm4a' : 'webm';
+    const fd = new FormData();
+    fd.append('file', blob, 'audio.' + ext);
+    fd.append('model', 'mistral-voxtral');
+    fd.append('language', 'fr');
+    const res = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key },
+      body: fd,
+      signal: abortSignal(30000)
+    });
+    if (!res.ok){ console.warn('[STT-MISTRAL] HTTP', res.status, (await res.text().catch(() => '')).slice(0, 200)); return ''; }
+    const data = await res.json();
+    const t = (data && (data.text || data.transcript)) || '';
+    console.log('[STT-MISTRAL] Transcription:', t);
+    return t.trim();
+  } catch(e){ console.warn('[STT-MISTRAL] echec:', e && e.message); return ''; }
+}
 /* v9.65 : volume BOOSTÉ (gain 1.8) via le contexte partagé — le volume max d'un
    élément <audio> est 1.0, le Web Audio permet de dépasser. Débloque aussi
    l'autoplay mobile (contexte partagé). */
@@ -1062,17 +1087,24 @@ async function startRecorder(){
     /* v10.0.2 : FIX MOBILE — utilise SpeechToTextHandler (instance neuve)
        au lieu du MediaRecorder + recog global qui reste bloque */
     if (stt.isSupported()){
-      const txt = await stt.listen();
+      let txt = '';
+      let sttFailed = false;
+      try { txt = await stt.listen(); }
+      catch(e){ sttFailed = true; console.warn('[STT] echec -> fallback enregistrement:', e && e.message); }
       recorderBusy = false;
       if (txt && txt.trim().length >= 2){
         setState('idle');
         handleQuestion(txt.trim());
-      } else {
+        return;
+      }
+      if (!sttFailed){
         setState('idle');
         setStatus("Je n'ai rien entendu - rapproche-toi du micro");
         if (continuousMode && !continuousPaused) maybeRestartListening();
+        return;
       }
-      return;
+      /* v10.6 : STT bloque (mobile : not-allowed/service-not-allowed) ->
+         on continue vers l'enregistrement MediaRecorder + transcription Mistral */
     }
     /* Fallback : ancien MediaRecorder si STT non supporte */
     let ac = null;
@@ -1107,6 +1139,19 @@ async function startRecorder(){
       }
       if (whisperLoaded && whisperASR){
         const txt = await transcribeBlob(blob);
+        if (txt){
+          setState('idle');
+          handleQuestion(txt);
+          return;
+        }
+      }
+      /* v10.6 : FIX MOBILE — transcription Mistral Voxtral (cle deja dans
+         Reglages). Fonctionne sur iOS Safari (pas de SpeechRecognition) et
+         Android : simple requete HTTP, aucune API navigateur requise. */
+      const mistralKey = getMistralKey();
+      if (mistralKey){
+        setStatus('Transcription Mistral...');
+        const txt = await transcribeWithMistral(blob, mistralKey);
         if (txt){
           setState('idle');
           handleQuestion(txt);
@@ -1156,7 +1201,10 @@ async function startRecorder(){
     cleanupRecorder();
     recorderBusy = false;
     setState('idle');
-    setStatus('Micro bloque - autorise le micro');
+    /* v10.6 : FIX MOBILE — sur telephone, le micro exige HTTPS (ou localhost).
+       En HTTP sur le reseau local, le navigateur bloque tout. */
+    const secure = (typeof window !== 'undefined') && (window.isSecureContext || /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(window.location.host));
+    setStatus(secure ? 'Micro bloque - autorise le micro' : 'Micro bloque : ouvre l\'app en HTTPS pour autoriser le micro sur mobile');
   }
 }
 function stopRecorder(){

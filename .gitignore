@@ -27,3 +27,6 @@ Thumbs.db
 
 # Config with API keys
 .agnes_config/config.json
+
+# Certificats HTTPS locaux (serve_https.py)
+certs/
