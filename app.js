@@ -1835,6 +1835,7 @@ function cleanMarkdown(t){
     .trim();
 }
 function normalizeForTTS(text){
+  if (typeof text !== 'string' || !text) return '';  /* v10.0.2 : garde-fou anti-undefined */
   return cleanMarkdown(text).normalize('NFC')
     /* RE-ACCENTUATION des mots francais courants ecrits sans accents (les
        anciennes reponses en memoire sont sans accents -> Google TTS les
@@ -2486,8 +2487,14 @@ function sanitizeForVoice(t){
 }
 function speak(text, onChunk){
   return new Promise(resolve => {
+    /* v10.0.2 : garde-fou — si le texte est vide/undefined, on ne parle pas */
+    if (typeof text !== 'string' || !text.trim()){
+      if (onChunk) onChunk('');
+      resolve();
+      return;
+    }
     let clean = text;
-    try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); }
+    try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); clean = String(text); }
     /* v10.0.2 : nettoyage final prononciation — supprimer caracteres invisibles */
     clean = clean.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
     /* v9.94 : la voix ne dit JAMAIS de jurons -> Mistral TTS ne bloque plus
@@ -3006,6 +3013,20 @@ async function handleQuestion(question){
     setState('idle');
     /* v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
        supprimé) : réponse locale neutre, jamais d'excuse. */
+    const fallback = applyMood(localSmartReply(question), currentMood);
+    addAiMsg(fallback, 'local');
+    setStatus('Réponse locale');
+    await speak(fallback);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  /* v10.0.2 : garde-fou — si le cerveau a renvoyé un texte vide/absent sans
+     erreur, on répond avec la réponse locale au lieu de planter speak() */
+  if (!r.text || !String(r.text).trim()){
+    writingMode = false;
+    setState('idle');
     const fallback = applyMood(localSmartReply(question), currentMood);
     addAiMsg(fallback, 'local');
     setStatus('Réponse locale');
