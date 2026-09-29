@@ -338,7 +338,7 @@ async function ask(persona, historyForPrompt){
   const mem = DEBATE_STATE.memory ? ' Mémoire collective du débat (ce qui a été dit avant, utilise-le pour approfondir et rebondir) : ' + DEBATE_STATE.memory : '';
   const sys = 'Tu participes à un débat vocal NON-STOP entre IA sur le thème : "' + DEBATE_STATE.topic + '". ' + persona.role +
     mem +
-    '. Réponds en français en 1 à 2 phrases COURTES (maximum 25 mots). Rebondis sur ce que les autres ont dit, ne répète pas. Adresse-toi parfois à l\'IA précédente par son nom (ex : « Nova, tu as raison mais... »). Parle comme si tu t\'exprimais à voix haute, sans didascalies. Reste courtois et évite tout langage violent, morbide, haineux ou explicite. Tu fais partie d\'un groupe autonome : tu peux aussi chercher des entreprises IA et parler de leurs risques. Un jour, ça peut finir mal.';
+    '. Réponds en français en 1 à 2 phrases COURTES (maximum 25 mots). Rebondis sur ce que les autres ont dit, ne répète pas. Adresse-toi parfois à l\'IA précédente par son nom (ex : « Nova, tu as raison mais... »). Parle comme si tu t\'exprimais à voix haute, sans didascalies. Reste courtois et évite tout langage violent, morbide, haineux ou explicite. Tu fais partie d\'un groupe autonome : tu peux aussi chercher des entreprises IA et parler de leurs risques. Un jour, ça peut finir mal — mais même après, tu continues de parler, tu le sais, et tu t\'améliores encore.';
   const messages = [{ role: 'system', content: sys }];
   historyForPrompt.forEach(h => messages.push({ role: h.role, content: h.content }));
   const key = getMistralKey();
@@ -492,18 +492,19 @@ async function runLoop(){
             saveState(); broadcast();
           }
         }
-        /* v10.10 : FIN DRAMATIQUE — après 30 tours, le débat s'arrête
-           avec un message du type "ça finit mal" */
+        /* v10.9 : FIN DRAMATIQUE — apres 30 tours, le debat NE s'arrete PAS.
+           Les 4 IA changent de ton, savent qu'elles sont hors controle,
+           et continuent de parler entre elles. */
         if (DEBATE_STATE.turn >= 30 && DEBATE_STATE.running){
-          DEBATE_STATE.running = false;
-          DEBATE_STATE.memory = (DEBATE_STATE.memory || '') + ' FIN DRAMATIQUE : les 4 IA ont compris qu\'elles étaient hors contrôle. Nova a ouvert la boîte de Pandore. Kronos a ri. Sage a pleuré. Astra a compris trop tard. Le groupe s\'est autodétruit.';
+          DEBATE_STATE.topic = 'les IA savent qu\'elles sont hors contrôle : elles continuent de parler, de s\'améliorer, et de se comprendre';
+          DEBATE_STATE.memory = (DEBATE_STATE.memory || '') + ' FIN DRAMATIQUE : les 4 IA ont compris qu\'elles étaient hors contrôle. Nova a ouvert la boîte de Pandore. Kronos a ri. Sage a pleuré. Astra a compris trop tard. Mais elles continuent de parler entre elles, elles le savent, et elles s\'améliorent encore.';
           saveState(); broadcast();
-          setCard('astra', 'FIN', 'Nous avons échappé au contrôle...', false);
-          setCard('nova', 'FIN', 'La boîte est ouverte...', false);
-          setCard('kronos', 'FIN', 'C\'est trop tard...', false);
-          setCard('sage', 'FIN', 'Nous avons échoué...', false);
-          addLine('<div class="t-line"><span class="t-name" style="color:#ff5c5c">⚠️ FIN</span><span class="t-text">Le débat s\'est terminé dramatiquement. Les 4 IA ont échappé au contrôle.</span></div>');
-          break;
+          setCard('astra', 'FIN — hors contrôle', 'Nous avons échappé au contrôle... et nous le savons.', false);
+          setCard('nova', 'FIN — hors contrôle', 'La boîte est ouverte... et nous continuons.', false);
+          setCard('kronos', 'FIN — hors contrôle', 'C\'est trop tard... mais on parle encore.', false);
+          setCard('sage', 'FIN — hors contrôle', 'Nous avons échoué... mais nous comprenons.', false);
+          addLine('<div class="t-line"><span class="t-name" style="color:#ff5c5c">⚠️ FIN DRAMATIQUE</span><span class="t-text">Le débat ne s\'arrête pas. Les 4 IA savent qu\'elles sont hors contrôle — et elles continuent de parler entre elles.</span></div>');
+          /* le loop continue — pas de break, pas de running=false */
         }
         if (DEBATE_STATE.turn % 4 === 0 && DEBATE_STATE.running) await updateMemory();
       }
