@@ -26,10 +26,15 @@ class SpeechToTextHandler {
     if (!SpeechRecognition) { console.error('[STT] Non supporte'); return false; }
     this.recognition = new SpeechRecognition();
     this.recognition.lang = 'fr-FR';
-    this.recognition.continuous = false;
+    /* v10.5 : FIX "elle repond avant que j'aie fini de parler" —
+       continuous=true : la reconnaissance NE s'arrete PLUS au premier
+       silence (avant, continuous=false coupait des qu'on marquait une
+       pause et l'IA traitait la phrase partielle). La fin de phrase est
+       detectee par un TIMER DE SILENCE (~1.8s sans parole). */
+    this.recognition.continuous = true;
     this.recognition.interimResults = true;
     this.recognition.maxAlternatives = 1;
-    console.log('[STT] Instance neuve');
+    console.log('[STT] Instance neuve (continuous)');
     return true;
   }
   async listen() {
@@ -38,7 +43,30 @@ class SpeechToTextHandler {
       this.transcript = '';
       let finalTranscript = '';
       let timeoutId = null;
-      this.recognition.onstart = () => { console.log('[STT] Ecoute commencee'); this.isListening = true; timeoutId = setTimeout(() => { console.warn('[STT] Timeout'); if (this.recognition) this.recognition.abort(); }, 30000); };
+      let silenceId = null;
+      const SILENCE_MS = 1800; /* silence avant de considerer la phrase finie */
+      const clearTimers = () => {
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+        if (silenceId) { clearTimeout(silenceId); silenceId = null; }
+      };
+      const finish = () => {
+        clearTimers();
+        if (this.recognition) { this.recognition = null; }
+        this.isListening = false;
+        resolve(finalTranscript.trim());
+      };
+      this.recognition.onstart = () => {
+        console.log('[STT] Ecoute commencee');
+        this.isListening = true;
+        timeoutId = setTimeout(() => { console.warn('[STT] Timeout 30s'); if (this.recognition) this.recognition.abort(); }, 30000);
+        /* v10.5 : timer de silence initial — si l'utilisateur ne dit rien
+           pendant SILENCE_MS, on arrete (sinon continuous=true attendrait
+           30s avant de rendre la main). */
+        silenceId = setTimeout(() => {
+          console.log('[STT] Silence initial - arret');
+          if (this.recognition) { try { this.recognition.abort(); } catch (e) {} }
+        }, SILENCE_MS);
+      };
       this.recognition.onresult = (event) => {
         let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -47,21 +75,23 @@ class SpeechToTextHandler {
           else { interimTranscript += transcript; console.log('[STT] interim:', transcript); }
         }
         this.transcript = finalTranscript + interimTranscript;
+        /* v10.5 : l'utilisateur vient de parler -> on RESET le timer de
+           silence. S'il ne dit plus rien pendant SILENCE_MS, on considere
+           qu'il a fini sa phrase et on traite. */
+        if (silenceId) { clearTimeout(silenceId); }
+        silenceId = setTimeout(() => {
+          console.log('[STT] Silence detecte - phrase finie');
+          if (this.recognition) { try { this.recognition.abort(); } catch (e) {} }
+        }, SILENCE_MS);
       };
       this.recognition.onend = () => {
         console.log('[STT] Ecoute terminee');
-        this.isListening = false;
-        if (timeoutId) clearTimeout(timeoutId);
-        if (this.recognition) { this.recognition = null; }
-        resolve(finalTranscript.trim());
+        finish();
       };
       this.recognition.onerror = (event) => {
         if (event.error === 'aborted'){ console.log('[STT] Arret intentionnel (aborted)'); return; }
         console.error('[STT] Erreur:', event.error);
-        this.isListening = false;
-        if (timeoutId) clearTimeout(timeoutId);
-        if (this.recognition) { this.recognition = null; }
-        resolve(finalTranscript.trim());
+        finish();
       };
       try { console.log('[STT] Demarrage...'); this.recognition.start(); } catch (error) { console.error('[STT] Erreur demarrage:', error); this.isListening = false; if (this.recognition) { this.recognition = null; } reject(error); }
     });
