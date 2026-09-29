@@ -2782,16 +2782,14 @@ function speak(text, onChunk){
       resolve(ok);
     };
     const fail = () => {
-      console.warn('[VOIX] Toutes les voix ont echoue');
-      /* v8.86 : si une voix a deja commence a jouer, pas de message d'erreur
-         (le timeout global a coupe la chaine mais le son est sorti) */
-      if (!voiceStartedFlag) setStatus("Voix système - pret");
-      done(false);
+      console.warn('[VOIX] Timeout global — mais le son a peut-être déjà joué');
+      if (!voiceStartedFlag) setStatus("Appuie sur le micro et parle");
+      done(true); /* ne pas bloquer l'utilisateur */
     };
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 30s sans son
        (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
         v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global'); fail(); }, 30000);
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (60s)'); fail(); }, 60000);
     /* VOIX : Voxtral TTS (Mistral AI) — priorité #1, secours Système puis Google */
     const voiceMode = getVoice();
     let chain;
