@@ -1090,7 +1090,7 @@ async function startRecorder(){
       setStatus('Je t\'ecoute...');
       const blob = new Blob(mediaChunks, { type: (mediaChunks[0] && mediaChunks[0].type) || 'audio/webm' });
       recorderBusy = false;
-      if (blob.size < 8000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); isProcessing = false; manualStop = false; if (continuousMode && !continuousPaused) { setTimeout(() => { try { startRecorder(); } catch {} }, 800); } return; }
+      if (blob.size < 8000){ setState('idle'); setStatus("Je n'ai rien entendu - rapproche-toi du micro"); isProcessing = false; manualStop = false; if (continuousMode && !continuousPaused) { setTimeout(() => { try { startRecorder(); } catch {} }, 500); } return; }
       /* Transcription : la reconnaissance vocale du navigateur (gratuite, sans cle)
          est le service principal. Si on est arrive ici, elle a echoue -> on tente
          Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
@@ -3105,7 +3105,9 @@ async function handleQuestion(question){
   /* COMMANDES LOCALES (fiable 100%, sans passer par l'IA) : heure, date, jour.
      Les petits modeles gratuits ignorent souvent le contexte systeme -> on repond
      directement avec l'horloge de l'appareil. */
-  const q = question.toLowerCase();
+  const q = (question || '').toLowerCase().trim();
+  /* Nettoyage STT : supprimer bruit, corriger mots mal entendus */
+  const cleanedQ = q.replace(/\bmeteo\b/g, 'météo').replace(/\bmétéo\b/g, 'météo').replace(/\bparis\b/g, 'paris').replace(/\blondres\b/g, 'londres').replace(/\bfrance\b/g, 'france').trim();
   const isTimeQ = /(quelle|quel|donne|dis|tu peux me dire|tu sais|c'est quoi|c est quoi)\s+(l'?heure|la date|le jour|quel jour|aujourd|la date d'aujourd)/.test(q)
     || /(quelle heure|il est quelle heure|tu as l'heure|donne-moi l'heure|donne moi l'heure|la date|quel jour|aujourd'hui on est|on est quel jour|on est le)/.test(q)
     || /(heure|date|jour)\s*(il est|on est|aujourd)/.test(q);
