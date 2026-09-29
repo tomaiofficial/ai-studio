@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.6';
+const APP_VERSION = '10.7';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -3130,6 +3130,194 @@ function toastMsg(msg){
   if (clearBtn) clearBtn.addEventListener('click', () => { clearNote(); toastMsg('Bloc-notes effacé'); });
 })();
 
+/* ===== DEBAT IA (v10.6) : plusieurs IA discutent entre elles en vocal =====
+   "débat" / "avenir de l'humanité" -> 4 IA (voix Mistral differentes) se
+   repondent en vocal sur le sujet. Panneau affiche : clique sur une IA pour
+   reecouter sa derniere intervention. */
+const DEBATE_PERSONAS = [
+  { id: 'astra',  name: 'Astra',  emoji: '🤖', color: '#3cdca0', role: 'toi, Astra, l\'assistante principale : optimiste mais pragmatique, tu vois les progrès ET les risques' },
+  { id: 'nova',   name: 'Nova',   emoji: '🚀', color: '#7c5cff', role: 'Nova, une IA techno-optimiste : la technologie et la science sauveront l\'humanité' },
+  { id: 'kronos', name: 'Kronos', emoji: '🌑', color: '#ff5c5c', role: 'Kronos, une IA pessimiste et cynique : tu vois surtout les catastrophes, les guerres et les dérives' },
+  { id: 'sage',   name: 'Sage',   emoji: '🦉', color: '#ffd27c', role: 'Sage, une IA philosophe et équilibrée : tu vois les deux côtés et tu tempères le débat' }
+];
+let debateRunning = false, debateStopFlag = false;
+let debateHistory = [];
+let debateLastText = {}; /* persona id -> dernier texte dit (pour reecoute) */
+let debateTopic = 'l\'avenir de l\'humanité';
+
+function showDebatePanel(){
+  const p = document.getElementById('debatePanel');
+  if (p) p.classList.remove('hidden');
+}
+function hideDebatePanel(){
+  const p = document.getElementById('debatePanel');
+  if (p) p.classList.add('hidden');
+}
+function buildDebateCards(){
+  const grid = document.getElementById('debateGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  DEBATE_PERSONAS.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'debate-card';
+    card.id = 'debateCard-' + p.id;
+    card.style.setProperty('--dc', p.color);
+    card.setAttribute('data-id', p.id);
+    card.innerHTML = '<div class="debate-avatar">' + p.emoji + '</div>' +
+      '<div class="debate-body">' +
+      '<div class="debate-name">' + p.name + '</div>' +
+      '<div class="debate-status" id="debateStatus-' + p.id + '">en attente...</div>' +
+      '<div class="debate-msg" id="debateMsg-' + p.id + '"></div>' +
+      '</div>';
+    card.addEventListener('click', () => replayDebate(p.id));
+    grid.appendChild(card);
+  });
+}
+function setDebateCard(id, status, msg){
+  const st = document.getElementById('debateStatus-' + id);
+  const ms = document.getElementById('debateMsg-' + id);
+  const card = document.getElementById('debateCard-' + id);
+  if (st) st.textContent = status;
+  if (ms) ms.textContent = msg || '';
+  if (card){
+    card.classList.remove('speaking');
+    if (status === 'parle...') card.classList.add('speaking');
+  }
+}
+/* Voix : Astra garde la voix choisie par l'utilisateur ; les autres prennent
+   des voix Mistral DIFFERENTES (francaises si possibles). */
+async function assignDebateVoices(){
+  try {
+    const voices = await fetchVoxtralVoices();
+    const fr = voices.filter(v => (v.lang || '').toLowerCase().indexOf('fr') === 0);
+    const pool = fr.length >= 3 ? fr : voices;
+    const used = new Set();
+    const pick = () => {
+      for (const v of pool){ if (!used.has(v.id)){ used.add(v.id); return v.id; } }
+      return pool[0] ? pool[0].id : null;
+    };
+    DEBATE_PERSONAS.forEach(p => { if (p.id !== 'astra') p.voice = pick(); });
+  } catch(e){ console.warn('[DEBAT] voix:', e && e.message); }
+}
+function debateVoiceId(persona){
+  if (persona.id === 'astra'){
+    const vm = getVoice();
+    return vm.startsWith('voxtral:') ? vm.substring(8) : null;
+  }
+  return persona.voice || null;
+}
+/* Cerveau du debat : Mistral chat si cle, sinon cerveaux gratuits */
+async function debateAsk(persona, history){
+  const sys = 'Tu participes à un débat entre IA sur le thème : "' + debateTopic + '". ' + persona.role +
+    '. Réponds en français, en 2 à 4 phrases, avec ton point de vue personnel. Ne répète pas ce que les autres ont dit. Parle comme si tu t\'exprimais à voix haute, sans didascalies.';
+  const messages = [{ role: 'system', content: sys }];
+  history.forEach(h => messages.push({ role: h.role, content: h.content }));
+  const mistralKey = getMistralKey();
+  if (mistralKey){
+    for (const model of ['open-mistral-nemo', 'mistral-small-latest']){
+      try {
+        const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mistralKey },
+          body: JSON.stringify({ model, messages, max_tokens: 300, temperature: 0.95 })
+        }), 15000);
+        if (res && res.ok){
+          const data = await res.json();
+          const text = (data?.choices?.[0]?.message?.content || '').trim();
+          if (text) return fixFrench(text);
+        }
+      } catch {}
+    }
+  }
+  const tryFree = async (url, model) => {
+    try {
+      const res = await withTimeout(fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages, max_tokens: 300, temperature: 0.95 })
+      }), 12000);
+      if (res && res.ok){
+        const data = await res.json();
+        const text = (data?.choices?.[0]?.message?.content || '').trim();
+        if (text && !/^the user (says|asks|is asking|wants)/i.test(text)) return fixFrench(text);
+      }
+    } catch {}
+    return null;
+  };
+  for (const [url, model] of [
+    ['https://llm7.xyz/api/v1/chat/completions', 'glm-5.3-flash'],
+    ['https://ovh.llm7.xyz/api/v1/chat/completions', 'qwen3.5'],
+    ['https://text.pollinations.ai/openai/v1/chat/completions', 'openai']
+  ]){
+    const t = await tryFree(url, model);
+    if (t) return t;
+  }
+  return null;
+}
+function replayDebate(id){
+  const persona = DEBATE_PERSONAS.find(p => p.id === id);
+  const text = debateLastText[id];
+  const voiceId = debateVoiceId(persona);
+  if (!persona || !text || !voiceId) return;
+  setDebateCard(id, 'réécoute...', text);
+  speakVoxtral(text, voiceId, null).then(ok => {
+    setDebateCard(id, ok ? 'dernière intervention' : 'réécoute impossible', text);
+  });
+}
+async function startDebate(topic){
+  if (debateRunning) return;
+  debateRunning = true;
+  debateStopFlag = false;
+  debateHistory = [];
+  debateLastText = {};
+  if (topic) debateTopic = topic;
+  buildDebateCards();
+  showDebatePanel();
+  await assignDebateVoices();
+  /* le micro ne doit PAS se relancer pendant le debat (il s'ecouterait) */
+  isSpeaking = true;
+  setState('speaking');
+  setStatus('Débat en cours...');
+  const ROUNDS = 3;
+  for (let round = 0; round < ROUNDS && !debateStopFlag; round++){
+    for (const persona of DEBATE_PERSONAS){
+      if (debateStopFlag) break;
+      setDebateCard(persona.id, 'réfléchit...', '');
+      setState('thinking');
+      const text = await debateAsk(persona, debateHistory);
+      if (!text) continue;
+      debateHistory.push({ role: 'user', content: persona.name + ' : ' + text });
+      debateLastText[persona.id] = text;
+      setDebateCard(persona.id, 'parle...', text);
+      setState('speaking');
+      const voiceId = debateVoiceId(persona);
+      if (voiceId){
+        try { await speakVoxtral(text, voiceId, null); } catch(e){ console.warn('[DEBAT] voix echec:', e && e.message); }
+      }
+      setDebateCard(persona.id, 'intervention terminée', text);
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+  debateRunning = false;
+  isSpeaking = false;
+  setState('idle');
+  setStatus('Débat terminé - clique sur une IA pour réécouter');
+}
+function stopDebate(){
+  debateStopFlag = true;
+  debateRunning = false;
+  isSpeaking = false;
+  stopAudio();
+  setState('idle');
+  hideDebatePanel();
+}
+(function(){
+  const stopBtn = document.getElementById('debateStop');
+  if (stopBtn) stopBtn.addEventListener('click', () => { stopDebate(); toastMsg('Débat arrêté'); });
+  const closeBtn = document.getElementById('debateClose');
+  if (closeBtn) closeBtn.addEventListener('click', () => { stopDebate(); });
+})();
+
 /* v10.0 : demande d'ECRITURE ? (lettre, poeme, texte, note...) */
 function isWritingRequest(q){
   const s = (q || '').toLowerCase();
@@ -3138,6 +3326,9 @@ function isWritingRequest(q){
 
 async function handleQuestion(question){
   if (isProcessing) return;
+  /* v10.6 : si un débat IA tourne et que l'utilisateur parle d'autre chose,
+     on l'arrête avant de traiter la nouvelle question */
+  if (debateRunning && !/(d[ée]bat|d[ée]bate|avenir\s*(de\s*l['']?)?\s*humanit)/i.test(question)) stopDebate();
   stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   isProcessing = true;
   manualStop = true;
@@ -3186,6 +3377,29 @@ async function handleQuestion(question){
     const repSpokenMood = applyMood(repSpoken, currentMood);
     addAiMsg(repMood);
     await speak(repSpokenMood);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  /* v10.6 : DEBAT IA — arret ("arrête le débat", "stop le débat"...) */
+  if (/(arr[eê]te|stop|ferme|fin|suffit)\s*(le\s*)?(d[ée]bat|d[ée]bate|discussion)/.test(question)){
+    stopDebate();
+    const rep = "Débat arrêté.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  /* v10.6 : DEBAT IA — lancement ("débat", "avenir de l'humanité"...)
+     4 IA avec des voix Mistral differentes discutent en vocal du sujet */
+  if (/(d[ée]bat|d[ée]bate|discutent entre elles|parlent entre elles|avenir\s*(de\s*l['']?)?\s*humanit)/i.test(question)){
+    addAiMsg('🎙️ Débat lancé : ' + debateTopic, 'local');
+    setStatus('Débat en cours...');
+    await startDebate(debateTopic);
     isProcessing = false;
     manualStop = false;
     maybeRestartListening();
