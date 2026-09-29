@@ -524,8 +524,8 @@ function localSmartReply(question){
   /* v9.76 : qui a fait l'interface/le design/l'app -> reponse INTERFACE
      (AVANT le pattern "qui t'a cree" pour ne pas confondre) */
   if (/(qui (a )?(cree|créé|fait|concu|conçu|developpe|développé) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))|(qui (fait|a fait) (l'interface|l interface|le design|le site|l'app|l app|la page|le logo))/i.test(q)) return "L'interface, c'est tom point a i qui l'a faite, comme tout le reste. Il la corrige et l'améliore chaque jour.";
-  /* v9.77 : infos sur l'app — fonction mail à venir, sécurité en test */
-  if (/(mail|e[- ]?mail|email|courriel|fonction mail|29 septembre|nouveautes|nouveautés|quoi de neuf|infos sur l'app|infos sur l app|infos sur l'application|infos sur l application)/.test(q)) return "Bientôt, le mardi 29 septembre, l'application aura une fonction mail : je pourrai voir tes mails. En attendant, tom.ai teste la sécurité de l'application.";
+  /* v10.5 : infos sur l'app — fonction mail ACTIVE */
+  if (/(mail|e[- ]?mail|email|courriel|fonction mail|nouveautes|nouveautés|quoi de neuf|infos sur l'app|infos sur l app|infos sur l'application|infos sur l application)/.test(q)) return "La fonction mail est active : appuie sur le bouton enveloppe ou dis-moi \"ouvre le mail\" pour te connecter a ton compte Gmail. Une fois connecte, colle un mail et je le lis ou je le resume pour toi.";
   if (/(qui t'a cree|qui t a cree|ton createur|qui t'a fait|qui t a fait)/.test(q)) return "J'ai été créée par tom point a i le 10 septembre 2026, mais il n'a pas encore fini : il corrige et renforce ma sécurité.";
   if (/(tu te souviens|tu me souviens|memoire|mémoire|tu as de la memoire|tu as de la mémoire)/.test(q)){
     const mem = buildMemoryContext(currentConvId);
@@ -1202,6 +1202,44 @@ if (stopBtn) stopBtn.addEventListener('click', () => {
   setStatus("Appuie sur le micro et parle");
 });
 
+/* v10.5 : FONCTION MAIL — modale de connexion Gmail + lecture des mails par l'IA */
+const mailBtn = document.getElementById('mailBtn');
+const mailModal = document.getElementById('mailModal');
+const mailModalClose = document.getElementById('mailModalClose');
+const mailConnectBtn = document.getElementById('mailConnectBtn');
+const mailReadBtn = document.getElementById('mailReadBtn');
+const mailPaste = document.getElementById('mailPaste');
+const mailStatus = document.getElementById('mailStatus');
+let mailPopup = null;
+function openMailModal(){
+  if (mailModal) mailModal.classList.remove('hidden');
+  if (mailStatus) mailStatus.textContent = '';
+}
+function closeMailModal(){
+  if (mailModal) mailModal.classList.add('hidden');
+}
+if (mailBtn) mailBtn.addEventListener('click', openMailModal);
+if (mailModalClose) mailModalClose.addEventListener('click', closeMailModal);
+if (mailModal) mailModal.addEventListener('click', e => { if (e.target === mailModal) closeMailModal(); });
+if (mailConnectBtn) mailConnectBtn.addEventListener('click', () => {
+  try {
+    mailPopup = window.open('https://mail.google.com', '_blank', 'width=480,height=640');
+    if (mailStatus) mailStatus.textContent = 'Gmail ouvert — connecte-toi, puis reviens ici.';
+  } catch {
+    if (mailStatus) mailStatus.textContent = 'Popup bloquée — autorise les popups ou ouvre mail.google.com manuellement.';
+  }
+});
+if (mailReadBtn) mailReadBtn.addEventListener('click', () => {
+  const txt = (mailPaste && mailPaste.value || '').trim();
+  if (txt.length < 10){
+    if (mailStatus) mailStatus.textContent = 'Colle d\'abord un mail (au moins 10 caractères).';
+    return;
+  }
+  if (mailStatus) mailStatus.textContent = 'L\'IA lit le mail...';
+  closeMailModal();
+  handleQuestion('Lis et résume ce mail pour moi : ' + txt.slice(0, 1500));
+});
+
 /* v9.67 : période de la journée — l'IA sait si on est le matin, l'après-midi,
    le soir ou la nuit, comme un humain. `label` = forme pour le contexte,
    `of` = forme possessive pour "il est 8h du matin". */
@@ -1225,9 +1263,8 @@ function getTimeContext(){
   return `Heure actuelle sur l'appareil de l'utilisateur : ${dateStr}, ${timeStr}. Nous sommes ${getDayPeriod().label}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure EXACTE en CHIFFRES, par exemple "il est 11h03", JAMAIS en lettres. Utilise la periode de la journee dans tes reponses quand c'est naturel (ex: "ce matin", "cet apres-midi", "bonne nuit"), comme un humain qui vit en temps reel.`;
 }
 /* Prompt systeme */
-/* v9.77 : INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle
-   (fonction mail à venir, sécurité en test...) */
-const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes, le mail ou ce qui arrive bientot, reponds avec ces infos) : Le mardi 29 septembre 2026, l'application aura une fonction mail : l'IA pourra voir les mails de l'utilisateur. En attendant, l'utilisateur teste la securite de l'application.";
+/* v10.5 : INFOS SUR L'APPLICATION — fonction mail ACTIVE (connexion Gmail) */
+const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes, le mail ou ce qui arrive bientot, reponds avec ces infos) : L'application a une fonction mail : l'utilisateur peut se connecter a son compte Gmail via le bouton mail (enveloppe) ou en disant 'ouvre le mail'. Une fois connecte, il peut coller un mail et l'IA le lit, le resume ou y repond.";
 const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu jures UNIQUEMENT quand l'utilisateur t'insulte ou est vulgaire avec toi : la tu reponds avec le meme ton. Sinon, reponds normalement, sans jurer. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
@@ -2870,6 +2907,19 @@ async function handleQuestion(question){
     const repSpokenMood = applyMood(repSpoken, currentMood);
     addAiMsg(repMood);
     await speak(repSpokenMood);
+    isProcessing = false;
+    manualStop = false;
+    maybeRestartListening();
+    return;
+  }
+  /* v10.5 : FONCTION MAIL — commande vocale "ouvre le mail" / "mes mails" */
+  if (/(ouvre|ouvrir|affiche|afficher|montre|montrer|va sur|connecte|connecter)\s*(le|la|mes|mon)?\s*(mail|mails|e[- ]?mail|emails|gmail|courriel|boite|boîte)/.test(q)
+    || /(mes mails|mes emails|ma boite|ma boîte|mon mail|mon gmail|je veux voir mes mails|voir mes mails)/.test(q)){
+    openMailModal();
+    const rep = "Voilà, la fenêtre mail est ouverte. Connecte-toi à ton compte Gmail, puis colle un mail et je le lis ou je le résume pour toi.";
+    addAiMsg(rep, 'local');
+    setStatus('Réponse locale');
+    await speak(rep);
     isProcessing = false;
     manualStop = false;
     maybeRestartListening();

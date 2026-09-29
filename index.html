@@ -220,13 +220,49 @@ body{
   font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
   pointer-events:none;
 }
-/* v9.78 : bandeau d'info dans la scene vocale (fonction mail a venir) */
-.app-info{
-  max-width:88%;text-align:center;font-size:12.5px;line-height:1.45;color:#8f8fb0;
-  background:rgba(18,16,42,.4);backdrop-filter:blur(8px);
-  border:1px solid rgba(124,92,255,.15);border-radius:12px;
-  padding:8px 14px;pointer-events:none;
+/* v10.5 : bouton mail + modale de connexion Gmail */
+.mail-btn{
+  position:fixed;bottom:150px;right:16px;z-index:60;
+  width:46px;height:46px;border-radius:50%;border:1px solid rgba(124,92,255,.35);
+  background:rgba(18,16,42,.85);backdrop-filter:blur(8px);
+  color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 14px rgba(0,0,0,.35);transition:transform .15s;
 }
+.mail-btn:hover{transform:scale(1.08);border-color:#7c5cff}
+.mail-modal{
+  position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+  background:rgba(5,4,15,.7);backdrop-filter:blur(4px);
+}
+.mail-modal.hidden{display:none}
+.mail-modal-box{
+  width:min(420px,92vw);background:#14122a;border:1px solid rgba(124,92,255,.3);
+  border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);overflow:hidden;
+}
+.mail-modal-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;background:rgba(124,92,255,.12);font-weight:600;color:#fff;
+}
+.mail-modal-close{background:none;border:none;color:#8f8fb0;font-size:16px;cursor:pointer}
+.mail-modal-close:hover{color:#fff}
+.mail-modal-body{padding:16px;display:flex;flex-direction:column;gap:10px}
+.mail-modal-hint{font-size:13px;color:#a5a5c5;line-height:1.5;margin:0}
+.mail-connect-btn{
+  padding:12px;border-radius:12px;border:none;background:#7c5cff;color:#fff;
+  font-size:15px;font-weight:600;cursor:pointer;
+}
+.mail-connect-btn:hover{background:#8f6fff}
+.mail-divider{text-align:center;font-size:12px;color:#6a6a8a}
+.mail-paste{
+  width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2a2a45;
+  background:#10101e;color:#fff;font-size:14px;resize:vertical;outline:none;box-sizing:border-box;
+}
+.mail-paste:focus{border-color:#7c5cff}
+.mail-read-btn{
+  padding:12px;border-radius:12px;border:1px solid #7c5cff;background:transparent;color:#fff;
+  font-size:15px;font-weight:600;cursor:pointer;
+}
+.mail-read-btn:hover{background:rgba(124,92,255,.15)}
+.mail-status{font-size:12.5px;color:#8f8fb0;min-height:16px;text-align:center}
 .muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
 .wide-input{
   width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
@@ -433,8 +469,26 @@ select.wide-input{appearance:none}
   </button>
   <div class="subtitle" id="subtitle"></div>
   <button class="stop-btn" id="stopBtn" aria-label="Arrêter">■</button>
-  <div class="app-info" id="appInfo">📧 Bientôt (mardi 29 septembre) : fonction mail — l'IA pourra voir tes mails. En attendant, tom.ai teste la sécurité de l'app.</div>
+  <button class="mail-btn" id="mailBtn" role="button" aria-label="Mail">📧</button>
   <div class="version-tag" id="versionTag"></div>
+</div>
+
+<!-- MODALE MAIL (v10.5) : connexion Gmail + lecture des mails par l'IA -->
+<div class="mail-modal hidden" id="mailModal">
+  <div class="mail-modal-box">
+    <div class="mail-modal-head">
+      <span>📧 Mail</span>
+      <button class="mail-modal-close" id="mailModalClose" aria-label="Fermer">✕</button>
+    </div>
+    <div class="mail-modal-body">
+      <p class="mail-modal-hint">Connecte-toi à ton compte Gmail : l'IA pourra ensuite lire tes mails.</p>
+      <button class="mail-connect-btn" id="mailConnectBtn">🔗 Se connecter à Gmail</button>
+      <div class="mail-divider">ou</div>
+      <textarea class="mail-paste" id="mailPaste" rows="5" placeholder="Colle ici un mail que tu veux que l'IA lise ou résume..."></textarea>
+      <button class="mail-read-btn" id="mailReadBtn">🤖 L'IA lit ce mail</button>
+      <div class="mail-status" id="mailStatus"></div>
+    </div>
+  </div>
 </div>
 
 <!-- SAISIE TEXTE : poser une question par ecrit (marche toujours, meme sans micro) -->
@@ -561,6 +615,6 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="app.js?v=10.0.2"></script>
+<script src="app.js?v=10.5"></script>
 </body>
 </html>
