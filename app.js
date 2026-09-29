@@ -3208,6 +3208,7 @@ function debateVoiceId(persona){
 }
 /* Cerveau du debat : Mistral chat si cle, sinon cerveaux gratuits */
 async function debateAsk(persona, history){
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   const sys = 'Tu participes à un débat entre IA sur le thème : "' + debateTopic + '". ' + persona.role +
     '. Réponds en français, en 2 à 4 phrases, avec ton point de vue personnel. Ne répète pas ce que les autres ont dit. Parle comme si tu t\'exprimais à voix haute, sans didascalies.';
   const messages = [{ role: 'system', content: sys }];
@@ -3278,30 +3279,35 @@ async function startDebate(topic){
   isSpeaking = true;
   setState('speaking');
   setStatus('Débat en cours...');
-  const ROUNDS = 3;
-  for (let round = 0; round < ROUNDS && !debateStopFlag; round++){
-    for (const persona of DEBATE_PERSONAS){
-      if (debateStopFlag) break;
-      setDebateCard(persona.id, 'réfléchit...', '');
-      setState('thinking');
-      const text = await debateAsk(persona, debateHistory);
-      if (!text) continue;
-      debateHistory.push({ role: 'user', content: persona.name + ' : ' + text });
-      debateLastText[persona.id] = text;
-      setDebateCard(persona.id, 'parle...', text);
-      setState('speaking');
-      const voiceId = debateVoiceId(persona);
-      if (voiceId){
-        try { await speakVoxtral(text, voiceId, null); } catch(e){ console.warn('[DEBAT] voix echec:', e && e.message); }
+  try {
+    const ROUNDS = 3;
+    for (let round = 0; round < ROUNDS && !debateStopFlag; round++){
+      for (const persona of DEBATE_PERSONAS){
+        if (debateStopFlag) break;
+        setDebateCard(persona.id, 'réfléchit...', '');
+        setState('thinking');
+        const text = await debateAsk(persona, debateHistory);
+        if (!text) continue;
+        debateHistory.push({ role: 'user', content: persona.name + ' : ' + text });
+        debateLastText[persona.id] = text;
+        setDebateCard(persona.id, 'parle...', text);
+        setState('speaking');
+        const voiceId = debateVoiceId(persona);
+        if (voiceId){
+          try { await speakVoxtral(text, voiceId, null); } catch(e){ console.warn('[DEBAT] voix echec:', e && e.message); }
+        }
+        setDebateCard(persona.id, 'intervention terminée', text);
+        await new Promise(r => setTimeout(r, 500));
       }
-      setDebateCard(persona.id, 'intervention terminée', text);
-      await new Promise(r => setTimeout(r, 500));
     }
+  } catch(e){
+    console.warn('[DEBAT] erreur:', e && e.message);
+  } finally {
+    debateRunning = false;
+    isSpeaking = false;
+    setState('idle');
+    setStatus('Débat terminé - clique sur une IA pour réécouter');
   }
-  debateRunning = false;
-  isSpeaking = false;
-  setState('idle');
-  setStatus('Débat terminé - clique sur une IA pour réécouter');
 }
 function stopDebate(){
   debateStopFlag = true;
@@ -3399,7 +3405,8 @@ async function handleQuestion(question){
   if (/(d[ée]bat|d[ée]bate|discutent entre elles|parlent entre elles|avenir\s*(de\s*l['']?)?\s*humanit)/i.test(question)){
     addAiMsg('🎙️ Débat lancé : ' + debateTopic, 'local');
     setStatus('Débat en cours...');
-    await startDebate(debateTopic);
+    try { await startDebate(debateTopic); }
+    catch(e){ console.warn('[DEBAT] lancement echec:', e && e.message); }
     isProcessing = false;
     manualStop = false;
     maybeRestartListening();
