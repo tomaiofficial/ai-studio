@@ -246,6 +246,25 @@ body{
 .mail-modal-close:hover{color:#fff}
 .mail-modal-body{padding:16px;display:flex;flex-direction:column;gap:10px}
 .mail-modal-hint{font-size:13px;color:#a5a5c5;line-height:1.5;margin:0}
+.mail-client{
+  width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2a2a45;
+  background:#10101e;color:#fff;font-size:13px;outline:none;box-sizing:border-box;
+}
+.mail-client:focus{border-color:#7c5cff}
+.mail-list-btn{
+  padding:12px;border-radius:12px;border:1px solid #2a2a45;background:#1a1833;color:#fff;
+  font-size:15px;font-weight:600;cursor:pointer;
+}
+.mail-list-btn:hover{border-color:#7c5cff}
+.mail-list{display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto}
+.mail-item{
+  padding:10px 12px;border-radius:10px;border:1px solid #2a2a45;background:#10101e;
+  cursor:pointer;transition:border-color .15s;
+}
+.mail-item:hover{border-color:#7c5cff}
+.mail-item-from{font-size:12px;color:#7c5cff;font-weight:600}
+.mail-item-subj{font-size:13px;color:#fff;margin-top:2px}
+.mail-item-snip{font-size:11.5px;color:#8a8aa5;margin-top:2px}
 .mail-connect-btn{
   padding:12px;border-radius:12px;border:none;background:#7c5cff;color:#fff;
   font-size:15px;font-weight:600;cursor:pointer;
@@ -473,7 +492,7 @@ select.wide-input{appearance:none}
   <div class="version-tag" id="versionTag"></div>
 </div>
 
-<!-- MODALE MAIL (v10.5) : connexion Gmail + lecture des mails par l'IA -->
+<!-- MODALE MAIL (v10.5) : VRAI raccordement Gmail (OAuth + API) -->
 <div class="mail-modal hidden" id="mailModal">
   <div class="mail-modal-box">
     <div class="mail-modal-head">
@@ -481,10 +500,13 @@ select.wide-input{appearance:none}
       <button class="mail-modal-close" id="mailModalClose" aria-label="Fermer">✕</button>
     </div>
     <div class="mail-modal-body">
-      <p class="mail-modal-hint">Connecte-toi à ton compte Gmail : l'IA pourra ensuite lire tes mails.</p>
+      <p class="mail-modal-hint">Raccorde ton compte Gmail à l'app : l'IA lira tes mails directement.</p>
+      <input class="mail-client" id="mailClientId" placeholder="Colle ton Client ID Google (…apps.googleusercontent.com)" autocomplete="off" />
       <button class="mail-connect-btn" id="mailConnectBtn">🔗 Se connecter à Gmail</button>
-      <div class="mail-divider">ou</div>
-      <textarea class="mail-paste" id="mailPaste" rows="5" placeholder="Colle ici un mail que tu veux que l'IA lise ou résume..."></textarea>
+      <button class="mail-list-btn" id="mailListBtn">📥 Mes mails</button>
+      <div class="mail-list" id="mailList"></div>
+      <div class="mail-divider">ou colle un mail</div>
+      <textarea class="mail-paste" id="mailPaste" rows="4" placeholder="Colle ici un mail que tu veux que l'IA lise ou résume..."></textarea>
       <button class="mail-read-btn" id="mailReadBtn">🤖 L'IA lit ce mail</button>
       <div class="mail-status" id="mailStatus"></div>
     </div>

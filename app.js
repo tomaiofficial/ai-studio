@@ -1202,18 +1202,35 @@ if (stopBtn) stopBtn.addEventListener('click', () => {
   setStatus("Appuie sur le micro et parle");
 });
 
-/* v10.5 : FONCTION MAIL — modale de connexion Gmail + lecture des mails par l'IA */
+/* v10.5 : FONCTION MAIL — VRAI raccordement Gmail (OAuth 2.0 PKCE + API Gmail) */
 const mailBtn = document.getElementById('mailBtn');
 const mailModal = document.getElementById('mailModal');
 const mailModalClose = document.getElementById('mailModalClose');
 const mailConnectBtn = document.getElementById('mailConnectBtn');
+const mailListBtn = document.getElementById('mailListBtn');
 const mailReadBtn = document.getElementById('mailReadBtn');
 const mailPaste = document.getElementById('mailPaste');
 const mailStatus = document.getElementById('mailStatus');
-let mailPopup = null;
+const mailClientId = document.getElementById('mailClientId');
+const mailList = document.getElementById('mailList');
+const GMAIL_CLIENT_KEY = 'va_gmail_client';
+const GMAIL_TOKEN_KEY = 'va_gmail_token';
+let gmailToken = null;
+try { gmailToken = localStorage.getItem(GMAIL_TOKEN_KEY); } catch {}
+function getGmailClientId(){
+  let cid = null;
+  try { cid = localStorage.getItem(GMAIL_CLIENT_KEY); } catch {}
+  if (!cid && mailClientId && mailClientId.value.trim()) cid = mailClientId.value.trim();
+  return cid;
+}
+function setMailStatus(msg){ if (mailStatus) mailStatus.textContent = msg; }
 function openMailModal(){
   if (mailModal) mailModal.classList.remove('hidden');
-  if (mailStatus) mailStatus.textContent = '';
+  if (mailClientId){
+    try { mailClientId.value = localStorage.getItem(GMAIL_CLIENT_KEY) || ''; } catch {}
+  }
+  setMailStatus(gmailToken ? 'Connecté à Gmail ✅' : '');
+  if (gmailToken) loadGmailMails();
 }
 function closeMailModal(){
   if (mailModal) mailModal.classList.add('hidden');
@@ -1221,24 +1238,183 @@ function closeMailModal(){
 if (mailBtn) mailBtn.addEventListener('click', openMailModal);
 if (mailModalClose) mailModalClose.addEventListener('click', closeMailModal);
 if (mailModal) mailModal.addEventListener('click', e => { if (e.target === mailModal) closeMailModal(); });
-if (mailConnectBtn) mailConnectBtn.addEventListener('click', () => {
-  try {
-    mailPopup = window.open('https://mail.google.com', '_blank', 'width=480,height=640');
-    if (mailStatus) mailStatus.textContent = 'Gmail ouvert — connecte-toi, puis reviens ici.';
-  } catch {
-    if (mailStatus) mailStatus.textContent = 'Popup bloquée — autorise les popups ou ouvre mail.google.com manuellement.';
+
+/* --- OAuth 2.0 PKCE : redirection vers Google --- */
+function b64url(buf){
+  let s = '';
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function sha256(str){
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+}
+function makeVerifier(){
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let v = '';
+  const arr = new Uint8Array(64);
+  crypto.getRandomValues(arr);
+  for (let i = 0; i < arr.length; i++) v += chars[arr[i] % chars.length];
+  return v;
+}
+async function startGmailOAuth(){
+  const cid = getGmailClientId();
+  if (!cid){
+    setMailStatus('Colle d\'abord ton Client ID Google dans le champ ci-dessus.');
+    return;
   }
-});
+  try { localStorage.setItem(GMAIL_CLIENT_KEY, cid); } catch {}
+  const verifier = makeVerifier();
+  try { sessionStorage.setItem('va_gmail_verifier', verifier); } catch {}
+  const challenge = b64url(await sha256(verifier));
+  const redirectUri = location.origin + location.pathname;
+  const scope = 'https://www.googleapis.com/auth/gmail.readonly';
+  const url = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=' + encodeURIComponent(cid)
+    + '&redirect_uri=' + encodeURIComponent(redirectUri)
+    + '&response_type=code&scope=' + encodeURIComponent(scope)
+    + '&code_challenge=' + challenge + '&code_challenge_method=S256'
+    + '&access_type=offline&prompt=consent';
+  setMailStatus('Redirection vers Google...');
+  location.href = url;
+}
+if (mailConnectBtn) mailConnectBtn.addEventListener('click', startGmailOAuth);
+
+/* --- Échange du code contre un token (au retour de Google) --- */
+async function exchangeCode(code){
+  const cid = getGmailClientId();
+  let verifier = '';
+  try { verifier = sessionStorage.getItem('va_gmail_verifier') || ''; } catch {}
+  try {
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'code=' + encodeURIComponent(code)
+        + '&client_id=' + encodeURIComponent(cid)
+        + '&redirect_uri=' + encodeURIComponent(location.origin + location.pathname)
+        + '&grant_type=authorization_code'
+        + '&code_verifier=' + encodeURIComponent(verifier)
+    });
+    const data = await res.json();
+    if (data.access_token){
+      gmailToken = data.access_token;
+      try { localStorage.setItem(GMAIL_TOKEN_KEY, gmailToken); } catch {}
+      return true;
+    }
+    setMailStatus('Échec connexion : ' + (data.error_description || data.error || 'inconnu'));
+    return false;
+  } catch (e){
+    setMailStatus('Erreur réseau pendant la connexion.');
+    return false;
+  }
+}
+
+/* --- Lecture des mails via l'API Gmail --- */
+async function gmailFetch(path){
+  if (!gmailToken) return null;
+  try {
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1' + path, {
+      headers: { Authorization: 'Bearer ' + gmailToken }
+    });
+    if (res.status === 401){
+      gmailToken = null;
+      try { localStorage.removeItem(GMAIL_TOKEN_KEY); } catch {}
+      setMailStatus('Session expirée — reconnecte-toi.');
+      return null;
+    }
+    return res.json();
+  } catch { return null; }
+}
+function decodeB64(s){
+  try {
+    const pad = s.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = pad + '==='.slice((pad.length + 3) % 4);
+    const bin = atob(padded);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch { return ''; }
+}
+function mailTextFromPayload(payload){
+  if (!payload) return '';
+  if (payload.body && payload.body.data) return decodeB64(payload.body.data);
+  let txt = '';
+  if (payload.parts){
+    for (const p of payload.parts){
+      if (p.mimeType === 'text/plain' && p.body && p.body.data) return decodeB64(p.body.data);
+      if (p.parts) txt += mailTextFromPayload(p);
+    }
+  }
+  return txt;
+}
+async function loadGmailMails(){
+  if (!gmailToken){ setMailStatus('Pas connecté — clique sur "Se connecter à Gmail".'); return; }
+  setMailStatus('Chargement des mails...');
+  if (mailList) mailList.innerHTML = '';
+  const data = await gmailFetch('/users/me/messages?maxResults=10');
+  if (!data || !data.messages){
+    setMailStatus(data ? 'Aucun mail trouvé.' : '');
+    return;
+  }
+  const items = [];
+  for (const m of data.messages){
+    const meta = await gmailFetch('/users/me/messages/' + m.id + '?format=metadata&metadataHeaders=From&metadataHeaders=Subject');
+    if (!meta) continue;
+    const headers = {};
+    (meta.payload && meta.payload.headers || []).forEach(h => { headers[h.name.toLowerCase()] = h.value; });
+    items.push({ id: m.id, from: headers.from || '?', subject: headers.subject || '(sans objet)', snippet: meta.snippet || '' });
+  }
+  if (mailList){
+    mailList.innerHTML = '';
+    items.forEach(it => {
+      const d = document.createElement('div');
+      d.className = 'mail-item';
+      d.innerHTML = '<div class="mail-item-from">' + escapeHtml(it.from) + '</div>'
+        + '<div class="mail-item-subj">' + escapeHtml(it.subject) + '</div>'
+        + '<div class="mail-item-snip">' + escapeHtml(it.snippet.slice(0, 90)) + '</div>';
+      d.addEventListener('click', () => readGmailMail(it.id, it.subject));
+      mailList.appendChild(d);
+    });
+  }
+  setMailStatus(items.length + ' mail(s) — clique sur un mail pour que l\'IA le lise.');
+}
+async function readGmailMail(id, subject){
+  setMailStatus('L\'IA lit le mail...');
+  const full = await gmailFetch('/users/me/messages/' + id + '?format=full');
+  if (!full){ setMailStatus('Impossible de lire ce mail.'); return; }
+  const headers = {};
+  (full.payload && full.payload.headers || []).forEach(h => { headers[h.name.toLowerCase()] = h.value; });
+  const body = mailTextFromPayload(full.payload).trim();
+  const content = 'De : ' + (headers.from || '?') + '\nObjet : ' + (headers.subject || subject || '?')
+    + '\nDate : ' + (headers.date || '?') + '\n\n' + body.slice(0, 3000);
+  closeMailModal();
+  handleQuestion('Voici un mail de ma boîte Gmail. Lis-le et résume-le pour moi :\n' + content);
+}
+if (mailListBtn) mailListBtn.addEventListener('click', loadGmailMails);
 if (mailReadBtn) mailReadBtn.addEventListener('click', () => {
   const txt = (mailPaste && mailPaste.value || '').trim();
   if (txt.length < 10){
-    if (mailStatus) mailStatus.textContent = 'Colle d\'abord un mail (au moins 10 caractères).';
+    setMailStatus('Colle d\'abord un mail (au moins 10 caractères).');
     return;
   }
-  if (mailStatus) mailStatus.textContent = 'L\'IA lit le mail...';
+  setMailStatus('L\'IA lit le mail...');
   closeMailModal();
   handleQuestion('Lis et résume ce mail pour moi : ' + txt.slice(0, 1500));
 });
+
+/* --- Retour de Google : ?code=... dans l'URL --- */
+(function handleGmailCallback(){
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if (code){
+    exchangeCode(code).then(ok => {
+      try { history.replaceState({}, '', location.pathname); } catch {}
+      if (ok){
+        openMailModal();
+        loadGmailMails();
+      }
+    });
+  }
+})();
 
 /* v9.67 : période de la journée — l'IA sait si on est le matin, l'après-midi,
    le soir ou la nuit, comme un humain. `label` = forme pour le contexte,
@@ -2916,10 +3092,17 @@ async function handleQuestion(question){
   if (/(ouvre|ouvrir|affiche|afficher|montre|montrer|va sur|connecte|connecter)\s*(le|la|mes|mon)?\s*(mail|mails|e[- ]?mail|emails|gmail|courriel|boite|boîte)/.test(q)
     || /(mes mails|mes emails|ma boite|ma boîte|mon mail|mon gmail|je veux voir mes mails|voir mes mails)/.test(q)){
     openMailModal();
-    const rep = "Voilà, la fenêtre mail est ouverte. Connecte-toi à ton compte Gmail, puis colle un mail et je le lis ou je le résume pour toi.";
-    addAiMsg(rep, 'local');
-    setStatus('Réponse locale');
-    await speak(rep);
+    if (gmailToken){
+      const rep = "Voilà, tes mails sont là. Clique sur un mail et je te le résume.";
+      addAiMsg(rep, 'local');
+      setStatus('Réponse locale');
+      await speak(rep);
+    } else {
+      const rep = "Voilà, la fenêtre mail est ouverte. Colle ton client Google dans le champ, clique sur se connecter, et je pourrai lire tes mails directement.";
+      addAiMsg(rep, 'local');
+      setStatus('Réponse locale');
+      await speak(rep);
+    }
     isProcessing = false;
     manualStop = false;
     maybeRestartListening();
