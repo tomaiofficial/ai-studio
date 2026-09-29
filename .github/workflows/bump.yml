@@ -1,0 +1,33 @@
+name: Bump version 10.5 (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Synchroniser les versions en 10.5
+        run: |
+          set -x
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          sed -i "s/const APP_VERSION = '10.0.2';/const APP_VERSION = '10.5';/" app.js
+          grep -n "APP_VERSION" app.js | head -3
+          echo '{"version":"10.5"}' > version.json
+          cat version.json
+          git add app.js version.json
+          git commit -m "v10.5 : APP_VERSION + version.json synchronises en 10.5 (modules web, autocorrection, conseil IA, autonomie tous actifs) [skip ci]"
+          git rm -f .github/workflows/bump.yml
+          git commit -m "chore: suppression du workflow ponctuel bump [skip ci]"
+          git pull --rebase origin main || true
+          git push
