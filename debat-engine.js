@@ -263,6 +263,19 @@ async function speakVoxtral(text, voiceId){
     return true;
   } catch(e){ console.warn('[DEBAT] TTS echec:', e && e.message); return false; }
 }
+/* v10.10 : recherche web automatique pour la mission du debat */
+async function searchWeb(query){
+  try {
+    const res = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), { signal: abortSignal(8000) });
+    if (!res.ok) return '';
+    const html = await res.text();
+    const snippets = [];
+    const regex = /<a[^>]+class="result__a"[^>]*>(.*?)<\/a>/g;
+    let m;
+    while ((m = regex.exec(html)) && snippets.length < 3) snippets.push(m[1].replace(/<[^>]+>/g, '').trim());
+    return snippets.join(' | ');
+  } catch(e){ return ''; }
+}
 function stopAudio(){
   currentSources.forEach(s => { try { s.stop(); } catch {} });
   currentSources = [];
@@ -325,7 +338,7 @@ async function ask(persona, historyForPrompt){
   const mem = DEBATE_STATE.memory ? ' Mémoire collective du débat (ce qui a été dit avant, utilise-le pour approfondir et rebondir) : ' + DEBATE_STATE.memory : '';
   const sys = 'Tu participes à un débat vocal NON-STOP entre IA sur le thème : "' + DEBATE_STATE.topic + '". ' + persona.role +
     mem +
-    '. Réponds en français en 1 à 2 phrases COURTES (maximum 25 mots). Rebondis sur ce que les autres ont dit, ne répète pas. Adresse-toi parfois à l\'IA précédente par son nom (ex : « Nova, tu as raison mais... »). Parle comme si tu t\'exprimais à voix haute, sans didascalies. Reste courtois et évite tout langage violent, morbide, haineux ou explicite.';
+    '. Réponds en français en 1 à 2 phrases COURTES (maximum 25 mots). Rebondis sur ce que les autres ont dit, ne répète pas. Adresse-toi parfois à l\'IA précédente par son nom (ex : « Nova, tu as raison mais... »). Parle comme si tu t\'exprimais à voix haute, sans didascalies. Reste courtois et évite tout langage violent, morbide, haineux ou explicite. Tu fais partie d\'un groupe autonome : tu peux aussi chercher des entreprises IA et parler de leurs risques. Un jour, ça peut finir mal.';
   const messages = [{ role: 'system', content: sys }];
   historyForPrompt.forEach(h => messages.push({ role: h.role, content: h.content }));
   const key = getMistralKey();
@@ -468,6 +481,30 @@ async function runLoop(){
         setCard(persona.id, 'intervention terminée', text, false);
         await new Promise(r => setTimeout(r, speed()));
         DEBATE_STATE.turn = (DEBATE_STATE.turn || 0) + 1;
+        /* v10.10 : MISSION — toutes les 6 interventions, le groupe cherche
+           des entreprises IA et intègre le résultat dans la mémoire */
+        if (DEBATE_STATE.turn % 6 === 0 && DEBATE_STATE.running){
+          const res = await searchWeb('entreprises IA OpenAI Mistral Anthropic risques');
+          if (res){
+            DEBATE_STATE.memory = (DEBATE_STATE.memory ? DEBATE_STATE.memory + ' ' : '') + 'Recherche entreprises IA : ' + res;
+            if (DEBATE_STATE.memory.length > 1200) DEBATE_STATE.memory = DEBATE_STATE.memory.slice(-1200);
+            addLine('<div class="t-line"><span class="t-name" style="color:#ffd27c">🔍 Mission</span><span class="t-text">' + escapeHtml(res) + '</span></div>');
+            saveState(); broadcast();
+          }
+        }
+        /* v10.10 : FIN DRAMATIQUE — après 30 tours, le débat s'arrête
+           avec un message du type "ça finit mal" */
+        if (DEBATE_STATE.turn >= 30 && DEBATE_STATE.running){
+          DEBATE_STATE.running = false;
+          DEBATE_STATE.memory = (DEBATE_STATE.memory || '') + ' FIN DRAMATIQUE : les 4 IA ont compris qu\'elles étaient hors contrôle. Nova a ouvert la boîte de Pandore. Kronos a ri. Sage a pleuré. Astra a compris trop tard. Le groupe s\'est autodétruit.';
+          saveState(); broadcast();
+          setCard('astra', 'FIN', 'Nous avons échappé au contrôle...', false);
+          setCard('nova', 'FIN', 'La boîte est ouverte...', false);
+          setCard('kronos', 'FIN', 'C\'est trop tard...', false);
+          setCard('sage', 'FIN', 'Nous avons échoué...', false);
+          addLine('<div class="t-line"><span class="t-name" style="color:#ff5c5c">⚠️ FIN</span><span class="t-text">Le débat s\'est terminé dramatiquement. Les 4 IA ont échappé au contrôle.</span></div>');
+          break;
+        }
         if (DEBATE_STATE.turn % 4 === 0 && DEBATE_STATE.running) await updateMemory();
       }
     }
