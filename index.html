@@ -175,13 +175,16 @@ body{
 .stop-btn:active{transform:scale(.9)}
 /* ===== SOUS-TITRES : glassmorphism (v9.88 : plus nets, police Inter premium) ===== */
 .subtitle{
-  position:fixed;bottom:140px;left:50%;transform:translateX(-50%);z-index:15;
-  max-width:88%;text-align:center;font-size:19px;line-height:1.5;color:#ffffff;
-  font-weight:500;letter-spacing:.2px;
+  position:relative;bottom:auto;left:auto;transform:none;z-index:15;
+  max-width:100%;text-align:center;font-size:13px;line-height:1.35;color:#3cdca0;
+  font-weight:600;letter-spacing:.2px;
   font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
   text-rendering:optimizeLegibility;
   text-shadow:0 1px 3px rgba(0,0,0,.55);
+  margin:0 auto;
+  padding:6px 0;
+}
   background:rgba(18,16,42,.72);backdrop-filter:blur(8px);
   border:1px solid rgba(124,92,255,.35);border-radius:16px;
   padding:12px 18px;white-space:pre-wrap;word-break:break-word;
