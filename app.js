@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.5';
+const APP_VERSION = '10.6';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -46,7 +46,7 @@ class SpeechToTextHandler {
       let finalTranscript = '';
       let timeoutId = null;
       let silenceId = null;
-      const SILENCE_MS = 1800; /* silence avant de considerer la phrase finie */
+      const SILENCE_MS = 2500; /* silence avant de considerer la phrase finie */
       const clearTimers = () => {
         if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
         if (silenceId) { clearTimeout(silenceId); silenceId = null; }
@@ -55,7 +55,12 @@ class SpeechToTextHandler {
         clearTimers();
         if (this.recognition) { this.recognition = null; }
         this.isListening = false;
-        resolve(finalTranscript.trim());
+        /* v10.6 : FIX MOBILE INTERIM — sur mobile, la reconnaissance rend souvent
+ les mots en interim SANS jamais les promouvoir en final ; l'abort()
+ de fin de phrase les jetait -> "Je n'ai rien entendu" 2s apres
+ avoir parle. Si le final est vide mais qu'un interim existe, on
+ l'utilise comme transcription. */
+resolve((finalTranscript.trim() || this.transcript.trim()));
       };
       this.recognition.onstart = () => {
         console.log('[STT] Ecoute commencee');
