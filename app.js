@@ -240,7 +240,7 @@ async function generateChunks(chunks, voiceId, key){
       if (!res.ok){
         const errText = await res.text().catch(() => '');
         console.warn('[VOXTRAL] HTTP', res.status, errText.slice(0, 200));
-        if (res.status === 403) voxtralBlocked = true; /* guardrail : blocage definitif, retry inutile */
+        if (res.status === 403) { voxtralBlocked = true; console.warn('[VOXTRAL] Guardrail 403 — clé Mistral sans accès audio, bascule système'); return null; }
         return null;
       }
       const data = await res.json();
@@ -2190,6 +2190,9 @@ function normalizeForTTS(text){
     .replace(/\bl'appli\b/gi, "l'application")
     .replace(/\bl'IA\b/gi, "l'intelligence artificielle")
     .replace(/\bl'ia\b/gi, "l'intelligence artificielle")
+    /* Google TTS : remplacer accents problématiques dans URL */
+    .replace(/\bVoilà\b/g, 'Voila')
+    .replace(/\bvoilà\b/g, 'voila')
     .replace(/\bparamètres\b/gi, "paramètres")
     .replace(/\bparametre\b/gi, "paramètres")
     /* liens web : jamais lus lettre par lettre */
@@ -2576,7 +2579,7 @@ function speakSystem(text, specificVoiceName, onChunk){
       if (!('speechSynthesis' in window)) return resolve(false);
       let voices = window.speechSynthesis.getVoices();
       const startSpeak = () => {
-        const chunks = splitSentences(text, 200);
+    const chunks = splitSentences(text, 150);
         let i = 0;
         let done = false;
         let hasSpoken = false;
@@ -2774,11 +2777,16 @@ function speak(text, onChunk){
     let chain;
     if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
-      chain = [
-        [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
+      if (voxtralBlocked) {
+        console.log('[VOIX] Voxtral bloqué (403) — bascule directe système');
+        chain = [['Système', (t) => speakSystem(t, null, onChunk)]];
+      } else {
+        chain = [
+          [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
+          ['Système', (t) => speakSystem(t, null, onChunk)],
+          ['Google', (t) => speakGoogle(t, onChunk)]
+        ];
+      }
     } else if (voiceMode.startsWith('system:')) {
       const voiceName = voiceMode.substring(7);
       chain = [
