@@ -2174,6 +2174,12 @@ function normalizeForTTS(text){
     .replace(/\b(\d{1,2})\s*km\b/gi, '$1 kilomètres')
     .replace(/\b(\d{1,2})h(\d{2})\b/g, '$1 heures $2')
     .replace(/\b(\d{1,2})h\b/g, '$1 heures')
+    .replace(/\bl'app\b/gi, "l'application")
+    .replace(/\bl'appli\b/gi, "l'application")
+    .replace(/\bl'IA\b/gi, "l'intelligence artificielle")
+    .replace(/\bl'ia\b/gi, "l'intelligence artificielle")
+    .replace(/\bparamètres\b/gi, "paramètres")
+    .replace(/\bparametre\b/gi, "paramètres")
     /* liens web : jamais lus lettre par lettre */
     .replace(/https?:\/\/\S+/gi, ' lien ')
     /* v9.65 : "tom ai official" / "tom ai" (sans points) -> "tom point a i"
