@@ -19,7 +19,7 @@ class SpeechToTextHandler {
   }
   initRecognition() {
     if (this.recognition) {
-      try { this.recognition.abort(); this.recognition.onstart = null; this.recognition.onresult = null; this.recognition.onerror = null; this.recognition.onend = null; } catch (e) {}
+      try { this.recognition.onstart = null; this.recognition.onresult = null; this.recognition.onerror = null; this.recognition.onend = null; this.recognition.abort(); } catch (e) {}
       this.recognition = null;
     }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition;
@@ -56,6 +56,7 @@ class SpeechToTextHandler {
         resolve(finalTranscript.trim());
       };
       this.recognition.onerror = (event) => {
+        if (event.error === 'aborted'){ console.log('[STT] Arret intentionnel (aborted)'); return; }
         console.error('[STT] Erreur:', event.error);
         this.isListening = false;
         if (timeoutId) clearTimeout(timeoutId);
@@ -836,7 +837,7 @@ if (SR){
       /* v9.83 : mode continu -> on relance la reconnaissance directement
          (pas de fallback enregistrement a chaque silence) */
       if (continuousMode && !continuousPaused && !isSpeaking){
-        try { setState('listening'); recog.start(); return; } catch {}
+        try { setState('listening'); startRecorder(); return; } catch {}
       }
       setState('idle');
       startRecorder();
@@ -883,7 +884,7 @@ function startWakeRecog(){
         setState('listening');
         setStatus('Je t\'écoute...');
         if (!recog){ startRecorder(); }
-        else { try { setState('listening'); recog.start(); } catch { startRecorder(); } }
+        else { try { setState('listening'); startRecorder(); } catch { startRecorder(); } }
         /* relache le wake apres 15s si l'utilisateur n'a rien dit */
         clearTimeout(wakeListenTimer);
         wakeListenTimer = setTimeout(() => { suppressWake = false; }, 15000);
@@ -958,12 +959,8 @@ function maybeRestartListening(){
   continuousTimer = setTimeout(() => {
     if (isProcessing || continuousPaused || state !== 'idle' || isSpeaking) return;
     warmUpBrain(); /* le cerveau se charge pendant que l'utilisateur parle */
-    if (!recog){ startRecorder(); return; }
-    try {
-      setState('listening');
-      setStatus('Mode continu - parle...');
-      recog.start();
-    } catch { startRecorder(); }
+    /* v10.5 : TOUJOURS startRecorder() (stt.listen) — recog global bloque sur mobile */
+    startRecorder();
   }, 600);
 }
 function setContinuousMode(on){
@@ -974,8 +971,7 @@ function setContinuousMode(on){
     /* si l'app est idle, on lance l'ecoute immediatement */
     if (state === 'idle' && welcomeDone && !isProcessing){
       warmUpBrain();
-      if (!recog){ startRecorder(); }
-      else { try { setState('listening'); setStatus('Mode continu - parle...'); recog.start(); } catch { startRecorder(); } }
+      startRecorder();
     }
   } else {
     continuousPaused = true;
@@ -1181,7 +1177,7 @@ orb.addEventListener('click', () => {
   try {
     setState('listening');
     setStatus('Ecoute... parle maintenant');
-    recog.start();
+    startRecorder();
   } catch {
     /* Si recog.start() jette (permission, etat) -> on bascule sur l'enregistrement */
     setState('idle');
