@@ -64,51 +64,15 @@ function timeout(ms){
 }
 function mkey(){ try { return (localStorage.getItem('va_mistral_key') || '').trim(); } catch(e){ return ''; } }
 
-/* DuckDuckGo Instant Answer : le SEUL endpoint de recherche qui
-   repond avec "Access-Control-Allow-Origin: *" (donc utilisable
-   directement depuis le navigateur, sans proxy). */
+/* La recherche passe par websearch.js : plusieurs sources sont
+   essaiees (Wikipedia, DuckDuckGo, passerelles) parce qu'une seule
+   source peut etre bloquee CORS depuis le navigateur. Si rien ne
+   repond, l'agent continue avec ses propres connaissances. */
 async function searchWeb(query){
-  const urls = [
-    'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1&skip_disambig=1&t=astra',
-    'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1'
-  ];
-  for (const u of urls){
-    try {
-      const res = await fetch(u, { signal: timeout(12000) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const out = [];
-      const head = (data.Heading || '').trim();
-      const abs  = (data.AbstractText || '').trim();
-      if (abs) out.push(abs);
-      const def  = (data.Definition || '').trim();
-      if (def) out.push(def);
-      const walk = (arr, depth) => {
-        if (!Array.isArray(arr) || depth > 2) return;
-        for (const it of arr){
-          if (!it) continue;
-          if (typeof it.Text === 'string' && it.Text.trim()) out.push(it.Text.trim());
-          if (Array.isArray(it.Topics)) walk(it.Topics, depth + 1);
-          if (out.length > 14) return;
-        }
-      };
-      walk(data.RelatedTopics, 0);
-      if (Array.isArray(data.Results)){
-        for (const r of data.Results){
-          if (r && typeof r.Text === 'string' && r.Text.trim()) out.push(r.Text.trim());
-          if (out.length > 16) break;
-        }
-      }
-      const clean = [];
-      for (const t of out){
-        const s = String(t).replace(/\s+/g, ' ').trim();
-        if (s.length > 12 && !/^https?:/i.test(s) && clean.indexOf(s) === -1) clean.push(s);
-        if (clean.length >= 10) break;
-      }
-      if (clean.length) return { head, text: clean.join(' - ') };
-    } catch(e){}
-  }
-  return null;
+  const WS = window.WebSearch;
+  if (!WS || typeof WS.search !== 'function') return null;
+  const r = await WS.search(query);
+  return r;
 }
 
 /*asked a un LLM (Mistral si cle, sinon modeles gratuits) */
@@ -173,18 +137,43 @@ async function runAgent(agent){
   emit();
 
   const found = await searchWeb(agent.objective);
-  if (!found){
-    agent.status = 'rien trouvé';
-    agent.note = 'Aucune source accessible pour cet objectif.';
-    emit();
-    log('<div class="ag-line"><span class="ag-name" style="color:' + agent.color + '">' + agent.emoji + ' ' + esc(agent.name) +
-        '</span><span class="ag-text">aucun résultat accessible ce cycle</span></div>');
+
+  /* Aucun acces web (bloqueur, VPN, DNS...) : l'agent ne meurt pas,
+     il repond avec ses propres connaissances ET le dit clairement,
+     pour ne jamais faire croire a une info verifiee en direct. */
+  if (!found || !found.ok || !found.live || !(found.text || '').trim()){
+    const reason = (found && found.reason) ? found.reason : 'web indisponible';
+    const own = tidy(await llm(
+      'Tu es un agent autonome. La recherche en direct est INDISPONIBLE sur ce réseau : tu reponds uniquement avec ce que tu sais dans tes connaissances, et tu dois le dire en une phrase. Règles : 1) Si tu ne sais rien d\'utile sur l\'objectif, réponds exactement RIEN. 2) Sinon 1 à 2 phrases FRANÇAISES courtes (max 30 mots), en commenceant par "Sans web, je peux dire que". Aucun markdown, aucune didascalie.',
+      'OBJECTIF : ' + agent.objective + '\n\nDonne ta réponse.',
+      160, 0.3
+    ));
+    agent.status = 'hors web';
+    if (own && !EMPTY.test(own)){
+      agent.note = own;
+      agent.findings = agent.findings || [];
+      agent.findings.push({ t:Date.now(), text:own });
+      if (agent.findings.length > 20) agent.findings = agent.findings.slice(-20);
+      agent.memory = ((agent.memory || '') + ' ' + own).trim().slice(-1000);
+      S.logs.unshift({ t:Date.now(), name:agent.name, emoji:agent.emoji, color:agent.color, text:own, offline:true });
+      if (S.logs.length > 60) S.logs = S.logs.slice(0, 60);
+      emit();
+      log('<div class="ag-line"><span class="ag-name" style="color:' + agent.color + '">' + agent.emoji + ' ' + esc(agent.name) +
+          '</span><span class="ag-text">' + esc(own) + '</span></div>');
+      notify(agent, own);
+    } else {
+      agent.note = 'Recherche indisponible (' + reason + ')';
+      emit();
+      log('<div class="ag-line"><span class="ag-name" style="color:' + agent.color + '">' + agent.emoji + ' ' + esc(agent.name) +
+          '</span><span class="ag-text">recherche web indisponible (' + esc(reason) + ')</span></div>');
+    }
     return;
   }
+  agent.lastSource = found.source || '';
 
   const verdict = await llm(
     'Tu es un agent autonome qui travaille en arrière-plan pour un utilisateur. Tu ne lui parles QUE si tu as trouvé quelque chose d\'utile. Règles : 1) Ignore tout ce qui ne sert pas l\'objectif. 2) Si rien d\'utile, réponds exactement RIEN. 3) Sinon 1 à 2 phrases FRANÇAISES courtes (max 35 mots), factuelles, en commençant par ce que tu as trouvé. Aucun markdown, aucune liste, aucune didascalie.',
-    'OBJECTIF : ' + agent.objective + '\n\nCE QUE J\'AI TROUVÉ JUSTE MAINTENANT : ' + found.text.slice(0, 900) + '\n\nDonne ton verdict.',
+    'OBJECTIF : ' + agent.objective + '\n\nCE QUE J\'AI TROUVÉ JUSTE MAINTENANT (source : ' + (found.source || 'web') + ') : ' + found.text.slice(0, 900) + '\n\nDonne ton verdict.',
     200, 0.3
   );
 

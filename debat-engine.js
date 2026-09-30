@@ -263,44 +263,15 @@ async function speakVoxtral(text, voiceId){
     return true;
   } catch(e){ console.warn('[DEBAT] TTS echec:', e && e.message); return false; }
 }
-/* v10.10 : recherche web pour la mission du debat.
-   ATTENTION : html.duckduckgo.com ne renvoie PAS d'en-tete CORS -> le
-   navigateur bloque la requete (la mission ne retournait donc rien).
-   api.duckduckgo.com repond avec "Access-Control-Allow-Origin: *"
-   et fonctionne donc directement depuis la page. */
+/* v10.11 : la recherche passe par websearch.js (plusieurs sources,
+   car une seule peut etre bloquee CORS depuis le navigateur). */
 async function searchWeb(query){
-  const urls = [
-    'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1&skip_disambig=1',
-    'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1'
-  ];
-  for (const u of urls){
-    try {
-      const res = await fetch(u, { signal: abortSignal(10000) });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const out = [];
-      if (data.AbstractText) out.push(String(data.AbstractText).trim());
-      if (data.Definition) out.push(String(data.Definition).trim());
-      const walk = (arr, depth) => {
-        if (!Array.isArray(arr) || depth > 2) return;
-        for (const it of arr){
-          if (!it) continue;
-          if (typeof it.Text === 'string' && it.Text.trim()) out.push(it.Text.trim());
-          if (Array.isArray(it.Topics)) walk(it.Topics, depth + 1);
-          if (out.length > 8) return;
-        }
-      };
-      walk(data.RelatedTopics, 0);
-      const clean = [];
-      for (const t of out){
-        const s = String(t).replace(/\s+/g, ' ').trim();
-        if (s.length > 12 && clean.indexOf(s) === -1) clean.push(s);
-        if (clean.length >= 6) break;
-      }
-      if (clean.length) return clean.join(' | ');
-    } catch(e){}
-  }
-  return '';
+  const WS = (typeof window !== 'undefined' && window.WebSearch) ? window.WebSearch : null;
+  if (!WS || typeof WS.search !== 'function') return '';
+  try {
+    const r = await WS.search(query);
+    return (r && r.ok && r.text) ? r.text : '';
+  } catch(e){ return ''; }
 }
 function stopAudio(){
   currentSources.forEach(s => { try { s.stop(); } catch {} });
