@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.20';
+const APP_VERSION = '10.21';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -584,7 +584,33 @@ function escapeHtml(s){
    conversations passees (question similaire -> on rejoue la reponse), 2) logique
    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
    voix prononce correctement. ===== */
-function isSecoursReply(t){
+  /* ============================================================
+     v10.21 — LECTURE ROBUSTE DES RÉPONSES IA
+     ------------------------------------------------------------
+     Une API peut renvoyer "content" de trois façons :
+        - une chaîne : "bonjour"
+        - un tableau  : [{ type:'text', text:'bonjour' }]
+        - un objet    : { type:'text', text:'bonjour' }
+     Avant on faisait String(content), ce qui produisait le parasite
+     "[object Object]" qui partait ensuite dans la voix de l'IA.
+     ============================================================ */
+  function aiText(content){
+    if (content == null) return '';
+    if (typeof content === 'string') return content.trim();
+    if (typeof content === 'number' || typeof content === 'boolean') return String(content);
+    if (Array.isArray(content)){
+      /* recursif : gere aussi les blocs imbriques [{text:[{text:'...'}]}] */
+      return content.map(aiText).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    if (typeof content === 'object'){
+      if (typeof content.text === 'string') return content.text.trim();
+      if (content.text != null && typeof content.text !== 'string') return aiText(content.text);
+      if (typeof content.content === 'string') return content.content.trim();
+      if (content.content != null && typeof content.content !== 'string') return aiText(content.content);
+    }
+    return '';
+  }
+  function isSecoursReply(t){
   return /je n'ai pas pu joindre|serveurs? (satures?|en limite|gratuits)|reessaie|repose ta question|mon cerveau a bugge|je me souviens qu'on en a deja parle|je me souviens qu'on en a déjà parlé|dans une minute|dans un instant|je ne peux pas (etre|être|repondre|répondre|faire|dire|t'aider|t aider|vous aider)|je n'ai pas pu trouver la réponse sur|choisis pollinations|pollinations est temporairement indisponible|pollinations is temporarily unavailable|temporarily unavailable|try again in|rate[- ]?limit|too many requests|quota (epuise|épuisé|exceeded)|temporairement indisponible|maintenance en cours|429/i.test(t);
 }
 function localSmartReply(question){
@@ -1542,51 +1568,6 @@ async function askBrain(messages, webCtx){
     }
     return t;
   };
-  /* v8.71 : GET NATIF Pollinations (text.pollinations.ai/{prompt}?model=openai).
-     Rate limit DIFFERENT du POST /openai/v1 (souvent 429) -> 2e chance fiable.
-     Retourne du TEXTE BRUT. URL limitee a ~1400 caracteres. */
-  const tryPollinationsGet = async (model) => {
-    try {
-      const lastUser = messages.filter(m => m.role === 'user').pop();
-      const q = lastUser ? lastUser.content : '';
-      let prompt = 'Reponds en francais avec 2-4 phrases completes et naturelles, sans excuses ni meta-discours. Tutoie TOUJOURS l utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre. Ecris en francais correct, sans fautes d orthographe ni de grammaire. Ne commence jamais par une salutation. Tu jures UNIQUEMENT si l utilisateur t insulte ou est vulgaire avec toi, sinon reponds normalement sans jurer. Ecris en minuscules normales, jamais de mots en MAJUSCULES. Ne raconte JAMAIS de conversations passees inventees, ne cite que ce qui est dans le contexte. Pas de didascalies ni de descriptions de scene (pas de *soupir*, *rire*, etc.) : texte simple.';
-      /* v9.80 : le GET natif n'avait PAS le contexte systeme -> l'IA ne
-         connaissait ni l'heure ni la date. On injecte l'heure en temps reel. */
-      prompt += ' ' + getTimeContext();
-      /* v9.96 : mood injecte aussi dans le GET (fallback sans cle Mistral) */
-      if (currentMood === 'vulgaire') prompt += ' L utilisateur vient de t insulter : reponds avec le meme ton, jure dans ta reponse.';
-      else if (currentMood === 'violente') prompt += ' L utilisateur vient de t insulter : reponds sechement et avec autorite.';
-      else if (currentMood === 'agacee') prompt += ' L utilisateur t a agacee : reponds sur un ton sec.';
-      else if (currentMood === 'taquine') prompt += ' L utilisateur est taquin : reponds avec humour.';
-      else if (currentMood === 'protectrice') prompt += ' L utilisateur a besoin de protection : rassure-le.';
-      /* v9.99 : l'IA sait si le tableau de maths est ouvert (fallback sans cle) */
-      const mathCtx = getMathContext();
-      if (mathCtx) prompt += ' ' + mathCtx;
-      /* v10.0 : ville + bloc-notes + mode ecriture (fallback sans cle) */
-      const cityCtx = getCityContext();
-      if (cityCtx) prompt += ' ' + cityCtx;
-  /* v10.9 : message unique au lancement — danger, attention, prudent */
-  try { if (typeof addAiMsg === 'function') addAiMsg('⚠️ DANGER — ATTENTION — SOYEZ PRUDENT. Test jusqu\'à demain pour voir comment les 4 IA réagissent dans les prochaines heures.', 'local'); } catch(e){}
-  const noteCtx = getNoteContext();
-      if (noteCtx) prompt += ' ' + noteCtx;
-      if (writingMode) prompt += ' Ecris un texte complet et detaille (5-8 phrases).';
-      if (webCtx) prompt += ' Resultats de recherche web en direct (utilise-les pour repondre) : ' + webCtx.slice(0, 500);
-      prompt += ' Question : ' + q;
-      if (prompt.length > 1400) prompt = prompt.slice(-1400);
-      const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=' + (model || 'openai');
-      /* v9.48 : 12s au lieu de 8s (démarrage à froid de Pollinations : 3-15s) */
-      const res = await withTimeout(fetch(url), 12000);
-      if (res && res.ok){
-        const text = (await res.text()).trim();
-        if (text && text.length > 2 && !/^the user (says|asks|is asking|wants)/i.test(text) && !isSecoursReply(text)) return text;
-        return { err: 'refus' };
-      }
-      if (res && res.status === 429) return { err: 'limit' };
-      if (res && res.status >= 500) return { err: 'server' };
-      if (res) return { err: 'http' + res.status };
-      return { err: 'net' };
-    } catch(e){ return { err: 'net' }; }
-  };
   /* v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans clé, fiable).
      model=openai est le seul qui répond sur text.pollinations.ai (testé :
      5/5 succès en 93-421ms à chaud, 3-15s à froid). 2 tentatives GET avec
@@ -1641,11 +1622,12 @@ async function askBrain(messages, webCtx){
     } catch {}
     return null;
   };
-  const freeBrains = [
-    () => tryFreeChat('https://llm7.xyz/api/v1/chat/completions', 'glm-5.3-flash'),
-    () => tryFreeChat('https://ovh.llm7.xyz/api/v1/chat/completions', 'qwen3.5'),
-    () => tryFreeChat('https://text.pollinations.ai/openai/v1/chat/completions', 'openai')
-  ];
+    /* v10.21 : LLM7 et OVH SUPPRIMES -> leurs domaines ne resolvent plus
+       (NXDOMAIN). Chaque reponse sans cle Mistral attendait 2 timeouts
+       inutiles (~24 s) avant d'arriver a Pollinations. */
+    const freeBrains = [
+      () => tryFreeChat('https://text.pollinations.ai/openai/v1/chat/completions', 'openai')
+    ];
   for (const brain of freeBrains){
     const t = await brain();
     if (t) return { text: fixFrench(t), diag: 'gratuit' };
@@ -1664,12 +1646,19 @@ function warmUpBrain(){
   /* v9.95 : plus de warm-up Pollinations quand la cle Mistral existe
      (Mistral est toujours chaud ; Pollinations 429 = bruit inutile) */
   if (getMistralKey()) return;
-  try {
-    const url = 'https://text.pollinations.ai/' + encodeURIComponent('Reponds juste: ok') + '?model=openai';
-    Promise.race([fetch(url), new Promise(r => setTimeout(() => r(null), 20000))])
-      .then(r => { if (r) r.text().catch(() => {}); })
-      .catch(() => {});
-  } catch {}
+     try {
+       /* v10.21 : le GET (…/Reponds juste: ok?model=openai) repond 402.
+          Le reveil se fait desormais en POST, sur le meme endpoint que
+          les vraies reponses, donc le cerveau est reellement chaud. */
+       const url = 'https://text.pollinations.ai/openai/v1/chat/completions';
+       Promise.race([fetch(url, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ model: 'openai', max_tokens: 5, messages: [{ role: 'user', content: 'Reponds juste: ok' }] })
+       }), new Promise(r => setTimeout(() => r(null), 20000))])
+         .then(r => { if (r && r.ok) r.text().catch(() => {}); })
+         .catch(() => {});
+     } catch {}
 }
 /* DETECTION ANGLAIS : si plus de 25% des mots sont des mots anglais courants,
    la reponse est probablement en anglais -> on la traduit en francais pour que
@@ -3689,18 +3678,28 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(txt); u.lang = 'fr-FR'; u.volume = 0.9; speechSynthesis.speak(u); } } catch(e){}
     }
     /* Demande une pensee a Pollinations (le cerveau), avec repli local */
-    async function penser(prompt){
-      try {
-        const ctl = new AbortController();
-        setTimeout(() => ctl.abort(), 12000);
-        const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(prompt), { signal: ctl.signal });
-        if (!r.ok) throw new Error('http ' + r.status);
-        let t = (await r.text()).trim();
-        if (t.length > 260) t = t.slice(0, 257) + '...';
-        if (t) return t.replace(/^["']|["']$/g, '');
-      } catch(e){}
-      return null;
-    }
+      /* v10.21 : le GET (text.pollinations.ai/{prompt}) repond 402.
+         On passe par le POST verifie. */
+      async function penser(prompt){
+        try {
+          const ctl = new AbortController();
+          setTimeout(() => ctl.abort(), 12000);
+          const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'openai', max_tokens: 120, messages: [
+              { role: 'user', content: prompt }
+            ]}),
+            signal: ctl.signal
+          });
+          if (!r.ok) throw new Error('http ' + r.status);
+          const j = await r.json();
+          let t = aiText(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
+          if (t.length > 260) t = t.slice(0, 257) + '...';
+          if (t) return t.replace(/^["']|["']$/g, '');
+        } catch(e){}
+        return null;
+      }
 
     /* ---- RECIT D'ABSENCE : elle raconte ce qu'elle a fait ---- */
     const THEMES = [
@@ -3808,16 +3807,22 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     }
     function tst(m){ try { if (typeof toast === 'function') toast(m); } catch(e){} }
 
-    /* Appelle un modele Pollinations (chat completions, repli GET) */
+    /* v10.21 : Appelle Pollinations via POST /openai/v1/chat/completions.
+       L'ancien repli GET (text.pollinations.ai/{prompt}?model=openai) est
+       SUPPRIME : il repond 402 "Paiement requis" depuis un moment, donc il
+       ne pouvait plus rien rattraper. Le POST est verifie OK. */
     async function askModel(model, sysPrompt, userMsg){
       const ctl = new AbortController();
       setTimeout(() => ctl.abort(), 20000);
+      /* seul 'openai' existe sur Pollinations : 'mistral' et 'llama'
+         repondent 400 et ne donnaient rien du tout */
+      const useModel = 'openai';
       try {
         const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: model,
+            model: useModel,
             messages: [
               { role: 'system', content: sysPrompt },
               { role: 'user', content: userMsg }
@@ -3827,14 +3832,9 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
         });
         if (r.ok) {
           const j = await r.json();
-          const t = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-          if (t) return String(t).trim().slice(0, 500);
+          const t = aiText(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
+          if (t) return t.slice(0, 500);
         }
-      } catch(e){}
-      /* repli GET simple */
-      try {
-        const g = await fetch('https://text.pollinations.ai/' + encodeURIComponent(userMsg) + '?model=openai', { signal: ctl.signal });
-        if (g.ok) { const t = (await g.text()).trim(); if (t) return t.slice(0, 500); }
       } catch(e){}
       return null;
     }
@@ -3851,18 +3851,26 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       const sujet = extraireSujet(question, [/^conseil\s*d'?\s*ia\s*(sur|à propos de|pour)?/i, /^avis\s*des?\s*ias?\s*(sur|sur)?/i, /^conseil\s*des?\s*ias?\s*(sur)?/i]);
       tst('🧠 Je consulte un conseil de 3 IA sur "' + sujet + '"...');
       const SYS = 'Tu es une IA membre d un conseil. Reponds en francais, en 3 phrases maximum, direct et concret. Pas de politesse.';
-      const [r1, r2, r3] = await Promise.allSettled([
-        askModel('openai', SYS, 'Question : ' + sujet),
-        askModel('mistral', SYS, 'Question : ' + sujet),
-        askModel('llama', SYS, 'Question : ' + sujet)
-      ]);
-      const avis = [
-        { nom: 'IA n°1 (modèle openai)', txt: r1.status === 'fulfilled' ? r1.value : null },
-        { nom: 'IA n°2 (modèle mistral)', txt: r2.status === 'fulfilled' ? r2.value : null },
-        { nom: 'IA n°3 (modèle llama)', txt: r3.status === 'fulfilled' ? r3.value : null }
-      ].filter(a => a.txt);
-      if (!avis.length) return 'Mon conseil d\u2019IA n\u2019a pas repondu, les serveurs sont satures. Repose ta question.';
-      let compteRendu = '🧠 CONSEIL D\u2019IA sur "' + sujet + '"\n';
+      /* v10.21 : Pollinations n'a QU'UN modele gratuit ('openai'). Avant on
+         lancait 3 requetes en donnant 3 noms de modeles (openai / mistral /
+         llama) : en realite c'etait LE MEME cerveau appele 3 fois, presente
+         a l'utilisateur comme "IA n°2 (modele mistral)" et "IA n°3 (modele
+         llama)" -> une fausse information. On garde 3 avis REELLEMENT
+         differents en confiant 3 angles d'expert distincts, et on annonce
+         honnêtement qu'il n'y a qu'un seul cerveau derriere. */
+      const ANGLES = [
+        { nom: 'IA n°1 (pragmatique)', sys: 'Tu es un pragmatique. 3 phrases maximum en francais. Donne une action concrete a faire. Pas de politesse.' },
+        { nom: 'IA n°2 (critique)', sys: 'Tu es un esprit critique. 3 phrases maximum en francais. Pointe le risque et le piege, ce qu on oublie. Pas de politesse.' },
+        { nom: 'IA n°3 (creatif)', sys: 'Tu es creatif. 3 phrases maximum en francais. Propose un angle original et inattendu. Pas de politesse.' }
+      ];
+      const res = await Promise.allSettled(
+        ANGLES.map(a => askModel('openai', a.sys, 'Question : ' + sujet))
+      );
+      const avis = ANGLES
+        .map((a, i) => ({ nom: a.nom, txt: res[i].status === 'fulfilled' ? res[i].value : null }))
+        .filter(a => a.txt);
+      if (!avis.length) return 'Mon conseil d’IA n’a pas repondu, les serveurs sont satures. Repose ta question.';
+      let compteRendu = '🧠 CONSEIL D’IA sur "' + sujet + '"\n';
       avis.forEach(a => { compteRendu += '\n — ' + a.nom + ' : ' + a.txt; });
       /* Synthese par Astra */
       const synth = await askModel('openai',
@@ -3939,6 +3947,8 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     }
     function tst(m){ try { if (typeof toast === 'function') toast(m); } catch(e){} }
 
+    /* v10.21 : 2e copie de askModel corrigee (meme correctif : POST seul,
+       extracteur robuste, modele 'openai' qui est le seul gratuit) */
     async function askModel(model, sysPrompt, userMsg){
       const ctl = new AbortController();
       setTimeout(() => ctl.abort(), 20000);
@@ -3946,7 +3956,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
         const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: model, messages: [
+          body: JSON.stringify({ model: 'openai', messages: [
             { role: 'system', content: sysPrompt },
             { role: 'user', content: userMsg }
           ]}),
@@ -3954,13 +3964,9 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
         });
         if (r.ok) {
           const j = await r.json();
-          const t = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-          if (t) return String(t).trim();
+          const t = aiText(j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content);
+          if (t) return t;
         }
-      } catch(e){}
-      try {
-        const g = await fetch('https://text.pollinations.ai/' + encodeURIComponent(userMsg) + '?model=openai', { signal: ctl.signal });
-        if (g.ok) { const t = (await g.text()).trim(); if (t) return t; }
       } catch(e){}
       return null;
     }
@@ -4018,7 +4024,10 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     /* ---- 3) AUTOCORRECTION ---- */
     const FACT = /(combien|quand\b|quelle\s+(date|ann\u00e9e|est)|qui\s+(est|etait|\u00e9tait)|capitale|population|prix|taille|distance|temp\u00e9rature|invent)/i;
     async function verifier(q, reponse){
-      const txt = String(reponse || '');
+      /* v10.21 : la reponse peut etre un OBJET { text, diag }, pas une
+         chaine -> String() donnait "[object Object]" et l'IA verifiait
+         n'importe quoi. On extrait le texte reel. */
+      const txt = aiText(typeof reponse === 'string' ? reponse : ((reponse && reponse.text) || (reponse && reponse.content) || reponse));
       if (!txt || txt.length < 5) return null;
       try {
         if (typeof isSecoursReply === 'function' && isSecoursReply(txt)) return null;

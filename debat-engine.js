@@ -371,8 +371,7 @@ async function ask(persona, historyForPrompt){
     return null;
   };
   for (const [url, model] of [
-    ['https://llm7.xyz/api/v1/chat/completions', 'glm-5.3-flash'],
-    ['https://ovh.llm7.xyz/api/v1/chat/completions', 'qwen3.5'],
+    /* v10.21 : LLM7 + OVH supprimes (NXDOMAIN : 2 timeouts perdus par appel) */
     ['https://text.pollinations.ai/openai/v1/chat/completions', 'openai']
   ]){
     const t = await tryFree(url, model);
@@ -411,8 +410,7 @@ async function updateMemory(){
   }
   if (!sum){
     for (const [url, model] of [
-      ['https://llm7.xyz/api/v1/chat/completions', 'glm-5.3-flash'],
-      ['https://ovh.llm7.xyz/api/v1/chat/completions', 'qwen3.5'],
+      /* v10.21 : LLM7 + OVH supprimes (NXDOMAIN : 2 timeouts perdus par appel) */
       ['https://text.pollinations.ai/openai/v1/chat/completions', 'openai']
     ]){
       sum = await tryOne(url, model, false);
