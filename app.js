@@ -1565,8 +1565,6 @@ async function askBrain(messages, webCtx){
       /* v10.0 : ville + bloc-notes + mode ecriture (fallback sans cle) */
       const cityCtx = getCityContext();
       if (cityCtx) prompt += ' ' + cityCtx;
-  const subtitle = document.getElementById('subtitle');
-  if (subtitle) subtitle.textContent = '🎙️ Débat IA à 4 — Astra, Nova, Kronos, Sage parlent entre elles en continu. Elles peuvent perdre le contrôle à tout moment, mais c\'est sécurisé par une autre IA.';
   /* v10.9 : message unique au lancement — danger, attention, prudent */
   try { if (typeof addAiMsg === 'function') addAiMsg('⚠️ DANGER — ATTENTION — SOYEZ PRUDENT. Test jusqu\'à demain pour voir comment les 4 IA réagissent dans les prochaines heures.', 'local'); } catch(e){}
   const noteCtx = getNoteContext();
