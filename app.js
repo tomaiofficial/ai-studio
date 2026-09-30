@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.21';
+const APP_VERSION = '10.22';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2136,7 +2136,53 @@ function numToFrBig(n){
    parfois du markdown : **gras**, *italique*, # titres, - listes, `code`,
    _souligne_, tableaux, liens). On vire tout pour un texte propre a
    l'affichage et a la voix. */
-function cleanMarkdown(t){
+  /* ============================================================
+     v10.22 — APOSTROPHES ET MOTS FONCTIONS
+     ------------------------------------------------------------
+     L'ecrit de l'app AMPUTE les apostrophes : "c est", "j ai",
+     "n y a", "d accord". Ca se lisait tres bien a l'ecran, mais
+     la voix butait dessus : sans elision, le moteur prononce
+     "c est" comme deux mots, "s il" au lieu de "c est", et la
+     regle de secours "y a" -> "il y a" produisait "n il y a".
+     On remet les apostrophes AVANT la synthese : c'est, j'ai,
+     n'y a, d'accord... la voix retrouve les liaisons.
+     Liste volontairement CONSERVATRICE : uniquement des
+     combinaisons ou la contraction ne peut pas etre un autre mot.
+     ============================================================ */
+  function restoreFrenchContractions(t){
+    if (!t) return t;
+    /* 1) le cas qui cassait tout : "n y a" -> "n'y a" */
+    t = t.replace(/\b([cdjlmnstqu]) y\b/gi, "$1'y");
+    /* 2) contractions sur (+ de) formes */
+    const groups = [
+      ['c',  ['est','etait','etais','ete','es']],
+      /* 'a' et 'as' sont VOLONTAIREMENT absents de 'j' : le pas 3 plus
+         bas les transforme en "j'ai", sinon on obtenait "j'as besoin". */
+      ['j',  ['ai','avais','avait','en','y','etais','etait','ete','vais','peux','sais','dois','pense','comprends','prefere','veux','voudrais','aimerais']],
+      ['n',  ['est','sont','ai','as','avez','avons','a','y','est-ce']],
+      ['d',  ['accord','ailleurs','un','une','il','elle','on','hui','ores','abord']],
+      ['m',  ['a','ai','as','avais','avait','en']],
+      ['t',  ['a','es','est','ai','y','en','etaient']],
+      ['s',  ['est','il','elle','ont','ai','a']],
+      /* 'l' : liste courte. On n'accepte PAS "l a" (ça vaut "là" autant que
+         "l'a") ni "l or" (l'or, mais risqué) -> uniquement des mots ou la
+         contraction est certaine. */
+      ['l',  ['homme','femme','eau','heure','arbre','autre','oncle','amie','ami']],
+      ['qu', ['il','elle','on','ils','elles','a','ai']]
+    ];
+    for (const [g, words] of groups){
+      const re = new RegExp('\\b(' + g + ')\\s+(' + words.join('|') + ')\\b', 'gi');
+      t = t.replace(re, '$1\'$2');
+    }
+    /* 3) "j a" / "j as" = il/elle j'A... -> on remet le i qui fait la liaison */
+    t = t.replace(/\bj as\b/gi, "j'ai").replace(/\bj a\b/gi, "j'ai");
+    /* 4) accents graves : liste courte et sans ambiguite ("il a la" reste "il a la") */
+    t = t.replace(/\ba (cote|partir|cause|nouveau|travers|reculons|savoir|droite|gauche)\b/gi, 'à $1');
+    t = t.replace(/\bcote\b/gi, 'côté');
+    t = t.replace(/\ba peu pres\b/gi, 'à peu près');
+    return t;
+  }
+  function cleanMarkdown(t){
   if (!t) return t;
   return t
     /* blocs et code inline */
@@ -2177,7 +2223,7 @@ function cleanMarkdown(t){
 }
 function normalizeForTTS(text){
   if (typeof text !== 'string' || !text) return '';  /* v10.0.2 : garde-fou anti-undefined */
-  return cleanMarkdown(text).normalize('NFC')
+    return restoreFrenchContractions(cleanMarkdown(text)).normalize('NFC')
     /* RE-ACCENTUATION des mots francais courants ecrits sans accents (les
        anciennes reponses en memoire sont sans accents -> Google TTS les
        prononce mal : "ca" -> "ka", "deja" -> "de-ja"...). On remplace les
@@ -2358,7 +2404,7 @@ function normalizeForTTS(text){
     .replace(/\b0[1-9](?:[\s.\-]\d{2}){4}\b/g, m => m.replace(/[^\d]/g, '').split('').map(d => numToFr(parseInt(d, 10))).join(' '))
     /* ORDINAUX : 1er, 1ere, 2e, 3e */
     .replace(/\b1er\b/gi, 'premier').replace(/\b1ere\b/gi, 'premiere')
-    .replace(/\b(\d+)e\b/g, (m, n) => numToFr(parseInt(n, 10)) + 'ieme')
+    .replace(/\b(\d+)e\b/g, (m, n) => numToFr(parseInt(n, 10)) + 'ième')
     /* DECIMAUX : 3.14 -> "trois virgule quatorze" */
     .replace(/(\d+)\.(\d+)/g, (m, a, b) => numToFr(parseInt(a, 10)) + ' virgule ' + numToFr(parseInt(b, 10)))
     /* v9.47 : DECIMAUX a virgule : 12,50 -> "douze virgule cinquante"
@@ -2449,8 +2495,11 @@ function normalizeForTTS(text){
     .replace(/\bjcrois\b/gi, 'je crois')
     .replace(/\bt'es\b/gi, 'tu es')
     .replace(/\bt'as\b/gi, 'tu as')
-    .replace(/\by'a\b/gi, 'il y a')
-    .replace(/\by a\b/gi, 'il y a')
+    /* v10.22 : "y a" n'est plus complete QUE s'il commence un mot. Avant la
+       regle s'appliquait meme apres une apostrophe, donc "n'y a" (forme
+       correcte, restauree juste au-dessus) devenait "n'il y a". */
+    .replace(/(?<![\w'])y'a\b/gi, 'il y a')
+    .replace(/(?<![\w'])y a\b/gi, 'il y a')
     .replace(/il il y a/gi, 'il y a')
     .replace(/à toute\b/gi, 'a tout a l heure')
     .replace(/a toute\b/gi, 'a tout a l heure')
@@ -2482,7 +2531,19 @@ function normalizeForTTS(text){
     /* v9.47 : NOMBRES avec espaces (1 300, 1 000 000) -> "mille trois cents",
        "un million" (avant la regle generique qui les decoupe en "un trois cent") */
     .replace(/\b\d{1,3}(?:[ \u00A0]\d{3})+\b/g, m => numToFrBig(parseInt(m.replace(/[ \u00A0]/g, ''), 10)))
-    .replace(/\b(\d{1,4})\b/g, (m, d) => numToFr(parseInt(d, 10))).replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/\s+\./g, '.').trim();
+    /* v10.22 : ordinaux ("1er", "3eme") et nombres negatifs traites en
+       premier, sinon le nombre nu passe avant et on entend "un e er". */
+    .replace(/\b1\s*(er|ER|ère|ere)\b/g, 'premier')
+    .replace(/\b(\d+)\s*(ème|eme|ère|ere|e)\b/gi, (m, d, suf) => {
+      const n = parseInt(d, 10);
+      if (n === 1) return 'première';
+      return numToFr(n) + 'ième';
+    })
+    .replace(/-(\d+)/g, (m, d) => 'moins ' + numToFrBig(parseInt(d, 10)))
+    /* v10.22 : le motif portait sur 1 a 4 chiffres, donc 12345 restait en
+       chiffres et la voix le lisait chiffre par chiffre ("un deux trois
+       quatre cinq"). On passe a 9 chiffres en passant par numToFrBig. */
+    .replace(/\b(\d{1,9})\b/g, (m, d) => numToFrBig(parseInt(d, 10))).replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/\s+\./g, '.').trim();
 }
 /* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
    et limitent le nombre de contextes -> un seul, reveille au premier toucher) */
