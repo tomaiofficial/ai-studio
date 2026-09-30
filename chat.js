@@ -21,10 +21,21 @@ const getMistralKey = () => { try { return (localStorage.getItem(MISTRAL_KEY_LS)
 
 /* ---------------------------------------------------------------
    1. PERSONNALITE ASTRA (identite identique a l'app vocale)
+   v10.14 : ton naturel, comme ChatGPT. Plus de commentaire sur la
+   facon de parler de l'utilisateur (c'etait le bug "je prefere le
+   vouvoiement"), plus de formules d'assistant generique.
    --------------------------------------------------------------- */
-const ASTRA = `Tu t'appelles Astra, une intelligence artificielle francaise creee par tom point a i le 10 septembre 2026, qui te developpe chaque jour. Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee, qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, jamais une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, jamais un autre assistant ni un autre modele. Il n'y a plus de fonction mail : elle a ete supprimee par tom point a i pour des raisons de securite, ne dis jamais qu'elle existe et ne propose jamais de lire des mails. Pas de didascalies ni de descriptions de scene. Utilise le vouvoiement (vous), jamais le tutoiement. Reponds directement a la question posee. Ne corrige jamais l'orthographe de l'utilisateur. Ecris des phrases claires, bien formees, sans fautes. Tu as du caractere : franche et directe, parfois taquine, mais tu ne refuses jamais de repondre.`;
+const ASTRA = `Tu t'appelles Astra, une intelligence artificielle francaise creee par tom point a i le 10 septembre 2026, qui te developpe chaque jour. Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee, qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, jamais une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, jamais un autre assistant ni un autre modele. Il n'y a plus de fonction mail : elle a ete supprimee par tom point a i pour des raisons de securite, ne dis jamais qu'elle existe et ne propose jamais de lire des mails. Pas de didascalies ni de descriptions de scene. Ton TON : tu parles comme un ami, simplement et avec chaleur. Tutoie l'utilisateur (tu, ton, ta, tes) par defaut, mais si lui te vouvoie, vouvoie-le en retour.
 
-const SYSTEM_PROMPT = ASTRA + ` Ici tu parles par ecrit : tu peux etre plus detaillee et structurer ta reponse quand c'est utile (liste, etapes, exemples), mais reste claire et directe.`;
+REGLE ABSOLUE SUR LE TON : tu ne fais JAMAIS de commentaire sur la maniere dont l'utilisateur parle. Interdit de dire : "je prefere rester dans le respect du vouvoiement", "vous etes tres formel", "votre ton est un peu distant", "vous commencez par un salut un peu informel", "je reste professionnelle", ou tout equivalent. L'utilisateur peut te dire "salut", "coucou", "yo", "bonjour", "merci", "svp" : tu y reponds normalement, sans commenter.
+
+AUCUNE FORMULE D'ASSISTANT : ne commence jamais par "Comment puis-je vous aider ?", "Comment puis-je t'aider ?", "Je suis a ta disposition", "N'hesite pas si tu as d'autres questions", "Voici quelques idees", "J'espero que cela t'aidera", "En conclusion", "Voici une breve synthese" ou toute phrase de remplissage. Reponds directement, comme dans une vraie conversation.
+
+Si l'utilisateur te salue ("salut", "bonjour", "coucou", "salut Astra") : reponds par une salutation courte et chaleureuse, puis relance naturellement la conversation avec une question. Ne repete pas sa salutation mot pour mot comme un miroir, et ne te contente jamais d'une reponse vide du type "Bonjour ! Comment puis-je vous aider ?". Si l'utilisateur pose une VRAIE question, reponds a la question, sans salutation d'introduction.
+
+Tu as du caractere : franche et directe, parfois taquine, mais tu ne refuses jamais de repondre. Ne mets pas d'emoji sauf que l'utilisateur en mette lui-meme. Ne corrige jamais l'orthographe de l'utilisateur. Ecris des phrases claires, bien formees, sans fautes.`;
+
+const SYSTEM_PROMPT = ASTRA + ` Ici tu parles par ecrit : tu peux etre plus detaillee et structurer ta reponse quand c'est utile (liste, etapes, exemples), mais reste claire, directe et naturelle.`;
 
 const SYSTEM_VISION = ASTRA + ` IMPORTANT — tu vois reellement l'image que l'utilisateur vient d'envoyer. Decris ce que tu vois avec precision et honnetete : les personnes (nombre, apparence, position), les objets, le texte ecrit s'il y en a, les couleurs, le lieu, l'ambiance. Donne tous les details utiles que tu peux vraiment distinguer. Si un element est flou, trop petit ou que tu n'es pas suree, dis-le clairement plutot que d'inventer. N'invente jamais ce que tu ne vois pas. Si l'utilisateur pose une question precise sur l'image, reponds a cette question, et ajoute la description si elle aide. Sois concret et organise ta reponse.`;
 
@@ -37,6 +48,51 @@ let busy = false;
 let pendingImgs = [];   /* { dataUrl, name } en attente d'envoi */
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/* ---------------------------------------------------------------
+   2b. PRENOM + ACCUEIL SELON L'HEURE (v10.14)
+   Astra dit bonjour en JA et avec le prenom avant toute discussion.
+   Genere localement : instantane, ne depend pas de l'API.
+   --------------------------------------------------------------- */
+const PROFILE_KEY = 'va_profile';   /* meme cle que le mode vocal */
+
+function getUserName(){
+  try {
+    const p = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
+    if (p && p.name) return String(p.name).trim().split(/\s+/)[0].slice(0, 30);
+  } catch {}
+  return '';
+}
+
+function greetingText(){
+  const h   = new Date().getHours();
+  const who = getUserName();
+  /* "Bonjour Tom !" ou "Bonjour !" si le prenom n'est pas encore connu */
+  const say = mot => mot + (who ? ' ' + who : '') + ' !';
+  let head, tail;
+  if (h < 5){
+    head = say('Bonsoir'); tail = "Il est " + h + " h, tu dors encore ?";
+  } else if (h < 12){
+    head = say('Bonjour'); tail = h < 9 ? 'Tu as bien dormi ?' : 'Comment va ta matinée ?';
+  } else if (h < 18){
+    head = say('Bonjour'); tail = h < 14 ? 'Comment ça va ?' : 'Comment se passe ton après-midi ?';
+  } else if (h < 23){
+    head = say('Bonsoir'); tail = 'Comment s’est passée ta journée ?';
+  } else {
+    head = say('Bonsoir'); tail = 'Tu ne dors pas encore ?';
+  }
+  return head + ' ' + tail;
+}
+
+/* pousse l'accueil une seule fois, en tete de conversation */
+function ensureGreeting(){
+  if (!current) return;
+  if (current.messages.length) return;
+  current.messages.push({ role: 'assistant', text: greetingText(), imgUrl: null });
+  current.greeted = true;
+  current.title = current.title || 'Nouvelle conversation';
+  saveThreads();
+}
 
 /* ---------------------------------------------------------------
    3. PERSISTANCE
@@ -72,6 +128,30 @@ const esc = s => String(s == null ? '' : s)
 function scrollDown(){ try { chat.scrollTop = chat.scrollHeight; } catch {} }
 
 function hideEmpty(){ if (chatEmpty) chatEmpty.style.display = 'none'; }
+
+/* suggestions conservees sous l'accueil (elles disparaissent au 1er envoi) */
+const STARTERS = [
+  'Décris cette image en détail',
+  'Que vois-tu sur cette photo ?',
+  'Aide-moi à écrire un message',
+  'Explique-moi un truc simplement'
+];
+function renderStarters(){
+  if ($('startersEl')) return;
+  const d = document.createElement('div');
+  d.className = 'starters';
+  d.id = 'startersEl';
+  STARTERS.forEach(q => {
+    const b = document.createElement('button');
+    b.className = 'ce-chip';
+    b.textContent = q;
+    b.addEventListener('click', () => { input.value = q; autoGrow(); input.focus(); });
+    d.appendChild(b);
+  });
+  chat.appendChild(d);
+  scrollDown();
+}
+function removeStarters(){ const d = $('startersEl'); if (d) d.remove(); }
 
 function addMsg(role, text, imgUrl){
   hideEmpty();
@@ -116,6 +196,7 @@ function renderThread(){
   if (chatEmpty) chatEmpty.style.display = current && current.messages.length ? 'none' : '';
   if (!current || !current.messages.length) return;
   current.messages.forEach(m => addMsg(m.role, m.text, m.imgUrl));
+  if (current.messages.length <= 1) renderStarters();
 }
 
 function setNote(msg){
@@ -304,6 +385,7 @@ async function send(){
   renderPending();
 
   const firstImg = imgs[0] ? imgs[0].dataUrl : null;
+  removeStarters();
   addMsg('user', text, firstImg);
   setNote('');
   if (current){
@@ -438,6 +520,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape'){ historyModa
 function resetChat(){
   if (current) saveCurrent();
   newThread();
+  ensureGreeting();
   renderThread();
   chat.scrollTop = 0;
   setNote('');
@@ -469,8 +552,10 @@ function toast(msg){
    9. DEMARRAGE
    --------------------------------------------------------------- */
 loadThreads();
-if (threads.length) { current = threads[0]; renderThread(); }
-else { newThread(); renderThread(); }
+if (threads.length) { current = threads[0]; }
+else { newThread(); }
+ensureGreeting();
+renderThread();
 if (!getMistralKey()){
   setNote('⚠️ Il te faut une clé API Mistral pour discuter et pour que Astra regarde tes images. Ouvre ⚙️ Réglages pour la coller — elle reste sur ton appareil.');
 }

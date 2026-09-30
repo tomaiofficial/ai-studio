@@ -125,6 +125,11 @@ body{
   transition:background .15s ease,color .15s ease;
 }
 .ce-chip:hover{background:rgba(124,92,255,.26);color:#fff}
+/* suggestions affichees sous l'accueil, dans la conversation */
+.starters{
+  align-self:flex-start;max-width:86%;display:flex;flex-wrap:wrap;gap:8px;
+  animation:msgIn .35s ease .15s both;
+}
 .ce-note{
   margin-top:26px;padding:12px 16px;border-radius:12px;font-size:12.5px;line-height:1.6;
   background:rgba(255,159,46,.08);border:1px solid rgba(255,159,46,.26);color:#ffd7a0;
@@ -377,6 +382,6 @@ body{
 
 <div class="toast" id="toast"></div>
 
-<script src="chat.js?v=10.13"></script>
+<script src="chat.js?v=10.14"></script>
 </body>
 </html>
