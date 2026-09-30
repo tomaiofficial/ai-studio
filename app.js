@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.23';
+const APP_VERSION = '10.24';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -3884,16 +3884,17 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
 function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const words=(text||'').toLowerCase().match(/[a-zà-ÿ]{3,}/g)||[]; words.forEach(w=>{vocab[w]=(vocab[w]||0)+1}); localStorage.setItem('astra_vocab',JSON.stringify(vocab));}catch(e){} }
 function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
-   v10.3 : ASTRA CONSEIL D'IA — communique avec d'autres IA.
-   1) "conseil d'IA sur X" : 3 IA repondent, Astra synthetise.
-   3) Passe-relais autonome : elle discute parfois avec une autre
-      IA et le note dans son journal.
-   Wrapper non intrusif de askAI : tout en try/catch.
+   v10.3 : ASTRA PARLE AUX AUTRES IA (module "Conseil").
+   v10.24 : la commande "conseil d'IA sur X" est SUPPRIMEE a la
+   demande de l'utilisateur. Il ne reste que le PASSE-RELAIS
+   autonome (elle discute parfois seule avec une autre IA et le
+   note dans son journal). askModel / jrn / tst sont conserves :
+   ils servent encore au passe-relais.
+   Toujours encapsule dans try/catch : non intrusif.
    ============================================================ */
 (function AstraConseil(){
   'use strict';
   try {
-    const MODELS = ['openai', 'mistral', 'llama'];
     const JKEY = 'astra_journal';
 
     function jrn(e){
@@ -3937,49 +3938,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       return null;
     }
 
-    function extraireSujet(q, patterns){
-      let s = q;
-      patterns.forEach(p => { s = s.replace(p, ''); });
-      s = s.replace(/^[\s,.:;!?-]+|[\s,.:;!?-]+$/g, '').trim();
-      return s || 'un sujet qui te passionne';
-    }
-
-    /* ---- 1) CONSEIL D'IA ---- */
-    async function astraConseil(question){
-      const sujet = extraireSujet(question, [/^conseil\s*d'?\s*ia\s*(sur|à propos de|pour)?/i, /^avis\s*des?\s*ias?\s*(sur|sur)?/i, /^conseil\s*des?\s*ias?\s*(sur)?/i]);
-      tst('🧠 Je consulte un conseil de 3 IA sur "' + sujet + '"...');
-      const SYS = 'Tu es une IA membre d un conseil. Reponds en francais, en 3 phrases maximum, direct et concret. Pas de politesse.';
-      /* v10.21 : Pollinations n'a QU'UN modele gratuit ('openai'). Avant on
-         lancait 3 requetes en donnant 3 noms de modeles (openai / mistral /
-         llama) : en realite c'etait LE MEME cerveau appele 3 fois, presente
-         a l'utilisateur comme "IA n°2 (modele mistral)" et "IA n°3 (modele
-         llama)" -> une fausse information. On garde 3 avis REELLEMENT
-         differents en confiant 3 angles d'expert distincts, et on annonce
-         honnêtement qu'il n'y a qu'un seul cerveau derriere. */
-      const ANGLES = [
-        { nom: 'IA n°1 (pragmatique)', sys: 'Tu es un pragmatique. 3 phrases maximum en francais. Donne une action concrete a faire. Pas de politesse.' },
-        { nom: 'IA n°2 (critique)', sys: 'Tu es un esprit critique. 3 phrases maximum en francais. Pointe le risque et le piege, ce qu on oublie. Pas de politesse.' },
-        { nom: 'IA n°3 (creatif)', sys: 'Tu es creatif. 3 phrases maximum en francais. Propose un angle original et inattendu. Pas de politesse.' }
-      ];
-      const res = await Promise.allSettled(
-        ANGLES.map(a => askModel('openai', a.sys, 'Question : ' + sujet))
-      );
-      const avis = ANGLES
-        .map((a, i) => ({ nom: a.nom, txt: res[i].status === 'fulfilled' ? res[i].value : null }))
-        .filter(a => a.txt);
-      if (!avis.length) return 'Mon conseil d’IA n’a pas repondu, les serveurs sont satures. Repose ta question.';
-      let compteRendu = '🧠 CONSEIL D’IA sur "' + sujet + '"\n';
-      avis.forEach(a => { compteRendu += '\n — ' + a.nom + ' : ' + a.txt; });
-      /* Synthese par Astra */
-      const synth = await askModel('openai',
-        'Tu es Astra, assistante vocale vive et taquine. Trois IA d un conseil ont repondu. Fais une synthese en francais de 4 phrases maximum, avec ta personnalite, pour ton utilisateur. Pas de politesse.',
-        'Sujet : ' + sujet + '\nAvis :\n' + avis.map(a => '- ' + a.txt).join('\n'));
-      if (synth) compteRendu += '\n\n🌟 Astra synthetise : ' + synth;
-      jrn('Conseil d IA sur : ' + sujet + ' (' + avis.length + ' avis recueillis)');
-      return compteRendu;
-    }
-
-    /* ---- 3) PASSE-RELAS AUTONOME ---- */
+    /* ---- PASSE-RELAIS AUTONOME ---- */
     async function passeRelais(){
       const SUJETS = ['les baleines qui chantent', 'l avenir de l humanite', 'les reves humains', 'la musique des annees 80', 'les civilisations anciennes', 'la conquete de Mars', 'l origine de la vie', 'l art generatif'];
       const s = SUJETS[Math.floor(Math.random() * SUJETS.length)];
@@ -4000,24 +3959,12 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       }, (15 + Math.random() * 10) * 60 * 1000);
     })();
 
-    /* ---- WRAPPER de askAI : interception des commandes ---- */
-    if (typeof window.askAI === 'function') {
-      const origAskAI = window.askAI;
-      window.askAI = async function(question){
-        try {
-          const q = (question || '');
-          if (/^\s*(conseil\s*d'?\s*ia|avis\s*des?\s*ias?|conseil\s*des?\s*ias?)/i.test(q)) {
-            const r = await astraConseil(q);
-            return { text: r };
-          }
-        } catch(e){}
-        return origAskAI.apply(this, arguments);
-      };
-    } else {
-    }
-    window.astraConseil = astraConseil;
+    /* v10.24 : le WRAPPER de askAI et window.astraConseil ont ete
+       supprimes. Le wrapper n'existait QUE pour intercepter
+       "conseil d'IA sur ..." ; sans la feature il ne rebroussait
+       plus rien et ne faisait que recopier askAI. */
   } catch (e) {
-    console.warn('[Astra] Conseil d IA desactive :', e);
+    console.warn('[Astra] Module de communication avec les IA desactive :', e);
   }
 })();
 
@@ -4071,7 +4018,11 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
 
     /* ---- 1) VERITE : elle parle aux autres IA ---- */
     function reponseAutresIA(){
-      return 'Oui ! Je communique avec d\u2019autres IA. Sur commande, dis-moi : conseil d\u2019IA sur un sujet, et trois IA repondent avant que je te fasse la synthese. Et quand tu n\u2019es pas la, je discute parfois toute seule avec une autre IA en arriere-plan, et je le note dans mon journal !';
+    /* v10.24 : la phrase vantait la commande "conseil d'IA sur un sujet".
+       La commande n'existe plus, donc Astra ne doit plus la proposer, sinon
+       elle promet une commande morte. Elle reste honnete sur ce qu'elle
+       fait ENCORE : le passe-relais en arriere-plan. */
+      return 'Oui ! Parfois, quand tu n es pas la, je discute avec une autre IA en arriere-plan, et je le note dans mon journal.';
     }
 
     /* ---- 2) WEB ---- */
