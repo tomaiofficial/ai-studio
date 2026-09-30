@@ -435,11 +435,55 @@ let loopRunning = false;
 let heartbeatTimer = null;
 /* ID unique de cette page : seul le runner designe fait tourner la boucle */
 const MY_ID = 'page-' + Math.random().toString(36).slice(2, 10);
+
+/* ============================================================
+   v10.20 — ARBITRATION REELLE ENTRE LES ONGLETS
+   ------------------------------------------------------------
+   LE BUG : le leadership se decidait sur l'anciennete du heartbeat.
+   Or le navigateur RAFROIDIT (puis gele) les timers d'un onglet masque.
+   Scenario du plantage :
+     1. l'onglet vocal est le runner (coeur bat toutes les 3 s)
+     2. on ouvre la salle -> l'onglet vocal est masque -> son timer
+        est bride a ~1/min, son heartbeat devient "perime"
+     3. la salle croit le runner mort -> elle prend la main
+     4. on revient sur l'onglet vocal -> ses timers repartent ET sa
+        boucle repart aussi : elle n'a JAMAIS su qu'elle avait perdu
+        la main (le watchdog fait "if (loopRunning) return")
+     5. DEUX debats tournent : 8 appels Mistral, 2 flux de voix qui se
+        superposent, 2 écrivains sur le meme localStorage qui se
+        renvoient l'etat en boucle -> l'onglet se fige.
+   LA REGLE : l'onglet que tu regarde est TOUJOURS le runner, et une
+   boucle relit son etat depuis le stockage a chaque tour pourdie.
+   ============================================================ */
+const LEASE_MS = 6000;   /* un runner vivant bat le coeur toutes les 3 s */
+
+/* Ai-je le droit de parler ? Reprend la main si personne ne parle,
+   si le runner est mort, ou si le runner dort pendant que je suis visible. */
+function canTakeOver(s){
+  if (!s || !s.running) return true;
+  if (!s.runnerId) return true;
+  if (s.runnerId === MY_ID) return true;
+  if (Date.now() - (s.heartbeat || 0) >= LEASE_MS) return true;  /* il est mort */
+  if (s.runnerHidden && !document.hidden) return true;           /* il dort, je suis devant l'ecran */
+  return false;
+}
+/* Suis-je encore le runner VRAIMENT ? (lu dans le stockage, pas en memoire) */
+function stillLeader(){
+  if (document.hidden) return false;   /* on dort -> on ne parle pas */
+  const s = loadState();
+  if (!s || !s.running || s.runnerId !== MY_ID) return false;
+  DEBATE_STATE = s;                    /* resynchronise l'etat local */
+  return true;
+}
 function startHeartbeat(){
   stopHeartbeat();
   heartbeatTimer = setInterval(() => {
-    if (DEBATE_STATE.running){
+    /* v10.20 : un runner fantome ne bat PLUS. Avant, meme une page qui avait
+       perdu la main continuait d'ecrire, ce qui empechait l'autre de_start
+       le debat. */
+    if (DEBATE_STATE.running && DEBATE_STATE.runnerId === MY_ID){
       DEBATE_STATE.heartbeat = Date.now();
+      DEBATE_STATE.runnerHidden = document.hidden;
       saveState();
     }
   }, 3000);
@@ -453,10 +497,15 @@ async function runLoop(){
   if (loopRunning) return;
   loopRunning = true;
   try {
-    while (DEBATE_STATE.running && DEBATE_STATE.runnerId === MY_ID){
+    /* v10.20 : on relit l'etat DEPUIS LE STOCKAGE a chaque tour. Avant la
+       boucle testait sa copie en MEMOIRE, qui disait toujours
+       "runnerId = moi" -> une boucle fantome pouvait continuer meme
+       apres la main ete reprise par l'autre onglet. */
+    while (true){
+      if (!stillLeader()) break;
       DEBATE_STATE.topic = currentTopic();
       for (const persona of PERSONAS){
-        if (!DEBATE_STATE.running || DEBATE_STATE.runnerId !== MY_ID) break;
+        if (!stillLeader()) break;
         setCard(persona.id, 'réfléchit...', '', false);
         const text = await ask(persona, DEBATE_STATE.history.slice(-24));
         if (!text || !DEBATE_STATE.running) continue;
@@ -511,40 +560,74 @@ async function runLoop(){
   } finally {
     loopRunning = false;
     stopHeartbeat();
-    /* ne tuer le debat que si on en est toujours le runner (sinon un autre
-       runner a pris la main et tourne deja) */
-    if (DEBATE_STATE.runnerId === MY_ID){
-      DEBATE_STATE.running = false;
-      DEBATE_STATE.runnerId = null;
+    /* v10.20 : on relit le stockage. Avant, ce test portait sur la copie
+       MEMOIRE : si l'autre onglet avait repris la main, la copie locale
+       disait encore "runnerId = moi" -> cette page eteignait le debat de
+       l'autre onglet. On ne touche a rien si on n'est plus le runner. */
+    const s = loadState();
+    if (s && s.runnerId === MY_ID){
+      s.running = false;
+      s.runnerId = null;
+      s.heartbeat = 0;
+      s.runnerHidden = false;
+      DEBATE_STATE = s;
       saveState();
       broadcast();
     }
   }
 }
 function start(){
-  if (DEBATE_STATE.running && Date.now() - DEBATE_STATE.heartbeat < 8000) return; /* deja en cours ailleurs */
+  const s = loadState();
+  /* v10.20 : si un autre onglet visible fait deja tourner le debat, on reste
+     simple spectateur. Avant, la condition de heartbeat laissait passer des
+     onglets en retard et deux debats demarraient en meme temps. */
+  if (!canTakeOver(s)){
+    DEBATE_STATE = s;
+    return;
+  }
+  DEBATE_STATE = s;
   DEBATE_STATE.running = true;
   DEBATE_STATE.runnerId = MY_ID;
   DEBATE_STATE.heartbeat = Date.now();
+  DEBATE_STATE.runnerHidden = document.hidden;
   saveState();
   broadcast();
   startHeartbeat();
   assignVoices().then(() => runLoop());
 }
+/* v10.20 : rendre la main quand cette page passe en arriere-plan ou se ferme.
+   Le heartbeat tombe a 0 -> l'autre onglet peut reprendre TOUT DE SUITE,
+   sans attendre 6 s. C'est ce qui evite les deux debats simultanes. */
+function release(){
+  stopHeartbeat();
+  try {
+    const s = loadState();
+    if (s && s.runnerId === MY_ID){
+      s.heartbeat = 0;
+      s.runnerHidden = true;
+      DEBATE_STATE = s;
+      saveState();
+      broadcast();
+    }
+  } catch(e){}
+}
 function stop(){
   DEBATE_STATE.running = false;
   DEBATE_STATE.runnerId = null;
+  DEBATE_STATE.heartbeat = 0;
+  DEBATE_STATE.runnerHidden = false;
   stopAudio();
+  stopHeartbeat();
   saveState();
   broadcast();
 }
 /* Reprise auto : si un debat tournait et que son runner est mort
    (heartbeat perime), cette page reprend la main. */
 function autoResume(){
-  if (DEBATE_STATE.running && Date.now() - DEBATE_STATE.heartbeat >= 8000){
-    start();
-  }
+  const s = loadState();
+  if (s.running && canTakeOver(s)) start();
 }
+
 /* WATCHDOG : verifie en continu que le debat tourne bien. Si le runner
    a disparu (page fermee, onglet tue, plantage) -> cette page reprend
    TOUTE SEULE le debat. C'est ce qui fait qu'on n'a jamais besoin de
@@ -553,11 +636,13 @@ let watchdogTimer = null;
 function startWatchdog(){
   if (watchdogTimer) return;
   watchdogTimer = setInterval(() => {
-    if (loopRunning) return; /* je suis deja le runner */
+    if (loopRunning) return;      /* je suis le runner vivant */
     const fresh = loadState();
-    if (fresh.running && Date.now() - fresh.heartbeat >= 8000){
-      DEBATE_STATE = fresh;
-      console.info('[DEBAT] runner disparu -> reprise automatique');
+    /* v10.20 : canTakeOver() remplace le test "heartbeat perime". Maintenant
+       un onglet cache peut aussi prendre la main des que l'onglet visible
+       revient, ce qui rend le retour au vocal instantane. */
+    if (fresh.running && canTakeOver(fresh)){
+      console.info('[DEBAT] runner disparu ou endormi -> reprise automatique');
       start();
     }
   }, 3000);
@@ -580,6 +665,22 @@ window.DebateEngine = {
 /* le watchdog tourne sur TOUTES les pages ouvertes : des qu'une page
    qui faisait tourner le debat disparait, une autre enchaine. */
 startWatchdog();
+/* v10.20 : passage en arriere-plan -> on rend la main IMMEDIATEMENT.
+   Attendre la fin du heartbeat laissait l'onglet masque croire qu'il
+   etait mort, et l'autre onglet demarrait son propre debat en doublon. */
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden){
+    release();
+    if (hooks.onSpeakStart){ try { hooks.onSpeakStart(); hooks.onSpeakEnd(); } catch(e){} }
+  } else {
+    /* on revient au premier plan : on reprend la main sans attendre */
+    const s = loadState();
+    if (s.running && canTakeOver(s)) start();
+  }
+});
+/* fermeture de l'onglet : meme chose, la main passe tout de suite */
+window.addEventListener('pagehide', release);
+window.addEventListener('beforeunload', release);
 /* v10.9 : le debat doit tourner H24 sans bouton — il demarre tout seul */
 start();
 })();

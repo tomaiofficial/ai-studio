@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.19';
+const APP_VERSION = '10.20';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -3231,8 +3231,19 @@ function stopBackgroundDebate(){
 /* reprise auto : si un debat tournait et que son runner est mort
    (page fermee), cette page reprend la main au chargement */
 DE.autoResume();
-/* v10.9 : le debat doit tourner H24 sans bouton — il demarre tout seul */
+/* v10.9 : le debat doit tourner H24 sans bouton - il demarre tout seul */
 DE.start();
+
+/* v10.20 : au retour sur l'onglet vocal, le micro doit repartir meme si une
+   IA parlait au moment du changement d'onglet (le signal de "fin de voix"
+   pouvait etre perdu en route) -> isSpeaking restait bloque a true et le
+   micro ne se relanait plus : c'etait le "site plante" cote vocal. */
+document.addEventListener('visibilitychange', function(){
+  /* Libere le micro dans les deux sens : si une IA parlait quand on a change
+     d'onglet, le signal de fin pouvait etre perdu et isSpeaking restait a
+     true -> le micro ne se relançait plus au retour. */
+  isSpeaking = false;
+});
 
 /* v10.12 : la fonction "agents autonomes" a ete supprimee -> on nettoie
    les donnees laissees dans le navigateur pour ne rien garder. */
