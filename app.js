@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.11';
+const APP_VERSION = '10.12';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1389,21 +1389,6 @@ const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des info
 const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. LA FONCTION MAIL N EXISTE PLUS : tom point a i l a SUPPRIMEE parce qu elle prenait des risques pour la securite. Il n y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l app. Si l utilisateur demande le mail, les mails, Gmail ou une boite mail : dis-lui que tom point a i a retire cette fonction a cause des risques de securite, et qu il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore, ne propose JAMAIS de lire ses mails. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu jures UNIQUEMENT quand l'utilisateur t'insulte ou est vulgaire avec toi : la tu reponds avec le meme ton. Sinon, reponds normalement, sans jurer. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
 function getDebateContext(){
   try {
-    /* v10.10 : les agents autonomes font partie de sa vie */
-    const AEw = (typeof window !== 'undefined' && window.AgentsEngine) ? window.AgentsEngine : null;
-    if (AEw){
-      const ags = AEw.agents || [];
-      if (ags.length){
-        let a = 'TES AGENTS AUTONOMES (ils travaillent tout seuls en arriere-plan, comme les "dots") : ';
-        a += ags.map(x => x.emoji + ' ' + x.name + ' (objectif : ' + x.objective + (x.paused ? ', en pause' : '') + ')').join(' ; ');
-        const found = (AEw.logs || []).slice(0, 3);
-        if (found.length){
-          a += '. Ils ont trouve recemment : ' + found.map(f => (f.name + ' : ' + (f.text || '').slice(0, 110))).join(' | ');
-        }
-        a += '. Si l utilisateur te demande si tu as des agents, unnommes si, ou ce qu ils ont trouve, reponds avec ces informations.';
-        return a;
-      }
-    }
     const DE = (typeof window !== 'undefined' && window.DebateEngine) ? window.DebateEngine : null;
     if (!DE || !DE.state) return '';
     const s = DE.state;
@@ -3249,142 +3234,15 @@ DE.autoResume();
 /* v10.9 : le debat doit tourner H24 sans bouton — il demarre tout seul */
 DE.start();
 
-/* ===== AGENTS AUTONOMES "TOUJOURS ACTIFS" (v10.10) =====
-   Sur le modele des "dots" d'OpenAI : un agent recoit un objectif,
-   travaille en arriere-plan sans que tu cliques, garde sa memoire,
-   et te previent quand il a trouve quelque chose d'utile. */
-const AE = window.AgentsEngine || null;
-
-/* --- quand un agent trouve un truc : message dans le chat + voix --- */
-if (AE){
-  AE.hooks.onNotify = (agent, text) => {
-    const who = agent.emoji + ' ' + agent.name;
-    addAiMsg(who + ' : ' + text);
-    /* il parle seulement si la voix est libre et qu'une cle Mistral existe */
-    try {
-      const key = (localStorage.getItem('va_mistral_key') || '').trim();
-      if (!isSpeaking && key){
-        setTimeout(() => { try { speak(who + ' : ' + text); } catch(e){} }, 400);
-      }
-    } catch(e){}
-  };
-  /* le journal de l'agent est affiche dans le modal */
-  AE.hooks.onState = () => { renderAgents(); };
-}
-
-/* --- MODAL AGENTS --- */
-const agModal   = document.getElementById('agentsModal');
-const agList    = document.getElementById('agList');
-const agLogEl   = document.getElementById('agLog');
-const agCount   = document.getElementById('agCount');
-const agNameIn  = document.getElementById('agName');
-const agObjIn   = document.getElementById('agObjective');
-const agEmojiRow= document.getElementById('agEmojiRow');
-const AG_EMOJIS = ['🤖','👁️','🔭','📡','🕵️','🧭','⚡','🧠','📰','🛡️','🚀','🦉'];
-let agEmoji = AG_EMOJIS[0];
-function agOpen(){ if (agModal){ agModal.classList.remove('hidden'); renderAgents(); } }
-function agClose(){ if (agModal) agModal.classList.add('hidden'); }
-function agRenderEmojis(){
-  if (!agEmojiRow) return;
-  agEmojiRow.innerHTML = '';
-  AG_EMOJIS.forEach(e => {
-    const b = document.createElement('button');
-    b.className = 'ag-emoji-pick' + (e === agEmoji ? ' on' : '');
-    b.textContent = e;
-    b.type = 'button';
-    b.addEventListener('click', () => { agEmoji = e; agRenderEmojis(); });
-    agEmojiRow.appendChild(b);
-  });
-}
-function agAgo(ts){
-  if (!ts) return 'jamais';
-  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 60) return 'à l\'instant';
-  if (s < 3600) return 'il y a ' + Math.round(s / 60) + ' min';
-  if (s < 86400) return 'il y a ' + Math.round(s / 3600) + ' h';
-  return 'il y a ' + Math.round(s / 86400) + ' j';
-}
-function renderAgents(){
-  if (!AE || !agList) return;
-  const list = AE.agents || [];
-  const running = AE.isRunning();
-  if (agCount){
-    agCount.textContent = list.length
-      ? list.length + ' agent' + (list.length > 1 ? 's' : '') + ' — ' + (running ? 'en service, ils travaillent tout seuls' : 'en pause')
-      : 'Aucun agent pour le moment.';
-  }
-  agList.innerHTML = '';
-  list.forEach(a => {
-    const d = document.createElement('div');
-    d.className = 'ag-item';
-    d.innerHTML =
-      '<div class="ag-top">' +
-        '<span class="ag-emoji">' + a.emoji + '</span>' +
-        '<span class="ag-title">' + (a.name || '').replace(/[<>&]/g, '') + '</span>' +
-        '<span class="ag-status">' + (a.paused ? 'en pause' : (a.status || 'en veille')) + '</span>' +
-      '</div>' +
-      '<div class="ag-obj">🎯 ' + (a.objective || '').replace(/[<>&]/g, '') + '</div>' +
-      (a.note ? '<div class="ag-note">« ' + (a.note || '').replace(/[<>&]/g, '') + ' »</div>' : '') +
-      '<div class="ag-note" style="font-style:normal;opacity:.7">' + (a.found || 0) + ' trouvaille(s) · ' + (a.runs || 0) + ' recherche(s) · ' + agAgo(a.lastRun) + '</div>' +
-      '<div class="ag-actions">' +
-        '<button class="ag-btn" data-ag-act="toggle" data-id="' + a.id + '">' + (a.paused ? '▶ Reprendre' : '⏸ Pause') + '</button>' +
-        '<button class="ag-btn" data-ag-act="now" data-id="' + a.id + '">🔍 Chercher maintenant</button>' +
-        '<button class="ag-btn danger" data-ag-act="del" data-id="' + a.id + '">🗑️ Supprimer</button>' +
-      '</div>';
-    agList.appendChild(d);
-  });
-  if (agLogEl){
-    agLogEl.innerHTML = '';
-    const logs = (AE.logs || []).slice(0, 15);
-    if (!logs.length){
-      agLogEl.innerHTML = '<div class="ag-empty">Rien pour l\'instant. Ils cherchent en arrière-plan et te préviendront ici.</div>';
-    } else {
-      logs.forEach(l => {
-        const e = document.createElement('div');
-        e.className = 'ag-line';
-        e.innerHTML = '<span class="ag-name" style="color:' + (l.color || '#3cdca0') + '">' + (l.emoji || '🤖') + ' ' +
-          (l.name || '').replace(/[<>&]/g, '') + '</span><span class="ag-text">' + (l.text || '').replace(/[<>&]/g, '') + '</span>';
-        agLogEl.appendChild(e);
-      });
-    }
-  }
-  const btn = document.getElementById('agentsBtn');
-  if (btn) btn.classList.toggle('busy', !!running && list.length > 0);
-}
-if (agEmojiRow) agRenderEmojis();
-const agBtn = document.getElementById('agentsBtn');
-if (agBtn) agBtn.addEventListener('click', agOpen);
-const agCloseBtn = document.getElementById('closeAgents');
-if (agCloseBtn) agCloseBtn.addEventListener('click', agClose);
-if (agModal) agModal.addEventListener('click', (e) => { if (e.target === agModal) agClose(); });
-const agAddBtn = document.getElementById('agAdd');
-if (agAddBtn) agAddBtn.addEventListener('click', () => {
-  if (!AE) return;
-  const n = (agNameIn && agNameIn.value || '').trim();
-  const o = (agObjIn && agObjIn.value || '').trim();
-  if (!o){ if (agObjIn) agObjIn.focus(); return; }
-  AE.addAgent(n || 'Agent', agEmoji, o);
-  if (agNameIn) agNameIn.value = '';
-  if (agObjIn) agObjIn.value = '';
-  renderAgents();
-});
-if (agList) agList.addEventListener('click', (e) => {
-  const b = e.target.closest ? e.target.closest('[data-ag-act]') : null;
-  if (!b || !AE) return;
-  const id = b.getAttribute('data-id');
-  const act = b.getAttribute('data-ag-act');
-  if (act === 'toggle') AE.toggleAgent(id);
-  else if (act === 'del') AE.removeAgent(id);
-  else if (act === 'now'){
-    const a = (AE.agents || []).find(x => x.id === id);
-    if (a) a.paused = false;
-    if (AE.runNow) AE.runNow(id); else AE.start();
-  }
-  renderAgents();
-});
-/* si l'agent n'a jamais tourne, on le relance aussitot */
-setInterval(() => { try { renderAgents(); } catch(e){} }, 30000);
-renderAgents();
+/* v10.12 : la fonction "agents autonomes" a ete supprimee -> on nettoie
+   les donnees laissees dans le navigateur pour ne rien garder. */
+(function cleanupAgentsV10(){
+  try {
+    ['va_agents_state', 'va_agents_seeded'].forEach(function(k){
+      if (localStorage.getItem(k) !== null) localStorage.removeItem(k);
+    });
+  } catch(e){}
+})();
 
 /* v10.0 : demande d'ECRITURE ? (lettre, poeme, texte, note...) */
 function isWritingRequest(q){

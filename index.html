@@ -188,37 +188,6 @@ body{
   animation:subIn .3s ease;
 }
 .subtitle:empty{display:none}
-/* ===== AGENTS AUTONOMES (dots) ===== */
-#agentsBtn.busy{box-shadow:0 0 0 2px rgba(60,220,160,.55);animation:agPulse 1.6s ease-in-out infinite}
-@keyframes agPulse{0%,100%{opacity:1}50%{opacity:.55}}
-.ag-line{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px;line-height:1.45}
-.ag-line:last-child{border-bottom:none}
-.ag-name{flex:0 0 auto;font-weight:700;white-space:nowrap}
-.ag-text{color:#d8d8ea;word-break:break-word}
-.ag-item{border:1px solid rgba(124,92,255,.28);border-radius:14px;padding:12px;margin-bottom:10px;background:rgba(124,92,255,.06)}
-.ag-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.ag-emoji{font-size:22px}
-.ag-title{font-weight:700;color:#fff;flex:1;font-size:15px}
-.ag-status{font-size:11px;color:#9a9ab5;background:rgba(255,255,255,.06);padding:3px 8px;border-radius:20px;white-space:nowrap}
-.ag-obj{font-size:13px;color:#c9c9e0;line-height:1.45;margin-bottom:6px}
-.ag-note{font-size:12px;color:#8f8fae;font-style:italic;line-height:1.4;margin-bottom:8px}
-.ag-actions{display:flex;gap:8px;flex-wrap:wrap}
-.ag-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#d8d8ea;
-  padding:6px 12px;border-radius:10px;font-size:12px;cursor:pointer;font-family:inherit}
-.ag-btn:hover{background:rgba(255,255,255,.13)}
-.ag-btn.danger{border-color:rgba(255,92,92,.4);color:#ff9c9c}
-.ag-form{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
-.ag-form label{font-size:12px;color:#9a9ab5;display:block;margin-bottom:4px}
-.ag-form input{width:100%;background:#0f0f1a;border:1px solid rgba(124,92,255,.3);border-radius:10px;
-  padding:10px 12px;color:#fff;font-size:14px;font-family:inherit}
-.ag-emoji-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
-.ag-emoji-pick{font-size:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-  border-radius:10px;width:40px;height:40px;cursor:pointer}
-.ag-emoji-pick.on{background:rgba(124,92,255,.3);border-color:var(--violet,#7c5cff)}
-.ag-go{width:100%;padding:12px;border-radius:12px;border:none;cursor:pointer;font-size:15px;font-weight:700;
-  background:linear-gradient(90deg,#7c5cff,#3cdca0);color:#0d0d10;font-family:inherit}
-.ag-empty{font-size:13px;color:#8f8fae;text-align:center;padding:20px 10px;line-height:1.5}
-.ag-count{font-size:12px;color:#9a9ab5;margin-bottom:10px;text-align:center}
 @keyframes subIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 /* ===== RÉGLAGES / MODALS ===== */
 .modal{
@@ -440,7 +409,6 @@ select.wide-input{appearance:none}
   <div class="topbar-title"><span class="dot"></span> Assistant IA</div>
   <div class="topbar-actions">
     <a class="icon-btn" href="debat.html" title="Salle de débat IA (4 IA non-stop)" aria-label="Salle de débat">🎙️</a>
-    <button class="icon-btn" id="agentsBtn" title="Agents autonomes (toujours actifs)" aria-label="Agents autonomes">🤖</button>
     <button class="icon-btn" id="historyBtn" aria-label="Historique">📜</button>
     <button class="icon-btn" id="settingsBtn" aria-label="Réglages">⚙️</button>
   </div>
@@ -476,43 +444,6 @@ select.wide-input{appearance:none}
     <button class="primary" id="newConvBtn" style="margin-bottom:14px">➕ Nouvelle conversation</button>
     <div id="convList"></div>
     <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
-  </div>
-</div>
-
-<!-- MODAL AGENTS AUTONOMES (style "dots" : des agents qui travaillent tout seuls) -->
-<div id="agentsModal" class="modal hidden">
-  <div class="modal-card">
-    <button class="modal-close" id="closeAgents" aria-label="Fermer">✕</button>
-    <h3>🤖 Agents autonomes</h3>
-    <p class="muted" style="font-size:13px;line-height:1.5">
-      Comme les « dots » d'OpenAI : tu donnes un <b>objectif</b>, l'agent travaille tout seul
-      en arrière-plan, cherche sur le web, et te préviens ici quand il trouve un truc.
-    </p>
-
-    <div class="ag-form">
-      <div>
-        <label>Nom de l'agent</label>
-        <input type="text" id="agName" placeholder="ex : Veille IA" maxlength="24" autocomplete="off">
-      </div>
-      <div>
-        <label>Avatar</label>
-        <div class="ag-emoji-row" id="agEmojiRow"></div>
-      </div>
-      <div>
-        <label>Objectif (il va travailler ça tout seul)</label>
-        <input type="text" id="agObjective" placeholder="ex : nouvelles annonces OpenAI et Mistral" maxlength="200" autocomplete="off">
-      </div>
-      <button class="ag-go" id="agAdd">Créer l'agent et le lancer</button>
-    </div>
-
-    <div class="ag-count" id="agCount"></div>
-    <div class="ag-count" id="agSearchState" style="opacity:.8;margin-bottom:12px">recherche en direct : test en cours…</div>
-    <div id="agList"></div>
-
-    <div style="margin-top:18px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px">
-      <h4 style="margin:0 0 8px;font-size:14px;color:#c9c9e0">📨 Ce qu'ils ont trouvé</h4>
-      <div id="agLog"></div>
-    </div>
   </div>
 </div>
 
@@ -622,9 +553,8 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.11"></script>
-<script src="debat-engine.js?v=10.11"></script>
-<script src="agents.js?v=10.11"></script>
-<script src="app.js?v=10.11"></script>
+<script src="websearch.js?v=10.12"></script>
+<script src="debat-engine.js?v=10.12"></script>
+<script src="app.js?v=10.12"></script>
 </body>
 </html>
