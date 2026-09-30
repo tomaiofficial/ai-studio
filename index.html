@@ -101,8 +101,9 @@ body{
 }
 /* ===== FIN COQUILLE v10.13 ===== */
 
-/* ===== ZONE DE CHAT du mode vocal (v10.13 : toujours masquee) =====
-   Le chat a sa propre interface : chat.html (ecrit + images). */
+/* ===== ZONE DE CHAT du mode vocal (v10.18 : toujours masquee) =====
+   L'interface chat separee a ete supprimee : l'app ne garde plus
+   que le mode vocal, comme a l'origine. */
 .chat{
   display:none;
   flex:1;overflow-y:auto;padding:16px 12px;
@@ -137,8 +138,8 @@ body{
   padding:0 24px;
 }
 /* ===== SCENE VOCALE : orbe arc-en-ciel animé (v9.71) =====
-   v10.13 : le mode vocal reste EXACTEMENT comme avant (plein ecran,
-   orbe 230px, aucun chat visible). Le chat est dans chat.html. */
+   v10.18 : le mode vocal est seul, exactement comme a l'origine
+   (plein ecran, orbe 230px, aucun chat visible). */
 .voice-stage{
   flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:28px;flex-shrink:0;padding:0 24px;position:relative;z-index:1;
@@ -440,7 +441,6 @@ select.wide-input{appearance:none}
   <nav class="rail" aria-label="Navigation">
     <div class="rail-top" title="Astra"><span class="dot"></span></div>
     <div class="rail-sep"></div>
-    <a class="icon-btn" href="chat.html" title="Interface chat (écrit + images)" aria-label="Chat">💬</a>
     <a class="icon-btn" href="debat.html" title="Salle de débat IA (4 IA non-stop)" aria-label="Salle de débat">🎙️</a>
     <button class="icon-btn" id="historyBtn" title="Historique" aria-label="Historique">📜</button>
     <button class="icon-btn" id="settingsBtn" title="Réglages" aria-label="Réglages">⚙️</button>
@@ -459,7 +459,7 @@ select.wide-input{appearance:none}
       <div class="version-tag" id="versionTag"></div>
     </div>
 
-    <!-- SAISIE TEXTE (raccourci vocal, l'ecriture complete est dans chat.html) -->
+    <!-- SAISIE TEXTE -->
     <div class="text-input-row">
       <input type="text" id="textInput" placeholder="Écris ta question ici…" autocomplete="off" maxlength="500">
       <button class="send-btn" id="sendBtn" aria-label="Envoyer">➤</button>
@@ -590,8 +590,8 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.17"></script>
-<script src="debat-engine.js?v=10.17"></script>
-<script src="app.js?v=10.17"></script>
+<script src="websearch.js?v=10.18"></script>
+<script src="debat-engine.js?v=10.18"></script>
+<script src="app.js?v=10.18"></script>
 </body>
 </html>
