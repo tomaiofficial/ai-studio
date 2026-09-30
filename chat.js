@@ -298,56 +298,116 @@ function contentText(messages){
   return messages.map(m => ({ role: m.role, content: m.text }));
 }
 
+/* Filet de securite : Mistral renvoie 422 si un message n'a pas de "content".
+   On nettoie donc toujours la liste avant l'envoi. */
+function sanitize(messages){
+  const out = [];
+  messages.forEach(m => {
+    if (!m || !m.role) return;
+    if (Array.isArray(m.content)){
+      if (m.content.length) out.push({ role: m.role, content: m.content });
+    } else if (typeof m.content === 'string' && m.content.trim() !== ''){
+      out.push({ role: m.role, content: m.content });
+    }
+    /* tout message sans contenu est SUPPRIME : il provoquerait un 422 */
+  });
+  return out;
+}
+
 function buildVisionMessages(history, userText, images){
   const msgs = [{ role: 'system', content: SYSTEM_VISION }];
-  history.forEach(m => msgs.push({ role: m.role, content: m.text }));
+  /* v10.15 : contextMessages() renvoie { role, content } -> on lit "content".
+     (v10.14 lisait "m.text" qui n'existait pas -> content undefined -> 422) */
+  history.forEach(m => {
+    const txt = (m && (m.content != null ? m.content : m.text)) || '';
+    if (String(txt).trim()) msgs.push({ role: m.role, content: String(txt) });
+  });
   const parts = [];
   if (userText) parts.push({ type: 'text', text: userText });
   else parts.push({ type: 'text', text: "Decris cette image en detail : ce que tu vois vraiment, et tout texte qui y figure." });
-  images.forEach(im => parts.push({ type: 'image_url', image_url: { url: im.dataUrl } }));
+  images.forEach(im => parts.push({ type: 'image_url', image_url: im.dataUrl }));
   msgs.push({ role: 'user', content: parts });
-  return msgs;
+  return sanitize(msgs);
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* lit le message d'erreur reel de Mistral (utile pour comprendre) */
+async function readErr(res){
+  try {
+    const d = await res.json();
+    const msg = (d && (d.message || (d.detail && d.detail[0] && d.detail[0].msg) || (typeof d.detail === 'string' ? d.detail : ''))) || '';
+    return String(msg).slice(0, 180);
+  } catch { return ''; }
 }
 
 async function callMistral(models, messages, maxTokens){
   const key = getMistralKey();
   if (!key) throw new Error('NOKEY');
-  let lastErr = '';
+
+  const hasImage = messages.some(m => Array.isArray(m.content) &&
+                                   m.content.some(p => p.type === 'image_url'));
+  /* 1) forme string (documentee par Mistral)  2) forme objet {url} */
+  const shapes = hasImage ? ['str', 'obj'] : ['str'];
+  let lastErr = '', firstDetail = '';
+
   for (const model of models){
-    /* 1) forme OpenAI (image_url = objet)  2) forme Mistral (chaine) */
-    for (const shape of (messages.some(m => Array.isArray(m.content)) ? ['obj', 'str'] : ['obj'])){
-      const body = JSON.parse(JSON.stringify(messages));
-      if (shape === 'str'){
-        body.forEach(m => {
-          if (Array.isArray(m.content)) m.content = m.content.map(p =>
-            p.type === 'image_url' ? { type: 'image_url', image_url: p.image_url.url } : p);
-        });
-      }
-      try {
-        const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model, messages: body, max_tokens: maxTokens, temperature: 0.6 })
-        }), 45000);
+    for (const shape of shapes){
+      const body = messages.map(m => {
+        if (!Array.isArray(m.content)) return { role: m.role, content: m.content };
+        const parts = m.content.map(p =>
+          p.type === 'image_url'
+            ? (shape === 'str' ? { type: 'image_url', image_url: p.image_url }
+                              : { type: 'image_url', image_url: { url: p.image_url } })
+            : p);
+        return { role: m.role, content: parts };
+      });
+
+      /* v10.15 : un 429 se retente sur LE MEME modele apres une pause.
+         En 10.14 on enchainait les 5 modeles d'affilee : ca aggravait la
+         saturation et multipliait les erreurs dans la console. */
+      for (let attempt = 0; attempt < 3; attempt++){
+        let res = null, err = null;
+        try {
+          res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({ model, messages: body, max_tokens: maxTokens, temperature: 0.5 })
+          }), 45000);
+        } catch (e){
+          err = (e && e.message) ? e.message : 'reseau';
+        }
+
         if (res && res.ok){
           const data = await res.json();
           const txt = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
           if (txt) return txt;
           lastErr = 'reponse vide';
-        } else if (res && res.status === 429){
-          lastErr = 'trop de requetes';
-        } else if (res && res.status === 401){
-          throw new Error('BADKEY');
-        } else if (res && res.status === 400 && shape === 'obj'){
-          lastErr = 'format refuse';   /* on tente l'autre forme */
-        } else {
-          lastErr = 'erreur ' + (res ? res.status : '?');
+          break;
         }
-      } catch (e) {
-        if (e && e.message === 'BADKEY') throw e;
-        lastErr = e && e.message ? e.message : 'reseau';
+
+        const status = res ? res.status : 0;
+        if (status === 401 || status === 403) throw new Error('BADKEY');
+
+        if (status === 429){
+          const ra = Number(res.headers && res.headers.get && res.headers.get('Retry-After')) || 0;
+          const wait = Math.min(25000, (ra || (attempt === 0 ? 8 : 20)) * 1000);
+          lastErr = 'trop de requetes Mistral';
+          if (attempt < 2){ await sleep(wait); continue; }   /* on reessaie */
+          throw new Error('RATE:' + wait + ':' + lastErr);
+        }
+
+        if (err){ lastErr = err; break; }
+
+        const det = await readErr(res);
+        if (det && !firstDetail) firstDetail = det;
+        lastErr = 'erreur ' + status + (det ? ' : ' + det : '');
+        /* 400/422 = requete mal formee : inutile d'insister sur ce modele */
+        break;
       }
     }
+    /* petit repos entre 2 modeles : evite de repartir en rafale sur l'API */
+    await sleep(700);
   }
   throw new Error(lastErr || 'inconnu');
 }
@@ -406,17 +466,27 @@ async function send(){
     } else {
       const msgs = [{ role: 'system', content: SYSTEM_PROMPT }].concat(contextMessages());
       msgs.push({ role: 'user', content: text });
-      answer = await callMistral(MODELS_TEXT, msgs, 1000);
+      answer = await callMistral(MODELS_TEXT, sanitize(msgs), 1000);
     }
     hideTyping();
     addMsg('ai', answer);
     if (current){ current.messages.push({ role: 'assistant', text: answer, imgUrl: null }); saveCurrent(); }
   } catch (e) {
     hideTyping();
-    const msg = e && e.message === 'NOKEY' ? 'Il me faut une clé API Mistral. Ouvre ⚙️ Réglages pour la coller.'
-              : e && e.message === 'BADKEY' ? 'Ta clé API Mistral semble invalide. Vérifie-la dans ⚙️ Réglages.'
-              : e && e.message === 'timeout' ? 'La réponse a pris trop de temps. Réessaie.'
-              : 'Je n’ai pas pu répondre (' + ((e && e.message) || 'erreur') + ').';
+    const em = (e && e.message) || '';
+    let msg;
+    if (em === 'NOKEY') msg = 'Il me faut une clé API Mistral. Ouvre ⚙️ Réglages pour la coller.';
+    else if (em === 'BADKEY') msg = 'Ta clé API Mistral semble invalide. Vérifie-la dans ⚙️ Réglages.';
+    else if (em === 'timeout') msg = 'La réponse a pris trop de temps. Réessaie.';
+    else if (/^RATE:/.test(em)){
+      const sec = Math.round(Number(em.split(':')[1]) / 1000) || 15;
+      toast('⏳ Trop de requêtes Mistral — nouvelle tentative dans ' + sec + ' s…');
+      await sleep(Number(em.split(':')[1]) || 15000);
+      busy = false; sendBtn.disabled = false;
+      input.focus();
+      return;   /* on ne met pas de bulle d'erreur : la demande est toujours valide */
+    }
+    else msg = 'Je n’ai pas pu répondre (' + (em || 'erreur') + ').';
     addError(msg);
   } finally {
     busy = false;
