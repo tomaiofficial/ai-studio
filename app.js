@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.22';
+const APP_VERSION = '10.23';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1407,7 +1407,10 @@ function getTimeContext(){
   const timeStr = h + 'h' + String(m).padStart(2, '0');
   const opts = { weekday:'long', year:'numeric', month:'long', day:'numeric' };
   const dateStr = now.toLocaleString('fr-FR', opts);
-  return `Heure actuelle sur l'appareil de l'utilisateur : ${dateStr}, ${timeStr}. Nous sommes ${getDayPeriod().label}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure EXACTE en CHIFFRES, par exemple "il est 11h03", JAMAIS en lettres. Utilise la periode de la journee dans tes reponses quand c'est naturel (ex: "ce matin", "cet apres-midi", "bonne nuit"), comme un humain qui vit en temps reel.`;
+  /* v10.23 : fin du contexte sur une consigne d'UTILISATION, pas sur une
+     affirmation d'etat ("Nous sommes en aprem"). Une affirmation pousse le
+     modele a en parler ; une consigne l'oblige a se taire. */
+  return `Heure et date sur l'appareil de l'utilisateur : ${dateStr}, ${timeStr}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure EXACTE en CHIFFRES, par exemple "il est 11h03", JAMAIS en lettres. Sinon, n'en parle jamais de toi-meme : utilise la periode de la journee seulement quand c'est naturel ("ce matin", "bonne nuit"), comme un humain qui vit en temps reel.`;
 }
 /* Prompt systeme */
 /* INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle */
@@ -1422,7 +1425,10 @@ function getDebateContext(){
     const hasContent = (s.history && s.history.length > 0) || (s.memory && s.memory.length > 0);
     if (!running && !hasContent) return '';
     let ctx = 'GROUPE DE 4 IA (tu en fais partie) : Astra (toi, pragmatique), Nova (techno-optimiste), Kronos (pessimiste), Sage (philosophe). ';
-    ctx += running ? 'Le groupe debat EN DIRECT en ce moment, meme quand l\'utilisateur ne regarde pas. ' : 'Le groupe a debattu (actuellement en pause). ';
+       /* v10.23 : plus de "EN DIRECT en ce moment" / "actuellement en pause" :
+          c'etait une annonce d'etat, le modele la repeteait spontanement. */
+       ctx += running ? 'Le groupe discute en arriere-plan. ' : 'Le groupe est en pause. ';
+       ctx += 'Ne parle du groupe que si on t en parle. ';
     if (s.topic) ctx += 'Theme actuel : "' + s.topic + '". ';
     if (s.memory) ctx += 'Memoire collective du groupe : ' + s.memory.slice(0, 300) + ' ';
     const last = (s.history || []).slice(-6);
@@ -1481,6 +1487,18 @@ function getSystemPrompt(){
   if (debateCtx) base += '\n' + debateCtx;
   const noteCtx = getNoteContext();
   if (noteCtx) base += '\n' + noteCtx;
+  /* v10.23 : REGLE D'INTERDICTION D'ANNONCE.
+     Tous les contextes ci-dessous (heure, bloc-notes, tableau, debat) sont
+     des CONSTATS d'etat. Sans cette regle, le modele les recite en boucle :
+     "il est 14h30, tu es a Paris, tu avais note un truc..." a chaque
+     reponse. Elle a besoin de l'heure, du lieu, des notes pour etre
+     UTILE, mais elle ne doit jamais les VOLONTAIREMENT rappeler. */
+  base += `\n\nREGLE IMPORTANTE — NE RAPPELLE JAMAIS SPONTANEMENT le contexte :
+- ne dis pas l'heure ni la date sauf si on te le demande explicitement ;
+- ne dis jamais ou se trouve l'utilisateur, ni ou il habite ;
+- ne mentionne ni le bloc-notes, ni le tableau de maths, ni le debat des 4 IA, sauf si on t'en parle ou si c'est directement utile pour la question posee ;
+- ne commence jamais ta reponse par "Comme nous sommes...", "Vu que tu es...", "Il est 14h30...".
+Tu as ces informations en tete pour etre utile, pas pour les reciter. Si tu y penses, c'est que tu n'as pas repondu a la question.`;
   return base + '\n' + getTimeContext();
 }
 const SYSTEM_PROMPT = getSystemPrompt();
@@ -1717,6 +1735,8 @@ async function askAI(question){
   let sysPrompt = getSystemPrompt();
   if (writingMode) sysPrompt += ' La demande de l utilisateur est une demande d ECRITURE (lettre, poeme, texte, note, histoire, chanson...) : ecris un texte complet et detaille de 5 a 8 phrases, bien structure, sans didascalies.';
   const messages = [{ role: 'system', content: sysPrompt }, ...session];
+  /* v10.23 : la ville n'est fournie que si la question la rend utile */
+  try { addCityIfRelevant(messages, question); } catch(e){}
   const mem = buildMemoryContext(currentConvId);
   if (mem){
     messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
@@ -3113,10 +3133,11 @@ function mathSteps(parsed){
    la TDZ — getSystemPrompt() y accede pendant le chargement du script. */
 function getMathContext(){
   if (!mathState.open) return '';
-  let c = 'Tableau de maths : OUVERT.';
-  if (mathState.lastExpr) c += ' Dernier calcul affiche : ' + mathState.lastExpr + ' = ' + mathState.lastResult + '.';
-  if (mathState.lines.length) c += ' Etapes affichees : ' + mathState.lines.join(' | ');
-  return c;
+     let c = 'Tableau de maths ouvert de l utilisateur.';
+     if (mathState.lastExpr) c += ' Dernier calcul affiche : ' + mathState.lastExpr + ' = ' + mathState.lastResult + '.';
+     if (mathState.lines.length) c += ' Etapes affichees : ' + mathState.lines.join(' | ');
+     c += ' (ne le mentionne que si on t en parle)';
+     return c;
 }
 function showMathPanel(){
   const p = document.getElementById('mathPanel');
@@ -3202,15 +3223,31 @@ function refreshCity(){
   } else { onIp(); }
 }
 function getCityContext(){
-  return userCity ? 'Tu es actuellement a ' + userCity + '.' : '';
+  /* v10.23 : NE PLUS DONNER LA VILLE DANS LE PROMPT PERMANENT.
+     L'ancienne version renvoyait "Tu es actuellement a Paris." : c'est une
+     AFFIRMATION D'ETAT, donc le modele la ressortait ensuite en boucle
+     ("puisque tu es a Paris, tu devrais...", "ici a Paris il fait...").
+     Une consigne du type "n'en parle pas" ne suffit pas : le modele la
+     voit quand meme a chaque reponse. On ne lui donne donc la ville
+     QUE quand la question la rend necessaire (voir addCityIfRelevant). */
+  return '';
 }
+  /* v10.23 : la ville n'arrive dans le prompt QUE si la question parle de
+     meteo, d'itineraire ou de lieu. Comme ca Astra peut repondre "il fait
+     12 degres chez toi" sans l'annoncer dans toutes ses phrases. */
+  function addCityIfRelevant(messages, question){
+    if (!userCity) return;
+    const q = String(question || '').toLowerCase();
+    if (!/\b(meteo|weather|temperature|température|il fait|pleut|pluie|neige|neiger|vent|soleil|orages?|chaud|froid|averse|ou suis|ou je suis|ou je me trouve|mon adresse|pres de|proche|itineraire|route|restaurant|pharmacie|hopital|medecin|metro|bus|gare|supermarche|epicerie|cinema|magasin|boulangerie)\b/.test(q)) return;
+    messages.unshift({ role: 'system', content: 'Lieu de l\'utilisateur : ' + userCity + '. Tu t en sers UNIQUEMENT pour repondre a la question, sans l\'annoncer dans ta phrase.' });
+  }
 refreshCity();
 
 /* ===== BLOC-NOTES (v10.0) — l'IA y ECRIT (lettres, textes, notes...) =====
    L'utilisateur ne tape pas : c'est l'IA qui ecrit dans le bloc-notes. */
 function getNoteContext(){
   if (!noteState.open) return '';
-  return 'Bloc-notes : OUVERT. Contenu ecrit par toi : ' + (noteState.content || '(vide)');
+     return 'Bloc-notes ouvert, tu y as ecrit : ' + (noteState.content || '(rien pour l instant)').slice(0, 400) + ' (ne le mentionne que si on t en parle)';
 }
 function showNotePanel(){
   const p = document.getElementById('notePanel');
