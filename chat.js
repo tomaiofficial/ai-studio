@@ -209,7 +209,8 @@ function setNote(msg){
 /* ---------------------------------------------------------------
    5. IMAGES : compression + apercus
    --------------------------------------------------------------- */
-const MAX_DIM = 1280;   /* suffisant pour une description fiable */
+const MAX_DIM = 1024;   /* suffisant pour une description fiable, et bien moins de tokens */
+const JPEG_Q  = 0.78;   /* qualite visuelle identique a l'oeil, poids divise par ~2 */
 
 function compressImage(file){
   return new Promise((resolve, reject) => {
@@ -236,7 +237,7 @@ function compressImage(file){
           cx.fillStyle = '#0d0d18';
           cx.fillRect(0, 0, w, h);
           cx.drawImage(img, 0, 0, w, h);
-          resolve({ dataUrl: cv.toDataURL('image/jpeg', 0.82), name: file.name || 'image' });
+          resolve({ dataUrl: cv.toDataURL('image/jpeg', JPEG_Q), name: file.name || 'image' });
         } catch {
           resolve({ dataUrl: src, name: file.name || 'image' });
         }
@@ -341,7 +342,7 @@ async function readErr(res){
   } catch { return ''; }
 }
 
-async function callMistral(models, messages, maxTokens){
+async function callMistral(models, messages, maxTokens, onWait){
   const key = getMistralKey();
   if (!key) throw new Error('NOKEY');
 
@@ -349,7 +350,7 @@ async function callMistral(models, messages, maxTokens){
                                    m.content.some(p => p.type === 'image_url'));
   /* 1) forme string (documentee par Mistral)  2) forme objet {url} */
   const shapes = hasImage ? ['str', 'obj'] : ['str'];
-  let lastErr = '', firstDetail = '';
+  let lastErr = '', firstDetail = '', rateInfo = '';
 
   for (const model of models){
     for (const shape of shapes){
@@ -390,11 +391,23 @@ async function callMistral(models, messages, maxTokens){
         if (status === 401 || status === 403) throw new Error('BADKEY');
 
         if (status === 429){
+          /* v10.16 : on LIT le corps de la reponse 429. C'est la que Mistral
+             explique la vraie raison (quota gratuit epuise, cle sans paiement,
+             limite par minute...). Avant on ne lisait rien -> impossible de
+             savoir si c'etait temporaire ou permanent. */
+          const det = await readErr(res);
+          if (det) firstDetail = det;
           const ra = Number(res.headers && res.headers.get && res.headers.get('Retry-After')) || 0;
-          const wait = Math.min(25000, (ra || (attempt === 0 ? 8 : 20)) * 1000);
-          lastErr = 'trop de requetes Mistral';
-          if (attempt < 2){ await sleep(wait); continue; }   /* on reessaie */
-          throw new Error('RATE:' + wait + ':' + lastErr);
+          /* backoff exponentiel : 10s puis 30s puis 60s */
+          const backoff = [10, 30, 60][attempt] || 60;
+          const wait = Math.min(60000, (ra || backoff) * 1000);
+          rateInfo = det || ('HTTP 429' + (ra ? ' (Retry-After ' + ra + 's)' : ''));
+          if (attempt < 2){
+            if (onWait) onWait(Math.round(wait / 1000));
+            await sleep(wait);
+            continue;
+          }
+          throw new Error('RATE:' + wait + ':' + (rateInfo || 'limite de requetes'));
         }
 
         if (err){ lastErr = err; break; }
@@ -409,7 +422,7 @@ async function callMistral(models, messages, maxTokens){
     /* petit repos entre 2 modeles : evite de repartir en rafale sur l'API */
     await sleep(700);
   }
-  throw new Error(lastErr || 'inconnu');
+  throw new Error((lastErr || 'inconnu') + (rateInfo ? ' [' + rateInfo + ']' : ''));
 }
 
 /* ---------------------------------------------------------------
@@ -457,16 +470,23 @@ async function send(){
   }
 
   showTyping(imgs.length ? '👀 Astra regarde ton image…' : 'Astra écrit…');
+  /* v10.16 : si Mistral limite, on previent pendant la pause au lieu de
+     laisser un "..." muet, et on bloque les envois pendant ce temps. */
+  const onWait = sec => {
+    const t = $('typingEl');
+    if (t) t.innerHTML = '<span class="typing-dots"><i></i><i></i><i></i></span>' +
+      '<span>Limite Mistral — je réessaie dans ' + sec + ' s…</span>';
+  };
 
   try {
     let answer;
     if (imgs.length){
       const msgs = buildVisionMessages(contextMessages(), text, imgs);
-      answer = await callMistral(MODELS_VISION, msgs, 1000);
+      answer = await callMistral(MODELS_VISION, msgs, 1000, onWait);
     } else {
       const msgs = [{ role: 'system', content: SYSTEM_PROMPT }].concat(contextMessages());
       msgs.push({ role: 'user', content: text });
-      answer = await callMistral(MODELS_TEXT, sanitize(msgs), 1000);
+      answer = await callMistral(MODELS_TEXT, sanitize(msgs), 1000, onWait);
     }
     hideTyping();
     addMsg('ai', answer);
@@ -479,12 +499,16 @@ async function send(){
     else if (em === 'BADKEY') msg = 'Ta clé API Mistral semble invalide. Vérifie-la dans ⚙️ Réglages.';
     else if (em === 'timeout') msg = 'La réponse a pris trop de temps. Réessaie.';
     else if (/^RATE:/.test(em)){
-      const sec = Math.round(Number(em.split(':')[1]) / 1000) || 15;
-      toast('⏳ Trop de requêtes Mistral — nouvelle tentative dans ' + sec + ' s…');
-      await sleep(Number(em.split(':')[1]) || 15000);
-      busy = false; sendBtn.disabled = false;
-      input.focus();
-      return;   /* on ne met pas de bulle d'erreur : la demande est toujours valide */
+      /* v10.16 : on affiche la VRAIE raison donnee par Mistral au lieu d'un
+         message generique. C'est elle qui permet de savoir si c'est un
+         quota gratuit epuise, une cle sans moyen de paiement, etc. */
+      const p = em.split(':');
+      const sec = Math.round(Number(p[1]) / 1000) || 60;
+      const why = p.slice(2).join(':').trim() || 'limite de requetes atteinte';
+      console.warn('[Astra] Mistral 429 :', why);
+      msg = 'Limite Mistral atteinte. Raison indiquée par Mistral : « ' + why + ' ». ' +
+            'Attends ' + sec + ' s avant de réessayer. Si cela continue, vérifie ton offre ' +
+            'sur console.mistral.ai (une clé gratuite peut être bloquée).';
     }
     else msg = 'Je n’ai pas pu répondre (' + (em || 'erreur') + ').';
     addError(msg);
