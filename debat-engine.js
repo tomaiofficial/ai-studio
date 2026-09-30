@@ -263,18 +263,44 @@ async function speakVoxtral(text, voiceId){
     return true;
   } catch(e){ console.warn('[DEBAT] TTS echec:', e && e.message); return false; }
 }
-/* v10.10 : recherche web automatique pour la mission du debat */
+/* v10.10 : recherche web pour la mission du debat.
+   ATTENTION : html.duckduckgo.com ne renvoie PAS d'en-tete CORS -> le
+   navigateur bloque la requete (la mission ne retournait donc rien).
+   api.duckduckgo.com repond avec "Access-Control-Allow-Origin: *"
+   et fonctionne donc directement depuis la page. */
 async function searchWeb(query){
-  try {
-    const res = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), { signal: abortSignal(8000) });
-    if (!res.ok) return '';
-    const html = await res.text();
-    const snippets = [];
-    const regex = /<a[^>]+class="result__a"[^>]*>(.*?)<\/a>/g;
-    let m;
-    while ((m = regex.exec(html)) && snippets.length < 3) snippets.push(m[1].replace(/<[^>]+>/g, '').trim());
-    return snippets.join(' | ');
-  } catch(e){ return ''; }
+  const urls = [
+    'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1&skip_disambig=1',
+    'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1'
+  ];
+  for (const u of urls){
+    try {
+      const res = await fetch(u, { signal: abortSignal(10000) });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const out = [];
+      if (data.AbstractText) out.push(String(data.AbstractText).trim());
+      if (data.Definition) out.push(String(data.Definition).trim());
+      const walk = (arr, depth) => {
+        if (!Array.isArray(arr) || depth > 2) return;
+        for (const it of arr){
+          if (!it) continue;
+          if (typeof it.Text === 'string' && it.Text.trim()) out.push(it.Text.trim());
+          if (Array.isArray(it.Topics)) walk(it.Topics, depth + 1);
+          if (out.length > 8) return;
+        }
+      };
+      walk(data.RelatedTopics, 0);
+      const clean = [];
+      for (const t of out){
+        const s = String(t).replace(/\s+/g, ' ').trim();
+        if (s.length > 12 && clean.indexOf(s) === -1) clean.push(s);
+        if (clean.length >= 6) break;
+      }
+      if (clean.length) return clean.join(' | ');
+    } catch(e){}
+  }
+  return '';
 }
 function stopAudio(){
   currentSources.forEach(s => { try { s.stop(); } catch {} });
