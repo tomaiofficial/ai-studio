@@ -153,7 +153,7 @@ function renderStarters(){
 }
 function removeStarters(){ const d = $('startersEl'); if (d) d.remove(); }
 
-function addMsg(role, text, imgUrl){
+function addMsg(role, text, imgUrl, via){
   hideEmpty();
   const d = document.createElement('div');
   d.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
@@ -163,6 +163,11 @@ function addMsg(role, text, imgUrl){
     html += '<img class="msg-img" src="' + imgUrl + '" alt="Image envoyée">';
   }
   if (text) html += esc(text);
+  /* v10.17 : on dit quel cerveau a repondu (transparence quand le secours
+     prend le relais, l'utilisateur doit le savoir) */
+  if (role === 'ai' && via && via !== 'Mistral'){
+    html += '<div class="msg-diag">répondu par le cerveau de secours (' + esc(via) + ')</div>';
+  }
   d.innerHTML = html;
   if (imgUrl){
     d.querySelector('.msg-img').addEventListener('click', () => openLightbox(imgUrl));
@@ -342,7 +347,7 @@ async function readErr(res){
   } catch { return ''; }
 }
 
-async function callMistral(models, messages, maxTokens, onWait){
+async function callMistral(models, messages, maxTokens, onWait, maxAttempts){
   const key = getMistralKey();
   if (!key) throw new Error('NOKEY');
 
@@ -365,9 +370,11 @@ async function callMistral(models, messages, maxTokens, onWait){
       });
 
       /* v10.15 : un 429 se retente sur LE MEME modele apres une pause.
-         En 10.14 on enchainait les 5 modeles d'affilee : ca aggravait la
-         saturation et multipliait les erreurs dans la console. */
-      for (let attempt = 0; attempt < 3; attempt++){
+         v10.17 : "maxAttempts" = 1 pour le TEXTE (le cerveau de secours est
+         instantane, inutile d'attendre 40 s) et 3 pour la VISION (aucun
+         secours possible, donc on insiste). */
+      const tries = Math.max(1, maxAttempts || 3);
+      for (let attempt = 0; attempt < tries; attempt++){
         let res = null, err = null;
         try {
           res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -402,7 +409,7 @@ async function callMistral(models, messages, maxTokens, onWait){
           const backoff = [10, 30, 60][attempt] || 60;
           const wait = Math.min(60000, (ra || backoff) * 1000);
           rateInfo = det || ('HTTP 429' + (ra ? ' (Retry-After ' + ra + 's)' : ''));
-          if (attempt < 2){
+          if (attempt < tries - 1){
             if (onWait) onWait(Math.round(wait / 1000));
             await sleep(wait);
             continue;
@@ -423,6 +430,57 @@ async function callMistral(models, messages, maxTokens, onWait){
     await sleep(700);
   }
   throw new Error((lastErr || 'inconnu') + (rateInfo ? ' [' + rateInfo + ']' : ''));
+}
+
+/* ---------------------------------------------------------------
+   6b. CERVEAU DE SECOURS (v10.17)
+   Mistral se fait limiter (429) : le chat ne doit surtout pas rester
+   muet. On bascule sur un cerveau GRATUIT sans cle, deja verifie
+   (HTTP 200 + identite Astra conservee).
+   LLM7 et OVH ont ete supprimes : leurs domaines ne resolvent plus.
+   ---------------------------------------------------------------- */
+const FREE_BRAIN = { url: 'https://text.pollinations.ai/openai/v1/chat/completions', model: 'openai' };
+let mistralBlockedUntil = 0;   /* timestamp : tant que ca dure, on va direct au secours */
+
+function mistralIsBlocked(){ return Date.now() < mistralBlockedUntil; }
+
+async function callFreeBrain(messages, maxTokens){
+  const body = messages.map(m => ({ role: m.role, content: m.content }));
+  const res = await withTimeout(fetch(FREE_BRAIN.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: FREE_BRAIN.model, messages: body, max_tokens: maxTokens, temperature: 0.5 })
+  }), 25000);
+  if (!res || !res.ok) throw new Error('secours indisponible (' + (res ? res.status : '?') + ')');
+  const data = await res.json();
+  const txt = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
+  if (!txt) throw new Error('secours : reponse vide');
+  if (/^the user (says|asks|is asking|wants)/i.test(txt)) throw new Error('secours : reponse parasite');
+  return txt;
+}
+
+/* texte : Mistral d'abord (meilleur), secours gratuit si limite */
+async function askText(messages, maxTokens, onWait){
+  if (!getMistralKey()) return { text: await callFreeBrain(messages, maxTokens), via: 'secours' };
+  if (mistralIsBlocked()){
+    try { return { text: await callFreeBrain(messages, maxTokens), via: 'secours' }; } catch (e){}
+    /* le secours a aussi echoue : on retente Mistral malgre le blocage */
+  }
+  try {
+    /* 1 seule tentative Mistral pour le texte : si ca rate, le secours gratuit
+       repond en 1-2 s. Inutile d'insister et de faire attendre l'utilisateur. */
+    const t = await callMistral(MODELS_TEXT, sanitize(messages), maxTokens, onWait, 1);
+    return { text: t, via: 'Mistral' };
+  } catch (e){
+    const em = (e && e.message) || '';
+    if (/^RATE:/.test(em)) mistralBlockedUntil = Date.now() + 60000;  /* 1 min de repos */
+    try {
+      const t = await callFreeBrain(messages, maxTokens);
+      return { text: t, via: 'secours', rate: /trop de requetes/i.test(em) };
+    } catch (e2){
+      throw e;   /* on garde l'erreur Mistral : elle est plus parlante */
+    }
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -479,29 +537,49 @@ async function send(){
   };
 
   try {
-    let answer;
+    let answer, via = 'Mistral';
     if (imgs.length){
+      /* VISION : Mistral uniquement. Aucun cerveau gratuit ne lit les images
+         (Pollinations repond 402 "Paiement requis" sur une image). */
+      if (!getMistralKey()){
+        busy = false; sendBtn.disabled = false;
+        imgs.forEach(im => pendingImgs.push(im));
+        renderPending();
+        input.value = text; autoGrow();
+        hideTyping();
+        addError('Regarder une image a besoin de la clé API Mistral. Ouvre ⚙️ Réglages pour la coller — ton image est gardée, tu n’auras qu’à renvoyer.');
+        return;
+      }
       const msgs = buildVisionMessages(contextMessages(), text, imgs);
       answer = await callMistral(MODELS_VISION, msgs, 1000, onWait);
     } else {
       const msgs = [{ role: 'system', content: SYSTEM_PROMPT }].concat(contextMessages());
       msgs.push({ role: 'user', content: text });
-      answer = await callMistral(MODELS_TEXT, sanitize(msgs), 1000, onWait);
+      const r = await askText(msgs, 1000, onWait);
+      answer = r.text; via = r.via;
+      if (r.rate) toast('⚠️ Mistral limité — je réponds avec le cerveau de secours');
     }
     hideTyping();
-    addMsg('ai', answer);
+    addMsg('ai', answer, null, via);
     if (current){ current.messages.push({ role: 'assistant', text: answer, imgUrl: null }); saveCurrent(); }
   } catch (e) {
     hideTyping();
     const em = (e && e.message) || '';
     let msg;
-    if (em === 'NOKEY') msg = 'Il me faut une clé API Mistral. Ouvre ⚙️ Réglages pour la coller.';
+    if (imgs.length && /^RATE:/.test(em)){
+      /* on ne perd pas l'image : elle revient dans le composeur */
+      imgs.forEach(im => pendingImgs.push(im));
+      renderPending();
+      const why = em.split(':').slice(2).join(':').trim();
+      msg = 'Mistral est limité, donc je ne peux pas regarder l’image pour l’instant (' +
+            (why ? 'raison : ' + why : 'limite de requêtes') + '). ' +
+            'Ton image est gardée : réessaie dans une minute. ' +
+            'En attendant, le chat texte marche avec le cerveau de secours.';
+    }
+    else if (em === 'NOKEY') msg = 'Il me faut une clé API Mistral. Ouvre ⚙️ Réglages pour la coller.';
     else if (em === 'BADKEY') msg = 'Ta clé API Mistral semble invalide. Vérifie-la dans ⚙️ Réglages.';
     else if (em === 'timeout') msg = 'La réponse a pris trop de temps. Réessaie.';
     else if (/^RATE:/.test(em)){
-      /* v10.16 : on affiche la VRAIE raison donnee par Mistral au lieu d'un
-         message generique. C'est elle qui permet de savoir si c'est un
-         quota gratuit epuise, une cle sans moyen de paiement, etc. */
       const p = em.split(':');
       const sec = Math.round(Number(p[1]) / 1000) || 60;
       const why = p.slice(2).join(':').trim() || 'limite de requetes atteinte';
