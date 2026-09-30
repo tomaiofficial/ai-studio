@@ -164,6 +164,12 @@ function softenForGuardrail(t){
     [/\bcontr[ôo]ler\b/gi, 'influencer'], [/\bhors contr[ôo]le\b/gi, 'difficile à encadrer']
   ];
   for (const [re, rep] of swaps) t = t.replace(re, rep);
+  /* v10.25 : le filtre a jurons rejoint le FILET DE SECOURS 403.
+     Avant, sanitizeForVoice etait appele AVANT chaque synthese : la voix
+     lisait 'mince' au lieu de 'merde' meme quand Voxtral acceptait le mot.
+     Ici on tente d'abord les mots sensibles, puis les jurons : le mot
+     n'est perdu que si l'API le refuse vraiment. */
+  t = sanitizeForVoice(t);
   return t;
 }
 async function generateChunks(chunks, voiceId, key){
@@ -315,15 +321,15 @@ function fixFrench(t){
 function sanitizeForVoice(t){
   if (!t) return t;
   const swaps = [
-    [/\bputain de\b/gi, 'sacré'], [/\bbordel de\b/gi, 'sacré'], [/\bnom de dieu\b/gi, 'bon sang'],
-    [/\bputain\b/gi, 'punaise'], [/\bmerde\b/gi, 'mince'], [/\bbordel\b/gi, 'bon sang'],
-    [/\bconnard(s|e|es)?\b/gi, 'crétin$1'], [/\bconne(s)?\b/gi, 'idiote$1'], [/\bcons\b/gi, 'idiots'],
-    [/\bcon\b/gi, 'idiot'], [/\bencul[ée]s?\b/gi, 'imbécile'], [/\bsalope(s)?\b/gi, 'idiote$1'],
-    [/\bpute(s)?\b/gi, 'idiote$1'], [/\bsalaud(s)?\b/gi, 'sale type'], [/\bbatard(s|e|es)?\b/gi, 'salaud$1'],
-    [/\bconnerie(s)?\b/gi, 'bêtise$1'], [/\bdebile(s)?\b/gi, 'idiot$1'], [/\babruti(e|s)?\b/gi, 'idiot$1'],
-    [/\bchiant(e|s)?\b/gi, 'embêtant$1'], [/\bchier\b/gi, 'embêter'], [/\bfoutu(e|s)?\b/gi, 'fichu$1'],
-    [/\bfoutre\b/gi, 'fiche'], [/\bgueule(s)?\b/gi, 'bouche$1'], [/\bnique(r)?\b/gi, 'embête$1'],
-    [/\bfdp\b/gi, 'sale type'], [/\btg\b/gi, 'ta bouche']
+    [/(?<![a-zA-Zà-ÿ])putain de(?![a-zA-Zà-ÿ])/gi, 'sacré'], [/(?<![a-zA-Zà-ÿ])bordel de(?![a-zA-Zà-ÿ])/gi, 'sacré'], [/(?<![a-zA-Zà-ÿ])nom de dieu(?![a-zA-Zà-ÿ])/gi, 'bon sang'],
+    [/(?<![a-zA-Zà-ÿ])putain(?![a-zA-Zà-ÿ])/gi, 'punaise'], [/(?<![a-zA-Zà-ÿ])merde(?![a-zA-Zà-ÿ])/gi, 'mince'], [/(?<![a-zA-Zà-ÿ])bordel(?![a-zA-Zà-ÿ])/gi, 'bon sang'],
+    [/(?<![a-zA-Zà-ÿ])connard(s|e|es)?(?![a-zA-Zà-ÿ])/gi, 'crétin$1'], [/(?<![a-zA-Zà-ÿ])conne(s)?(?![a-zA-Zà-ÿ])/gi, 'idiote$1'], [/(?<![a-zA-Zà-ÿ])cons(?![a-zA-Zà-ÿ])/gi, 'idiots'],
+    [/(?<![a-zA-Zà-ÿ])con(?![a-zA-Zà-ÿ])/gi, 'idiot'], [/(?<![a-zA-Zà-ÿ])encul[ée]s?(?![a-zA-Zà-ÿ])/gi, 'imbécile'], [/(?<![a-zA-Zà-ÿ])salope(s)?(?![a-zA-Zà-ÿ])/gi, 'idiote$1'],
+    [/(?<![a-zA-Zà-ÿ])pute(s)?(?![a-zA-Zà-ÿ])/gi, 'idiote$1'], [/(?<![a-zA-Zà-ÿ])salaud(s)?(?![a-zA-Zà-ÿ])/gi, 'sale type'], [/(?<![a-zA-Zà-ÿ])batard(s|e|es)?(?![a-zA-Zà-ÿ])/gi, 'salaud$1'],
+    [/(?<![a-zA-Zà-ÿ])connerie(s)?(?![a-zA-Zà-ÿ])/gi, 'bêtise$1'], [/(?<![a-zA-Zà-ÿ])debile(s)?(?![a-zA-Zà-ÿ])/gi, 'idiot$1'], [/(?<![a-zA-Zà-ÿ])abruti(e|s)?(?![a-zA-Zà-ÿ])/gi, 'idiot$1'],
+    [/(?<![a-zA-Zà-ÿ])chiant(e|s)?(?![a-zA-Zà-ÿ])/gi, 'embêtant$1'], [/(?<![a-zA-Zà-ÿ])chier(?![a-zA-Zà-ÿ])/gi, 'embêter'], [/(?<![a-zA-Zà-ÿ])foutu(e|s)?(?![a-zA-Zà-ÿ])/gi, 'fichu$1'],
+    [/(?<![a-zA-Zà-ÿ])foutre(?![a-zA-Zà-ÿ])/gi, 'fiche'], [/(?<![a-zA-Zà-ÿ])gueule(s)?(?![a-zA-Zà-ÿ])/gi, 'bouche$1'], [/(?<![a-zA-Zà-ÿ])nique(r)?(?![a-zA-Zà-ÿ])/gi, 'embête$1'],
+    [/(?<![a-zA-Zà-ÿ])fdp(?![a-zA-Zà-ÿ])/gi, 'sale type'], [/(?<![a-zA-Zà-ÿ])tg(?![a-zA-Zà-ÿ])/gi, 'ta bouche']
   ];
   for (const [re, rep] of swaps) t = t.replace(re, rep);
   return t;
@@ -518,7 +524,11 @@ async function runLoop(){
         addLine('<div class="t-line"><span class="t-name" style="color:' + persona.color + '">' + persona.emoji + ' ' + persona.name + '</span><span class="t-text">' + escapeHtml(text) + '</span></div>');
         if (!DEBATE_STATE.muted && getMistralKey() && persona.voice){
           if (hooks.onSpeakStart) hooks.onSpeakStart();
-          try { await speakVoxtral(sanitizeForVoice(text), persona.voice); }
+          /* v10.25 : meme correction qu'app.js — on n'applique PLUS le filtre
+             a jurons avant chaque synthese (les 4 IA lisaient 'mince' au
+             lieu de 'merde'). Le filtre reste branche sur le 403, dans
+             softenForGuardrail. */
+          try { await speakVoxtral(text, persona.voice); }
           catch(e){ console.warn('[DEBAT] voix echec:', e && e.message); }
           if (hooks.onSpeakEnd) hooks.onSpeakEnd();
         }

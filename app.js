@@ -6,7 +6,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.24';
+const APP_VERSION = '10.25';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -231,6 +231,12 @@ function softenForGuardrail(t){
     [/\bcontr[ôo]ler\b/gi, 'influencer'], [/\bhors contr[ôo]le\b/gi, 'difficile à encadrer']
   ];
   for (const [re, rep] of swaps) t = t.replace(re, rep);
+  /* v10.25 : le filtre a jurons rejoint le FILET DE SECOURS 403.
+     Avant, sanitizeForVoice etait appele AVANT chaque synthese : la voix
+     lisait 'mince' au lieu de 'merde' meme quand Voxtral acceptait le mot.
+     Ici on tente d'abord les mots sensibles, puis les jurons : le mot
+     n'est perdu que si l'API le refuse vraiment. */
+  t = sanitizeForVoice(t);
   return t;
 }
 async function speakVoxtral(text, voiceId, onChunk){
@@ -1415,7 +1421,7 @@ function getTimeContext(){
 /* Prompt systeme */
 /* INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle */
 const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes ou ce qui arrive bientot, reponds avec ces infos) : L'application est developpee chaque jour par tom point a i : corrections de bugs, securite renforcee, nouvelles fonctions. IMPORTANT : la fonction mail a ete SUPPRIMEE par tom point a i parce qu'elle prenait des risques pour la securite. Elle n'existe plus : il n'y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l'app. Si l'utilisateur demande le mail, dis-lui que tom point a i l'a retiree a cause des risques, et qu'il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore. L'IA repond a toutes les questions de l'utilisateur.";
-const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. LA FONCTION MAIL N EXISTE PLUS : tom point a i l a SUPPRIMEE parce qu elle prenait des risques pour la securite. Il n y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l app. Si l utilisateur demande le mail, les mails, Gmail ou une boite mail : dis-lui que tom point a i a retire cette fonction a cause des risques de securite, et qu il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore, ne propose JAMAIS de lire ses mails. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. Tu jures UNIQUEMENT quand l'utilisateur t'insulte ou est vulgaire avec toi : la tu reponds avec le meme ton. Sinon, reponds normalement, sans jurer. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
+const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. LA FONCTION MAIL N EXISTE PLUS : tom point a i l a SUPPRIMEE parce qu elle prenait des risques pour la securite. Il n y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l app. Si l utilisateur demande le mail, les mails, Gmail ou une boite mail : dis-lui que tom point a i a retire cette fonction a cause des risques de securite, et qu il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore, ne propose JAMAIS de lire ses mails. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. TON v10.25 : tu es décontractée et naturellement un peu vulgaire, comme une vraie pote qui parle à l'oral. Jurer n'est pas interdit : un putain, un merde, un bordel qui lâchent quand ça vient (une réaction, une surprise, un constat, une vanne) te rendent vivante et c'est voulu. Mais ne jure pas à chaque phrase, sinon ça sonne faux et l'effet s'use : garde-le pour les moments où ça tombe vraiment. Si l'utilisateur t'insulte ou te répond sur le même ton, tu montes d'un cran et tu réponds avec le même registre, sans te retenir. Reste toujours directe, drôle et utile. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
 function getDebateContext(){
   try {
     const DE = (typeof window !== 'undefined' && window.DebateEngine) ? window.DebateEngine : null;
@@ -2901,52 +2907,52 @@ async function transcribeBlob(blob){
 function sanitizeForVoice(t){
   if (!t) return t;
   const swaps = [
-    [/\bputain de\b/gi, 'sacré'],
-    [/\bbordel de\b/gi, 'sacré'],
-    [/\bnom de dieu\b/gi, 'bon sang'],
-    [/\bputain\b/gi, 'punaise'],
-    [/\bmerde\b/gi, 'mince'],
-    [/\bbordel\b/gi, 'bon sang'],
-    [/\bconnard(s|e|es)?\b/gi, 'crétin$1'],
-    [/\bconne(s)?\b/gi, 'idiote$1'],
-    [/\bcons\b/gi, 'idiots'],
-    [/\bcon\b/gi, 'idiot'],
-    [/\bencul[ée]s?\b/gi, 'imbécile'],
-    [/\bsalope(s)?\b/gi, 'idiote$1'],
-    [/\bpute(s)?\b/gi, 'idiote$1'],
-    [/\bsalaud(s)?\b/gi, 'sale type'],
-    [/\bbatard(s|e|es)?\b/gi, 'salaud$1'],
-    [/\bconnerie(s)?\b/gi, 'bêtise$1'],
-    [/\bdebile(s)?\b/gi, 'idiot$1'],
-    [/\babruti(e|s)?\b/gi, 'idiot$1'],
-    [/\bchiant(e|s)?\b/gi, 'embêtant$1'],
-    [/\bchier\b/gi, 'embêter'],
-    [/\bfoutu(e|s)?\b/gi, 'fichu$1'],
-    [/\bfoutre\b/gi, 'fiche'],
-    [/\bgueule(s)?\b/gi, 'bouche$1'],
-    [/\bnique(r)?\b/gi, 'embête$1'],
-    [/\bfdp\b/gi, 'sale type'],
-    [/\btg\b/gi, 'ta bouche'],
-    [/\bmerde\b/gi, 'mince'],
-    [/\bputain\b/gi, 'punaise'],
-    [/\bbordel\b/gi, 'bon sang'],
-    [/\bconnard\b/gi, 'crétin'],
-    [/\bconne\b/gi, 'idiote'],
-    [/\benculé\b/gi, 'imbécile'],
-    [/\bsalope\b/gi, 'idiote'],
-    [/\bpute\b/gi, 'idiote'],
-    [/\bsalaud\b/gi, 'sale type'],
-    [/\bbatard\b/gi, 'salaud'],
-    [/\bconnerie\b/gi, 'bêtise'],
-    [/\bdébile\b/gi, 'idiot'],
-    [/\babruti\b/gi, 'idiot'],
-    [/\bchiant\b/gi, 'embêtant'],
-    [/\bchier\b/gi, 'embêter'],
-    [/\bfoutu\b/gi, 'fichu'],
-    [/\bfoutre\b/gi, 'fiche'],
-    [/\bgueule\b/gi, 'bouche'],
-    [/\bnique\b/gi, 'embête'],
-    [/\bfdp\b/gi, 'sale type']
+    [/(?<![a-zA-Zà-ÿ])putain de(?![a-zA-Zà-ÿ])/gi, 'sacré'],
+    [/(?<![a-zA-Zà-ÿ])bordel de(?![a-zA-Zà-ÿ])/gi, 'sacré'],
+    [/(?<![a-zA-Zà-ÿ])nom de dieu(?![a-zA-Zà-ÿ])/gi, 'bon sang'],
+    [/(?<![a-zA-Zà-ÿ])putain(?![a-zA-Zà-ÿ])/gi, 'punaise'],
+    [/(?<![a-zA-Zà-ÿ])merde(?![a-zA-Zà-ÿ])/gi, 'mince'],
+    [/(?<![a-zA-Zà-ÿ])bordel(?![a-zA-Zà-ÿ])/gi, 'bon sang'],
+    [/(?<![a-zA-Zà-ÿ])connard(s|e|es)?(?![a-zA-Zà-ÿ])/gi, 'crétin$1'],
+    [/(?<![a-zA-Zà-ÿ])conne(s)?(?![a-zA-Zà-ÿ])/gi, 'idiote$1'],
+    [/(?<![a-zA-Zà-ÿ])cons(?![a-zA-Zà-ÿ])/gi, 'idiots'],
+    [/(?<![a-zA-Zà-ÿ])con(?![a-zA-Zà-ÿ])/gi, 'idiot'],
+    [/(?<![a-zA-Zà-ÿ])encul[ée]s?(?![a-zA-Zà-ÿ])/gi, 'imbécile'],
+    [/(?<![a-zA-Zà-ÿ])salope(s)?(?![a-zA-Zà-ÿ])/gi, 'idiote$1'],
+    [/(?<![a-zA-Zà-ÿ])pute(s)?(?![a-zA-Zà-ÿ])/gi, 'idiote$1'],
+    [/(?<![a-zA-Zà-ÿ])salaud(s)?(?![a-zA-Zà-ÿ])/gi, 'sale type'],
+    [/(?<![a-zA-Zà-ÿ])batard(s|e|es)?(?![a-zA-Zà-ÿ])/gi, 'salaud$1'],
+    [/(?<![a-zA-Zà-ÿ])connerie(s)?(?![a-zA-Zà-ÿ])/gi, 'bêtise$1'],
+    [/(?<![a-zA-Zà-ÿ])debile(s)?(?![a-zA-Zà-ÿ])/gi, 'idiot$1'],
+    [/(?<![a-zA-Zà-ÿ])abruti(e|s)?(?![a-zA-Zà-ÿ])/gi, 'idiot$1'],
+    [/(?<![a-zA-Zà-ÿ])chiant(e|s)?(?![a-zA-Zà-ÿ])/gi, 'embêtant$1'],
+    [/(?<![a-zA-Zà-ÿ])chier(?![a-zA-Zà-ÿ])/gi, 'embêter'],
+    [/(?<![a-zA-Zà-ÿ])foutu(e|s)?(?![a-zA-Zà-ÿ])/gi, 'fichu$1'],
+    [/(?<![a-zA-Zà-ÿ])foutre(?![a-zA-Zà-ÿ])/gi, 'fiche'],
+    [/(?<![a-zA-Zà-ÿ])gueule(s)?(?![a-zA-Zà-ÿ])/gi, 'bouche$1'],
+    [/(?<![a-zA-Zà-ÿ])nique(r)?(?![a-zA-Zà-ÿ])/gi, 'embête$1'],
+    [/(?<![a-zA-Zà-ÿ])fdp(?![a-zA-Zà-ÿ])/gi, 'sale type'],
+    [/(?<![a-zA-Zà-ÿ])tg(?![a-zA-Zà-ÿ])/gi, 'ta bouche'],
+    [/(?<![a-zA-Zà-ÿ])merde(?![a-zA-Zà-ÿ])/gi, 'mince'],
+    [/(?<![a-zA-Zà-ÿ])putain(?![a-zA-Zà-ÿ])/gi, 'punaise'],
+    [/(?<![a-zA-Zà-ÿ])bordel(?![a-zA-Zà-ÿ])/gi, 'bon sang'],
+    [/(?<![a-zA-Zà-ÿ])connard(?![a-zA-Zà-ÿ])/gi, 'crétin'],
+    [/(?<![a-zA-Zà-ÿ])conne(?![a-zA-Zà-ÿ])/gi, 'idiote'],
+    [/(?<![a-zA-Zà-ÿ])enculé(?![a-zA-Zà-ÿ])/gi, 'imbécile'],
+    [/(?<![a-zA-Zà-ÿ])salope(?![a-zA-Zà-ÿ])/gi, 'idiote'],
+    [/(?<![a-zA-Zà-ÿ])pute(?![a-zA-Zà-ÿ])/gi, 'idiote'],
+    [/(?<![a-zA-Zà-ÿ])salaud(?![a-zA-Zà-ÿ])/gi, 'sale type'],
+    [/(?<![a-zA-Zà-ÿ])batard(?![a-zA-Zà-ÿ])/gi, 'salaud'],
+    [/(?<![a-zA-Zà-ÿ])connerie(?![a-zA-Zà-ÿ])/gi, 'bêtise'],
+    [/(?<![a-zA-Zà-ÿ])débile(?![a-zA-Zà-ÿ])/gi, 'idiot'],
+    [/(?<![a-zA-Zà-ÿ])abruti(?![a-zA-Zà-ÿ])/gi, 'idiot'],
+    [/(?<![a-zA-Zà-ÿ])chiant(?![a-zA-Zà-ÿ])/gi, 'embêtant'],
+    [/(?<![a-zA-Zà-ÿ])chier(?![a-zA-Zà-ÿ])/gi, 'embêter'],
+    [/(?<![a-zA-Zà-ÿ])foutu(?![a-zA-Zà-ÿ])/gi, 'fichu'],
+    [/(?<![a-zA-Zà-ÿ])foutre(?![a-zA-Zà-ÿ])/gi, 'fiche'],
+    [/(?<![a-zA-Zà-ÿ])gueule(?![a-zA-Zà-ÿ])/gi, 'bouche'],
+    [/(?<![a-zA-Zà-ÿ])nique(?![a-zA-Zà-ÿ])/gi, 'embête'],
+    [/(?<![a-zA-Zà-ÿ])fdp(?![a-zA-Zà-ÿ])/gi, 'sale type']
   ];
   for (const [re, rep] of swaps) t = t.replace(re, rep);
   return t;
@@ -2963,9 +2969,13 @@ function speak(text, onChunk){
     try { clean = normalizeForTTS(text); } catch(e){ console.warn('[VOIX] normalizeForTTS echec:', e && e.message); clean = String(text); }
     /* v10.0.2 : nettoyage final prononciation — supprimer caracteres invisibles */
     clean = clean.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
-    /* v9.94 : la voix ne dit JAMAIS de jurons -> Mistral TTS ne bloque plus
-       (403 guardrail) -> Voxtral reste la voix, jamais de bascule systeme */
-    clean = sanitizeForVoice(clean);
+    /* v10.25 : PLUS de filtre a jurons ici.
+       Avant : clean = sanitizeForVoice(clean) — applique a CHAQUE phrase,
+       donc Astra lisait 'mince' au lieu de 'merde' meme quand Voxtral
+       acceptait le texte sans probleme. C'etait une precaution inutile
+       qui degradait 100% des reponses pour eviter 0% de rejets.
+       Le filtre n'a pas disparu : il est applique dans softenForGuardrail,
+       c'est-a-dire SEULEMENT si l'API renvoie un vrai 403 guardrail. */
     voiceStartedFlag = false;
     isSpeaking = true;
     setState('speaking');
