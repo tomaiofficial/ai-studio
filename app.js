@@ -183,7 +183,7 @@ async function fetchVoxtralVoices(){
   const key = getMistralKey();
   if (!key) return VOXTRAL_FALLBACK_VOICES;
   try {
-    const res = await // fetch('https://api.mistral.ai/v1/audio/voices?type=preset&limit=100', {
+    const res = await fetch('https://api.mistral.ai/v1/audio/voices?type=preset&limit=100', {
       headers: { 'Authorization': 'Bearer ' + key },
       signal: abortSignal(10000)
     });
@@ -283,7 +283,7 @@ async function speakVoxtral(text, voiceId, onChunk){
 async function generateChunks(chunks, voiceId, key){
   return await Promise.all(chunks.map(async (chunk) => {
     try {
-      const res = await // fetch(VOXTRAL_API_URL, {
+      const res = await fetch(VOXTRAL_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
         body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice_id: voiceId, response_format: 'mp3' }),
@@ -326,7 +326,7 @@ async function transcribeWithMistral(blob, key){
     fd.append('file', blob, 'audio.' + ext);
     fd.append('model', 'mistral-voxtral');
     fd.append('language', 'fr');
-    const res = await // fetch('https://api.mistral.ai/v1/audio/transcriptions', {
+    const res = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + key },
       body: fd,
@@ -1555,7 +1555,7 @@ async function askBrain(messages, webCtx){
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
   const tryEndpoint = async (url, model, ms) => {
     try {
-      const res = await withTimeout(// fetch(url, {
+      const res = await withTimeout(fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
@@ -1606,7 +1606,7 @@ async function askBrain(messages, webCtx){
   const tryMistralChat = async () => {
     for (const model of ['open-mistral-nemo', 'mistral-small-latest']){
       try {
-        const res = await withTimeout(// fetch('https://api.mistral.ai/v1/chat/completions', {
+        const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mistralKey },
           body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
@@ -1631,7 +1631,7 @@ async function askBrain(messages, webCtx){
      que l'IA reponde correctement meme sans cle. */
   const tryFreeChat = async (url, model) => {
     try {
-      const res = await withTimeout(// fetch(url, {
+      const res = await withTimeout(fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
@@ -1675,7 +1675,7 @@ function warmUpBrain(){
           Le reveil se fait desormais en POST, sur le meme endpoint que
           les vraies reponses, donc le cerveau est reellement chaud. */
        const url = 'https://text.pollinations.ai/openai/v1/chat/completions';
-       Promise.race([// fetch(url, {
+       Promise.race([fetch(url, {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ model: 'openai', max_tokens: 5, messages: [{ role: 'user', content: 'Reponds juste: ok' }] })
@@ -1697,7 +1697,7 @@ function isMostlyEnglish(text){
 async function translateToFr(text){
   try {
     const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=fr&dt=t&q=' + encodeURIComponent(text);
-    const res = await // fetch(url);
+    const res = await fetch(url);
     if (!res.ok) return text;
     const data = await res.json();
     const t = (data && data[0] || []).map(x => x && x[0] || '').join('');
@@ -1851,7 +1851,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
 async function webSearch(query){
   try {
     const q = String(query || '').slice(0, 120);
-    const r = await // fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_html=1&skip_disambig=1');
+    const r = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_html=1&skip_disambig=1');
     if (r.ok){
       const j = await r.json();
       const bits = [];
@@ -1861,7 +1861,7 @@ async function webSearch(query){
     }
   } catch(e){}
   try {
-    const w = await // fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(q) + '&format=json&origin=*&srlimit=3');
+    const w = await fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(q) + '&format=json&origin=*&srlimit=3');
     if (w.ok){
       const j = await w.json();
       const hits = (j.query && j.query.search) || [];
@@ -1874,7 +1874,7 @@ async function webSearch(query){
 /* OUTIL WIKIPEDIA : résumé d'un article */
 async function wikiSummary(title){
   try {
-    const r = await // fetch('https://fr.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(String(title || '').trim()));
+    const r = await fetch('https://fr.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(String(title || '').trim()));
     if (r.ok){
       const j = await r.json();
       if (j.extract) return j.extract.slice(0, 1200);
@@ -1891,7 +1891,7 @@ async function meteoFor(city){
   /* 1) chercher la page de la ville sur lachainemeteo.com */
   let pageUrl = '';
   try {
-    const s = await // fetch('https://www.lachainemeteo.com/ajax/search-autocomplete?q=' + encodeURIComponent(ville), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    const s = await fetch('https://www.lachainemeteo.com/ajax/search-autocomplete?q=' + encodeURIComponent(ville), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     if (s.ok){
       const html = await s.text();
       /* le HTML est encode : \u0022 = guillemet, \/ = slash */
@@ -1905,7 +1905,7 @@ async function meteoFor(city){
   }
   /* 2) lire la page via le proxy (CORS bloque le fetch direct) */
   try {
-    const r = await // fetch('https://r.jina.ai/' + pageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const r = await fetch('https://r.jina.ai/' + pageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (r.ok){
       const txt = await r.text();
       /* la phrase cle : "Aujourd'hui à [ville], ... Les températures varieront
@@ -1933,12 +1933,12 @@ async function meteoFor(city){
   } catch(e){}
   /* 3) fallback open-meteo (gratuit, sans cle) */
   try {
-    const g = await // fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&count=1&language=fr&format=json');
+    const g = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&count=1&language=fr&format=json');
     if (!g.ok) return '';
     const gj = await g.json();
     const place = gj.results && gj.results[0];
     if (!place) return '';
-    const f = await // fetch('https://api.open-meteo.com/v1/forecast?latitude=' + place.latitude + '&longitude=' + place.longitude + '&current_weather=true&timezone=auto');
+    const f = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + place.latitude + '&longitude=' + place.longitude + '&current_weather=true&timezone=auto');
     if (!f.ok) return '';
     const fj = await f.json();
     const cw = fj.current_weather || {};
@@ -3208,7 +3208,7 @@ function refreshCity(){
   if (userCity && Date.now() - cityTs < 6 * 3600 * 1000) return;
   const onIp = () => {
     try {
-      // fetch('https://ipapi.co/json/')
+      fetch('https://ipapi.co/json/')
         .then(r => r.json())
         .then(d => { if (d && d.city) setCity(d.city); })
         .catch(() => {});
@@ -3220,7 +3220,7 @@ function refreshCity(){
         pos => {
           const lat = pos.coords.latitude, lon = pos.coords.longitude;
           try {
-            // fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=fr')
+            fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=' + lat + '&longitude=' + lon + '&localityLanguage=fr')
               .then(r => r.json())
               .then(d => { if (d) setCity(d.city || d.locality || d.principalSubdivision || ''); })
               .catch(() => onIp());
@@ -3668,7 +3668,7 @@ async function checkUpdate(){
      la derniere version, sans rien cliquer. Le service worker est network-first
      donc le rechargement charge la toute derniere version. */
   try {
-    const res = await // fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
     const j = await res.json();
     if (j.version && versionCompare(j.version, APP_VERSION) > 0){
       console.info('[MAJ] Nouvelle version ' + j.version + ' detectee (app ' + APP_VERSION + ')');
@@ -3792,7 +3792,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
         try {
           const ctl = new AbortController();
           setTimeout(() => ctl.abort(), 12000);
-          const r = await // fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
+          const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'openai', max_tokens: 120, messages: [
@@ -3927,7 +3927,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
          repondent 400 et ne donnaient rien du tout */
       const useModel = 'openai';
       try {
-        const r = await // fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
+        const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4008,7 +4008,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       const ctl = new AbortController();
       setTimeout(() => ctl.abort(), 20000);
       try {
-        const r = await // fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
+        const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: 'openai', messages: [
@@ -4045,7 +4045,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       tst('\u{1F310} Je fouille le web sur "' + sujet + '"...');
       let contexte = '';
       try {
-        const r = await // fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(sujet) + '&format=json&no_html=1&skip_disambig=1');
+        const r = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(sujet) + '&format=json&no_html=1&skip_disambig=1');
         if (r.ok) {
           const j = await r.json();
           const bits = [];
@@ -4056,7 +4056,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       } catch(e){}
       if (!contexte) {
         try {
-          const w = await // fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(sujet) + '&format=json&origin=*&srlimit=3');
+          const w = await fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(sujet) + '&format=json&origin=*&srlimit=3');
           if (w.ok) {
             const j = await w.json();
             const hits = (j.query && j.query.search) || [];
