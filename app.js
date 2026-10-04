@@ -7,7 +7,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 const APP_VERSION = '10.25';
-console.log('[APP] v' + APP_VERSION + ' loading...');
+
 
 /* ============================================
    FIX STT MOBILE - SpeechToTextHandler
@@ -3885,7 +3885,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     window.astraJournal = function(){
       try { return JSON.parse(localStorage.getItem(JKEY) || '[]'); } catch(e){ return []; }
     };
-    console.log('[Astra] Module de vie autonome actif.');
+    
   } catch (e) {
     console.warn('[Astra] Autonomie desactivee :', e);
   }
