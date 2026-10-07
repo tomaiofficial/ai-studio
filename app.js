@@ -3364,7 +3364,7 @@ async function handleQuestion(question){
   if (isProcessing) return;
   /* v10.8 : si un débat IA tourne en arrière-plan et que l'utilisateur
      parle d'autre chose, on l'arrête avant de traiter la nouvelle question */
-  if (DE.isRunning() && !/(d[ée]bat|d[ée]bate|avenir\s*(de\s*l['']?)?\s*humanit)/i.test(question)) stopBackgroundDebate();
+  if (DE && typeof DE.isRunning === 'function' && DE.isRunning() && !/(d[ée]bat|d[ée]bate|avenir\s*(de\s*l['']?)?\s*humanit)/i.test(question)) stopBackgroundDebate();
   stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   isProcessing = true;
   manualStop = true;
