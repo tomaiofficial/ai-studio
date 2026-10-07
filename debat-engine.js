@@ -271,7 +271,7 @@ async function speakVoxtral(text, voiceId){
 }
 /* v10.11 : la recherche passe par websearch.js (plusieurs sources,
    car une seule peut etre bloquee CORS depuis le navigateur). */
-async function searchWeb(query){
+async function // searchWeb(query){
   const WS = (typeof window !== 'undefined' && window.WebSearch) ? window.WebSearch : null;
   if (!WS || typeof WS.search !== 'function') return '';
   try {
@@ -456,7 +456,7 @@ const MY_ID = 'page-' + Math.random().toString(36).slice(2, 10);
      5. DEUX debats tournent : 8 appels Mistral, 2 flux de voix qui se
         superposent, 2 écrivains sur le meme localStorage qui se
         renvoient l'etat en boucle -> l'onglet se fige.
-   LA REGLE : l'onglet que tu regarde est TOUJOURS le runner, et une
+   LA REGLE : l'onglet que tu regarde est ALWAYS le runner, et une
    boucle relit son etat depuis le stockage a chaque tour pourdie.
    ============================================================ */
 const LEASE_MS = 6000;   /* un runner vivant bat le coeur toutes les 3 s */
@@ -538,7 +538,7 @@ async function runLoop(){
         /* v10.10 : MISSION — toutes les 6 interventions, le groupe cherche
            des entreprises IA et intègre le résultat dans la mémoire */
         if (DEBATE_STATE.turn % 6 === 0 && DEBATE_STATE.running){
-          const res = await searchWeb('entreprises IA OpenAI Mistral Anthropic risques');
+          const res = await // searchWeb('entreprises IA OpenAI Mistral Anthropic risques');
           if (res){
             DEBATE_STATE.memory = (DEBATE_STATE.memory ? DEBATE_STATE.memory + ' ' : '') + 'Recherche entreprises IA : ' + res;
             if (DEBATE_STATE.memory.length > 1200) DEBATE_STATE.memory = DEBATE_STATE.memory.slice(-1200);

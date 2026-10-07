@@ -182,7 +182,7 @@ async function viaProxy(query){
 }
 
 /* ---------- API publique ---------- */
-/* Renvoie TOUJOURS un objet, jamais une exception :
+/* Renvoie ALWAYS un objet, jamais une exception :
      { ok, text, source, live }  live=false = pas de web, l'IAreflectit seule */
 async function search(query, kind){
   const q = (query || '').trim();

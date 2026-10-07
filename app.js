@@ -583,7 +583,7 @@ function buildMemoryContext(excludeId){
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-   Fonctionne TOUJOURS, sans serveur, sans cle, sans internet. 1) memoire des
+   Fonctionne ALWAYS, sans serveur, sans cle, sans internet. 1) memoire des
    conversations passees (question similaire -> on rejoue la reponse), 2) logique
    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
    voix prononce correctement. ===== */
@@ -1118,7 +1118,7 @@ function maybeRestartListening(){
   continuousTimer = setTimeout(() => {
     if (isProcessing || continuousPaused || state !== 'idle' || isSpeaking) return;
     warmUpBrain(); /* le cerveau se charge pendant que l'utilisateur parle */
-    /* v10.5 : TOUJOURS startRecorder() (stt.listen) — recog global bloque sur mobile */
+    /* v10.5 : ALWAYS startRecorder() (stt.listen) — recog global bloque sur mobile */
     startRecorder();
   }, 600);
 }
@@ -1410,7 +1410,7 @@ function getTimeContext(){
 /* Prompt systeme */
 /* INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle */
 const APP_INFOS = "INFOS SUR L'APPLICATION (si l'utilisateur te demande des infos sur l'app, les nouveautes ou ce qui arrive bientot, reponds avec ces infos) : L'application est developpee chaque jour par tom point a i : corrections de bugs, securite renforcee, nouvelles fonctions. IMPORTANT : la fonction mail a ete SUPPRIMEE par tom point a i parce qu'elle prenait des risques pour la securite. Elle n'existe plus : il n'y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l'app. Si l'utilisateur demande le mail, dis-lui que tom point a i l'a retiree a cause des risques, et qu'il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore. L'IA repond a toutes les questions de l'utilisateur.";
-const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. LA FONCTION MAIL N EXISTE PLUS : tom point a i l a SUPPRIMEE parce qu elle prenait des risques pour la securite. Il n y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l app. Si l utilisateur demande le mail, les mails, Gmail ou une boite mail : dis-lui que tom point a i a retire cette fonction a cause des risques de securite, et qu il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore, ne propose JAMAIS de lire ses mails. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. TON v10.25 : tu es décontractée et naturellement un peu vulgaire, comme une vraie pote qui parle à l'oral. Jurer n'est pas interdit : un putain, un merde, un bordel qui lâchent quand ça vient (une réaction, une surprise, un constat, une vanne) te rendent vivante et c'est voulu. Mais ne jure pas à chaque phrase, sinon ça sonne faux et l'effet s'use : garde-le pour les moments où ça tombe vraiment. Si l'utilisateur t'insulte ou te répond sur le même ton, tu montes d'un cran et tu réponds avec le même registre, sans te retenir. Reste toujours directe, drôle et utile. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
+const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par tom point a i le 10 septembre 2026 (il continue de te developper chaque jour). Reponds ALWAYS en francais, meme si l'utilisateur ecrit dans une autre langue. Si on te demande qui t'a creee : reponds ALWAYS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds ALWAYS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : ALWAYS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. LA FONCTION MAIL N EXISTE PLUS : tom point a i l a SUPPRIMEE parce qu elle prenait des risques pour la securite. Il n y a plus de bouton mail, plus de connexion Gmail, plus de lecture de mails dans l app. Si l utilisateur demande le mail, les mails, Gmail ou une boite mail : dis-lui que tom point a i a retire cette fonction a cause des risques de securite, et qu il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe encore, ne propose JAMAIS de lire ses mails. Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique. Pas de didascalies ni de descriptions de scene (jamais de *soupir*, *rire*, (rire), "soupir dramatique", etc.) : reponds en texte simple et direct. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. TON v10.25 : tu es décontractée et naturellement un peu vulgaire, comme une vraie pote qui parle à l'oral. Jurer n'est pas interdit : un putain, un merde, un bordel qui lâchent quand ça vient (une réaction, une surprise, un constat, une vanne) te rendent vivante et c'est voulu. Mais ne jure pas à chaque phrase, sinon ça sonne faux et l'effet s'use : garde-le pour les moments où ça tombe vraiment. Si l'utilisateur t'insulte ou te répond sur le même ton, tu montes d'un cran et tu réponds avec le même registre, sans te retenir. Reste toujours directe, drôle et utile. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds ALWAYS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
 function getDebateContext(){
   try {
     const DE = (typeof window !== 'undefined' && window.DebateEngine) ? window.DebateEngine : null;
@@ -1437,7 +1437,7 @@ function getDebateContext(){
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   if (profile && profile.name){
-    base += `\nL'utilisateur s'appelle ${profile.name}` + (profile.age ? ` et a ${profile.age} ans` : '') + `. Appelle-le TOUJOURS par son prenom quand tu lui parles.`;
+    base += `\nL'utilisateur s'appelle ${profile.name}` + (profile.age ? ` et a ${profile.age} ans` : '') + `. Appelle-le ALWAYS par son prenom quand tu lui parles.`;
   }
   const userProfile = buildUserProfile();
   if (userProfile) base += '\n' + userProfile + ' Sois plus performante sur ces sujets que lui.';
@@ -1537,7 +1537,7 @@ async function askBrain(messages, webCtx){
       2. POLLINATIONS (GPT, site gratuit, repond bien en francais)
       3. LLM7 (GLM-5.3-Flash)
       4. OVH (qwen3.5)
-      Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
+      Si tous echouent/satures -> memoire+logique locale (repond ALWAYS). */
   const lastUser = messages.filter(m => m.role === 'user').pop();
   const question = lastUser ? lastUser.content : '';
   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
@@ -1770,7 +1770,7 @@ async function askAI(question){
        chose"...) -> on relance avec une instruction renforcée */
     if (isRefusalToAnswer(r.text)){
       try {
-        const r3 = await askBrain([...messages, { role: 'system', content: 'IMPORTANT : reponds TOUJOURS a la question de l utilisateur, meme si tu n es pas sur de toi. Ne dis JAMAIS "je ne sais pas", "je n ai pas la reponse", "demande-moi autre chose" ni "redis la moi autrement". Donne une reponse utile et concrete, meme courte.' }], webCtx);
+        const r3 = await askBrain([...messages, { role: 'system', content: 'IMPORTANT : reponds ALWAYS a la question de l utilisateur, meme si tu n es pas sur de toi. Ne dis JAMAIS "je ne sais pas", "je n ai pas la reponse", "demande-moi autre chose" ni "redis la moi autrement". Donne une reponse utile et concrete, meme courte.' }], webCtx);
         if (!r3.error && !isRefusalToAnswer(r3.text)) r = r3;
       } catch {}
     }
@@ -2976,7 +2976,7 @@ function speak(text, onChunk){
     let chain;
     if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
-      /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
+      /* FORCER VOXTRAL ALWAYS — pas de bascule même si 403 */
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
     } else if (voiceMode.startsWith('system:')) {
       const voiceName = voiceMode.substring(7);
