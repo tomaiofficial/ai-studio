@@ -3311,8 +3311,10 @@ function toastMsg(msg){
    "arrête le débat" l'arrete. */
 const DE = window.DebateEngine;
 /* pendant que les IA du debat parlent, le micro ne doit PAS se relancer */
-DE.hooks.onSpeakStart = () => { isSpeaking = true; };
-DE.hooks.onSpeakEnd = () => { isSpeaking = false; };
+if (DE && DE.hooks) {
+  DE.hooks.onSpeakStart = () => { isSpeaking = true; };
+  DE.hooks.onSpeakEnd = () => { isSpeaking = false; };
+}
 function openDebateRoom(){
   try { window.open('debat.html', '_blank'); } catch(e){}
 }
