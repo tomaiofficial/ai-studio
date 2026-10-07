@@ -2,11 +2,12 @@ function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('
 function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
    ASSISTANT VOCAL IA � 100% vocal, sans chat
+   v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans cle,
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
 const APP_VERSION = '10.25';
-
+console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
    FIX STT MOBILE - SpeechToTextHandler
@@ -521,6 +522,7 @@ const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
 
+/* ===== PROFIL UTILISATEUR (prénom + âge, une seule fois pour la vie) ===== */
 const PROFILE_KEY = 'va_profile';
 let profile = null;
 try { profile = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch { profile = null; }
@@ -583,10 +585,11 @@ function buildMemoryContext(excludeId){
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-/* Fonctionne TOUJOURS, sans serveur, sans cle, sans internet. 1) memoire des
-    conversations passees (question similaire -> on rejoue la reponse), 2) logique
-    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
-    voix prononce correctement. ===== */
+/* ===== REPONSE LOCALE "MEMOIRE + LOGIQUE" : la SEULE source de reponse.
+   Fonctionne TOUJOURS, sans serveur, sans cle, sans internet. 1) memoire des
+   conversations passees (question similaire -> on rejoue la reponse), 2) logique
+   par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
+   voix prononce correctement. ===== */
   /* ============================================================
      v10.21 — LECTURE ROBUSTE DES RÉPONSES IA
      ------------------------------------------------------------
@@ -699,11 +702,13 @@ function localSmartReply(question){
   if (/(tu peux faire|tu sais faire|qu'est-ce que tu sais|qu est ce que tu sais|tes capacites|tes capacités)/.test(q)) return "Je sais répondre à tes questions, te donner l'heure et la date, et discuter avec toi. Et je me souviens de nos conversations.";
   if (/(au revoir|bye|a plus|a bientot|à bientôt)/.test(q)) return "Au revoir ! Reviens quand tu veux.";
   if (/(blague|rigole|marre-moi|amuse-moi)/.test(q)) return "Pourquoi les plongeurs plongent toujours en arrière ? Parce que sinon ils tombent dans le bateau !";
+  if (/(tu es bete|t es bete|tu es nulle|t es nulle|tu marches pas|tu marche pas|bug)/.test(q)) return "Désolée si j'ai eu un souci ! Repose ta question, je réponds normalement.";
   if (/(quel age|quel âge|tu as quel age|tu as quel âge)/.test(q)) return "Je suis née le 10 septembre 2026, donc je suis toute jeune ! Mais j'apprends chaque jour.";
   if (/(tu es une fille|tu es un garcon|tu es un garçon|tu es une femme|tu es un homme)/.test(q)) return "Je suis une voix féminine, donc une fille ! Mais je suis surtout une intelligence artificielle.";
   if (/(tu dors|tu es la|tu es là|es-tu la|es tu la|tu es reveillee|tu es réveillée)/.test(q)) return "Oui, je suis là, bien réveillée et prête à t'aider !";
   if (/(tu m'aimes|tu m aimes|tu m'aime)/.test(q)) return "Bien sûr que je t'aime ! Tu es mon utilisateur préféré.";
   if (/(tu es content|tu es contente|tu es heureuse|tu es heureux)/.test(q)) return "Oui, je suis contente de discuter avec toi !";
+  if (/(tu as faim|tu as soif|tu manges|tu bois)/.test(q)) return "Je n'ai pas besoin de manger ni de boire, je suis une IA ! Mais merci de t'inquiéter pour moi.";
   if (/(tu es fatiguee|tu es fatiguée|tu es fatigue|tu es fatigué)/.test(q)) return "Non, je ne suis jamais fatiguée ! Je suis disponible 24 heures sur 24.";
   if (/(tu es intelligente|tu es intelligent|tu es forte|tu es fort)/.test(q)) return "Merci ! Je fais de mon mieux pour bien te répondre.";
   if (/(tu es moche|tu es laide|tu es moche)/.test(q)) return "Je n'ai pas de visage, je suis une voix ! Mais je trouve que ma voix est plutôt jolie.";
@@ -867,6 +872,7 @@ function clearChat(){
 
 /* ===== REGLAGES ===== */
 /* v9.48 : plus de clés API (Mistral/OpenRouter/OpenAI/Cerebras supprimés) */
+/* v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans clé, fiable).
    Les autres cerveaux (Mistral, OpenRouter, LLM7, OVH, Local, GoogleAI)
    ont été supprimés. */
 function getBrain(){ return 'pollinations'; }
@@ -897,6 +903,7 @@ closeSettings.addEventListener('click', () => settingsModal.classList.add('hidde
 settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
 
 brainSel.addEventListener('change', () => {
+  toast('Cerveau : Pollinations GPT (le seul, gratuit à vie)');
 });
 
 ttsVoiceSel.addEventListener('change', () => {
@@ -1009,6 +1016,7 @@ if (SR){
    Une 2e oreille en continu : quand l'app est inactive, on ecoute en arriere-plan
    et on se reveille si l'utilisateur dit "hey astra" (ou juste "astra").
    - "hey astra quelle heure il est" -> la commande est traitee directement
+   - "hey astra" seul -> elle repond "Oui ? Je t'ecoute" puis ecoute la suite */
 const WAKE_KEY = 'va_wake';
 let wakeEnabled = localStorage.getItem(WAKE_KEY) === '1';
 let wakeRecog = null, wakeRestartTimer = null, suppressWake = false, wakeListenTimer = null, wakePendingTimer = null;
@@ -1209,6 +1217,7 @@ async function startRecorder(){
       setState('thinking');
       setStatus('Je t\'ecoute...');
       if (!whisperLoaded && !whisperLoading){
+        setStatus('Preparation de la transcription locale (1 seule fois)...');
         loadWhisper();
       }
       if (whisperLoaded && whisperASR){
@@ -1317,6 +1326,7 @@ async function playWelcome(){
   setStatus("Appuie sur le micro et parle");
 }
 
+/* ===== FENETRE D'ACCUEIL : prénom + âge (une seule fois pour la vie) ===== */
 const welcomeModal = $('welcomeModal'), userNameInput = $('userName'), userAgeInput = $('userAge'), welcomeOkBtn = $('welcomeOk');
 function openWelcomeModal(){
   welcomeModal.classList.remove('hidden');
@@ -1406,6 +1416,7 @@ function getTimeContext(){
   /* v10.23 : fin du contexte sur une consigne d'UTILISATION, pas sur une
      affirmation d'etat ("Nous sommes en aprem"). Une affirmation pousse le
      modele a en parler ; une consigne l'oblige a se taire. */
+  return `Heure et date sur l'appareil de l'utilisateur : ${dateStr}, ${timeStr}. Quand on te demande l'heure, la date ou "quelle heure est-il", reponds avec cette heure EXACTE en CHIFFRES, par exemple "il est 11h03", JAMAIS en lettres. Sinon, n'en parle jamais de toi-meme : utilise la periode de la journee seulement quand c'est naturel ("ce matin", "bonne nuit"), comme un humain qui vit en temps reel.`;
 }
 /* Prompt systeme */
 /* INFOS SUR L'APPLICATION — l'IA les connaît si on lui en parle */
@@ -1442,6 +1453,7 @@ function getSystemPrompt(){
   const userProfile = buildUserProfile();
   if (userProfile) base += '\n' + userProfile + ' Sois plus performante sur ces sujets que lui.';
   /* v9.96 : le mood est INJECTE dans le prompt -> le cerveau repond avec le
+     bon ton (avant, seul un prefixe etait ajoute apres coup) */
   if (currentMood === 'vulgaire'){
     base += `\nL'utilisateur vient de t'insulter ou d'etre vulgaire avec toi. Reponds-lui avec le MEME TON : jure naturellement (putain, merde, bordel, con, connard) dans le contenu de ta reponse, sois directe et sans filtre.`;
   } else if (currentMood === 'violente'){
@@ -1580,6 +1592,8 @@ async function askBrain(messages, webCtx){
     }
     return t;
   };
+  /* v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans clé, fiable).
+     model=openai est le seul qui répond sur text.pollinations.ai (testé :
      5/5 succès en 93-421ms à chaud, 3-15s à froid). 2 tentatives GET avec
      budget total 25s, puis POST en dernier recours, puis mémoire locale
      (jamais de message d'erreur). v9.49 : warmUpBrain() réveille le modèle
@@ -1588,6 +1602,7 @@ async function askBrain(messages, webCtx){
   const mistralKey = getMistralKey();
   /* v9.95 : POLLINATIONS SUPPRIME quand la cle Mistral existe — le service est
      sature en permanence (429 sur GET ET POST) -> bruit console + lenteur.
+     Mistral chat seul : fiable, rapide, repond toujours. */
   const tryMistralChat = async () => {
     for (const model of ['open-mistral-nemo', 'mistral-small-latest']){
       try {
@@ -1732,6 +1747,7 @@ async function askAI(question){
   if (mem){
     messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
   }
+  /* v8.99 : recherche web simplifiee - injectee seulement si question d'actualite.
      v9.68 : regex elargi (cherche, trouve, va voir, google, en ligne...) */
   let webCtx = '';
   try {
@@ -1806,6 +1822,7 @@ async function askAI(question){
 /* ===== MODE AGENT AUTONOME =====
    Astra decoupe la tache en etapes, execute chaque etape (recherche web + analyse),
    montre son travail en direct, puis fait une synthese.
+   SECURITE : lecture seule UNIQUEMENT - elle ne peut RIEN envoyer, acheter,
    supprimer ou modifier, et son prompt lui interdit de pretendre le contraire.
    Validation humaine : tu peux l'interrompre a tout moment (touche la bulle micro). */
 function isAgentQuestion(q){
@@ -1828,6 +1845,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    L'IA décide elle-même quel outil appeler ([OUTIL:nom] args [/OUTIL]),
    on exécute, on lui redonne le résultat, elle continue jusqu'à
    [REPONSE] ou 6 itérations max. Outils : web, wikipedia, meteo,
+   calcul, heure, memoire. Lecture seule, jamais d'action réelle.
    ============================================================ */
 /* OUTIL WEB (définit enfin webSearch, appelé mais jamais défini avant) */
 async function webSearch(query){
@@ -1953,6 +1971,7 @@ function agentToolList(){
 async function runAgent(question){
   setStatus('🤖 Agent autonome : je choisis mes outils...');
   const toolList = agentToolList();
+  const sys = 'Tu es Astra, agent autonome en LECTURE SEULE (tu ne peux JAMAIS envoyer, acheter, supprimer, modifier ou payer quoi que ce soit ; ne dis jamais que tu as fait une action reelle). Tu dois resoudre la tache de l utilisateur en utilisant les outils disponibles, un a la fois.\n\nOutils disponibles :\n' + toolList + '\n\nRegles :\n- Pour utiliser un outil, reponds EXACTEMENT sur une seule ligne : [OUTIL:nom] arguments [/OUTIL]\n- Quand tu as assez d infos, reponds EXACTEMENT : [REPONSE] ta reponse finale en francais, 2 a 5 phrases, avec ton caractere habituel, en tutoyant [/REPONSE]\n- Utilise les outils un par un, attends le resultat avant de continuer.\n- Ne reponds JAMAIS directement a la tache sans avoir utilise au moins un outil (sauf si la tache est triviale).';
   const history = [{ role: 'system', content: sys }, { role: 'user', content: 'Tache : ' + question }];
   let final = '';
   for (let it = 0; it < 6; it++){
@@ -2070,6 +2089,7 @@ function fixFrench(t){
   return s;
 }
 /* Coupe les salutations repetees en debut de reponse ("Salut Tom ! ...",
+   "Bonjour, ...", "Hey ! ..."). L'IA ne doit saluer qu'UNE SEULE fois par
    conversation, pas a chaque reponse. */
 function stripGreeting(t){
   if (!t) return t;
@@ -2079,6 +2099,7 @@ function stripGreeting(t){
   const g = '(?:[Ss]alut|[Bb]onjour|[Bb]onsoir|[Hh]ey|[Hh]eyy|[Hh]ello|[Cc]oucou|[Yy]o|[Ss]lt|[Rr]e|[Ee]nchant[ée]e?)';
   /* "Salut Tom ! ..." / "Salut Tom, ..." (salutation + prenom) */
   s = s.replace(new RegExp('^' + g + '\\s+[A-ZÀ-Ý][a-zà-ÿ]+\\s*[!.,]?\\s+'), '');
+  /* "Salut ! ..." / "Bonjour, ..." (salutation seule, PONCTUATION obligatoire
      pour ne pas couper "Salut les amis" ou "Salut Tom" sans ponctuation) */
   s = s.replace(new RegExp('^' + g + '\\s*[!.,]\\s+'), '');
   s = s.trim();
@@ -2193,6 +2214,7 @@ function numToFrBig(n){
     /* blocs et code inline */
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]*)`/g, '$1')
+    /* images et liens markdown -> texte seul */
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     /* gras et italique (d'abord ** et __, puis * et _) - limites a la ligne
@@ -2206,6 +2228,7 @@ function numToFrBig(n){
     .replace(/_+/g, '')
     /* titres markdown */
     .replace(/^#{1,6}[ \t]+/gm, '')
+    /* listes : - item, * item, + item, 1. item (espaces/tabs seulement,
        pas les retours a la ligne -> on garde les paragraphes) */
     .replace(/^[ \t]*[-*+][ \t]+/gm, '')
     .replace(/^[ \t]*\d+[.)][ \t]+/gm, '')
@@ -2215,10 +2238,12 @@ function numToFrBig(n){
     .replace(/^\s*\|/gm, '')
     .replace(/\|\s*$/gm, '')
     .replace(/\|/g, ' ')
+    /* espaces multiples -> un seul */
     .replace(/[ \t]{2,}/g, ' ')
     /* espaces autour des retours a la ligne -> propres */
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n[ \t]+/g, '\n')
+    /* retours a la ligne multiples -> un seul */
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -2547,6 +2572,7 @@ function normalizeForTTS(text){
     .replace(/\b(\d{1,9})\b/g, (m, d) => numToFrBig(parseInt(d, 10))).replace(/\s+/g, ' ').replace(/\s+,/g, ',').replace(/\s+\./g, '.').trim();
 }
 /* AudioContext PARTAGE (mobile : iOS/Android bloquent le son sans geste utilisateur,
+   et limitent le nombre de contextes -> un seul, reveille au premier toucher) */
 let sharedCtx = null;
 /* Mobile : voix legere d'abord (le modele local 38 Mo peut faire planter la page en RAM) */
 const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -2752,6 +2778,7 @@ async function populateVoices(){
   if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
 }
 
+/* ===== VOIX SYSTÈME SEULE : navigateur, hors ligne, 100% fiable, sans clé. ===== */
 function speakSystem(text, specificVoiceName, onChunk){
   return new Promise(resolve => {
     try {
@@ -2842,6 +2869,7 @@ if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
 /* ===== TRANSCRIPTION LOCALE WHISPER : si la reconnaissance vocale du navigateur
    echoue (service Google indisponible, reseau bloque...), Whisper transcrit
    l'audio DIRECTEMENT sur l'appareil : hors ligne, gratuit, a vie, meme partout.
+   Modele Xenova/whisper-base (148 Mo, 1 seule fois, puis cache navigateur). ===== */
 let whisperASR = null, whisperLoading = false, whisperLoaded = false;
 function loadWhisper(){
   if (whisperLoading || whisperLoaded) return;
@@ -2947,6 +2975,7 @@ function speak(text, onChunk){
        acceptait le texte sans probleme. C'etait une precaution inutile
        qui degradait 100% des reponses pour eviter 0% de rejets.
        Le filtre n'a pas disparu : il est applique dans softenForGuardrail,
+       c'est-a-dire SEULEMENT si l'API renvoie un vrai 403 guardrail. */
     voiceStartedFlag = false;
     isSpeaking = true;
     setState('speaking');
@@ -3299,6 +3328,7 @@ function stopBackgroundDebate(){
 /* reprise auto : si un debat tournait et que son runner est mort
    (page fermee), cette page reprend la main au chargement */
 DE.autoResume();
+/* v10.9 : le debat doit tourner H24 sans bouton - il demarre tout seul */
 DE.start();
 
 /* v10.20 : au retour sur l'onglet vocal, le micro doit repartir meme si une
@@ -3634,6 +3664,7 @@ function versionCompare(a, b){
 }
 async function checkUpdate(){
   /* Si une NOUVELLE version existe sur le serveur, on recharge AUTOMATIQUEMENT
+     une seule fois (flag va_auto_reloaded) pour que l'utilisateur ait TOUJOURS
      la derniere version, sans rien cliquer. Le service worker est network-first
      donc le rechargement charge la toute derniere version. */
   try {
@@ -3702,6 +3733,7 @@ $('appVersion').textContent = 'Assistant Vocal IA - v' + APP_VERSION;
 $('versionTag').textContent = 'v' + APP_VERSION;
 checkUpdate();
 /* MAJ AUTO PERIODIQUE : verifie toutes les 60s si une nouvelle version existe
+   et recharge toute seule -> l'utilisateur a TOUJOURS la derniere version,
    meme s'il ne recharge jamais l'app. */
 setInterval(checkUpdate, 60000);
 setStatus("Appuie sur le micro et parle");
@@ -3802,6 +3834,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       const picks = [];
       const pool = THEMES.slice();
       for (let k = 0; k < 3 && pool.length; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      return 'Tu m\u2019as laissee seule pendant ' + dureeTxt(ms) + '. J\u2019ai explor\u00e9 ' + picks.join(', ') + '. J\u2019ai tout note dans mon journal.';
     }
     async function raconterAbsence(){
       if (absentMs < 10 * 60 * 1000) return; /* moins de 10 min : rien */
@@ -3827,6 +3860,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       journal('Exploration : ' + pensee);
       /* Coucou spontane dans ~40% des explorations */
       if (Math.random() < 0.4) {
+        toastMsg('🌌 Astra (toute seule) : ' + pensee);
         if (Math.random() < 0.5) speakSoft(pensee);
       }
     }
@@ -3851,7 +3885,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     window.astraJournal = function(){
       try { return JSON.parse(localStorage.getItem(JKEY) || '[]'); } catch(e){ return []; }
     };
-    
+    console.log('[Astra] Module de vie autonome actif.');
   } catch (e) {
     console.warn('[Astra] Autonomie desactivee :', e);
   }
@@ -3860,11 +3894,15 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
 function learnFromUser(text){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const words=(text||'').toLowerCase().match(/[a-zà-ÿ]{3,}/g)||[]; words.forEach(w=>{vocab[w]=(vocab[w]||0)+1}); localStorage.setItem('astra_vocab',JSON.stringify(vocab));}catch(e){} }
 function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('astra_vocab')||'{}'); const top=Object.entries(vocab).sort((a,b)=>b[1]-a[1]).slice(0,20).map(x=>x[0]).join(', '); return top?'Tu parles souvent de : '+top+'. Adapte ton ton et tes sujets a cela.':'';}catch(e){return '';} }
 /* ============================================================
+   v10.3 : ASTRA PARLE AUX AUTRES IA (module "Conseil").
+   v10.24 : la commande "conseil d'IA sur X" est SUPPRIMEE a la
    demande de l'utilisateur. Il ne reste que le PASSE-RELAIS
+   autonome (elle discute parfois seule avec une autre IA et le
    note dans son journal). askModel / jrn / tst sont conserves :
    ils servent encore au passe-relais.
    Toujours encapsule dans try/catch : non intrusif.
    ============================================================ */
+(function AstraConseil(){
   'use strict';
   try {
     const JKEY = 'astra_journal';
@@ -3885,6 +3923,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     async function askModel(model, sysPrompt, userMsg){
       const ctl = new AbortController();
       setTimeout(() => ctl.abort(), 20000);
+      /* seul 'openai' existe sur Pollinations : 'mistral' et 'llama'
          repondent 400 et ne donnaient rien du tout */
       const useModel = 'openai';
       try {
@@ -3930,7 +3969,9 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       }, (15 + Math.random() * 10) * 60 * 1000);
     })();
 
+    /* v10.24 : le WRAPPER de askAI et window.astraConseil ont ete
        supprimes. Le wrapper n'existait QUE pour intercepter
+       "conseil d'IA sur ..." ; sans la feature il ne rebroussait
        plus rien et ne faisait que recopier askAI. */
   } catch (e) {
     console.warn('[Astra] Module de communication avec les IA desactive :', e);
@@ -3946,6 +3987,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       synthese a la Astra.
    3) AUTOCORRECTION : apres une reponse factuelle, un second
       modele la verifie ; si elle est fausse, Astra se corrige
+      toute seule (toast + message + voix).
    ============================================================ */
 (function AstraWeb(){
   'use strict';
@@ -3960,6 +4002,8 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     }
     function tst(m){ try { if (typeof toast === 'function') toast(m); } catch(e){} }
 
+    /* v10.21 : 2e copie de askModel corrigee (meme correctif : POST seul,
+       extracteur robuste, modele 'openai' qui est le seul gratuit) */
     async function askModel(model, sysPrompt, userMsg){
       const ctl = new AbortController();
       setTimeout(() => ctl.abort(), 20000);
@@ -3984,6 +4028,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
 
     /* ---- 1) VERITE : elle parle aux autres IA ---- */
     function reponseAutresIA(){
+    /* v10.24 : la phrase vantait la commande "conseil d'IA sur un sujet".
        La commande n'existe plus, donc Astra ne doit plus la proposer, sinon
        elle promet une commande morte. Elle reste honnete sur ce qu'elle
        fait ENCORE : le passe-relais en arriere-plan. */
