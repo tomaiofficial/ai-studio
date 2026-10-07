@@ -583,10 +583,10 @@ function buildMemoryContext(excludeId){
 function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-   Fonctionne TOUJOURS, sans serveur, sans cle, sans internet. 1) memoire des
-   conversations passees (question similaire -> on rejoue la reponse), 2) logique
-   par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
-   voix prononce correctement. ===== */
+/* Fonctionne TOUJOURS, sans serveur, sans cle, sans internet. 1) memoire des
+    conversations passees (question similaire -> on rejoue la reponse), 2) logique
+    par mots-cles, 3) reponse honnete. Textes ecrits AVEC accents pour que la
+    voix prononce correctement. ===== */
   /* ============================================================
      v10.21 — LECTURE ROBUSTE DES RÉPONSES IA
      ------------------------------------------------------------
