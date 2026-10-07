@@ -3329,9 +3329,9 @@ function stopBackgroundDebate(){
 }
 /* reprise auto : si un debat tournait et que son runner est mort
    (page fermee), cette page reprend la main au chargement */
-DE.autoResume();
+if (DE && typeof DE.autoResume === 'function') DE.autoResume();
 /* v10.9 : le debat doit tourner H24 sans bouton - il demarre tout seul */
-DE.start();
+if (DE && typeof DE.start === 'function') DE.start();
 
 /* v10.20 : au retour sur l'onglet vocal, le micro doit repartir meme si une
    IA parlait au moment du changement d'onglet (le signal de "fin de voix"
