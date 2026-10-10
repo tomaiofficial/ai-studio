@@ -286,7 +286,7 @@ async function generateChunks(chunks, voiceId, key){
       const res = await fetch(VOXTRAL_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-        body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice_id: voiceId, response_format: 'mp3' }),
+        body: JSON.stringify({ model: VOXTRAL_MODEL, input: chunk, voice: voiceId || 'fr-CH', response_format: 'mp3' }),
         signal: abortSignal(15000)
       });
       if (!res.ok){
