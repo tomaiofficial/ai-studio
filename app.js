@@ -3763,7 +3763,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       } catch(e){}
       if (!recit) recit = recitLocal(absentMs);
       journal('Absence racontee (' + dureeTxt(absentMs) + ') : ' + recit);
-      toastMsg('🌟 ' + recit);
+      
       speakSoft(recit);
     }
 
@@ -3779,7 +3779,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       journal('Exploration : ' + pensee);
       /* Coucou spontane dans ~40% des explorations */
       if (Math.random() < 0.4) {
-        toastMsg('🌌 Astra (toute seule) : ' + pensee);
+        
         if (Math.random() < 0.5) speakSoft(pensee);
       }
     }
