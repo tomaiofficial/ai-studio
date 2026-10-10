@@ -481,8 +481,26 @@ select.wide-input{appearance:none}
 
 <!-- MODAL ACCUEIL : prénom + âge (une seule fois pour la vie) -->
 <div id="welcomeModal" class="modal hidden">
-  <div class="modal-card welcome-card">
-    <h3>👋 Salut, moi c'est Astra !</h3>
+  <div class="modal-card welcome-card" style="max-width:520px;padding:28px 24px;">
+    <h3 style="font-size:26px;margin-bottom:4px;">👋 Salut, moi c'est Astra</h3>
+    <p style="font-size:13px;color:#9a9ab5;margin-bottom:14px;">Assistante vocale créée par <b>Tom AI</b> — mode vocal seul, pas de salon.</p>
+    <div style="display:flex;gap:10px;margin-bottom:14px;justify-content:center;">
+      <div style="flex:1;background:rgba(124,92,255,.12);border-radius:12px;padding:10px;text-align:center;border:1px solid rgba(124,92,255,.2);">
+        <div style="font-size:22px;margin-bottom:4px;">🎙️</div>
+        <div style="font-size:12px;color:#fff;font-weight:600;">Vocal</div>
+        <div style="font-size:11px;color:#9a9ab5;">Répond à la voix</div>
+      </div>
+      <div style="flex:1;background:rgba(124,92,255,.12);border-radius:12px;padding:10px;text-align:center;border:1px solid rgba(124,92,255,.2);">
+        <div style="font-size:22px;margin-bottom:4px;">🧠</div>
+        <div style="font-size:12px;color:#fff;font-weight:600;">IA</div>
+        <div style="font-size:11px;color:#9a9ab5;">Pollinations GPT</div>
+      </div>
+      <div style="flex:1;background:rgba(124,92,255,.12);border-radius:12px;padding:10px;text-align:center;border:1px solid rgba(124,92,255,.2);">
+        <div style="font-size:22px;margin-bottom:4px;">🎵</div>
+        <div style="font-size:12px;color:#fff;font-weight:600;">TikTok</div>
+        <div style="font-size:11px;color:#9a9ab5;"><a href="https://www.tiktok.com/@tom.ai.official" target="_blank" style="color:#fff;text-decoration:underline;">@tom.ai.official</a></div>
+      </div>
+    </div>
     <p class="muted">Et toi, c'est quoi ton prénom ?</p>
     <input type="text" id="userName" class="wide-input" placeholder="Ton prénom..." maxlength="30" autocomplete="off">
     <p class="muted">Et ton âge ?</p>
