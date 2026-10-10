@@ -414,6 +414,8 @@ const MOODS = {
   taquine:     { weight: 8,  prefix: 'Oh, le petit malin... ', suffix: ' 😏', tone: 'moqueur' }
 };
 let currentMood = 'neutre';
+/* v10.28 : reset mood to neutral at startup so it doesn't stay vulgar */
+currentMood = 'neutre';
 let moodTimer = null;
 /* Change l'humeur selon le contexte (provoquation, heure, aléatoire) */
 function updateMood(question){
