@@ -269,7 +269,11 @@ async function speakVoxtral(text, voiceId, onChunk){
     /* v10.9 : on joue ce qui a pu etre genere. Un chunk encore bloque est
        simplement OMIS (le texte reste dans le journal) -> on ne bascule
        PAS sur la voix systeme pour autant. */
-    if (!results.some(Boolean)) return false;
+    if (!results.some(Boolean)) {
+      console.warn('[VOXTRAL] Tous chunks bloques — bascule voix systeme');
+      try { if (typeof speakSoft === 'function') speakSoft(chunk || ''); } catch(e){}
+      return false;
+    }
     for (let i = 0; i < results.length; i++){
       if (!results[i]) continue;
       if (onChunk) onChunk(chunks[i]);
