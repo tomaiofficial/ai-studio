@@ -425,6 +425,13 @@ select.wide-input{appearance:none}
   <div class="bg-particles" id="bgParticles"></div>
 </div>
 
+<div id="visionOverlay" class="modal hidden" style="align-items:center;justify-content:center;background:rgba(0,0,0,.7);">
+  <div style="background:#171728;border-radius:20px;padding:20px;max-width:90vw;max-height:70vh;display:flex;flex-direction:column;align-items:center;gap:12px;">
+    <h3 style="font-size:18px;color:#fff;">📷 Vision caméra</h3>
+    <video id="visionVideo" autoplay playsinline muted style="width:100%;max-width:320px;height:auto;border-radius:12px;background:#0a0a14;" poster=""></video>
+    <button class="primary" onclick="document.getElementById('visionOverlay').classList.add('hidden'); document.getElementById('visionVideo').src='';">Fermer</button>
+  </div>
+</div>
 <div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
 
 <!-- INFO TEMPORAIRE : bug actualisation auto (ancien service worker). Visible jusqu'au mercredi 23/09/2026 inclus. -->
