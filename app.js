@@ -3801,8 +3801,8 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     }
 
     /* ---- DEMARRAGE ---- */
-    planifierExploration();
-    setTimeout(raconterAbsence, 4000); /* apres le boot de l'app */
+    /* planifierExploration(); */
+    /* setTimeout(raconterAbsence, 4000); */ /* apres le boot de l'app */
 
     /* Reponse a "qu'est-ce que tu as fait" / "raconte ta vie" */
     const _origRA = typeof window !== 'undefined' ? null : null;
