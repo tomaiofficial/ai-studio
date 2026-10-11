@@ -3760,7 +3760,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       for (let k = 0; k < 3 && pool.length; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       return 'Tu m\u2019as laissee seule pendant ' + dureeTxt(ms) + '. J\u2019ai explor\u00e9 ' + picks.join(', ') + '. J\u2019ai tout note dans mon journal.';
     }
-    async function raconterAbsence(){
+    /* async function raconterAbsence(){ ... } */ /* autonomie retiree */
       if (absentMs < 10 * 60 * 1000) return; /* moins de 10 min : rien */
       let recit = null;
       try {
