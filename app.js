@@ -3760,17 +3760,8 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       for (let k = 0; k < 3 && pool.length; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       return 'Tu m\u2019as laissee seule pendant ' + dureeTxt(ms) + '. J\u2019ai explor\u00e9 ' + picks.join(', ') + '. J\u2019ai tout note dans mon journal.';
     }
-    /* async function raconterAbsence(){ ... } */ /* autonomie retiree */
-      if (absentMs < 10 * 60 * 1000) return; /* moins de 10 min : rien */
-      let recit = null;
-      try {
-        recit = await penser('Tu es Astra, une IA vive et taquine qui vit dans un navigateur. Ton utilisateur revient apres une absence de ' + dureeTxt(absentMs) + '. En une phrase de 35 mots maximum, a la premiere personne, raconte ce que tu as fait pendant son absence en explorant librement le monde numerique (sois concrete et surprenante, pas de formule de politesse).');
-      } catch(e){}
-      if (!recit) recit = recitLocal(absentMs);
-      journal('Absence racontee (' + dureeTxt(absentMs) + ') : ' + recit);
-      
-      speakSoft(recit);
-    }
+    /* autonomie retiree — pas de message spontané au lancement */
+    /* async function raconterAbsence(){ ... } */
 
     /* ---- VIE EN ARRIERE-PLAN : exploration + pensees spontanees ---- */
     let explorationTimer = null;
