@@ -85,6 +85,9 @@ async function appendFeature(feature) {
   return record;
 }
 
+let featurePostCount = 0;
+let featureWindowStart = Date.now();
+
 const server = http.createServer(async (req, res) => {
   const cors = getCorsHeaders(req);
   if (cors === null) return sendJson(res, 403, { error: 'Origin not allowed' });
@@ -103,6 +106,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method !== 'POST' || url.pathname !== '/add-feature') {
     return sendJson(res, 404, { error: 'Not found' }, cors || {});
   }
+
+  if (Date.now() - featureWindowStart >= 60_000) {
+    featurePostCount = 0;
+    featureWindowStart = Date.now();
+  }
+  if (++featurePostCount > 20) return sendJson(res, 429, { error: 'Too many suggestions; try again later' }, cors || {});
 
   if (!API_TOKEN) return sendJson(res, 503, { error: 'Server not configured: set ASTRA_API_TOKEN' }, cors || {});
   const authorization = req.headers.authorization || '';

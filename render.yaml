@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: astra-vocal-ai
+    name: astra-vocal-server
     runtime: node
     plan: free
     buildCommand: npm install
