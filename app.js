@@ -1521,6 +1521,23 @@ async function saveFeatureSuggestion(text){
     featureSuggestionInFlight = false;
   }
 }
+async function requestFeatureProposal(text){
+  const feature = String(text || '').trim().slice(0, 2000);
+  if (!feature) return null;
+  try {
+    const response = await fetch(ASTRA_API_BASE + '/propose-feature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feature })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+  } catch (error) {
+    console.warn('[Astra API] Proposition indisponible:', error && error.message);
+    return null;
+  }
+}
 
 function extractReply(msg){
   const content = (msg.content || '').trim();
@@ -3346,6 +3363,51 @@ function isWritingRequest(q){
 
 async function handleQuestion(question){
   if (isProcessing) return;
+  const proposalMatch = String(question || '').match(/(?:prépare|prepare|génère|genere|crée|cree)\s+(?:moi\s+)?(?:une\s+)?proposition\s+(?:de\s+)?(?:code|fonctionnalité|fonctionnalite|fonction)\s*(?:pour|:)?\s*(.*)/i);
+  if (proposalMatch) {
+    const featureRequest = (proposalMatch[1] || '').trim();
+    if (!featureRequest) {
+      await speak('Dis-moi quelle fonctionnalité tu veux proposer, et je préparerai un patch à vérifier.');
+      return;
+    }
+    stopAudio();
+    isProcessing = true;
+    manualStop = true;
+    continuousPaused = false;
+    if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+    pendingSpeech = '';
+    stopWakeRecog();
+    const lastProposalUser = chat.lastElementChild;
+    if (lastProposalUser && lastProposalUser.classList.contains('user')) lastProposalUser.textContent = question;
+    else addUserMsg(question);
+    setState('thinking');
+    setStatus('Préparation et tests de la proposition…');
+    try {
+      const proposal = await requestFeatureProposal(featureRequest);
+      if (!proposal) {
+        await speak('Je n’ai pas pu préparer la proposition. Vérifie que le serveur Render est à jour et qu’il a sa clé IA.');
+      } else {
+        const summary = String(proposal.summary || 'Proposition générée.').slice(0, 600);
+        const testSummary = proposal.tests && proposal.tests.passed ? 'Les vérifications de syntaxe ont réussi.' : 'Les tests n’ont pas réussi.';
+        const spokenSummary = summary + ' ' + testSummary + ' Le patch n’a pas été appliqué ni publié.';
+        addAiMsg(spokenSummary);
+        await speak(spokenSummary);
+        if (proposal.patch) {
+          addAiMsg('Patch proposé (à examiner) :\n' + String(proposal.patch).slice(0, 5000), 'local');
+        }
+      }
+    } catch (error) {
+      console.warn('[Astra API] Proposition erreur:', error);
+      await speak('La proposition a échoué pendant sa préparation ou ses tests. Aucun changement n’a été publié.');
+    } finally {
+      isProcessing = false;
+      manualStop = false;
+      setState('idle');
+      saveConversation();
+      maybeRestartListening();
+    }
+    return;
+  }
   stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   isProcessing = true;
   manualStop = true;
@@ -3516,9 +3578,6 @@ async function handleQuestion(question){
      dans son prompt (getSystemPrompt) et repond avec le bon ton */
   updateMood(question);
   learnFromUser(question);  /* apprend ton vocabulaire */
-  if (/(ajoute|ajouter|ameliore|ameliorer|nouvelle fonction|nouvelle fonctionnalite|idee de fonction)/i.test(question)) {
-    saveFeatureSuggestion(question).catch(() => {});
-  }
   /* v10.0 : mode ECRITURE — si l'utilisateur demande d'ecrire, le cerveau
      produit un texte plus long et il sera copie dans le bloc-notes */
   writingMode = isWritingRequest(question);

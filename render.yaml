@@ -13,3 +13,5 @@ services:
         value: https://tomaiofficial.github.io
       - key: PUBLIC_SUGGESTIONS
         value: "true"
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
