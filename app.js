@@ -805,7 +805,7 @@ function toast(msg, ms){
 
 /* ===== STATUT ===== */
 function setStatus(txt, active){
-  statusEl.textContent = txt;
+  statusEl.textContent = (txt ? 'Astra — Tom AI : ' + txt : '');
   statusEl.classList.toggle('active', !!active);
 }
 function setState(s){
