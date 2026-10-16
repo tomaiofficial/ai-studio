@@ -1491,6 +1491,40 @@ Tu as ces informations en tete pour etre utile, pas pour les reciter. Si tu y pe
 }
 const SYSTEM_PROMPT = getSystemPrompt();
 
+/* Pack d'extensions locales : fonctionnalites deja livrees dans app.js,
+   auto-activees sans cle ni API additionnelle; aucune generation de code. */
+const ASTRA_LOCAL_FEATURES = Object.freeze({ repeatLastReply: true, englishPractice: true });
+let astraLastSpokenReply = '';
+let astraEnglishLessonIndex = 0;
+const ASTRA_ENGLISH_LESSONS = [
+  { fr: 'Bonjour, comment ça va ?', en: 'Hello, how are you?', pron: 'Hé-lo, haou ar you ?' },
+  { fr: 'Je voudrais un verre d’eau, s’il vous plaît.', en: 'I would like a glass of water, please.', pron: 'Aï woude laïk e glass of wouoteur, pliz.' },
+  { fr: 'Où se trouve la gare ?', en: 'Where is the train station?', pron: 'Wèr iz ze treïn stéïcheun ?' },
+  { fr: 'Pouvez-vous parler plus lentement ?', en: 'Could you speak more slowly?', pron: 'Koude you spik mor slo-li ?' },
+  { fr: 'Je ne comprends pas encore.', en: 'I do not understand yet.', pron: 'Aï dou not eundeustand yet.' },
+];
+function repeatLastAstraReply(){
+  if (!astraLastSpokenReply) return 'Je n’ai pas encore de réponse à répéter.';
+  return astraLastSpokenReply;
+}
+function nextEnglishLesson(){
+  const lesson = ASTRA_ENGLISH_LESSONS[astraEnglishLessonIndex % ASTRA_ENGLISH_LESSONS.length];
+  astraEnglishLessonIndex += 1;
+  const panel = document.getElementById('englishPanel');
+  const board = document.getElementById('englishBoard');
+  if (panel) panel.classList.remove('hidden');
+  if (board) {
+    const card = document.createElement('div');
+    card.style.cssText = 'padding:12px;margin-bottom:10px;border-radius:10px;background:rgba(124,92,255,.13)';
+    const fr = document.createElement('b'); fr.textContent = lesson.fr;
+    const en = document.createElement('div'); en.textContent = lesson.en;
+    const pron = document.createElement('small'); pron.textContent = 'Prononciation approx. : ' + lesson.pron;
+    card.append(fr, en, pron);
+    board.replaceChildren(card);
+  }
+  return lesson.fr + ' En anglais : ' + lesson.en + '. Prononciation approximative : ' + lesson.pron;
+}
+
 /* Suggestions d'amelioration non techniques, sans publication automatique.
    La cle d'administration reste cote serveur; le navigateur ne la recoit jamais. */
 const ASTRA_API_BASE = 'https://astra-vocal-server.onrender.com';
@@ -3363,6 +3397,21 @@ function isWritingRequest(q){
 
 async function handleQuestion(question){
   if (isProcessing) return;
+  const normalizedCommand = String(question || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (ASTRA_LOCAL_FEATURES.repeatLastReply && /^(repete|repete ca|repete encore|redis|redis ca|peux-tu repeter|peux tu repeter)[.!? ]*$/.test(normalizedCommand)) {
+    const reply = repeatLastAstraReply();
+    addUserMsg(question);
+    addAiMsg(reply, 'Fonction locale : répétition');
+    await speak(reply);
+    return;
+  }
+  if (ASTRA_LOCAL_FEATURES.englishPractice && /^(cours d anglais|cours anglais|apprendre l anglais|apprendre anglais|phrase anglaise du jour|une phrase en anglais|apprends moi l anglais)[.!? ]*$/.test(normalizedCommand)) {
+    const lesson = nextEnglishLesson();
+    addUserMsg(question);
+    addAiMsg(lesson, 'Leçon locale d’anglais');
+    await speak(lesson);
+    return;
+  }
   const proposalMatch = String(question || '').match(/(?:prépare|prepare|génère|genere|crée|cree)\s+(?:moi\s+)?(?:une\s+)?proposition\s+(?:de\s+)?(?:code|fonctionnalité|fonctionnalite|fonction)\s*(?:pour|:)?\s*(.*)/i);
   if (proposalMatch) {
     const featureRequest = (proposalMatch[1] || '').trim();
@@ -3370,6 +3419,7 @@ async function handleQuestion(question){
       await speak('Dis-moi quelle fonctionnalité tu veux proposer, et je préparerai un patch à vérifier.');
       return;
     }
+    astraLastSpokenReply = text.trim().slice(0, 4000);
     stopAudio();
     isProcessing = true;
     manualStop = true;
