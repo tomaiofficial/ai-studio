@@ -3410,6 +3410,8 @@ function isWritingRequest(q){
 
 async function handleQuestion(question){
   if (isProcessing) return;
+  /* v10.28 : autonomie locale uniquement si active dans Reglages */
+  const autonomyEnabled = (typeof localStorage !== 'undefined' && localStorage.getItem('va_autonomy') === '1');
   const normalizedCommand = String(question || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   if (ASTRA_LOCAL_FEATURES.repeatLastReply && /^(repete|repete ca|repete encore|redis|redis ca|peux-tu repeter|peux tu repeter)[.!? ]*$/.test(normalizedCommand)) {
     const reply = repeatLastAstraReply();
