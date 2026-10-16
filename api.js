@@ -8,10 +8,12 @@ const crypto = require('node:crypto');
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const API_TOKEN = process.env.ASTRA_API_TOKEN || '';
+const PUBLIC_SUGGESTIONS = process.env.PUBLIC_SUGGESTIONS === 'true';
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_FEATURE_LENGTH = 2000;
 const DATA_DIR = process.env.ASTRA_DATA_DIR || path.join(__dirname, 'data');
 const FEATURES_FILE = path.join(DATA_DIR, 'feature-suggestions.jsonl');
+const MAX_SUGGESTIONS_PER_MINUTE = 20;
 
 const allowedOrigins = new Set(
   (process.env.ALLOWED_ORIGINS || 'https://tomaiofficial.github.io')
@@ -88,6 +90,18 @@ async function appendFeature(feature) {
 let featurePostCount = 0;
 let featureWindowStart = Date.now();
 
+async function readSuggestions(limit = 30) {
+  let raw;
+  try { raw = await fs.promises.readFile(FEATURES_FILE, 'utf8'); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  return raw.split('\n').filter(Boolean).slice(-limit).reverse().flatMap(line => {
+    try {
+      const record = JSON.parse(line);
+      return [{ id: record.id, createdAt: record.createdAt, feature: record.feature, status: record.status }];
+    } catch { return []; }
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const cors = getCorsHeaders(req);
   if (cors === null) return sendJson(res, 403, { error: 'Origin not allowed' });
@@ -100,6 +114,19 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/health') {
     return sendJson(res, 200, { ok: true, service: 'astra-api' }, cors || {});
   }
+  if (req.method === 'GET' && url.pathname === '/suggestions') {
+    if (PUBLIC_SUGGESTIONS) return sendJson(res, 403, { error: 'Suggestion review is not public' }, cors || {});
+    if (!API_TOKEN) return sendJson(res, 503, { error: 'Server not configured: set ASTRA_API_TOKEN' }, cors || {});
+    const authorization = req.headers.authorization || '';
+    const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+    if (!constantTimeTokenMatch(bearer)) return sendJson(res, 401, { error: 'Unauthorized' }, cors || {});
+    try {
+      const suggestions = await readSuggestions();
+      return sendJson(res, 200, { ok: true, suggestions }, cors || {});
+    } catch {
+      return sendJson(res, 500, { error: 'Could not read suggestions' }, cors || {});
+    }
+  }
   if (req.method === 'GET' && url.pathname === '/') {
     return sendJson(res, 200, { service: 'astra-api', health: '/health', submitSuggestion: 'POST /add-feature' }, cors || {});
   }
@@ -111,12 +138,14 @@ const server = http.createServer(async (req, res) => {
     featurePostCount = 0;
     featureWindowStart = Date.now();
   }
-  if (++featurePostCount > 20) return sendJson(res, 429, { error: 'Too many suggestions; try again later' }, cors || {});
+  if (++featurePostCount > MAX_SUGGESTIONS_PER_MINUTE) return sendJson(res, 429, { error: 'Too many suggestions; try again later' }, cors || {});
 
-  if (!API_TOKEN) return sendJson(res, 503, { error: 'Server not configured: set ASTRA_API_TOKEN' }, cors || {});
-  const authorization = req.headers.authorization || '';
-  const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
-  if (!constantTimeTokenMatch(bearer)) return sendJson(res, 401, { error: 'Unauthorized' }, cors || {});
+  if (!PUBLIC_SUGGESTIONS) {
+    if (!API_TOKEN) return sendJson(res, 503, { error: 'Server not configured: set ASTRA_API_TOKEN' }, cors || {});
+    const authorization = req.headers.authorization || '';
+    const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+    if (!constantTimeTokenMatch(bearer)) return sendJson(res, 401, { error: 'Unauthorized' }, cors || {});
+  }
   if (!String(req.headers['content-type'] || '').toLowerCase().includes('application/json')) {
     return sendJson(res, 415, { error: 'Content-Type must be application/json' }, cors || {});
   }

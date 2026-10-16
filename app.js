@@ -1437,6 +1437,7 @@ function getSystemPrompt(){
   }
   const userProfile = buildUserProfile();
   if (userProfile) base += '\n' + userProfile + ' Sois plus performante sur ces sujets que lui.';
+  base += '\nTu peux proposer des idees de nouvelles fonctionnalites quand l utilisateur demande des ameliorations. Les enregistrer comme suggestions ne modifie pas le code et ne les active pas. Ne pretend jamais avoir ajoute ou deploye une fonctionnalite. Ne lance pas de tache quand l app est inactive : le navigateur ne fonctionne pas en arriere-plan de facon garantie.';
   /* v9.96 : le mood est INJECTE dans le prompt -> le cerveau repond avec le
      bon ton (avant, seul un prefixe etait ajoute apres coup) */
   if (currentMood === 'vulgaire'){
@@ -1489,6 +1490,37 @@ Tu as ces informations en tete pour etre utile, pas pour les reciter. Si tu y pe
   return base + '\n' + getTimeContext();
 }
 const SYSTEM_PROMPT = getSystemPrompt();
+
+/* Suggestions d'amelioration non techniques, sans publication automatique.
+   La cle d'administration reste cote serveur; le navigateur ne la recoit jamais. */
+const ASTRA_API_BASE = 'https://astra-vocal-server.onrender.com';
+const FEATURE_SUGGESTION_KEY = 'astra_feature_suggestion_last';
+let featureSuggestionInFlight = false;
+async function saveFeatureSuggestion(text){
+  const feature = String(text || '').trim().slice(0, 2000);
+  if (!feature || featureSuggestionInFlight) return false;
+  const previous = localStorage.getItem(FEATURE_SUGGESTION_KEY) || '';
+  if (previous === feature) return false;
+  featureSuggestionInFlight = true;
+  try {
+    const response = await fetch(ASTRA_API_BASE + '/add-feature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feature })
+    });
+    if (!response.ok) {
+      console.warn('[Astra API] Suggestion non enregistrée:', response.status);
+      return false;
+    }
+    localStorage.setItem(FEATURE_SUGGESTION_KEY, feature);
+    return true;
+  } catch (error) {
+    console.warn('[Astra API] Serveur indisponible:', error && error.message);
+    return false;
+  } finally {
+    featureSuggestionInFlight = false;
+  }
+}
 
 function extractReply(msg){
   const content = (msg.content || '').trim();
@@ -3484,6 +3516,9 @@ async function handleQuestion(question){
      dans son prompt (getSystemPrompt) et repond avec le bon ton */
   updateMood(question);
   learnFromUser(question);  /* apprend ton vocabulaire */
+  if (/(ajoute|ajouter|ameliore|ameliorer|nouvelle fonction|nouvelle fonctionnalite|idee de fonction)/i.test(question)) {
+    saveFeatureSuggestion(question).catch(() => {});
+  }
   /* v10.0 : mode ECRITURE — si l'utilisateur demande d'ecrire, le cerveau
      produit un texte plus long et il sera copie dans le bloc-notes */
   writingMode = isWritingRequest(question);

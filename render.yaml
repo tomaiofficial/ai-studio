@@ -11,3 +11,5 @@ services:
         generateValue: true
       - key: ALLOWED_ORIGINS
         value: https://tomaiofficial.github.io
+      - key: PUBLIC_SUGGESTIONS
+        value: "true"
