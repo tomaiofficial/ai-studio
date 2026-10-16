@@ -446,6 +446,14 @@ select.wide-input{appearance:none}
     <button class="primary" onclick="document.getElementById('visionOverlay').classList.add('hidden'); document.getElementById('visionVideo').src='';">Fermer</button>
   </div>
 </div>
+<div id="surveillanceBanner" class="modal hidden" style="align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:60;">
+  <div class="modal-card" style="max-width:420px;text-align:center;padding:24px;">
+    <h3 style="font-size:20px;color:#fff;margin-bottom:8px;">🔍 Surveillance temporaire</h3>
+    <p style="font-size:14px;color:#c8c8dd;line-height:1.5;">Astra est sous surveillance jusqu'à demain 12h pour vérifier ses auto-corrections et s'assurer qu'elle ne fait rien d'autre.</p>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;color:#fff;font-size:13px;cursor:pointer;"><input type="checkbox" id="hideSurveillance" style="width:18px;height:18px;"> Ne plus afficher</label>
+    <button class="primary" onclick="document.getElementById('surveillanceBanner').classList.add('hidden'); if(document.getElementById('hideSurveillance').checked) localStorage.setItem('hideSurveillance','1');" style="margin-top:12px">J'ai compris</button>
+  </div>
+</div>
 <div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
 
 <!-- INFO TEMPORAIRE : bug actualisation auto (ancien service worker). Visible jusqu'au mercredi 23/09/2026 inclus. -->
@@ -624,6 +632,17 @@ select.wide-input{appearance:none}
 </div>
 
 <script src="websearch.js?v=10.25"></script>
+<script>
+(function(){
+  if (localStorage.getItem('hideSurveillance')) return;
+  const first = localStorage.getItem('surveillanceFirst');
+  const now = Date.now();
+  if (!first) { localStorage.setItem('surveillanceFirst', now); }
+  if (now - (parseInt(first)||now) < 24*60*60*1000) {
+    document.getElementById('surveillanceBanner').classList.remove('hidden');
+  }
+})();
+</script>
 <script src="app.js?v=10.28"></script>
 </body>
 </html>
