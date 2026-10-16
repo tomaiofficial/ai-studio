@@ -1,7 +1,7 @@
 {
   "name": "astra-vocal-server",
   "version": "10.28",
-  "description": "Astra vocal server endpoint for self-improvement",
+  "description": "Astra API for feature suggestions",
   "main": "api.js",
   "scripts": {
     "start": "node api.js"
