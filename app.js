@@ -1171,6 +1171,9 @@ async function startRecorder(){
   try {
     setState('listening');
     setStatus('Parle maintenant...');
+    /* Precharger Whisper apres autorisation micro pour ameliorer les prochaines
+       transcriptions; premier telechargement volumineux, puis cache navigateur. */
+    if (!whisperLoaded && !whisperLoading) loadWhisper();
     /* v10.0.2 : FIX MOBILE — utilise SpeechToTextHandler (instance neuve)
        au lieu du MediaRecorder + recog global qui reste bloque */
     if (stt.isSupported()){
@@ -1207,6 +1210,7 @@ async function startRecorder(){
     if (mediaRec && mediaRec.state !== 'inactive'){ try { mediaRec.stop(); } catch {} }
     mediaRec = new MediaRecorder(stream);
     mediaRec.ondataavailable = e => { if (e.data && e.data.size) mediaChunks.push(e.data); };
+    let whisperPending = Promise.resolve('');
     mediaRec.onstop = async () => {
       cleanupRecorder();
       try { stream.getTracks().forEach(t => t.stop()); } catch {}
@@ -1220,18 +1224,8 @@ async function startRecorder(){
          Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
       setState('thinking');
       setStatus('Je t\'ecoute...');
-      if (!whisperLoaded && !whisperLoading){
-        setStatus('Preparation de la transcription locale (1 seule fois)...');
-        loadWhisper();
-      }
-      if (whisperLoaded && whisperASR){
-        const txt = await transcribeBlob(blob);
-        if (txt){
-          setState('idle');
-          handleQuestion(txt);
-          return;
-        }
-      }
+      if (!whisperLoaded && !whisperLoading) loadWhisper();
+      if (whisperLoaded && whisperASR) whisperPending = transcribeBlob(blob);
       /* v10.6 : FIX MOBILE — transcription Mistral Voxtral (cle deja dans
          Reglages). Fonctionne sur iOS Safari (pas de SpeechRecognition) et
          Android : simple requete HTTP, aucune API navigateur requise. */
@@ -1240,11 +1234,30 @@ async function startRecorder(){
         setStatus('Transcription Mistral...');
         const txt = await transcribeWithMistral(blob, mistralKey);
         if (txt){
+          /* Si Whisper local et Mistral sont tous deux disponibles, privilégier
+             Whisper seulement s'il donne une phrase suffisamment proche et plus
+             complète; sinon garder la transcription Mistral. */
+          let selected = txt.trim();
+          try {
+            const localTxt = (await Promise.race([
+              whisperPending,
+              new Promise(resolve => setTimeout(() => resolve(''), 12000))
+            ]) || '').trim();
+            if (localTxt && localTxt.length > selected.length * 0.75) selected = localTxt;
+          } catch {}
           setState('idle');
-          handleQuestion(txt);
+          handleQuestion(selected);
           return;
         }
       }
+      /* Sans résultat Mistral, attendre la transcription locale déjà lancée. */
+      try {
+        const localTxt = (await Promise.race([
+          whisperPending,
+          new Promise(resolve => setTimeout(() => resolve(''), 12000))
+        ]) || '').trim();
+        if (localTxt) { setState('idle'); handleQuestion(localTxt); return; }
+      } catch {}
       setState('idle');
       setStatus("Je n'ai pas compris - reessaie en parlant plus fort");
     };
