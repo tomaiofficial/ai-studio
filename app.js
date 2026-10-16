@@ -1173,7 +1173,7 @@ async function startRecorder(){
     setStatus('Parle maintenant...');
     /* Precharger Whisper apres autorisation micro pour ameliorer les prochaines
        transcriptions; premier telechargement volumineux, puis cache navigateur. */
-    if (!whisperLoaded && !whisperLoading) loadWhisper();
+    if (!whisperLoaded && !whisperLoading) /* loadWhisper(); */ /* v10.28 : disabled to avoid SharedArrayBuffer warning */
     /* v10.0.2 : FIX MOBILE — utilise SpeechToTextHandler (instance neuve)
        au lieu du MediaRecorder + recog global qui reste bloque */
     if (stt.isSupported()){
@@ -1224,7 +1224,7 @@ async function startRecorder(){
          Whisper LOCAL (hors ligne, a vie) : il transcrit directement sur l'appareil. */
       setState('thinking');
       setStatus('Je t\'ecoute...');
-      if (!whisperLoaded && !whisperLoading) loadWhisper();
+      if (!whisperLoaded && !whisperLoading) /* loadWhisper(); */ /* v10.28 : disabled to avoid SharedArrayBuffer warning */
       if (whisperLoaded && whisperASR) whisperPending = transcribeBlob(blob);
       /* v10.6 : FIX MOBILE — transcription Mistral Voxtral (cle deja dans
          Reglages). Fonctionne sur iOS Safari (pas de SpeechRecognition) et
