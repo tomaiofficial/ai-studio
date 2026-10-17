@@ -7,6 +7,12 @@ const crypto = require('node:crypto');
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
+const AUTONOMY_ENABLED = process.env.AUTONOMY_ENABLED === 'true';
+const AUTONOMY_GITHUB_TOKEN = process.env.AUTONOMY_GITHUB_TOKEN || '';
+const AUTONOMY_REPOSITORY = process.env.AUTONOMY_REPOSITORY || 'tomaiofficial/ai-studio';
+const AUTONOMY_WORKFLOW = process.env.AUTONOMY_WORKFLOW || 'astra-autonomous-proposals.yml';
+const AUTONOMY_INTERVAL_MS = Math.max(6 * 60 * 60 * 1000, Number(process.env.AUTONOMY_INTERVAL_HOURS || 12) * 60 * 60 * 1000);
+const AUTONOMY_START_DELAY_MS = Math.max(60_000, Number(process.env.AUTONOMY_START_DELAY_MINUTES || 5) * 60_000);
 const API_TOKEN = process.env.ASTRA_API_TOKEN || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
@@ -91,6 +97,73 @@ async function appendFeature(feature) {
 
 let featurePostCount = 0;
 let featureWindowStart = Date.now();
+const autonomyState = { enabled: AUTONOMY_ENABLED, lastCheck: null, lastDispatch: null, nextCheck: null, status: 'disabled', detail: '' };
+
+async function githubRequest(url, method = 'GET', body) {
+  if (!AUTONOMY_GITHUB_TOKEN) throw new Error('AUTONOMY_GITHUB_TOKEN not configured');
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${AUTONOMY_GITHUB_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`GitHub API ${response.status}: ${text.slice(0, 500)}`);
+  return text ? JSON.parse(text) : {};
+}
+
+async function checkAndDispatchAutonomy() {
+  autonomyState.lastCheck = new Date().toISOString();
+  autonomyState.nextCheck = new Date(Date.now() + AUTONOMY_INTERVAL_MS).toISOString();
+  if (!AUTONOMY_ENABLED) { autonomyState.status = 'disabled'; return; }
+  if (!AUTONOMY_GITHUB_TOKEN) { autonomyState.status = 'needs_github_token'; autonomyState.detail = 'Set AUTONOMY_GITHUB_TOKEN on Render'; return; }
+  const apiBase = `https://api.github.com/repos/${AUTONOMY_REPOSITORY}`;
+  try {
+    const pulls = await githubRequest(`${apiBase}/pulls?state=open&per_page=100`);
+    const pendingAstraPr = pulls.find(pr => String(pr.head?.ref || '').startsWith('astra/auto-proposal-'));
+    if (pendingAstraPr) {
+      autonomyState.status = 'waiting_for_review';
+      autonomyState.detail = `Existing proposal PR #${pendingAstraPr.number} awaits review`;
+      return;
+    }
+    const workflowPath = encodeURIComponent(AUTONOMY_WORKFLOW);
+    const runsData = await githubRequest(`${apiBase}/actions/workflows/${workflowPath}/runs?per_page=10`);
+    const runs = runsData.workflow_runs || [];
+    if (runs.some(run => ['queued', 'in_progress', 'waiting', 'requested'].includes(run.status))) {
+      autonomyState.status = 'workflow_in_progress';
+      autonomyState.detail = 'A feature proposal workflow is already running';
+      return;
+    }
+    const lastRunAt = runs[0]?.created_at ? Date.parse(runs[0].created_at) : 0;
+    if (lastRunAt && Date.now() - lastRunAt < AUTONOMY_INTERVAL_MS) {
+      autonomyState.status = 'interval_wait';
+      autonomyState.detail = 'Waiting for the configured proposal interval';
+      return;
+    }
+    await githubRequest(`${apiBase}/actions/workflows/${workflowPath}/dispatches`, 'POST', { ref: 'main' });
+    autonomyState.lastDispatch = new Date().toISOString();
+    autonomyState.status = 'dispatched';
+    autonomyState.detail = 'GitHub Actions is preparing a tested proposal; it will not merge or deploy it';
+  } catch (error) {
+    autonomyState.status = 'error';
+    autonomyState.detail = String(error.message || error).slice(0, 500);
+    console.error('[Astra autonomy]', autonomyState.detail);
+  }
+}
+
+function scheduleAutonomyCheck(delay = AUTONOMY_START_DELAY_MS) {
+  setTimeout(async () => {
+    await checkAndDispatchAutonomy();
+    scheduleAutonomyCheck(AUTONOMY_INTERVAL_MS);
+  }, delay).unref?.();
+}
+
+if (AUTONOMY_ENABLED) scheduleAutonomyCheck();
 
 async function readSuggestions(limit = 30) {
   let raw;
@@ -187,7 +260,10 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/health') {
-    return sendJson(res, 200, { ok: true, service: 'astra-api' }, cors || {});
+    return sendJson(res, 200, { ok: true, service: 'astra-api', autonomy: autonomyState }, cors || {});
+  }
+  if (req.method === 'GET' && url.pathname === '/agent-status') {
+    return sendJson(res, 200, autonomyState, cors || {});
   }
   if (req.method === 'GET' && url.pathname === '/suggestions') {
     if (PUBLIC_SUGGESTIONS) return sendJson(res, 403, { error: 'Suggestion review is not public' }, cors || {});
