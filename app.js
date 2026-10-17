@@ -1852,17 +1852,20 @@ async function askAI(question){
   if (/(meteo|météo|quel temps|quel temps fait|temps qu'il fait|il fait quoi|previsions|prévisions|temperature|température|il pleut|il neige|soleil|pluie|vent)/i.test(question)){
     try {
       let meteo;
-      const villeM = question.match(/(?:à|a|sur|pour|dans)\s+([A-Za-zÀ-ÿ' -]{2,30})/i);
-      const ville = villeM ? villeM[1].trim().replace(/[?.!,].*$/, '') : '';
+      const explicitCity = question.match(/(?:météo|meteo|temps)\s+(?:à|a|de|pour|dans)\s+([A-Za-zÀ-ÿ'-]{2,30})(?=$|[?.!,])/i)
+        || question.match(/(?:à|a|de|pour|dans)\s+([A-Za-zÀ-ÿ'-]{2,30})\s*(?:\?|!|\.)?$/i);
+      const ville = explicitCity ? explicitCity[1].trim() : '';
       if (/(chez moi|ici|ma position|où je suis|ou je suis|localement|dans ma ville)/i.test(question) || !ville) {
         meteo = await requestWeatherAtUserLocation();
       } else {
         const text = await meteoFor(ville);
         if (!text) throw new Error('Météo indisponible pour cette ville.');
-        showWeatherPanel(); setWeatherText('weatherDesc',text); setWeatherText('weatherCity',ville);
+        setWeatherText('weatherDesc',text); setWeatherText('weatherCity',ville);
         meteo = { placeName:ville, description:text };
       }
-      const rep = `À ${meteo.placeName}, ${meteo.description}${meteo.temperature!==undefined?`, il fait ${meteo.temperature} degrés, ressenti ${meteo.apparent}, humidité ${meteo.humidity}%, vent ${meteo.wind} km/h; aujourd'hui entre ${meteo.low} et ${meteo.high} degrés, risque de pluie jusqu'à ${meteo.rain}%.`:''}`;
+      const rep = meteo.temperature!==undefined
+        ? `À ${meteo.placeName}, ${meteo.description.toLowerCase()}. Il fait ${meteo.temperature} degrés, ressenti ${meteo.apparent}. Humidité ${meteo.humidity}%, vent ${meteo.wind} kilomètres-heure. Aujourd'hui, entre ${meteo.low} et ${meteo.high} degrés, risque de pluie jusqu'à ${meteo.rain}%.`
+        : meteo.description;
       const clean = stripGreeting(enforceIdentity(fixFrench(rep)));
       session.push({ role: 'assistant', content: clean });
       saveConversation();
@@ -2031,7 +2034,8 @@ async function meteoFor(city){
     const data = await geocode.json();
     const place = data.results && data.results[0];
     if (!place) return '';
-    return (await fetchWeatherForCoordinates(place.latitude, place.longitude, place.name || ville)).description;
+    const weather = await fetchWeatherForCoordinates(place.latitude, place.longitude, place.name || ville);
+    return `À ${weather.placeName}, ${weather.description.toLowerCase()}. Il fait ${weather.temperature} degrés, ressenti ${weather.apparent}. Humidité ${weather.humidity}%, vent ${weather.wind} kilomètres-heure. Aujourd'hui, entre ${weather.low} et ${weather.high} degrés, risque de pluie jusqu'à ${weather.rain}%.`;
   } catch(e) { return 'Météo indisponible pour le moment.'; }
 }
 /* OUTIL HEURE : date et heure actuelles */
