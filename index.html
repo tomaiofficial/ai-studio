@@ -446,16 +446,6 @@ select.wide-input{appearance:none}
     <button class="primary" onclick="document.getElementById('visionOverlay').classList.add('hidden'); document.getElementById('visionVideo').src='';">Fermer</button>
   </div>
 </div>
-<div id="weatherOverlay" class="modal hidden" style="align-items:center;justify-content:center;background:rgba(3,8,24,.88);z-index:70;">
-  <section style="width:min(94vw,680px);max-height:88vh;overflow:auto;padding:24px;border:1px solid rgba(93,176,255,.3);border-radius:24px;background:linear-gradient(145deg,#101c38,#17172b);box-shadow:0 20px 80px #0009;color:#f4f7ff;">
-    <header style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;"><div><small style="color:#98a9cf;">MÉTÉO LOCALE</small><h2 id="weatherCity" style="margin:4px 0 0;font-size:26px;">Ta position</h2></div><button id="weatherClose" class="icon-btn" aria-label="Fermer météo">✕</button></header>
-    <div style="display:flex;align-items:center;gap:18px;padding:18px;border-radius:18px;background:rgba(255,255,255,.06);"><div id="weatherIcon" style="font-size:48px;">🌤️</div><div><div id="weatherTemp" style="font-size:42px;font-weight:700;">--°</div><div id="weatherDesc" style="color:#bdc8e2;">Chargement…</div></div></div>
-    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0;"><div class="toggle-row"><span>Ressenti</span><b id="weatherFeels">--</b></div><div class="toggle-row"><span>Humidité</span><b id="weatherHumidity">--</b></div><div class="toggle-row"><span>Vent</span><b id="weatherWind">--</b></div><div class="toggle-row"><span>Risque de pluie</span><b id="weatherRain">--</b></div></div>
-    <h3 style="margin:14px 0 8px;">Prochaines heures</h3><div id="weatherHourly" style="display:flex;gap:9px;overflow-x:auto;padding-bottom:8px;"></div>
-    <h3 style="margin:14px 0 8px;">Aujourd’hui</h3><div id="weatherToday" style="color:#bdc8e2;line-height:1.6;">Prévisions…</div>
-    <p id="weatherSource" style="margin-top:16px;color:#8998ba;font-size:12px;">Source : Open-Meteo</p>
-  </section>
-</div>
 <div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
 
 <!-- INFO TEMPORAIRE : bug actualisation auto (ancien service worker). Visible jusqu'au mercredi 23/09/2026 inclus. -->
