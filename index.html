@@ -147,6 +147,7 @@ body{
 .status.active{color:#fff;font-weight:600}
 .idle-games{position:fixed;left:50%;bottom:94px;transform:translateX(-50%);width:min(92vw,440px);z-index:18;padding:16px;border:1px solid rgba(255,196,61,.45);border-radius:18px;background:rgba(20,20,38,.96);box-shadow:0 12px 42px #0009;color:#f2f2fb}
 .idle-games.hidden{display:none}.idle-games h3{font-size:16px;margin:0 28px 6px 0}.idle-games p{font-size:13px;color:#b8b8cf;margin:0 0 12px;line-height:1.4}.idle-game-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.idle-game-grid button{margin:0;padding:10px 8px;border:1px solid rgba(124,92,255,.3);border-radius:10px;background:#22213a;color:#fff;font-size:13px;cursor:pointer}.idle-games .idle-close{position:absolute;right:8px;top:8px;background:transparent;border:0;color:#b8b8cf;font-size:18px;cursor:pointer}
+.recipe-book{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(5,8,18,.88);backdrop-filter:blur(10px)}.recipe-book.hidden{display:none}.recipe-shell{position:relative;width:min(96vw,980px);max-height:94vh;overflow:auto;padding:20px;border-radius:22px;background:linear-gradient(145deg,#211d32,#121a2c);border:1px solid rgba(255,255,255,.15);box-shadow:0 20px 80px #000b}.recipe-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.recipe-top h2{margin:0;color:#fff}.recipe-top button,.recipe-nav button{border:1px solid #4a4764;background:#282641;color:white;border-radius:10px;padding:9px 13px;cursor:pointer}.recipe-spread{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.recipe-page{background:#f8f1df;color:#2b2730;border-radius:16px;padding:16px;min-width:0;box-shadow:0 8px 30px #0005}.recipe-page.turn-next{animation:pageNext .32s ease}.recipe-page.turn-prev{animation:pagePrev .32s ease}@keyframes pageNext{from{transform:perspective(800px) rotateY(-8deg);opacity:.55}to{transform:none;opacity:1}}@keyframes pagePrev{from{transform:perspective(800px) rotateY(8deg);opacity:.55}to{transform:none;opacity:1}}.recipe-photo{width:100%;height:clamp(150px,28vh,270px);object-fit:cover;border-radius:12px;background:#ddd}.recipe-category{display:block;margin:10px 0 4px;color:#725c35;font-size:12px;font-weight:700;text-transform:uppercase}.recipe-page h3{margin:4px 0 10px;font-size:22px;color:#29243a}.recipe-page ul,.recipe-page ol{padding-left:22px;line-height:1.55}.recipe-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:14px;color:#ddd}.recipe-nav .pages{font-size:13px;color:#bdb8d0}@media(max-width:640px){.recipe-book{padding:6px}.recipe-shell{padding:12px;max-height:96vh}.recipe-spread{grid-template-columns:1fr;gap:10px}.recipe-photo{height:150px}.recipe-page{padding:12px}.recipe-page h3{font-size:19px}}
 .mic-btn{
   width:230px;height:230px;border-radius:50%;border:none;cursor:pointer;
   position:relative;overflow:hidden;flex-shrink:0;
@@ -497,6 +498,17 @@ select.wide-input{appearance:none}
     <button data-idle-game="pile">🪙 Pile ou face</button>
   </div>
 </aside>
+
+<div id="recipeBook" class="recipe-book hidden" role="dialog" aria-modal="true" aria-labelledby="recipeTitle">
+  <section class="recipe-shell">
+    <div class="recipe-top"><div><small style="color:#bdb8d0;">LIVRE DE CUISINE</small><h2>Recettes d’Astra</h2></div><button id="recipeClose" aria-label="Fermer le livre">Fermer ✕</button></div>
+    <div id="recipePage" class="recipe-spread">
+      <article class="recipe-page"><img id="recipeImage" class="recipe-photo" alt="Photo du plat" referrerpolicy="no-referrer"><span id="recipeCategory" class="recipe-category"></span><h3 id="recipeTitle"></h3><h4>Ingrédients</h4><ul id="recipeIngredients"></ul></article>
+      <article class="recipe-page"><h3>Étapes</h3><ol id="recipeSteps"></ol><p style="font-size:12px;color:#665e50;">Adapte les quantités selon ton appétit et vérifie les allergènes des ingrédients.</p></article>
+    </div>
+    <div class="recipe-nav"><button id="recipePrev">← Précédente</button><span id="recipeCounter" class="pages"></span><button id="recipeNext">Suivante →</button></div>
+  </section>
+</div>
 
 <!-- CHAT MASQUE du mode vocal (conserve : existant d'origine, non visible) -->
 <div class="chat" id="chat">

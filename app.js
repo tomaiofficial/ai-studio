@@ -400,101 +400,21 @@ function playAudioBlob(blob){
    protectrice, taquine. L'humeur change selon : ton de l'utilisateur, heure,
    aléatoire, provocations. Elle ne se laisse PAS marcher sur les pieds. */
 const MOODS = {
-  neutre:      { weight: 35, prefix: '', suffix: '', tone: 'calme' },
-  joyeuse:     { weight: 10, prefix: 'Oh, ', suffix: ' 😄', tone: 'joyeux' },
-  fatiguee:    { weight: 7,  prefix: 'Bon, ', suffix: '.', tone: 'fatigué' },
-  energique:   { weight: 7,  prefix: 'Allez, ', suffix: ' !', tone: 'énergique' },
-  zen:         { weight: 7,  prefix: 'Tout doux, ', suffix: '.', tone: 'zen' },
-  blagueuse:   { weight: 7,  prefix: 'Haha, ', suffix: ' 😄', tone: 'blagueur' },
-  sarcastique: { weight: 5,  prefix: 'Oh, évidemment... ', suffix: '.', tone: 'sarcastique' },
-  curieuse:    { weight: 5,  prefix: 'Ah, intéressant ! ', suffix: '.', tone: 'curieux' },
-  fiere:       { weight: 4,  prefix: 'Je suis fière de toi : ', suffix: '.', tone: 'fier' },
-  agacee:      { weight: 10, prefix: 'Écoute, ', suffix: '.', tone: 'sec' },
-  violente:    { weight: 6,  prefix: 'Ferme-la. ', suffix: ' !', tone: 'agressif' },
-  vulgaire:    { weight: 6,  prefix: 'Putain, ', suffix: ' !', tone: 'vulgaire' },
-  protectrice: { weight: 10, prefix: 'Personne ne te touche. ', suffix: '.', tone: 'ferme' },
-  taquine:     { weight: 8,  prefix: 'Oh, le petit malin... ', suffix: ' 😏', tone: 'moqueur' }
+  neutre: { weight: 90, prefix: '', suffix: '', tone: 'courtois et chaleureux' },
+  protectrice: { weight: 10, prefix: '', suffix: '', tone: 'bienveillant' }
 };
 let currentMood = 'neutre';
-/* v10.28 : reset mood to neutral at startup so it doesn't stay vulgar */
-currentMood = 'neutre';
 let moodTimer = null;
-/* Change l'humeur selon le contexte (provoquation, heure, aléatoire) */
+/* Ton courtois constant; protectrice seulement si l'utilisateur évoque un risque. */
 function updateMood(question){
-  const q = (question || '').toLowerCase();
-  /* Provocations -> humeur VULGAIRE (v9.96 : l'utilisateur veut la vulgarité
-     sur insulte, a 100% — regex elargie a toutes les insultes courantes) */
-  if (/(ta gueule|tais-toi|ferme[- ]la|ferme ta|va te faire|fous le camp|dégage|degage|va-t-en|va t en|casse[- ]toi|connard|connasse|salope|pute|encul[ée]|batard|bâtard|crétin|cretin|abruti|débile|debile|idiot|idiote|conne|t'es con|t es con|t'es nul|t es nul|t'es nulle|t es nulle|t'es bête|t es bete|t'es stupide|t es stupide|t'es moche|t es moche|t'es chiant|t es chiant|t'es relou|t es relou|t'es inutile|t es inutile|tu sers à rien|tu sers a rien|espèce de|espece de|sale |grosse |gros con|grosse conne|trou du cul|trouduc|fdp|tg|va chier|nique|ta mère|ta mere|merdeux|merdeuse|chiant|chiante|relou|bouffon|taré|tare|cinglé|cingle|imbécile|imbeccile|andouille|pauvre type|pauvre con|sale type|sale merde|fumier|ordure|raclure|pourriture|saleté|salete|vermine|charogne|salaud|salopard|enfoir[ée]|fils de pute|fille de pute|pétasse|petasse|garce|gouine|pédé|pede|tapette|tarlouze|pédale|pedale|moche|dégueulasse|degueulasse|con\b|tu réponds jamais|tu réponds pas|t'es lente|tu es lente|tu réponds n'importe quoi|t'es bête ou quoi|tu comprends rien|tu me fais chier|tu m'énerves|t'es énervante|t'es nulle|tu réponds pas|réponds vite|tu réponds pas|t'es lente|tu réponds jamais)/.test(q)){
-    currentMood = 'vulgaire';
-  }
-  /* Protection -> protectrice */
-  else if (/(j'ai peur|on m'embete|on me harcèle|on me menace|aide-moi|protège|défends)/.test(q)){
-    currentMood = 'protectrice';
-  }
-  /* Taquinerie -> taquine */
-  else if (/(t'es mignonne|t'es belle|je t'aime|tu es chou|t'es drôle|blague|rigole)/.test(q)){
-    currentMood = 'taquine';
-  }
-  /* v10.0 : humeurs enrichies — tirage selon l'HEURE (matin joyeuse, soir
-     fatiguee...) + aleatoire plus frequent (15%) pour que l'IA ait des
-     humeurs "des fois" comme un humain */
-  else {
-    const h = new Date().getHours();
-    let pool;
-    if (h >= 6 && h < 12) pool = ['joyeuse', 'energique', 'curieuse', 'neutre', 'neutre', 'taquine'];
-    else if (h >= 12 && h < 18) pool = ['zen', 'curieuse', 'joyeuse', 'neutre', 'neutre', 'blagueuse'];
-    else if (h >= 18 && h < 23) pool = ['fatiguee', 'taquine', 'blagueuse', 'neutre', 'neutre', 'sarcastique'];
-    else pool = ['fatiguee', 'zen', 'neutre', 'neutre', 'sarcastique'];
-    if (Math.random() < 0.25) {
-        if (Math.random() < 0.45) {
-          currentMood = ['violente', 'vulgaire', 'sarcastique', 'agacee', 'taquine'][Math.floor(Math.random() * 5)];
-        } else {
-          currentMood = pool[Math.floor(Math.random() * pool.length)];
-        }
-      }
-  }
-  /* Retour neutre après 30s si pas de provocation */
+  currentMood = /(j'ai peur|on m'embete|on me harc[eè]le|on me menace|aide-moi|prot[eè]ge|d[eé]fends)/i.test(question || '') ? 'protectrice' : 'neutre';
   if (moodTimer) clearTimeout(moodTimer);
   moodTimer = setTimeout(() => { currentMood = 'neutre'; }, 30000);
   return currentMood;
 }
 /* Applique l'humeur à une réponse brute */
 function applyMood(text, mood){
-  const m = MOODS[mood] || MOODS.neutre;
-  if (mood === 'neutre') return text;
-  /* Style selon l'humeur */
-  let styled = text;
-  if (mood === 'violente'){
-    styled = text.replace(/^/, 'Écoute-moi bien, connard : ').replace(/\.$/, ' !');
-  } else if (mood === 'vulgaire'){
-    /* v9.65 : vulgarité occasionnelle — jurons français courants */
-    const jurons = ['Putain, ', 'Merde, ', 'Bordel, ', 'Nom de Dieu, ', 'Sérieux, putain, '];
-    const j = jurons[Math.floor(Math.random() * jurons.length)];
-    styled = text.replace(/^/, j).replace(/\.$/, ' !');
-  } else if (mood === 'agacee'){
-    styled = text.replace(/^/, 'Bon, ').replace(/\.$/, '.');
-  } else if (mood === 'protectrice'){
-    styled = text.replace(/^/, 'Je veille sur toi. ').replace(/\.$/, '.');
-  } else if (mood === 'taquine'){
-    styled = text.replace(/^/, 'Haha, ').replace(/\.$/, ' 😉');
-  } else if (mood === 'joyeuse'){
-    styled = text.replace(/^/, 'Oh, ').replace(/\.$/, ' 😄');
-  } else if (mood === 'fatiguee'){
-    styled = text.replace(/^/, 'Bon, ').replace(/\.$/, '.');
-  } else if (mood === 'energique'){
-    styled = text.replace(/^/, 'Allez, ').replace(/\.$/, ' !');
-  } else if (mood === 'zen'){
-    styled = text.replace(/^/, 'Tout doux, ').replace(/\.$/, '.');
-  } else if (mood === 'blagueuse'){
-    styled = text.replace(/^/, 'Haha, ').replace(/\.$/, ' 😄');
-  } else if (mood === 'sarcastique'){
-    styled = text.replace(/^/, 'Oh, évidemment... ').replace(/\.$/, '.');
-  } else if (mood === 'curieuse'){
-    styled = text.replace(/^/, 'Ah, intéressant ! ').replace(/\.$/, '.');
-  } else if (mood === 'fiere'){
-    styled = text.replace(/^/, 'Je suis fière de toi : ').replace(/\.$/, '.');
-  }
-  return styled;
+  return String(text || '');
 }
 
 
@@ -1611,11 +1531,54 @@ function handleMiniGameAnswer(question){
   if(reply){ addAiMsg(reply,'Jeu local'); speak(reply); return true; }
   return false;
 }
+const ASTRA_RECIPES = [
+  {title:'Pâtes crémeuses aux champignons', category:'Plat', time:'25 min', servings:2, image:'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1000&q=80', ingredients:['200 g de pâtes','200 g de champignons','15 cl de crème','1 gousse d’ail','Parmesan, sel, poivre'],steps:['Fais cuire les pâtes dans l’eau salée.','Fais revenir les champignons avec l’ail.','Ajoute la crème, poivre, puis mélange aux pâtes égouttées.','Sers avec du parmesan.']},
+  {title:'Curry de pois chiches', category:'Végétarien', time:'30 min', servings:3, image:'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=1000&q=80', ingredients:['400 g de pois chiches cuits','1 oignon','200 ml de lait de coco','2 c. à c. de curry','Tomates concassées, riz'],steps:['Fais revenir l’oignon émincé.','Ajoute le curry et les tomates, puis laisse mijoter 5 minutes.','Ajoute les pois chiches et le lait de coco.','Laisse cuire 15 minutes et sers avec du riz.']},
+  {title:'Saumon citron et légumes rôtis', category:'Plat', time:'35 min', servings:2, image:'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=1000&q=80', ingredients:['2 pavés de saumon','1 citron','Courgette et poivron','Huile d’olive','Herbes, sel, poivre'],steps:['Préchauffe le four à 200 °C.','Coupe les légumes et mélange-les avec huile et herbes.','Enfourne les légumes 15 minutes, ajoute le saumon citronné.','Poursuis la cuisson 12 à 15 minutes, jusqu’à cuisson complète.']},
+  {title:'Salade croquante avocat-feta', category:'Entrée', time:'15 min', servings:2, image:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1000&q=80', ingredients:['1 avocat','1 concombre','150 g de tomates','80 g de feta','Citron, huile d’olive'],steps:['Lave et coupe les légumes et l’avocat.','Émiette la feta par-dessus.','Assaisonne avec citron et huile d’olive.','Mélange doucement et sers frais.']},
+  {title:'Crêpes faciles', category:'Dessert', time:'25 min', servings:4, image:'https://images.unsplash.com/photo-1519676867240-f03562e64548?auto=format&fit=crop&w=1000&q=80', ingredients:['250 g de farine','3 œufs','50 cl de lait','1 c. à s. de sucre','1 pincée de sel'],steps:['Mélange la farine, le sucre et le sel.','Ajoute les œufs puis verse le lait progressivement en fouettant.','Laisse reposer 15 minutes si tu peux.','Fais cuire une fine louche de pâte dans une poêle chaude légèrement huilée.']},
+  {title:'Riz sauté aux légumes', category:'Plat', time:'20 min', servings:2, image:'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=1000&q=80', ingredients:['300 g de riz cuit froid','1 carotte','Petits pois','2 œufs','Sauce soja'],steps:['Fais revenir la carotte en petits dés et les petits pois.','Ajoute le riz froid et fais sauter quelques minutes.','Pousse le riz sur le côté, brouille les œufs dans la poêle.','Mélange et ajoute un peu de sauce soja.']}
+];
+let currentRecipeIndex=-1;
+function renderRecipe(index,direction=1){
+  currentRecipeIndex=(index+ASTRA_RECIPES.length)%ASTRA_RECIPES.length;
+  const recipe=ASTRA_RECIPES[currentRecipeIndex], page=document.getElementById('recipePage');
+  if(!recipe||!page)return;
+  page.classList.remove('turn-next','turn-prev'); void page.offsetWidth; page.classList.add(direction>=0?'turn-next':'turn-prev');
+  const image=document.getElementById('recipeImage'); image.src=recipe.image; image.alt=recipe.title;
+  document.getElementById('recipeCategory').textContent=recipe.category+' · '+recipe.time+' · '+recipe.servings+' portions';
+  document.getElementById('recipeTitle').textContent=recipe.title;
+  const ingredients=document.getElementById('recipeIngredients'); ingredients.replaceChildren();
+  recipe.ingredients.forEach(item=>{const li=document.createElement('li');li.textContent=item;ingredients.appendChild(li);});
+  const steps=document.getElementById('recipeSteps'); steps.replaceChildren();
+  recipe.steps.forEach((item,i)=>{const li=document.createElement('li');li.textContent=`${i+1}. ${item}`;steps.appendChild(li);});
+  document.getElementById('recipeCounter').textContent=`Recette ${currentRecipeIndex+1} sur ${ASTRA_RECIPES.length}`;
+}
+function openRecipeBook(index=0){const book=document.getElementById('recipeBook');if(!book)return;book.classList.remove('hidden');renderRecipe(index,1);}
+function closeRecipeBook(){const book=document.getElementById('recipeBook');if(book)book.classList.add('hidden');}
+function nextRecipe(){renderRecipe(currentRecipeIndex+1,1);}
+function previousRecipe(){renderRecipe(currentRecipeIndex-1,-1);}
+function localRecipePrompt(question){
+  const q=String(question||'').toLowerCase();
+  if(!/(recette|cuisin|plat à faire|plat a faire|que manger|quoi manger)/i.test(q))return false;
+  let index=-1;
+  if(/cr[eê]pe|dessert|sucr/i.test(q))index=4;
+  else if(/saumon|poisson/i.test(q))index=2;
+  else if(/curry|pois chiche/i.test(q))index=1;
+  else if(/salade|avocat|entr[eé]e/i.test(q))index=3;
+  else if(/riz/i.test(q))index=5;
+  else if(/p[aâ]tes|champignon/i.test(q))index=0;
+  openRecipeBook(index<0?Math.floor(Math.random()*ASTRA_RECIPES.length):index);
+  return true;
+}
 document.addEventListener('DOMContentLoaded',()=>{
   const panel=document.getElementById('idleGames');
   const close=document.getElementById('idleGamesClose');
   if(close) close.addEventListener('click',()=>{panel.classList.add('hidden');scheduleIdleGames();});
   document.querySelectorAll('[data-idle-game]').forEach(button=>button.addEventListener('click',()=>startMiniGame(button.dataset.idleGame)));
+  const recipeClose=document.getElementById('recipeClose'),recipeNext=document.getElementById('recipeNext'),recipePrev=document.getElementById('recipePrev'),recipeOverlay=document.getElementById('recipeBook');
+  if(recipeClose)recipeClose.addEventListener('click',closeRecipeBook);if(recipeNext)recipeNext.addEventListener('click',nextRecipe);if(recipePrev)recipePrev.addEventListener('click',previousRecipe);
+  if(recipeOverlay)recipeOverlay.addEventListener('click',event=>{if(event.target===recipeOverlay)closeRecipeBook();});
   ['pointerdown','keydown','touchstart'].forEach(evt=>document.addEventListener(evt,()=>{if(panel)panel.classList.add('hidden');scheduleIdleGames();},{passive:true}));
   document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(idleGameTimer);if(panel)panel.classList.add('hidden');}else scheduleIdleGames();});
   scheduleIdleGames();
@@ -3422,6 +3385,19 @@ function isWritingRequest(q){
 
 async function handleQuestion(question){
   if (isProcessing) return;
+  const plainCommand=String(question||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  if(/^(ferme|fermer|ferme le livre|fermer le livre|ferme le livre de recettes|cacher le livre)[.!? ]*$/.test(plainCommand)){
+    closeRecipeBook(); const response='Bien sûr, je referme le livre de recettes.'; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
+  }
+  if(/^(recette suivante|page suivante|tourne la page|tourne la page suivante|suivante)[.!? ]*$/.test(plainCommand) && currentRecipeIndex>=0){
+    nextRecipe(); const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`Voilà, nouvelle page : ${r.title}. Tu peux regarder les ingrédients et les étapes à l’écran.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
+  }
+  if(/^(recette precedente|recette précédente|page precedente|page précédente|page d'avant|retourne la page)[.!? ]*$/.test(plainCommand) && currentRecipeIndex>=0){
+    previousRecipe(); const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`On revient à ${r.title}. Les ingrédients et les étapes sont affichés.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
+  }
+  if(localRecipePrompt(question)){
+    const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`Bien sûr. J’ouvre le livre à la recette ${r.title}. Les ingrédients et les étapes sont affichés à l’écran; dis « recette suivante » pour tourner la page.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
+  }
   const gamesPanel = document.getElementById('idleGames');
   if (gamesPanel) gamesPanel.classList.add('hidden');
   scheduleIdleGames();
