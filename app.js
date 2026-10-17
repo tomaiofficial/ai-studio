@@ -1542,7 +1542,7 @@ function nextEnglishLesson(){
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.
    La cle d'administration reste cote serveur; le navigateur ne la recoit jamais. */
-const ASTRA_API_BASE = 'https://astra-vocal-server.onrender.com';
+const ASTRA_API_BASE = '';
 const FEATURE_SUGGESTION_KEY = 'astra_feature_suggestion_last';
 let featureSuggestionInFlight = false;
 async function saveFeatureSuggestion(text){
@@ -1574,7 +1574,8 @@ async function requestFeatureProposal(text){
   const feature = String(text || '').trim().slice(0, 2000);
   if (!feature) return null;
   try {
-    const response = await fetch(ASTRA_API_BASE + '/propose-feature', {
+    const endpoint = ASTRA_API_BASE ? ASTRA_API_BASE + '/propose-feature' : '/api/propose-feature';
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ feature })
@@ -3462,7 +3463,7 @@ async function handleQuestion(question){
         await speak('Je n’ai pas pu préparer la proposition. Vérifie que le serveur Render est à jour et qu’il a sa clé IA.');
       } else {
         const summary = String(proposal.summary || 'Proposition générée.').slice(0, 600);
-        const testSummary = proposal.tests && proposal.tests.passed ? 'Les vérifications de syntaxe ont réussi.' : 'Les tests n’ont pas réussi.';
+        const testSummary = proposal.tests && proposal.tests.every(test => test.passed) ? 'Le diff est valide et limité aux fichiers autorisés; les tests de syntaxe ne sont pas encore exécutés.' : 'La vérification du diff a échoué.';
         const spokenSummary = summary + ' ' + testSummary + ' Le patch n’a pas été appliqué ni publié.';
         addAiMsg(spokenSummary);
         await speak(spokenSummary);
