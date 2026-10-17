@@ -1520,6 +1520,15 @@ const ASTRA_ENGLISH_LESSONS = [
   { fr: 'Pouvez-vous parler plus lentement ?', en: 'Could you speak more slowly?', pron: 'Koude you spik mor slo-li ?' },
   { fr: 'Je ne comprends pas encore.', en: 'I do not understand yet.', pron: 'Aï dou not eundeustand yet.' },
 ];
+let idleGameTimer = null;
+let activeMiniGame = '';
+let lastWordGameWord = '';
+const LOCAL_QUIZ = [
+  {q:'Combien de côtés a un hexagone ?', choices:['5','6','8'], answer:1, explain:'Un hexagone a six côtés.'},
+  {q:'Quelle planète est surnommée la planète rouge ?', choices:['Vénus','Mars','Jupiter'], answer:1, explain:'C’est Mars, à cause de sa couleur rougeâtre.'},
+  {q:'Combien font sept fois huit ?', choices:['54','56','64'], answer:1, explain:'Sept fois huit, ça fait cinquante-six.'},
+];
+let localQuizIndex = 0;
 function repeatLastAstraReply(){
   if (!astraLastSpokenReply) return 'Je n’ai pas encore de réponse à répéter.';
   return astraLastSpokenReply;
@@ -1541,6 +1550,73 @@ function nextEnglishLesson(){
   }
   return lesson.fr + ' En anglais : ' + lesson.en + '. Prononciation approximative : ' + lesson.pron;
 }
+function showIdleGames(){
+  const panel=document.getElementById('idleGames');
+  if(panel && !isProcessing && !isSpeaking && state==='idle' && !welcomePlaying && document.visibilityState==='visible') panel.classList.remove('hidden');
+}
+function scheduleIdleGames(){
+  clearTimeout(idleGameTimer);
+  idleGameTimer=setTimeout(showIdleGames, 60_000);
+}
+function startMiniGame(game){
+  const panel=document.getElementById('idleGames');
+  if(panel) panel.classList.add('hidden');
+  activeMiniGame=game;
+  if(game==='pile'){
+    const answer=Math.random()<0.5?'Pile':'Face';
+    const text=`J’ai lancé la pièce : ${answer} ! Tu veux rejouer ?`;
+    addAiMsg(text,'Jeu local'); speak(text); return;
+  }
+  if(game==='quiz'){
+    const item=LOCAL_QUIZ[localQuizIndex++%LOCAL_QUIZ.length];
+    const index=localQuizIndex-1;
+    const text=`Question : ${item.q} Réponds en disant ${item.choices.map((c,i)=>`${i+1}, ${c}`).join(', ')}.`;
+    addAiMsg(text,'Quiz local'); speak(text); return;
+  }
+  if(game==='devinette'){
+    const text='Petite devinette : qu’est-ce qui a des aiguilles mais ne coud pas ? Dis ta réponse.';
+    addAiMsg(text,'Jeu local'); speak(text); return;
+  }
+  if(game==='mots'){
+    lastWordGameWord='soleil';
+    const text='On joue à la chaîne de mots. Je commence : soleil. À toi de trouver un mot qui commence par L.';
+    addAiMsg(text,'Jeu local'); speak(text); return;
+  }
+}
+function handleMiniGameAnswer(question){
+  if(!activeMiniGame) return false;
+  const answer=String(question||'').trim();
+  let reply='';
+  if(activeMiniGame==='devinette'){
+    reply=/horloge|montre/i.test(answer)?'Exact, une horloge ! On en fait une autre ?':'Pas tout à fait : c’était une horloge. Tu veux une autre devinette ?';
+    activeMiniGame='';
+  } else if(activeMiniGame==='quiz'){
+    const item=LOCAL_QUIZ[(localQuizIndex-1+LOCAL_QUIZ.length)%LOCAL_QUIZ.length];
+    const correct=answer.toLowerCase().includes(item.choices[item.answer].toLowerCase())||answer.trim()==String(item.answer+1);
+    reply=correct?`Bien joué ! ${item.explain}`:`Pas tout à fait. ${item.explain}`;
+    activeMiniGame='';
+  } else if(activeMiniGame==='mots'){
+    const first=(answer.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z]/)||[])[0];
+    if(first==='l'){
+      const options=['livre','lune','lapin','lumière'];
+      const word=options[Math.floor(Math.random()*options.length)];
+      lastWordGameWord=word;
+      reply=`Bien ! Mon mot : ${word}. À toi avec la lettre ${word.slice(-1).toUpperCase()}.`;
+    } else reply='Il faut un mot qui commence par L. Essaie encore, ou dis stop.';
+    if(/\bstop\b|\barr[eê]te\b/i.test(answer)){activeMiniGame='';reply='Partie terminée. Merci d’avoir joué !';}
+  }
+  if(reply){ addAiMsg(reply,'Jeu local'); speak(reply); return true; }
+  return false;
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const panel=document.getElementById('idleGames');
+  const close=document.getElementById('idleGamesClose');
+  if(close) close.addEventListener('click',()=>{panel.classList.add('hidden');scheduleIdleGames();});
+  document.querySelectorAll('[data-idle-game]').forEach(button=>button.addEventListener('click',()=>startMiniGame(button.dataset.idleGame)));
+  ['pointerdown','keydown','touchstart'].forEach(evt=>document.addEventListener(evt,()=>{if(panel)panel.classList.add('hidden');scheduleIdleGames();},{passive:true}));
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(idleGameTimer);if(panel)panel.classList.add('hidden');}else scheduleIdleGames();});
+  scheduleIdleGames();
+});
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.
    La cle d'administration reste cote serveur; le navigateur ne la recoit jamais. */
@@ -3343,6 +3419,10 @@ function isWritingRequest(q){
 
 async function handleQuestion(question){
   if (isProcessing) return;
+  const gamesPanel = document.getElementById('idleGames');
+  if (gamesPanel) gamesPanel.classList.add('hidden');
+  scheduleIdleGames();
+  if (handleMiniGameAnswer(question)) return;
   /* v10.28 : autonomie locale uniquement si active dans Reglages */
   const autonomyEnabled = (typeof localStorage !== 'undefined' && localStorage.getItem('va_autonomy') === '1');
   const normalizedCommand = String(question || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();

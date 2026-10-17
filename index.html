@@ -145,6 +145,8 @@ body{
 }
 .status{font-size:15px;color:#9a9ab5;text-align:center;min-height:20px;max-width:90%}
 .status.active{color:#fff;font-weight:600}
+.idle-games{position:fixed;left:50%;bottom:94px;transform:translateX(-50%);width:min(92vw,440px);z-index:18;padding:16px;border:1px solid rgba(255,196,61,.45);border-radius:18px;background:rgba(20,20,38,.96);box-shadow:0 12px 42px #0009;color:#f2f2fb}
+.idle-games.hidden{display:none}.idle-games h3{font-size:16px;margin:0 28px 6px 0}.idle-games p{font-size:13px;color:#b8b8cf;margin:0 0 12px;line-height:1.4}.idle-game-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.idle-game-grid button{margin:0;padding:10px 8px;border:1px solid rgba(124,92,255,.3);border-radius:10px;background:#22213a;color:#fff;font-size:13px;cursor:pointer}.idle-games .idle-close{position:absolute;right:8px;top:8px;background:transparent;border:0;color:#b8b8cf;font-size:18px;cursor:pointer}
 .mic-btn{
   width:230px;height:230px;border-radius:50%;border:none;cursor:pointer;
   position:relative;overflow:hidden;flex-shrink:0;
@@ -483,6 +485,18 @@ select.wide-input{appearance:none}
     </div>
   </div>
 </div>
+
+<aside id="idleGames" class="idle-games hidden" aria-live="polite">
+  <button id="idleGamesClose" class="idle-close" aria-label="Masquer les jeux">×</button>
+  <h3>🎲 Une petite pause ?</h3>
+  <p>On peut jouer ensemble. Choisis un jeu ou dis son nom à voix haute.</p>
+  <div class="idle-game-grid">
+    <button data-idle-game="devinette">🧩 Devinette</button>
+    <button data-idle-game="quiz">🧠 Quiz rapide</button>
+    <button data-idle-game="mots">🔤 Chaîne de mots</button>
+    <button data-idle-game="pile">🪙 Pile ou face</button>
+  </div>
+</aside>
 
 <!-- CHAT MASQUE du mode vocal (conserve : existant d'origine, non visible) -->
 <div class="chat" id="chat">
