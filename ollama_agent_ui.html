@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Astra — Agent local</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#10101a;color:#eee;font:16px system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;padding:20px}.card{width:min(860px,100%);background:#1a1a2a;border:1px solid #34344a;border-radius:18px;padding:24px;box-shadow:0 20px 70px #0007}h1{margin:0 0 8px;font-size:25px}p{color:#bcbcd0;line-height:1.5}textarea{width:100%;min-height:100px;background:#10101a;color:#fff;border:1px solid #44445b;border-radius:10px;padding:12px;font:inherit}button{border:0;border-radius:10px;padding:12px 18px;background:#7357e8;color:white;font-weight:700;cursor:pointer;margin-top:10px}button:disabled{opacity:.5;cursor:wait}.note{font-size:13px;color:#aaa}pre{white-space:pre-wrap;overflow:auto;background:#0b0b12;border:1px solid #333;border-radius:10px;padding:14px;max-height:440px;color:#d7e7ff}.hidden{display:none}.status{padding:12px;margin-top:12px;border-radius:8px;background:#25253a}.checks{color:#9ae6b4}
+</style>
+</head>
+<body><main class="card">
+<h1>Astra — agent Ollama local</h1>
+<p>L’agent peut choisir une amélioration plus ambitieuse, proposer le patch et le tester en sandbox. Si les vérifications passent, tu peux autoriser l’application et le commit local. Rien n’est poussé ni déployé automatiquement.</p>
+<textarea id="idea" maxlength="700" placeholder="Ex. Ajoute une commande vocale pour répéter la dernière réponse"></textarea>
+<br><button id="generate">Générer et tester l’aperçu</button>
+<div id="status" class="status">Ollama : vérification…</div>
+<section id="result" class="hidden"><h2 id="title"></h2><p id="summary"></p><p id="checks" class="checks"></p><pre id="diff"></pre><button id="apply" class="hidden">Appliquer, tester et commit localement</button><p id="applyStatus" class="status hidden"></p><p class="note">L’agent ne pousse jamais vers GitHub et ne déploie jamais automatiquement. Le commit reste sur ce PC.</p></section>
+</main><script>
+const $=id=>document.getElementById(id);let busy=false;let proposalId='';
+fetch('/health').then(r=>r.json()).then(x=>{$('status').textContent='Ollama actif · '+x.model+' · agent local seulement'}).catch(()=>{$('status').textContent='Ollama indisponible. Démarre le service Ollama.'});
+$('generate').addEventListener('click',async()=>{if(busy)return;busy=true;$('generate').disabled=true;$('status').textContent='L’agent choisit et teste une proposition…';$('result').classList.add('hidden');$('apply').classList.add('hidden');try{const r=await fetch('/api/propose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idea:$('idea').value})});const data=await r.json();if(!r.ok)throw new Error(data.error||('HTTP '+r.status));proposalId=data.id;$('title').textContent=data.title;$('summary').textContent=data.summary;$('checks').textContent='Vérifications réussies : '+data.checks.join(' · ');$('diff').textContent=data.diff;$('result').classList.remove('hidden');$('apply').classList.remove('hidden');$('status').textContent=data.message;}catch(e){$('status').textContent='Aucune modification appliquée : '+e.message;}finally{busy=false;$('generate').disabled=false;}});
+$('apply').addEventListener('click',async()=>{if(!proposalId||busy)return;if(!confirm('Appliquer ce patch vérifié et créer un commit local? Rien ne sera poussé ou déployé.'))return;busy=true;$('apply').disabled=true;$('applyStatus').classList.remove('hidden');$('applyStatus').textContent='Application et nouveau test…';try{const r=await fetch('/api/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:proposalId,confirm:true})});const data=await r.json();if(!r.ok)throw new Error(data.error||('HTTP '+r.status));proposalId='';$('applyStatus').textContent=data.message+' Commit '+data.commit;}catch(e){$('applyStatus').textContent='Rien publié : '+e.message;}finally{busy=false;$('apply').disabled=false;}});
+</script></body></html>
