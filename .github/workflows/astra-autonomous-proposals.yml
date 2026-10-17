@@ -17,7 +17,7 @@ jobs:
   propose:
     if: github.repository == 'tomaiofficial/ai-studio'
     environment: MISTRAL_API_KEY
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout default branch
@@ -39,7 +39,7 @@ jobs:
         env:
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_MODEL: mistral-small-latest
-        run: python3 .github/scripts/propose_astra_feature.py
+        run: python3 -u .github/scripts/propose_astra_feature.py
 
       - name: Open a pull request for review
         if: steps.proposal.outputs.changed == 'true'

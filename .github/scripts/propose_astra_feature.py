@@ -16,7 +16,7 @@ MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
 
 
 def fail(message: str) -> None:
-    print(message, file=sys.stderr)
+    print(f"ASTRA_AGENT_ERROR: {message}", file=sys.stderr, flush=True)
     raise SystemExit(1)
 
 
@@ -61,10 +61,17 @@ Current index.html (may be truncated):
     )
     try:
         with urllib.request.urlopen(req, timeout=90) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+            status = response.status
+            response_text = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:2000]
+        fail(f"Mistral HTTP {exc.code}: {detail}")
     except Exception as exc:
-        fail(f"Mistral feature model request failed: {exc}")
+        fail(f"Mistral request failed ({type(exc).__name__}): {exc}")
+    if status >= 400:
+        fail(f"Mistral HTTP {status}: {response_text[:2000]}")
     try:
+        payload = json.loads(response_text)
         return json.loads(payload["choices"][0]["message"]["content"])
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
         fail(f"Feature model returned invalid JSON: {exc}")
