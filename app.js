@@ -1421,6 +1421,50 @@ function getDayPeriod(){
   if (h >= 18 && h < 22) return { label: 'le soir', of: 'du soir' };
   return { label: 'la nuit', of: 'de la nuit' };
 }
+
+function showWeatherPanel(){ const panel=document.getElementById('weatherOverlay'); if(panel) panel.classList.remove('hidden'); }
+function hideWeatherPanel(){ const panel=document.getElementById('weatherOverlay'); if(panel) panel.classList.add('hidden'); }
+function setWeatherText(id, value){ const el=document.getElementById(id); if(el) el.textContent=value; }
+function weatherCodeLabel(code){
+  if(code===0) return ['☀️','Ciel dégagé'];
+  if([1,2].includes(code)) return ['🌤️','Peu nuageux'];
+  if(code===3) return ['☁️','Couvert'];
+  if([45,48].includes(code)) return ['🌫️','Brouillard'];
+  if([51,53,55,56,57].includes(code)) return ['🌦️','Bruine'];
+  if([61,63,65,66,67,80,81,82].includes(code)) return ['🌧️','Pluie'];
+  if([71,73,75,77,85,86].includes(code)) return ['🌨️','Neige'];
+  if([95,96,99].includes(code)) return ['⛈️','Orage'];
+  return ['🌤️','Conditions variables'];
+}
+async function fetchWeatherForCoordinates(latitude, longitude, placeName){
+  const url='https://api.open-meteo.com/v1/forecast?latitude='+encodeURIComponent(latitude)+'&longitude='+encodeURIComponent(longitude)+'&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,precipitation_probability,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset&forecast_days=1&timezone=auto';
+  const r=await fetch(url); if(!r.ok) throw new Error('Météo indisponible'); const d=await r.json();
+  const cur=d.current||{}, daily=d.daily||{}, hourly=d.hourly||{}; const [icon,label]=weatherCodeLabel(cur.weather_code);
+  setWeatherText('weatherCity',placeName||'À proximité'); setWeatherText('weatherIcon',icon);
+  setWeatherText('weatherTemp',Math.round(cur.temperature_2m)+'°'); setWeatherText('weatherDesc',label);
+  setWeatherText('weatherFeels',Math.round(cur.apparent_temperature)+'°'); setWeatherText('weatherHumidity',cur.relative_humidity_2m+'%');
+  setWeatherText('weatherWind',Math.round(cur.wind_speed_10m)+' km/h'); setWeatherText('weatherRain',((hourly.precipitation_probability||[])[0]??0)+'%');
+  const hourlyEl=document.getElementById('weatherHourly');
+  if(hourlyEl){ hourlyEl.replaceChildren(); const now=new Date(); let start=(hourly.time||[]).findIndex(t=>new Date(t)>=now); if(start<0) start=0; for(let i=start;i<Math.min(start+8,(hourly.time||[]).length);i++){ const card=document.createElement('div'); card.style.cssText='min-width:72px;padding:10px;border-radius:12px;background:rgba(255,255,255,.06);text-align:center'; const h=document.createElement('small'); h.textContent=new Date(hourly.time[i]).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); const iw=document.createElement('div'); iw.textContent=weatherCodeLabel(hourly.weather_code[i])[0]; const t=document.createElement('b'); t.textContent=Math.round(hourly.temperature_2m[i])+'°'; const rain=document.createElement('small'); rain.textContent=(hourly.precipitation_probability[i]??0)+'% pluie'; card.append(h,iw,t,rain); hourlyEl.appendChild(card); } }
+  const max=daily.temperature_2m_max?.[0], min=daily.temperature_2m_min?.[0], rainMax=daily.precipitation_probability_max?.[0], sunrise=daily.sunrise?.[0], sunset=daily.sunset?.[0];
+  setWeatherText('weatherToday',`Aujourd’hui : ${label.toLowerCase()}, entre ${Math.round(min)}° et ${Math.round(max)}°. Probabilité maximale de pluie : ${rainMax??0}%. Lever du soleil ${sunrise?new Date(sunrise).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'indisponible'}, coucher ${sunset?new Date(sunset).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'indisponible'}.`);
+  return { placeName:placeName||'ta position',temperature:Math.round(cur.temperature_2m),apparent:Math.round(cur.apparent_temperature),description:label,humidity:cur.relative_humidity_2m,wind:Math.round(cur.wind_speed_10m),high:Math.round(max),low:Math.round(min),rain:rainMax??0 };
+}
+function requestWeatherAtUserLocation(){
+  showWeatherPanel(); setWeatherText('weatherDesc','Demande de position…');
+  return new Promise((resolve,reject)=>{
+    if(!navigator.geolocation){reject(new Error('Géolocalisation non disponible dans ce navigateur.'));return;}
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      try {
+        const lat=pos.coords.latitude,lon=pos.coords.longitude; let city='À proximité';
+        try { const rev=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=fr`); if(rev.ok){const p=await rev.json();city=p.city||p.locality||p.principalSubdivision||city;} } catch{}
+        setCity(city,{latitude:lat,longitude:lon});
+        resolve(await fetchWeatherForCoordinates(lat,lon,city));
+      } catch(e){reject(e);}
+    },err=>reject(new Error(err.code===1?'Autorise la position pour afficher la météo locale.':'Position indisponible; vérifie les réglages GPS.')),{enableHighAccuracy:false,timeout:12000,maximumAge:300000});
+  });
+}
+document.addEventListener('DOMContentLoaded',()=>{const x=document.getElementById('weatherClose');if(x)x.addEventListener('click',hideWeatherPanel);const p=document.getElementById('weatherOverlay');if(p)p.addEventListener('click',e=>{if(e.target===p)hideWeatherPanel();});});
 /* Heure appareil - automatique (sans secondes ni fuseau : juste l'heure et la date).
    v9.81 : heure en CHIFFRES ("11h03") — l'IA doit répondre en chiffres, la voix
    les lit en toutes lettres via normalizeForTTS. */
@@ -1447,6 +1491,7 @@ function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   base += '\n' + APP_INFOS;
   base += '\n' + NATURAL_SPOKEN_STYLE;
+  base += '\nQuand une demande météo ouvre le panneau météo, donne aussi à voix haute un résumé bref et naturel des conditions, sans lire toute la fiche.';
   if (profile && profile.name){
     base += `\nL'utilisateur s'appelle ${profile.name}` + (profile.age ? ` et a ${profile.age} ans` : '') + `. Appelle-le TOUJOURS par son prenom quand tu lui parles.`;
   }
@@ -1806,15 +1851,26 @@ async function askAI(question){
      On extrait la ville de la question et on repond avec les infos du site. */
   if (/(meteo|météo|quel temps|quel temps fait|temps qu'il fait|il fait quoi|previsions|prévisions|temperature|température|il pleut|il neige|soleil|pluie|vent)/i.test(question)){
     try {
-      const villeM = question.match(/(?:a|à|sur|pour|dans)\s+([A-Za-zÀ-ÿ' -]{2,30})/);
-      const ville = villeM ? villeM[1].trim() : 'France';
-      const meteo = await meteoFor(ville);
-      const rep = meteo ? ('D\'après La Chaîne Météo : ' + meteo) : ('Meteo a ' + ville + ' : je n\'ai pas pu recuperer les donnees du site, essaie plus tard.');
+      let meteo;
+      const villeM = question.match(/(?:à|a|sur|pour|dans)\s+([A-Za-zÀ-ÿ' -]{2,30})/i);
+      const ville = villeM ? villeM[1].trim().replace(/[?.!,].*$/, '') : '';
+      if (/(chez moi|ici|ma position|où je suis|ou je suis|localement|dans ma ville)/i.test(question) || !ville) {
+        meteo = await requestWeatherAtUserLocation();
+      } else {
+        const text = await meteoFor(ville);
+        if (!text) throw new Error('Météo indisponible pour cette ville.');
+        showWeatherPanel(); setWeatherText('weatherDesc',text); setWeatherText('weatherCity',ville);
+        meteo = { placeName:ville, description:text };
+      }
+      const rep = `À ${meteo.placeName}, ${meteo.description}${meteo.temperature!==undefined?`, il fait ${meteo.temperature} degrés, ressenti ${meteo.apparent}, humidité ${meteo.humidity}%, vent ${meteo.wind} km/h; aujourd'hui entre ${meteo.low} et ${meteo.high} degrés, risque de pluie jusqu'à ${meteo.rain}%.`:''}`;
       const clean = stripGreeting(enforceIdentity(fixFrench(rep)));
       session.push({ role: 'assistant', content: clean });
       saveConversation();
       return { text: clean, diag: 'meteo' };
-    } catch(e){}
+    } catch(e){
+      showWeatherPanel(); setWeatherText('weatherDesc',e.message||'Météo indisponible.');
+      return { text: e.message||'Je n’ai pas pu obtenir la météo locale.', diag:'meteo' };
+    }
   }
   /* Contexte complet : systeme + memoire des conversations passees + session */
   /* v10.0 : demande d'ECRITURE -> le cerveau produit un texte plus long */
@@ -3285,10 +3341,11 @@ function calcPress(key){
 /* ===== LOCALISATION (v10.0) — l'IA sait la VILLE, rien d'autre =====
    GPS du navigateur (localhost = securise) -> reverse geocode gratuit
    BigDataCloud (sans cle). Si permission refusee : fallback IP (ipapi.co). */
-function setCity(city){
+function setCity(city, coordinates){
   if (!city) return;
   userCity = city;
   try { localStorage.setItem('va_city', city); localStorage.setItem('va_city_ts', String(Date.now())); } catch {}
+  if (coordinates) { try { localStorage.setItem('va_weather_coordinates', JSON.stringify({ latitude: coordinates.latitude, longitude: coordinates.longitude, updatedAt: Date.now() })); } catch {} }
 }
 function refreshCity(){
   /* deja connue depuis moins de 6h -> on garde (pas de re-demande GPS) */
@@ -3338,7 +3395,7 @@ function getCityContext(){
     if (!/\b(meteo|weather|temperature|température|il fait|pleut|pluie|neige|neiger|vent|soleil|orages?|chaud|froid|averse|ou suis|ou je suis|ou je me trouve|mon adresse|pres de|proche|itineraire|route|restaurant|pharmacie|hopital|medecin|metro|bus|gare|supermarche|epicerie|cinema|magasin|boulangerie)\b/.test(q)) return;
     messages.unshift({ role: 'system', content: 'Lieu de l\'utilisateur : ' + userCity + '. Tu t en sers UNIQUEMENT pour repondre a la question, sans l\'annoncer dans ta phrase.' });
   }
-refreshCity();
+/* Position access is requested only by the explicit weather command. */
 
 /* ===== BLOC-NOTES (v10.0) — l'IA y ECRIT (lettres, textes, notes...) =====
    L'utilisateur ne tape pas : c'est l'IA qui ecrit dans le bloc-notes. */
