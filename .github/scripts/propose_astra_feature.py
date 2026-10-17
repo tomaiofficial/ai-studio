@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path.cwd()
 ALLOWED_FILES = {"app.js", "index.html"}
 MAX_PATCH_CHARS = 20_000
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
 
 
 def fail(message: str) -> None:
@@ -34,9 +34,9 @@ def set_output(key: str, value: str) -> None:
 
 
 def call_model(idea_seed: str) -> dict:
-    api_key = os.getenv("OPENAI_API_KEY", "")
+    api_key = os.getenv("MISTRAL_API_KEY", "")
     if not api_key:
-        fail("Missing GitHub Actions secret OPENAI_API_KEY")
+        fail("Missing GitHub Actions secret MISTRAL_API_KEY")
 
     prompt = f"""You are Astra's cautious feature-development agent. Propose at most ONE small useful feature per run for this French voice assistant.
 Return strict JSON: {{"title":"short title","summary":"what it does","patch":"unified git diff"}}.
@@ -54,7 +54,7 @@ Current index.html (may be truncated):
         "messages": [{"role": "user", "content": prompt}],
     }).encode("utf-8")
     req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
+        "https://api.mistral.ai/v1/chat/completions",
         data=request_body,
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
@@ -63,7 +63,7 @@ Current index.html (may be truncated):
         with urllib.request.urlopen(req, timeout=90) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
-        fail(f"Feature model request failed: {exc}")
+        fail(f"Mistral feature model request failed: {exc}")
     try:
         return json.loads(payload["choices"][0]["message"]["content"])
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
