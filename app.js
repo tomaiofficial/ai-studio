@@ -1523,6 +1523,7 @@ const ASTRA_ENGLISH_LESSONS = [
 let idleGameTimer = null;
 let activeMiniGame = '';
 let lastWordGameWord = '';
+let activeQuizQuestion = null;
 const LOCAL_QUIZ = [
   {q:'Combien de côtés a un hexagone ?', choices:['5','6','8'], answer:1, explain:'Un hexagone a six côtés.'},
   {q:'Quelle planète est surnommée la planète rouge ?', choices:['Vénus','Mars','Jupiter'], answer:1, explain:'C’est Mars, à cause de sa couleur rougeâtre.'},
@@ -1569,7 +1570,7 @@ function startMiniGame(game){
   }
   if(game==='quiz'){
     const item=LOCAL_QUIZ[localQuizIndex++%LOCAL_QUIZ.length];
-    const index=localQuizIndex-1;
+    activeQuizQuestion=item;
     const text=`Question : ${item.q} Réponds en disant ${item.choices.map((c,i)=>`${i+1}, ${c}`).join(', ')}.`;
     addAiMsg(text,'Quiz local'); speak(text); return;
   }
@@ -1591,10 +1592,12 @@ function handleMiniGameAnswer(question){
     reply=/horloge|montre/i.test(answer)?'Exact, une horloge ! On en fait une autre ?':'Pas tout à fait : c’était une horloge. Tu veux une autre devinette ?';
     activeMiniGame='';
   } else if(activeMiniGame==='quiz'){
-    const item=LOCAL_QUIZ[(localQuizIndex-1+LOCAL_QUIZ.length)%LOCAL_QUIZ.length];
+    const item=activeQuizQuestion;
+    if (!item) { activeMiniGame=''; return false; }
     const correct=answer.toLowerCase().includes(item.choices[item.answer].toLowerCase())||answer.trim()==String(item.answer+1);
     reply=correct?`Bien joué ! ${item.explain}`:`Pas tout à fait. ${item.explain}`;
     activeMiniGame='';
+    activeQuizQuestion=null;
   } else if(activeMiniGame==='mots'){
     const first=(answer.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z]/)||[])[0];
     if(first==='l'){
