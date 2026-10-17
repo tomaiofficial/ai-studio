@@ -3,7 +3,9 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.request
+import urllib.error
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,14 +44,15 @@ def call_model(idea_seed: str) -> dict:
 Return strict JSON: {{"title":"short title","summary":"what it does","patch":"unified git diff"}}.
 The patch may modify only app.js and index.html. Never add dependencies, credentials, remote code loading, arbitrary code execution, tracking, self-modification loops, or auto-deployment. Keep existing voice and server APIs unchanged. Prefer a small user-requested/voice interaction improvement. Do not mention old conversations or invent user data. Tests are run separately; do not put shell commands in the patch.
 This run's design seed: {idea_seed}
-Current app.js (may be truncated):
-{(ROOT / 'app.js').read_text(encoding='utf-8')[:24000]}
-Current index.html (may be truncated):
-{(ROOT / 'index.html').read_text(encoding='utf-8')[:16000]}
+Current app.js (relevant beginning and question handling):
+{(ROOT / 'app.js').read_text(encoding='utf-8')[:12000]}
+Current index.html (relevant interface):
+{(ROOT / 'index.html').read_text(encoding='utf-8')[:8000]}
 """
     request_body = json.dumps({
         "model": MODEL,
         "temperature": 0.2,
+        "max_tokens": 1800,
         "response_format": {"type": "json_object"},
         "messages": [{"role": "user", "content": prompt}],
     }).encode("utf-8")
@@ -59,15 +62,27 @@ Current index.html (may be truncated):
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=90) as response:
-            status = response.status
-            response_text = response.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")[:2000]
-        fail(f"Mistral HTTP {exc.code}: {detail}")
-    except Exception as exc:
-        fail(f"Mistral request failed ({type(exc).__name__}): {exc}")
+    response_text = ""
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=90) as response:
+                status = response.status
+                response_text = response.read().decode("utf-8", errors="replace")
+            break
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:2000]
+            if exc.code == 429 and attempt < 3:
+                retry_after = exc.headers.get("Retry-After", "")
+                try:
+                    delay = min(max(int(retry_after), 5), 60) if retry_after else (10 * (2 ** attempt))
+                except ValueError:
+                    delay = 10 * (2 ** attempt)
+                print(f"Mistral rate limit (429); retry {attempt + 1}/3 in {delay}s", flush=True)
+                time.sleep(delay)
+                continue
+            fail(f"Mistral HTTP {exc.code}: {detail}")
+        except Exception as exc:
+            fail(f"Mistral request failed ({type(exc).__name__}): {exc}")
     if status >= 400:
         fail(f"Mistral HTTP {status}: {response_text[:2000]}")
     try:
