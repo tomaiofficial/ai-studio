@@ -54,12 +54,13 @@ Current app.js (relevant beginning and question handling):
 Current index.html (relevant interface):
 {(ROOT / 'index.html').read_text(encoding='utf-8')[:8000]}
 """
+    messages = [{"role": "user", "content": prompt}]
     request_body = json.dumps({
         "model": MODEL,
         "temperature": 0.2,
         "max_tokens": 1800,
         "response_format": {"type": "json_object"},
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
     }).encode("utf-8")
     req = urllib.request.Request(
         "https://api.mistral.ai/v1/chat/completions",
@@ -68,6 +69,7 @@ Current index.html (relevant interface):
         method="POST",
     )
     response_text = ""
+    fallback_used = False
     for attempt in range(4):
         try:
             with urllib.request.urlopen(req, timeout=90) as response:
@@ -85,6 +87,31 @@ Current index.html (relevant interface):
                 print(f"Mistral rate limit (429); retry {attempt + 1}/3 in {delay}s", flush=True)
                 time.sleep(delay)
                 continue
+            if exc.code == 429:
+                print(f"Mistral rate limited after retries; using app's no-key Pollinations fallback. Details: {detail}", flush=True)
+                fallback_body = json.dumps({
+                    "model": "openai",
+                    "temperature": 0.2,
+                    "max_tokens": 1800,
+                    "messages": messages,
+                }).encode("utf-8")
+                fallback_req = urllib.request.Request(
+                    "https://text.pollinations.ai/openai/v1/chat/completions",
+                    data=fallback_body,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(fallback_req, timeout=90) as fallback_response:
+                        response_text = fallback_response.read().decode("utf-8", errors="replace")
+                    status = fallback_response.status
+                    fallback_used = True
+                    break
+                except urllib.error.HTTPError as fallback_exc:
+                    fallback_detail = fallback_exc.read().decode("utf-8", errors="replace")[:1500]
+                    fail(f"Mistral returned 429 and Pollinations fallback returned HTTP {fallback_exc.code}: {fallback_detail}")
+                except Exception as fallback_exc:
+                    fail(f"Mistral returned 429 and Pollinations fallback failed ({type(fallback_exc).__name__}): {fallback_exc}")
             fail(f"Mistral HTTP {exc.code}: {detail}")
         except Exception as exc:
             fail(f"Mistral request failed ({type(exc).__name__}): {exc}")
@@ -92,7 +119,14 @@ Current index.html (relevant interface):
         fail(f"Mistral HTTP {status}: {response_text[:2000]}")
     try:
         payload = json.loads(response_text)
-        return json.loads(payload["choices"][0]["message"]["content"])
+        content = payload["choices"][0]["message"]["content"]
+        if isinstance(content, list):
+            content = "".join(item.get("text", "") for item in content if isinstance(item, dict))
+        content = str(content).strip()
+        content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.IGNORECASE)
+        result = json.loads(content)
+        result["provider"] = "Pollinations fallback" if fallback_used else "Mistral"
+        return result
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
         fail(f"Feature model returned invalid JSON: {exc}")
 
@@ -137,6 +171,7 @@ def main() -> None:
     proposal = call_model(seed)
     title = str(proposal.get("title", "Astra feature proposal")).strip()[:100]
     summary = str(proposal.get("summary", "Automated feature proposal")).strip()[:1000]
+    provider = str(proposal.get("provider", "Mistral"))
     patch = proposal.get("patch")
     if not isinstance(patch, str):
         fail("Proposal patch must be text")
@@ -145,7 +180,7 @@ def main() -> None:
 
     branch = "astra/auto-proposal-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     body = (
-        f"Astra prepared this feature proposal automatically.\n\n{summary}\n\n"
+        f"Astra prepared this feature proposal automatically using {provider}.\n\n{summary}\n\n"
         "Checks passed: patch path allowlist, `node --check app.js`, `node --check api.js`, and `git diff --check`.\n\n"
         "This PR is not auto-merged or auto-deployed. Review behavior and security before merging."
     )
