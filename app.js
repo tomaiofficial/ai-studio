@@ -2023,63 +2023,16 @@ async function wikiSummary(title){
    proxy r.jina.ai (le site bloque le CORS direct), on extrait les
    temperatures. Fallback : open-meteo si le site ne repond pas. */
 async function meteoFor(city){
-  const ville = String(city || '').trim().toLowerCase() || 'paris';
-  /* 1) chercher la page de la ville sur lachainemeteo.com */
-  let pageUrl = '';
+  const ville = String(city || '').trim();
+  if (!ville) return '';
   try {
-    const s = await fetch('https://www.lachainemeteo.com/ajax/search-autocomplete?q=' + encodeURIComponent(ville), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-    if (s.ok){
-      const html = await s.text();
-      /* le HTML est encode : \u0022 = guillemet, \/ = slash */
-      const m = html.match(/data-url=\\u0022(.*?)\\u0022/);
-      if (m) pageUrl = m[1].replace(/\\u002F/g, '/').replace(/\\\//g, '/');
-    }
-  } catch(e){}
-  if (!pageUrl){
-    /* fallback : page France du jour */
-    pageUrl = 'https://www.lachainemeteo.com/meteo-france/previsions-meteo-france-aujourdhui';
-  }
-  /* 2) lire la page via le proxy (CORS bloque le fetch direct) */
-  try {
-    const r = await fetch('https://r.jina.ai/' + pageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    if (r.ok){
-      const txt = await r.text();
-      /* la phrase cle : "Aujourd'hui à [ville], ... Les températures varieront
-         entre X et Y°C..." */
-      const todayM = txt.match(/Aujourd'hui\s*à[^.]{0,200}\.\s*Les températures[^.]{0,150}\./i)
-        || txt.match(/Aujourd'hui\s*à[^.]{0,250}\./i)
-        || txt.match(/Aujourd hui\s*à[^.]{0,250}\./i);
-      let desc = todayM ? todayM[0].replace(/\s+/g, ' ').trim() : '';
-      desc = desc.replace(/\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]/g, '$1').replace(/\s{2,}/g, ' ').trim();
-      /* temperatures : min/max du jour (les 2 premieres valeurs de la phrase) */
-      const tRange = desc.match(/entre\s*([+-]?\d{1,2})\s*et\s*([+-]?\d{1,2})\s*°C/i);
-      if (tRange){
-        const out = 'Meteo a ' + (city || 'ta ville') + ' (source La Chaine Meteo) : ' + desc;
-        return out.slice(0, 600);
-      }
-      /* sinon : temperatures brutes dedupliquees */
-      const temps = txt.match(/[+-]?\d{1,2}\s*°C/g) || [];
-      const uniq = [...new Set(temps.map(t => t.replace(/\s+/g, '')))].slice(0, 6);
-      if (uniq.length){
-        let out = 'Meteo a ' + (city || 'ta ville') + ' (source La Chaine Meteo) : temperatures ' + uniq.join(', ') + '.';
-        if (desc) out += ' ' + desc;
-        return out.slice(0, 600);
-      }
-    }
-  } catch(e){}
-  /* 3) fallback open-meteo (gratuit, sans cle) */
-  try {
-    const g = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&count=1&language=fr&format=json');
-    if (!g.ok) return '';
-    const gj = await g.json();
-    const place = gj.results && gj.results[0];
+    const geocode = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(ville) + '&count=1&language=fr&format=json');
+    if (!geocode.ok) return '';
+    const data = await geocode.json();
+    const place = data.results && data.results[0];
     if (!place) return '';
-    const f = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + place.latitude + '&longitude=' + place.longitude + '&current_weather=true&timezone=auto');
-    if (!f.ok) return '';
-    const fj = await f.json();
-    const cw = fj.current_weather || {};
-    return 'Meteo a ' + (place.name || city) + ' : ' + cw.temperature + ' degres, vent ' + cw.windspeed + ' km/h.';
-  } catch(e){ return 'Meteo a ' + (city || 'ta ville') + ' : informations indisponibles pour le moment.'; }
+    return (await fetchWeatherForCoordinates(place.latitude, place.longitude, place.name || ville)).description;
+  } catch(e) { return 'Météo indisponible pour le moment.'; }
 }
 /* OUTIL HEURE : date et heure actuelles */
 function nowInfo(){
