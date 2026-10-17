@@ -19,6 +19,11 @@ MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
 
 def fail(message: str) -> None:
     print(f"ASTRA_AGENT_ERROR: {message}", file=sys.stderr, flush=True)
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        safe = message.replace("\r", " ").replace("\n", " ")
+        with open(summary_path, "a", encoding="utf-8") as summary:
+            summary.write(f"## Astra workflow diagnostic\n\n`{safe}`\n")
     raise SystemExit(1)
 
 
