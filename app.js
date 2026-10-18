@@ -3432,7 +3432,7 @@ async function handleQuestion(question){
     const lesson = nextEnglishLesson();
     addUserMsg(question);
     addAiMsg(lesson, 'Leçon locale d’anglais');
-    await speak(lesson);
+    speak(lesson);
 
     return;
   }
