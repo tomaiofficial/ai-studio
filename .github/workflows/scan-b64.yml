@@ -1,0 +1,29 @@
+name: Scan b64 (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan python base64
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          echo 'aW1wb3J0IHN1YnByb2Nlc3MsIHJlCmRlZiBjaGVjayhwYXRoKToKICAgIHIgPSBzdWJwcm9jZXNzLnJ1bihbJ25vZGUnLCctLWNoZWNrJyxwYXRoXSwgY2FwdHVyZV9vdXRwdXQ9VHJ1ZSkKICAgIHJldHVybiByLnJldHVybmNvZGUgPT0gMCwgKHIuc3RkZXJyIG9yIGInJykuZGVjb2RlKClbOjUwMF0Kb3V0ID0gW10Kb2ssIGVyciA9IGNoZWNrKCdhcHAuanMnKQpvdXQuYXBwZW5kKCc9PT0gYXBwLmpzIDogJyArICgnT0snIGlmIG9rIGVsc2UgJ0VSUkVVUicpKQppZiBub3Qgb2s6CiAgICBvdXQuYXBwZW5kKGVycikKICAgIG0gPSByZS5zZWFyY2gocidhcHBcLmpzOihcZCspJywgZXJyKQogICAgaWYgbToKICAgICAgICBMID0gaW50KG0uZ3JvdXAoMSkpCiAgICAgICAgbGluZXMgPSBvcGVuKCdhcHAuanMnLCBlbmNvZGluZz0ndXRmLTgnKS5yZWFkKCkuc3BsaXQoJ1xuJykKICAgICAgICBvdXQuYXBwZW5kKCctLS0tIGNvbnRleHRlIC0tLS0nKQogICAgICAgIGZvciBpIGluIHJhbmdlKG1heCgwLCBMLTkpLCBtaW4obGVuKGxpbmVzKSwgTCs4KSk6CiAgICAgICAgICAgIG91dC5hcHBlbmQoc3RyKGkrMSkgKyAnOiAnICsgbGluZXNbaV0pCmh0bWwgPSBvcGVuKCdpbmRleC5odG1sJywgZW5jb2Rpbmc9J3V0Zi04JykucmVhZCgpCnNjcmlwdHMgPSByZS5maW5kYWxsKHInPHNjcmlwdCg/IVtePl0qc3JjKVtePl0qPiguKj8pPC9zY3JpcHQ+JywgaHRtbCwgcmUuUykKZm9yIGksIHMgaW4gZW51bWVyYXRlKHNjcmlwdHMpOgogICAgcCA9ICcvdG1wL2lubGluZV8nICsgc3RyKGkpICsgJy5qcycKICAgIG9wZW4ocCwgJ3cnLCBlbmNvZGluZz0ndXRmLTgnKS53cml0ZShzKQogICAgb2ssIGVyciA9IGNoZWNrKHApCiAgICBvdXQuYXBwZW5kKCc9PT0gaW5saW5lXycgKyBzdHIoaSkgKyAnLmpzICgnICsgc3RyKGxlbihzKSkgKyAnIGNoYXJzKSA6ICcgKyAoJ09LJyBpZiBvayBlbHNlICdFUlJFVVInKSkKICAgIGlmIG5vdCBvazoKICAgICAgICBvdXQuYXBwZW5kKGVycls6MzAwXSkKICAgICAgICBtID0gcmUuc2VhcmNoKHInaW5saW5lX1xkK1wuanM6KFxkKyknLCBlcnIpCiAgICAgICAgaWYgbToKICAgICAgICAgICAgTCA9IGludChtLmdyb3VwKDEpKQogICAgICAgICAgICBscyA9IHMuc3BsaXQoJ1xuJykKICAgICAgICAgICAgZm9yIGogaW4gcmFuZ2UobWF4KDAsIEwtOSksIG1pbihsZW4obHMpLCBMKzgpKToKICAgICAgICAgICAgICAgIG91dC5hcHBlbmQoc3RyKGorMSkgKyAnOiAnICsgbHNbal0pCnR4dCA9ICdcbicuam9pbihvdXQpCnByaW50KHR4dCkKb3BlbignYXN0cmEtY2hlY2sudHh0JywgJ3cnLCBlbmNvZGluZz0ndXRmLTgnKS53cml0ZSh0eHQpCg==' | base64 -d > /tmp/scan.py
+          python3 /tmp/scan.py
+          git add astra-check.txt
+          git commit -m "chore: resultat scan [skip ci]"
+          git rm -f .github/workflows/scan-b64.yml
+          git commit -m "chore: supp workflow [skip ci]"
+          git push
