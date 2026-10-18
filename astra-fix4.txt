@@ -1,4 +1,0 @@
-bloc orphelin trouve ligne 3415
-bloc orphelin + accolade en trop supprimes
-FIX text -> question : OK
-TOUR 1 : SYNTAXE OK
