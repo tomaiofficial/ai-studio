@@ -23,8 +23,8 @@ def run(args, *, check=True, timeout=120):
 
 def get_diff_from_model(idea: str) -> tuple[str, str]:
     prompt = f"""You are a careful local coding assistant for a French voice assistant called Astra.
-Propose ONE modest, useful feature. Return exactly JSON with keys title, summary, patch. `patch` must be a unified git diff.
-Only modify app.js or index.html. Never add dependencies, network calls, credentials, arbitrary code execution, auto-deployment, or self-modifying loops. Keep the app's voice and privacy behavior intact. Do not make up user data or refer to old conversations.
+Propose ONE very small, directly relevant feature. Return JSON only with keys title, summary, patch. Do not use markdown fences. `patch` MUST be a complete unified git diff beginning with `diff --git a/app.js b/app.js` or `diff --git a/index.html b/index.html`. Reuse exact context from the provided files; if unsure, return an empty patch and explain.
+Only modify app.js or index.html. Never add dependencies, network calls, credentials, arbitrary code execution, auto-deployment, autonomous loops, or invented files. Keep French voice interaction and privacy intact. Never refer to past conversations unless specifically asked. Do not add sample names or placeholder code.
 Feature idea: {idea}
 
 Current relevant files:
@@ -37,7 +37,7 @@ Current relevant files:
         "model": MODEL,
         "stream": False,
         "format": "json",
-        "options": {"temperature": 0.2, "num_predict": 2500},
+        "options": {"temperature": 0, "num_predict": 1200, "num_ctx": 8192},
         "prompt": prompt,
     }).encode("utf-8")
     req = urllib.request.Request(OLLAMA_URL.rstrip("/") + "/api/generate", data=payload,
@@ -45,16 +45,21 @@ Current relevant files:
     try:
         with urllib.request.urlopen(req, timeout=300) as response:
             result = json.loads(response.read().decode("utf-8"))
-        answer = json.loads(result.get("response", "{}"))
+        raw = str(result.get("response", "{}")).strip()
+        raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE)
+        answer = json.loads(raw)
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Ollama inaccessible at {OLLAMA_URL}; start Ollama and pull {MODEL}: {exc}") from exc
     except (json.JSONDecodeError, KeyError) as exc:
-        raise RuntimeError(f"Invalid Ollama response: {exc}") from exc
+        raise RuntimeError(f"Invalid Ollama JSON response: {exc}. Reduce prompt size or try a better local model.") from exc
     title = str(answer.get("title", "Astra local proposal")).strip()[:90]
     summary = str(answer.get("summary", "")).strip()[:1200]
     patch = answer.get("patch")
     if not isinstance(patch, str) or not patch.strip() or len(patch) > MAX_PATCH:
         raise RuntimeError("Model returned an empty or oversized patch")
+    patch = re.sub(r"^```(?:diff)?\s*|\s*```$", "", patch.strip(), flags=re.IGNORECASE)
+    if not patch.startswith("diff --git "):
+        raise RuntimeError("Model did not return a complete unified diff; refusing to edit files")
     return title, summary + "\n\nProvider: local Ollama / " + MODEL, patch
 
 
@@ -92,14 +97,21 @@ def check_and_apply_to_worktree(patch: str) -> list[str]:
 
 
 def main():
-    if len(sys.argv) > 1:
-        idea = " ".join(sys.argv[1:]).strip()
+    args = sys.argv[1:]
+    allow_worktree = False
+    if "--worktree" in args:
+        args.remove("--worktree")
+        allow_worktree = True
+    if args:
+        idea = " ".join(args).strip()
     else:
         idea = "Propose one small, useful voice interaction improvement Astra can implement locally."
     if not idea or len(idea) > 1500:
         raise SystemExit("Give a feature idea (max 1500 characters).")
-    dirty = run(["git", "status", "--porcelain"]).stdout.strip()
-    if dirty:
+    dirty = run(["git", "status", "--porcelain"]).stdout.splitlines()
+    # In the normal repo refuse all pre-existing edits. A throwaway detached
+    # worktree may contain only this script copied in for the current run.
+    if dirty and not (allow_worktree and all(line.endswith("ollama_astra_agent.py") for line in dirty)):
         raise SystemExit("Working tree is not clean. Commit/stash existing changes before proposing a patch.")
 
     title, summary, patch = get_diff_from_model(idea)

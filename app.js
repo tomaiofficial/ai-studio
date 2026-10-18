@@ -3412,7 +3412,6 @@ async function handleQuestion(question){
   if(/^(recette precedente|recette précédente|page precedente|page précédente|page d'avant|retourne la page)[.!? ]*$/.test(plainCommand) && currentRecipeIndex>=0){
     previousRecipe(); const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`On revient à ${r.title}. Les ingrédients et les étapes sont affichés.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
   }
-  if(localRecipePrompt(question)){
     const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`Bien sûr. J’ouvre le livre à la recette ${r.title}. Les ingrédients et les étapes sont affichés à l’écran; dis « recette suivante » pour tourner la page.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
   }
   const gamesPanel = document.getElementById('idleGames');
@@ -3426,7 +3425,7 @@ async function handleQuestion(question){
     const reply = repeatLastAstraReply();
     addUserMsg(question);
     addAiMsg(reply, 'Fonction locale : répétition');
-    await speak(reply);
+
     return;
   }
   if (ASTRA_LOCAL_FEATURES.englishPractice && /^(cours d anglais|cours anglais|apprendre l anglais|apprendre anglais|phrase anglaise du jour|une phrase en anglais|apprends moi l anglais)[.!? ]*$/.test(normalizedCommand)) {
@@ -3434,13 +3433,14 @@ async function handleQuestion(question){
     addUserMsg(question);
     addAiMsg(lesson, 'Leçon locale d’anglais');
     await speak(lesson);
+
     return;
   }
   const proposalMatch = String(question || '').match(/(?:prépare|prepare|génère|genere|crée|cree)\s+(?:moi\s+)?(?:une\s+)?proposition\s+(?:de\s+)?(?:code|fonctionnalité|fonctionnalite|fonction)\s*(?:pour|:)?\s*(.*)/i);
   if (proposalMatch) {
     const featureRequest = (proposalMatch[1] || '').trim();
     if (!featureRequest) {
-      await speak('Dis-moi quelle fonctionnalité tu veux proposer, et je préparerai un patch à vérifier.');
+
       return;
     }
     astraLastSpokenReply = text.trim().slice(0, 4000);
@@ -3487,7 +3487,6 @@ async function handleQuestion(question){
     if (recipePanel) { recipePanel.classList.remove('hidden'); }
     const reply = "Voici une sélection de recettes locales. Tu peux choisir une recette et la lire, ou dire 'recette suivante' pour tourner la page.";
     addAiMsg(reply, 'Livre de recettes');
-    await speak(reply);
     isProcessing = false; manualStop = false; setState('idle'); maybeRestartListening();
     return;
   }
