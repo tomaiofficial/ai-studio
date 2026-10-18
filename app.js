@@ -3438,7 +3438,7 @@ async function handleQuestion(question){
   }
   const proposalMatch = String(question || '').match(/(?:prépare|prepare|génère|genere|crée|cree)\s+(?:moi\s+)?(?:une\s+)?proposition\s+(?:de\s+)?(?:code|fonctionnalité|fonctionnalite|fonction)\s*(?:pour|:)?\s*(.*)/i);
   if (proposalMatch) {
-    const featureRequest = async (proposalMatch[1] || '').trim();
+    const featureRequest = (proposalMatch[1] || '').trim();
     if (!featureRequest) {
 
       return;
