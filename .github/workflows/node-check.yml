@@ -1,0 +1,52 @@
+name: Node check scan (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: node --check + contexte
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          {
+            echo "=== node --check app.js ==="
+            node --check app.js 2>&1 && echo "APP OK"
+            echo ""
+            echo "=== scripts inline index.html ==="
+            awk '/<script(>| [^>]*>)[^<]*$|<script(>| [^>]*>)$/{flag=1} /<\/script>/{flag=0} flag{print}' index.html > /tmp/inline.js
+            node --check /tmp/inline.js 2>&1 | head -20 && echo "INDEX OK"
+            echo ""
+            echo "=== contexte de l erreur app.js ==="
+            ERR=$(node --check app.js 2>&1 | head -5)
+            echo "$ERR"
+            L=$(echo "$ERR" | grep -o 'app.js:[0-9]*' | head -1 | cut -d: -f2)
+            if [ -n "$L" ]; then
+              echo "---- lignes $((L-10)) a $((L+10)) ----"
+              sed -n "$((L-10)),$((L+10))p" app.js
+            fi
+            echo ""
+            echo "=== contexte index.html si erreur ==="
+            ERR2=$(node --check /tmp/inline.js 2>&1 | head -5)
+            L2=$(echo "$ERR2" | grep -o 'inline.js:[0-9]*' | head -1 | cut -d: -f2)
+            if [ -n "$L2" ]; then
+              echo "---- lignes $((L2-10)) a $((L2+10)) de l inline ----"
+              sed -n "$((L2-10)),$((L2+10))p" /tmp/inline.js
+            fi
+          } > astra-check.txt 2>&1
+          git add astra-check.txt
+          git commit -m "chore: node check scan [skip ci]"
+          git rm -f .github/workflows/node-check.yml
+          git commit -m "chore: supp workflow [skip ci]"
+          git push
