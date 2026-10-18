@@ -1,0 +1,73 @@
+name: Scan return illegal (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Localiser le return illegal
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          {
+            echo "=== node --check app.js ==="
+            node --check app.js && echo "APP OK" || echo "APP ERREUR"
+            echo "=== scripts inline de index.html (extraction + check) ==="
+            python3 - <<'PY'
+            import re, subprocess, sys
+            html = open('index.html', encoding='utf-8').read()
+            scripts = re.findall(r'<script(?![^>]*src)[^>]*>(.*?)</script>', html, re.S)
+            for i, s in enumerate(scripts):
+                open(f'/tmp/inline_{i}.js', 'w', encoding='utf-8').write(s)
+                r = subprocess.run(['node', '--check', f'/tmp/inline_{i}.js'], capture_output=True, text=True)
+                print(f'--- inline_{i}.js ({len(s)} chars) : {"OK" if r.returncode == 0 else "ERREUR: " + r.stderr[:300]}')
+            PY
+            echo "=== return hors fonction dans app.js (heuristic python) ==="
+            python3 - <<'PY'
+            src = open('app.js', encoding='utf-8').read()
+            depth = 0; line = 1; hits = []
+            i = 0; n = len(src)
+            in_str = None; in_line_c = False; in_block_c = False; prev = ''
+            while i < n:
+                c = src[i]; nxt = src[i+1] if i+1 < n else ''
+                if c == '\n': line += 1; in_line_c = False
+                if in_line_c: i += 1; continue
+                if in_block_c:
+                    if c == '*' and nxt == '/': in_block_c = False; i += 2; continue
+                    if c == '\n': line += 1
+                    i += 1; continue
+                if in_str:
+                    if c == '\\': i += 2; continue
+                    if c == in_str: in_str = None
+                    i += 1; continue
+                if c == '/' and nxt == '/': in_line_c = True; i += 2; continue
+                if c == '/' and nxt == '*': in_block_c = True; i += 2; continue
+                if c in ('"', "'", '`'): in_str = c; i += 1; continue
+                if c == '{': depth += 1
+                elif c == '}': depth -= 1
+                elif c == 'r' and src.startswith('return', i) and not prev.isalnum() and not prev in '_$':
+                    # return hors de toute fonction (depth 0 au top-level du fichier)
+                    if depth == 0:
+                        hits.append((line, src[i:i+60].split('\n')[0]))
+                prev = c; i += 1
+            print('retours top-level trouves:', len(hits))
+            for l, t in hits[:20]: print(f'L{l}: {t}')
+            PY
+          } > astra-ret-scan.txt 2>&1
+          cat astra-ret-scan.txt
+          git add astra-ret-scan.txt
+          git commit -m "chore: scan return illegal [skip ci]"
+          git rm -f .github/workflows/ret-scan.yml
+          git commit -m "chore: supp workflow scan [skip ci]"
+          git push
