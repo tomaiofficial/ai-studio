@@ -1,0 +1,29 @@
+name: Dump zone (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  dump:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Dump zone 3395-3505
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          echo 'bGluZXMgPSBvcGVuKCdhcHAuanMnLCBlbmNvZGluZz0ndXRmLTgnKS5yZWFkKCkuc3BsaXQoJ1xuJykKb3V0ID0gW10KIyB6b25lIGNvbXBsZXRlIHNhbnMgdHJvbmNhdHVyZQpmb3IgaSBpbiByYW5nZSgzMzk0LCBtaW4obGVuKGxpbmVzKSwgMzUwNSkpOgogICAgb3V0LmFwcGVuZChzdHIoaSsxKSArICd8JyArIGxpbmVzW2ldKQpvcGVuKCdhc3RyYS16b25lLnR4dCcsJ3cnLGVuY29kaW5nPSd1dGYtOCcpLndyaXRlKCdcbicuam9pbihvdXQpKQpwcmludCgnem9uZSBkdW1wIDogJyArIHN0cihsZW4ob3V0KSkgKyAnIGxpZ25lcycpCg==' | base64 -d > /tmp/dump.py
+          python3 /tmp/dump.py
+          git add astra-zone.txt
+          git commit -m "chore: dump zone [skip ci]"
+          git rm -f .github/workflows/dump-zone.yml
+          git commit -m "chore: supp workflow [skip ci]"
+          git push
