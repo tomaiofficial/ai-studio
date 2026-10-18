@@ -3412,8 +3412,6 @@ async function handleQuestion(question){
   if(/^(recette precedente|recette précédente|page precedente|page précédente|page d'avant|retourne la page)[.!? ]*$/.test(plainCommand) && currentRecipeIndex>=0){
     previousRecipe(); const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`On revient à ${r.title}. Les ingrédients et les étapes sont affichés.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
   }
-    const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`Bien sûr. J’ouvre le livre à la recette ${r.title}. Les ingrédients et les étapes sont affichés à l’écran; dis « recette suivante » pour tourner la page.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
-  }
   const gamesPanel = document.getElementById('idleGames');
   if (gamesPanel) gamesPanel.classList.add('hidden');
   scheduleIdleGames();
@@ -3443,7 +3441,7 @@ async function handleQuestion(question){
 
       return;
     }
-    astraLastSpokenReply = text.trim().slice(0, 4000);
+    astraLastSpokenReply = String(question || '').trim().slice(0, 4000);
     stopAudio();
     isProcessing = true;
     manualStop = true;
