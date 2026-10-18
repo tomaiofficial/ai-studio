@@ -1,0 +1,29 @@
+name: Cleanup diag (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Supprimer fichiers diagnostic
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          rm -f astra-check.txt astra-fix.txt astra-fix2.txt astra-fix3.txt astra-fix4.txt astra-ret-scan.txt astra-stt-scan.txt astra-zone.txt astra-scan.txt
+          git add -A
+          git diff --cached --quiet && echo "rien a nettoyer" || git commit -m "chore: nettoyage des fichiers de diagnostic temporaires [skip ci]"
+          git rm -f .github/workflows/cleanup-diag.yml
+          git commit -m "chore: supp workflow [skip ci]"
+          git pull --rebase origin main || true
+          git push
