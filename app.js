@@ -1539,37 +1539,54 @@ const ASTRA_RECIPES = [
   {title:'Crêpes faciles', category:'Dessert', time:'25 min', servings:4, image:'https://images.unsplash.com/photo-1519676867240-f03562e64548?auto=format&fit=crop&w=1000&q=80', ingredients:['250 g de farine','3 œufs','50 cl de lait','1 c. à s. de sucre','1 pincée de sel'],steps:['Mélange la farine, le sucre et le sel.','Ajoute les œufs puis verse le lait progressivement en fouettant.','Laisse reposer 15 minutes si tu peux.','Fais cuire une fine louche de pâte dans une poêle chaude légèrement huilée.']},
   {title:'Riz sauté aux légumes', category:'Plat', time:'20 min', servings:2, image:'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=1000&q=80', ingredients:['300 g de riz cuit froid','1 carotte','Petits pois','2 œufs','Sauce soja'],steps:['Fais revenir la carotte en petits dés et les petits pois.','Ajoute le riz froid et fais sauter quelques minutes.','Pousse le riz sur le côté, brouille les œufs dans la poêle.','Mélange et ajoute un peu de sauce soja.']}
 ];
+let recipeSearchResults=[];
+async function searchRecipes(query){
+  const q=String(query||'').trim(); if(!q) throw new Error('Dis-moi le nom du plat à chercher.');
+  const response=await fetch('https://www.themealdb.com/api/json/v1/1/search.php?s='+encodeURIComponent(q));
+  if(!response.ok) throw new Error('La recherche de recettes est momentanément indisponible.');
+  const data=await response.json();
+  const meals=Array.isArray(data.meals)?data.meals:[];
+  if(!meals.length) throw new Error(`Je n’ai trouvé aucune recette pour « ${q} ». Essaie un autre nom de plat.`);
+  recipeSearchResults=meals.map(meal=>{
+    const ingredients=[];
+    for(let i=1;i<=20;i++){
+      const ingredient=String(meal['strIngredient'+i]||'').trim();
+      const measure=String(meal['strMeasure'+i]||'').trim();
+      if(ingredient) ingredients.push([measure,ingredient].filter(Boolean).join(' '));
+    }
+    const steps=String(meal.strInstructions||'').split(/\r?\n|(?<=\.)\s+(?=\d+[.)]?\s)/).map(s=>s.replace(/^\s*\d+[.)]?\s*/, '').trim()).filter(Boolean);
+    return {title:meal.strMeal||q,category:meal.strCategory||'Recette',area:meal.strArea||'',time:'Voir les étapes',servings:'',image:meal.strMealThumb||'',ingredients,steps};
+  }).filter(recipe=>recipe.ingredients.length&&recipe.steps.length);
+  if(!recipeSearchResults.length) throw new Error('La recette trouvée ne contient pas assez de détails.');
+  currentRecipeIndex=0;
+  renderRecipe(0,1,recipeSearchResults);
+  return recipeSearchResults;
+}
 let currentRecipeIndex=-1;
-function renderRecipe(index,direction=1){
-  currentRecipeIndex=(index+ASTRA_RECIPES.length)%ASTRA_RECIPES.length;
-  const recipe=ASTRA_RECIPES[currentRecipeIndex], page=document.getElementById('recipePage');
+function renderRecipe(index,direction=1,collection=recipeSearchResults.length?recipeSearchResults:ASTRA_RECIPES){
+  currentRecipeIndex=(index+collection.length)%collection.length;
+  const recipe=collection[currentRecipeIndex], page=document.getElementById('recipePage');
   if(!recipe||!page)return;
   page.classList.remove('turn-next','turn-prev'); void page.offsetWidth; page.classList.add(direction>=0?'turn-next':'turn-prev');
   const image=document.getElementById('recipeImage'); image.src=recipe.image; image.alt=recipe.title;
-  document.getElementById('recipeCategory').textContent=recipe.category+' · '+recipe.time+' · '+recipe.servings+' portions';
+  document.getElementById('recipeCategory').textContent=[recipe.category,recipe.area,recipe.time,recipe.servings?recipe.servings+' portions':''].filter(Boolean).join(' · ');
   document.getElementById('recipeTitle').textContent=recipe.title;
   const ingredients=document.getElementById('recipeIngredients'); ingredients.replaceChildren();
   recipe.ingredients.forEach(item=>{const li=document.createElement('li');li.textContent=item;ingredients.appendChild(li);});
   const steps=document.getElementById('recipeSteps'); steps.replaceChildren();
   recipe.steps.forEach((item,i)=>{const li=document.createElement('li');li.textContent=`${i+1}. ${item}`;steps.appendChild(li);});
-  document.getElementById('recipeCounter').textContent=`Recette ${currentRecipeIndex+1} sur ${ASTRA_RECIPES.length}`;
+  document.getElementById('recipeCounter').textContent=`Recette ${currentRecipeIndex+1} sur ${collection.length}`;
 }
 function openRecipeBook(index=0){const book=document.getElementById('recipeBook');if(!book)return;book.classList.remove('hidden');renderRecipe(index,1);}
 function closeRecipeBook(){const book=document.getElementById('recipeBook');if(book)book.classList.add('hidden');}
 function nextRecipe(){renderRecipe(currentRecipeIndex+1,1);}
 function previousRecipe(){renderRecipe(currentRecipeIndex-1,-1);}
-function localRecipePrompt(question){
+function isRecipeRequest(question){
   const q=String(question||'').toLowerCase();
-  if(!/(recette|cuisin|plat à faire|plat a faire|que manger|quoi manger)/i.test(q))return false;
-  let index=-1;
-  if(/cr[eê]pe|dessert|sucr/i.test(q))index=4;
-  else if(/saumon|poisson/i.test(q))index=2;
-  else if(/curry|pois chiche/i.test(q))index=1;
-  else if(/salade|avocat|entr[eé]e/i.test(q))index=3;
-  else if(/riz/i.test(q))index=5;
-  else if(/p[aâ]tes|champignon/i.test(q))index=0;
-  openRecipeBook(index<0?Math.floor(Math.random()*ASTRA_RECIPES.length):index);
-  return true;
+  return /(recette|cuisin|plat à faire|plat a faire|que manger|quoi manger)/i.test(q);
+}
+function extractRecipeQuery(question){
+  return String(question||'').replace(/^(?:donne(?:-moi)?|montre(?:-moi)?|trouve(?:-moi)?|cherche(?:-moi)?|ouvre)?\s*(?:une\s+)?recette\s*(?:de|du|des|d['’])?\s*/i,'').replace(/\b(recette|s'il te plaît|s il te plait|stp|svp|s'il vous plaît)\b/gi,'').replace(/[?.!,]+$/,'').trim();
 }
 document.addEventListener('DOMContentLoaded',()=>{
   const panel=document.getElementById('idleGames');
@@ -3463,6 +3480,15 @@ async function handleQuestion(question){
       saveConversation();
       maybeRestartListening();
     }
+    return;
+  }
+  if (/(recette|plat|cuisine|manger|dîner|déjeuner|petit-déjeuner|recette de|plat de)(\s+.*)?/i.test(question)) {
+    const recipePanel = document.getElementById('recipeBook');
+    if (recipePanel) { recipePanel.classList.remove('hidden'); }
+    const reply = "Voici une sélection de recettes locales. Tu peux choisir une recette et la lire, ou dire 'recette suivante' pour tourner la page.";
+    addAiMsg(reply, 'Livre de recettes');
+    await speak(reply);
+    isProcessing = false; manualStop = false; setState('idle'); maybeRestartListening();
     return;
   }
   stopAudio(); /* nettoyage etat precedent avant nouvelle question */
