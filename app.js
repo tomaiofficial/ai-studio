@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.44';
+const APP_VERSION = '10.45';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -944,7 +944,7 @@ async function speakEleven(text, voiceId, onChunk){
           const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-            body: JSON.stringify({ text: chunk, model_id: 'eleven_flash_v2_5' }),
+            body: JSON.stringify({ text: chunk, model_id: 'eleven_multilingual_v2' }),
             signal: abortSignal(20000)
           });
           if (!r.ok){
