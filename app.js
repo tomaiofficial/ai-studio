@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.40';
+const APP_VERSION = '10.41';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -907,13 +907,34 @@ let GEMINI_QUOTA_BLOCKED = false;
    bascule Google Translate instantanée). Reset auto au changement de jour
    ou à l'enregistrement d'une nouvelle clé. */
 const GEMINI_QUOTA_LS = 'va_gemini_quota';
-function geminiSaveQuota(){ try { localStorage.setItem(GEMINI_QUOTA_LS, JSON.stringify({ d: new Date().toDateString(), lite: GEMINI_LITE_BLOCKED, all: GEMINI_QUOTA_BLOCKED })); } catch {} }
+/* v10.41 : COMPTEURS LOCAUX PAR MODELE ET PAR JOUR — le quota serveur est
+   10 req/j/model comtées par REQUETE ENVOYEE. On compte chaque appel chez
+   nous : a 9 (marge de securite), on arrete d'appeler AVANT de declencher
+   un 429 -> plus aucune erreur rouge en console, jamais. */
+const GEMINI_DAY_LIMIT = 9;
+let GEMINI_USE = { d: '', lite: 0, alt: 0 };
+function geminiUseCount(model){
+  try {
+    const today = new Date().toDateString();
+    if (GEMINI_USE.d !== today){ GEMINI_USE = { d: today, lite: 0, alt: 0 }; }
+    if (model === GEMINI_TTS_MODEL_ALT) GEMINI_USE.alt++;
+    else GEMINI_USE.lite++;
+    if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT) GEMINI_LITE_BLOCKED = true;
+    if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT && GEMINI_USE.alt >= GEMINI_DAY_LIMIT) GEMINI_QUOTA_BLOCKED = true;
+    localStorage.setItem(GEMINI_QUOTA_LS, JSON.stringify({ d: today, lite: GEMINI_LITE_BLOCKED, all: GEMINI_QUOTA_BLOCKED, liten: GEMINI_USE.lite, altn: GEMINI_USE.alt }));
+  } catch {}
+}
+function geminiSaveQuota(){ try { localStorage.setItem(GEMINI_QUOTA_LS, JSON.stringify({ d: new Date().toDateString(), lite: GEMINI_LITE_BLOCKED, all: GEMINI_QUOTA_BLOCKED, liten: GEMINI_USE.lite, altn: GEMINI_USE.alt })); } catch {} }
 function geminiLoadQuota(){
   try {
     const q = JSON.parse(localStorage.getItem(GEMINI_QUOTA_LS) || 'null');
     if (q && q.d === new Date().toDateString()){
       GEMINI_LITE_BLOCKED = !!q.lite;
       GEMINI_QUOTA_BLOCKED = !!q.all;
+      GEMINI_USE = { d: q.d, lite: q.liten || 0, alt: q.altn || 0 };
+      /* les compteurs forcent aussi le blocage au seuil */
+      if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT) GEMINI_LITE_BLOCKED = true;
+      if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT && GEMINI_USE.alt >= GEMINI_DAY_LIMIT) GEMINI_QUOTA_BLOCKED = true;
     } else { try { localStorage.removeItem(GEMINI_QUOTA_LS); } catch {} }
   } catch {}
 }
@@ -2911,8 +2932,9 @@ async function speakGemini(text, voiceName, onChunk){
   const key = getGeminiKey();
   if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
   try {
-    const chunks = splitSentences(text, 800);
+    const chunks = splitSentences(text, 1500);
     const call = async (chunk, model) => {
+      geminiUseCount(model); /* v10.41 : compteur local, skip prophylactique a 9 */
       return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
