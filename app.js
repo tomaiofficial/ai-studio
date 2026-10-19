@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.30';
+const APP_VERSION = '10.31';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2728,49 +2728,54 @@ function playGoogleChunk(c){
        l'audio (403/429/HTML -> MEDIA_ELEMENT_ERROR), on bascule sur l'autre */
     const hosts = ['https://translate.google.com', 'https://translate.googleapis.com'];
     const mkUrl = h => h + '/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob&idx=0&total=1&textlen=' + c.length + '&ttsspeed=1';
-    let hostIdx = 0;
-    let audio = new Audio(mkUrl(hosts[0]));
     let done = false, started = false;
     const finish = v => { if (done) return; done = true; res(v); };
-    audio.volume = 1.0;
-    /* v9.65 : volume boosté (gain 1.8) via le contexte partagé si dispo */
-    try {
-      const ctx = ensureAudio();
-      if (ctx){
-        const src = ctx.createMediaElementSource(audio);
-        const gain = ctx.createGain();
-        gain.gain.value = 1.8;
-        src.connect(gain);
-        gain.connect(ctx.destination);
-      }
-    } catch(e){}
-    currentAudios.push(audio);
-    audio.onplaying = () => { started = true; voiceStartedFlag = true; };
-    audio.onended = () => finish(true);
-    const tryPlay = n => {
-      audio.play().then(() => {}).catch(() => {
-        if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
-        else finish(false);
-      });
-    };
-    audio.onerror = () => {
-      /* domaine KO -> essai sur translate.googleapis.com */
-      hostIdx++;
-      if (hostIdx < hosts.length){
-        console.warn('[VOIX] GoogleTTS host KO -> bascule', hosts[hostIdx]);
+    /* v10.31 : 2 RONDES complètes (chaque host à son tour). Le blocage Google
+       Translate est souvent TRANSITOIRE (rafale de requêtes) : un 2e essai
+       2,5 s après passe nue-ête alors que le 1er a été rejeté. */
+    const attempt = (hostIdx, round) => {
+      if (done) return;
+      const audio = new Audio(mkUrl(hosts[hostIdx]));
+      audio.volume = 1.0;
+      /* v9.65 : volume boosté (gain 1.8) via le contexte partagé si dispo */
+      try {
+        const ctx = ensureAudio();
+        if (ctx){
+          const src = ctx.createMediaElementSource(audio);
+          const gain = ctx.createGain();
+          gain.gain.value = 1.8;
+          src.connect(gain);
+          gain.connect(ctx.destination);
+        }
+      } catch(e){}
+      currentAudios.push(audio);
+      audio.onplaying = () => { started = true; voiceStartedFlag = true; };
+      audio.onended = () => finish(true);
+      const tryPlay = n => {
+        audio.play().then(() => {}).catch(() => {
+          if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+          else if (hostIdx + 1 < hosts.length) attempt(hostIdx + 1, round);
+          else if (round === 1) setTimeout(() => attempt(0, 2), 2500);
+          else finish(false);
+        });
+      };
+      audio.onerror = () => {
         audio.pause();
-        audio = new Audio(mkUrl(hosts[hostIdx]));
-        audio.onplaying = () => { started = true; voiceStartedFlag = true; };
-        audio.onended = () => finish(true);
-        audio.onerror = () => finish(false);
-        tryPlay(0);
-      } else finish(false);
+        if (hostIdx + 1 < hosts.length){
+          console.warn('[VOIX] GoogleTTS host KO -> bascule', hosts[hostIdx + 1]);
+          attempt(hostIdx + 1, round);
+        } else if (round === 1){
+          console.warn('[VOIX] GoogleTTS bloque -> 2e essai dans 2,5 s');
+          setTimeout(() => attempt(0, 2), 2500);
+        } else finish(false);
+      };
+      tryPlay(0);
     };
-    tryPlay(0);
-    /* si rien ne joue apres 4s (reseau bloque) -> voix suivante, pas 25s d'attente */
-    setTimeout(() => { if (!done && !started) finish(false); }, 4000);
+    attempt(0, 1);
+    /* si rien ne joue apres 7s (reseau bloque, 2 rondes comprises) -> voix suivante */
+    setTimeout(() => { if (!done && !started) finish(false); }, 7000);
     /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
-    setTimeout(() => { if (!done) finish(true); }, 15000);
+    setTimeout(() => { if (!done) finish(true); }, 20000);
   });
 }
 /* v9.64 : Google TTS = dernier recours universel (gratuit, sans clé, marche partout) */
@@ -2781,6 +2786,9 @@ async function speakGoogle(text, onChunk){
       if (onChunk) onChunk(chunk);
       const ok = await playGoogleChunk(chunk);
       if (!ok) return false;
+      /* v10.31 : respir court entre chaque chunk — evite de declencher le
+         blocage transitoire de Google Translate (rafale de requetes) */
+      await new Promise(r => setTimeout(r, 150));
     }
     return true;
   } catch(e){ console.warn('[VOIX] Google TTS échec:', e && e.message); return false; }
