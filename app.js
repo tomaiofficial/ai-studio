@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.26';
+const APP_VERSION = '10.27';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2945,8 +2945,13 @@ GEMINI_VOICES.forEach(v => {
   geminiGroup.appendChild(o);
 });
 ttsVoiceSel.appendChild(geminiGroup);
-/* Voix système (navigateur) — secours sans clé */
-populateSystemVoices();
+  /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la synthèse vocale du
+     navigateur est la moins belle qualité et l'utilisateur préfère les voix
+     Google IA / Voxtral. La lecture système reste branchée UNIQUEMENT comme
+     secours silencieux automatique dans speak() quand tout le reste échoue. */
+  Array.from(ttsVoiceSel.options).forEach(o => {
+    if (o.value === 'systeme' || o.value.indexOf('system:') === 0) o.remove();
+  });
   if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
 }
 
@@ -3009,30 +3014,9 @@ function speakSystem(text, specificVoiceName, onChunk){
   });
 }
 
-/* Liste toutes les voix FR disponibles du système */
-function getSystemVoices(){
-  if (!('speechSynthesis' in window)) return [];
-  const voices = window.speechSynthesis.getVoices();
-  return voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
-}
-
-/* Remplit le sélecteur avec les voix système */
-function populateSystemVoices(){
-  const voices = getSystemVoices();
-  if (!ttsVoiceSel) return;
-  const currentValue = ttsVoiceSel.value;
-  const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
-  voices.forEach(v => {
-    const val = 'system:' + v.name;
-    if (!existingOptions.includes(val)){
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = '🎙️ ' + v.name + ' (' + v.lang + ')';
-      ttsVoiceSel.appendChild(opt);
-    }
-  });
-if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
-}
+/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
+   vocale » (navigateur) ne sont plus listées dans le sélecteur. speakSystem
+   reste défini plus haut pour le secours silencieux de speak(). */
 
 /* ===== VOIX KOKORO : RETIREE en v8.66 (l'utilisateur prefere Edge TTS,
    Microsoft Neural, plus naturelle et instantanee). Les fichiers
