@@ -2,6 +2,11 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<!-- v10.32 : AUCUN Referer envoye pour les requetes de la page (audio inclus).
+     Google Translate TTS renvoie 404 text/html des qu'il voit le Referer de la
+     page -> MEDIA_ELEMENT_ERROR. Sans Referer : 200 audio/mpeg (verifie par
+     curl). C'est LE fix des voix Google. -->
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f0f1a">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -643,9 +648,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.31"></script>
+<script src="websearch.js?v=10.32"></script>
 <script>
 </script>
-<script src="app.js?v=10.31"></script>
+<script src="app.js?v=10.32"></script>
 </body>
 </html>

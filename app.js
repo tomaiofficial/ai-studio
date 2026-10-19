@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.31';
+const APP_VERSION = '10.32';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2737,6 +2737,9 @@ function playGoogleChunk(c){
       if (done) return;
       const audio = new Audio(mkUrl(hosts[hostIdx]));
       audio.volume = 1.0;
+      /* v10.32 : no-referrer demandé aussi côté élément (non standard sur
+         <audio>, relayé par la meta referrer de la page, mais on tente) */
+      try { audio.setAttribute('referrerpolicy', 'no-referrer'); } catch(e){}
       /* v9.65 : volume boosté (gain 1.8) via le contexte partagé si dispo */
       try {
         const ctx = ensureAudio();
