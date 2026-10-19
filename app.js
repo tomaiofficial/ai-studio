@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.28';
+const APP_VERSION = '10.29';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -871,10 +871,15 @@ const GEMINI_VOICES = [
   { id: 'Umbriel', d: 'détendue (homme)' }
 ];
 function getGeminiKey(){ try { return (localStorage.getItem(GEMINI_KEY_LS) || '').trim(); } catch { return ''; } }
+/* v10.29 : si le modèle TTS Gemini renvoie 429 QUOTA (pas inclus dans le plan
+   gratuit), on le mémorise pour la session : chaque tentative d'après échoue
+   en 0 ms au lieu de Marteler le réseau à chaque réponse. */
+let GEMINI_QUOTA_BLOCKED = false;
 const geminiKeyInput = $('geminiKey'), saveGeminiKeyBtn = $('saveGeminiKey');
 if (geminiKeyInput) geminiKeyInput.value = getGeminiKey();
 if (saveGeminiKeyBtn) saveGeminiKeyBtn.addEventListener('click', () => {
   localStorage.setItem(GEMINI_KEY_LS, (geminiKeyInput.value || '').trim());
+  GEMINI_QUOTA_BLOCKED = false; /* nouvelle clé -> on retente la voix Google IA */
   populateVoices(); /* active/désactive les options Google selon la clé */
   toast('Clé Gemini enregistrée ✓ — voix Google IA activées');
 });
@@ -2838,6 +2843,9 @@ function geminiPCMToWavBlob(b64, sampleRate){
      inutile : on rend la main à la chaîne de secours en quelques ms
    - 429 rate-limit transitoire (par minute) -> UN seul retry après 4 s */
 async function speakGemini(text, voiceName, onChunk){
+  /* v10.29 : 429 quota déjà constaté cette session -> on rend la main
+     IMMÉDIATEMENT (la chaîne bascule sur Google/Voxtral sans délai) */
+  if (GEMINI_QUOTA_BLOCKED){ console.warn('[GEMINI] Quota 429 déjà constaté — bascule directe'); return false; }
   const key = getGeminiKey();
   if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
   try {
@@ -2862,7 +2870,12 @@ async function speakGemini(text, voiceName, onChunk){
         if (!res.ok){
           const errText = (await res.text().catch(() => '')).slice(0, 200);
           console.warn('[GEMINI] HTTP', res.status, errText);
-          if (res.status === 429 && !/quota|billing/i.test(errText)){
+          if (res.status === 429 && /quota|billing/i.test(errText)){
+            /* quota/billing : structurel, pas la peine de retenter */
+            GEMINI_QUOTA_BLOCKED = true;
+            return null;
+          }
+          if (res.status === 429){
             await new Promise(r => setTimeout(r, 4000));
             res = await call(chunk);
           }
@@ -3140,9 +3153,11 @@ function speak(text, onChunk){
          navigateur — le système reste le dernier filet silencieux */
       chain = [
         ['Google IA: ' + gv, (t) => speakGemini(t, gv, onChunk)],
+        /* v10.29 : secours Google (voix Translate gratuites qui marchaient
+           avant) AVANT Voxtral — c'est ce que l'utilisateur préfère */
+        ['Google', (t) => speakGoogle(t, onChunk)],
         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
+        ['Système', (t) => speakSystem(t, null, onChunk)]
       ];
     } else if (voiceMode.startsWith('system:')) {
       const voiceName = voiceMode.substring(7);
