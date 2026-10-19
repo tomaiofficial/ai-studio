@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.34';
+const APP_VERSION = '10.35';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -805,7 +805,8 @@ function getVoice(){
   /* v9.64 : les anciennes voix (Kokoro/SpeechT5/Edge/Piper/Système) sont
      supprimées -> toute valeur obsolète revient à Voxtral par défaut */
   if (v === 'systeme' || v.startsWith('system:') || v.startsWith('kokoro:')
-      || v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')) return DEFAULT_VOICE;
+      || v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')
+      || v.startsWith('gemini:')) return DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -850,39 +851,12 @@ if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
   toast('Clé API Mistral enregistrée ✓');
 });
 
-/* v10.26 : clé API Gemini (Google AI Studio) — débloque les VOIX GOOGLE IA
-   dans le sélecteur de voix. Stockée localement, jamais envoyée ailleurs. */
-const GEMINI_KEY_LS = 'va_gemini_key';
-const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
-const GEMINI_VOICES = [
-  { id: 'Kore', d: 'fermée et confiante (femme)' },
-  { id: 'Leda', d: 'jeune et vive (femme)' },
-  { id: 'Zephyr', d: 'aérienne (femme)' },
-  { id: 'Aoede', d: 'venteuse (femme)' },
-  { id: 'Autonoe', d: 'lumineuse (femme)' },
-  { id: 'Callirrhoe', d: 'décontractée (femme)' },
-  { id: 'Despina', d: 'douce (femme)' },
-  { id: 'Puck', d: 'optimiste (homme)' },
-  { id: 'Charon', d: 'informative (homme)' },
-  { id: 'Fenrir', d: 'enthousiaste (homme)' },
-  { id: 'Orus', d: 'assuré (homme)' },
-  { id: 'Enceladus', d: 'respirant (homme)' },
-  { id: 'Iapetus', d: 'claire (homme)' },
-  { id: 'Umbriel', d: 'détendue (homme)' }
-];
-function getGeminiKey(){ try { return (localStorage.getItem(GEMINI_KEY_LS) || '').trim(); } catch { return ''; } }
-/* v10.29 : si le modèle TTS Gemini renvoie 429 QUOTA (pas inclus dans le plan
-   gratuit), on le mémorise pour la session : chaque tentative d'après échoue
-   en 0 ms au lieu de Marteler le réseau à chaque réponse. */
-let GEMINI_QUOTA_BLOCKED = false;
-const geminiKeyInput = $('geminiKey'), saveGeminiKeyBtn = $('saveGeminiKey');
-if (geminiKeyInput) geminiKeyInput.value = getGeminiKey();
-if (saveGeminiKeyBtn) saveGeminiKeyBtn.addEventListener('click', () => {
-  localStorage.setItem(GEMINI_KEY_LS, (geminiKeyInput.value || '').trim());
-  GEMINI_QUOTA_BLOCKED = false; /* nouvelle clé -> on retente la voix Google IA */
-  populateVoices(); /* active/désactive les options Google selon la clé */
-  toast('Clé Gemini enregistrée ✓ — voix Google IA activées');
-});
+/* v10.35 : Gemini TTS RETIRÉ COMPLÈTEMENT — le modèle de voix IA de Google
+   n'est plus accessible en gratuit (limite 10 appels/jour/projet, exige la
+   facturation). Les voix réalistes gratuites = Voxtral (Mistral) + Google
+   Translate (réparé v10.32). L'ancienne clé stockée (va_gemini_key) et les
+   sélections 'gemini:...' sont purgées proprement. */
+try { localStorage.removeItem('va_gemini_key'); } catch {}
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
 const textInput = $('textInput'), sendBtn = $('sendBtn');
@@ -1662,11 +1636,9 @@ function extractReply(msg){
 
 async function askBrain(messages, webCtx){
    /* CERVEAUX GRATUITS, dans l'ordre :
-      0. GOOGLE AI STUDIO (Gemini, gratuit avec cle)
-      1. OPENROUTER (Llama 3.3 70B, gratuit avec cle)
-      2. POLLINATIONS (GPT, site gratuit, repond bien en francais)
-      3. LLM7 (GLM-5.3-Flash)
-      4. OVH (qwen3.5)
+      1. POLLINATIONS (GPT, site gratuit, repond bien en francais)
+      2. LLM7 (GLM-5.3-Flash)
+      3. OVH (qwen3.5)
       Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
   const lastUser = messages.filter(m => m.role === 'user').pop();
   const question = lastUser ? lastUser.content : '';
@@ -2819,88 +2791,6 @@ function splitSentences(text, max){
 }
 /* Remplit le sélecteur avec les voix : Voxtral (Mistral AI, priorité #1) + Système */
 /* v9.64 : Voxtral TTS (Mistral AI, API cloud, qualité premium) + voix système */
-/* v10.26 : VOIX GOOGLE IA (Gemini TTS) — PCM base64 -> WAV, puis playAudioBlob */
-function geminiPCMToWavBlob(b64, sampleRate){
-  const bin = atob(b64.replace(/\s/g, ''));
-  const n = bin.length;
-  const data = new Uint8Array(n);
-  for (let i = 0; i < n; i++) data[i] = bin.charCodeAt(i);
-  const buf = new Uint8Array(44 + n);
-  const dv = new DataView(buf.buffer);
-  const str = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, 'RIFF'); dv.setUint32(4, 36 + n, true); str(8, 'WAVE');
-  str(12, 'fmt '); dv.setUint32(16, 16, true);
-  dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
-  dv.setUint32(24, sampleRate, true); dv.setUint32(28, sampleRate * 2, true);
-  dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
-  str(36, 'data'); dv.setUint32(40, n, true);
-  buf.set(data, 44);
-  return new Blob([buf], { type: 'audio/wav' });
-}
-/* v10.28 : génération TTS Gemini ÉCONOME en quota :
-   - 800 car par requête (2x moins d'appels par réponse)
-   - 429 QUOTA/billing (clé gratuite épuisée ou modèle payant) -> PAS de retry
-     inutile : on rend la main à la chaîne de secours en quelques ms
-   - 429 rate-limit transitoire (par minute) -> UN seul retry après 4 s */
-async function speakGemini(text, voiceName, onChunk){
-  /* v10.29 : 429 quota déjà constaté cette session -> on rend la main
-     IMMÉDIATEMENT (la chaîne bascule sur Google/Voxtral sans délai) */
-  if (GEMINI_QUOTA_BLOCKED){ console.warn('[GEMINI] Quota 429 déjà constaté — bascule directe'); return false; }
-  const key = getGeminiKey();
-  if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
-  try {
-    const chunks = splitSentences(text, 800);
-    const call = async (chunk) => {
-      return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: chunk }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
-          }
-        }),
-        signal: abortSignal(20000)
-      });
-    };
-    const results = await Promise.all(chunks.map(async (chunk) => {
-      try {
-        let res = await call(chunk);
-        if (!res.ok){
-          const errText = (await res.text().catch(() => '')).slice(0, 200);
-          console.warn('[GEMINI] HTTP', res.status, errText);
-          if (res.status === 429 && /quota|billing/i.test(errText)){
-            /* quota/billing : structurel, pas la peine de retenter */
-            GEMINI_QUOTA_BLOCKED = true;
-            try { toast('Quota voix IA épuisé — voix Google en secours (revient demain)'); } catch(e){}
-            return null;
-          }
-          if (res.status === 429){
-            await new Promise(r => setTimeout(r, 4000));
-            res = await call(chunk);
-          }
-          if (!res.ok){ return null; }
-        }
-        const data = await res.json();
-        const part = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0];
-        const b64 = part && part.inlineData && part.inlineData.data;
-        if (!b64){ console.warn('[GEMINI] Pas de inlineData dans la réponse'); return null; }
-        const mime = (part.inlineData && part.inlineData.mimeType) || '';
-        const m = mime.match(/rate=(\d+)/);
-        return geminiPCMToWavBlob(b64, m ? parseInt(m[1], 10) : 24000);
-      } catch(e){ console.warn('[GEMINI] chunk echec:', e && e.message); return null; }
-    }));
-    if (!results.some(Boolean)){ console.warn('[GEMINI] Tous chunks bloqués'); return false; }
-    for (let i = 0; i < results.length; i++){
-      if (!results[i]) continue;
-      if (onChunk) onChunk(chunks[i]);
-      const ok = await playAudioBlob(results[i]);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[GEMINI] Échec:', e && e.message); return false; }
-}
 async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
@@ -2916,19 +2806,6 @@ async function populateVoices(){
       ttsVoiceSel.appendChild(opt);
     }
   });
-/* v10.26 : voix Google IA (Gemini TTS) visible dans la liste avec les autres voix —
-   activées dès qu'une clé Gemini (AI Studio) est enregistrée dans Réglages */
-const hasGeminiKey = getGeminiKey();
-const geminiGroup = document.createElement('optgroup');
-geminiGroup.label = hasGeminiKey ? '💠 Google IA (Gemini)' : '💠 Google IA (Gemini) — colle ta clé dans Réglages';
-GEMINI_VOICES.forEach(v => {
-  const o = document.createElement('option');
-  o.value = 'gemini:' + v.id;
-  o.textContent = '💠 ' + v.id + ' — ' + v.d + (hasGeminiKey ? '' : ' (clé requise)');
-  if (!hasGeminiKey) o.disabled = true;
-  geminiGroup.appendChild(o);
-});
-ttsVoiceSel.appendChild(geminiGroup);
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la synthèse vocale du
      navigateur est la moins belle qualité et l'utilisateur préfère les voix
      Google IA / Voxtral. La lecture système reste branchée UNIQUEMENT comme
@@ -3147,26 +3024,9 @@ function speak(text, onChunk){
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
-    } else if (voiceMode.startsWith('gemini:')) {
-      const gv = voiceMode.substring(7);
-      /* v10.26 : voix Google IA (Gemini TTS) — secours Système puis Google gratuit si la clé plante (quota, 429...) */
-      /* v10.28 : secours Voxtral (si clé Mistral) AVANT la synthèse
-         navigateur — le système reste le dernier filet silencieux */
-      chain = [
-        ['Google IA: ' + gv, (t) => speakGemini(t, gv, onChunk)],
-        /* v10.29 : secours Google (voix Translate gratuites qui marchaient
-           avant) AVANT Voxtral — c'est ce que l'utilisateur préfère */
-        ['Google', (t) => speakGoogle(t, onChunk)],
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)]
-      ];
-    } else if (voiceMode.startsWith('system:')) {
-      const voiceName = voiceMode.substring(7);
-      chain = [
-        ['Système: ' + voiceName, (t) => speakSystem(t, voiceName, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
     } else {
+      /* v10.35 : toute autre sélection (system:, residus gemini:...) ->
+         Voxtral Paul en premier, Google Translate en filet. */
       chain = [
         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)],
