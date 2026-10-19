@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.39';
+const APP_VERSION = '10.40';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -900,11 +900,32 @@ const GEMINI_VOICES = [
 function getGeminiKey(){ try { return (localStorage.getItem(GEMINI_KEY_LS) || '').trim(); } catch { return ''; } }
 /* la sélection gemini: est VALIDE de nouveau (v10.36) — on garde les choix */
 let GEMINI_QUOTA_BLOCKED = false;
+/* v10.40 : ETAT QUOTA PERSISTE (localStorage, valable pour le jour même).
+   Avant : mémoire seule -> chaque rechargement de page retentait les 2
+   modèles et régénérait des 429/erreurs console. Maintenant : si le jour
+   courant est noté "épuisé", on NE TENTE PLUS du tout (0 requête gaspillée,
+   bascule Google Translate instantanée). Reset auto au changement de jour
+   ou à l'enregistrement d'une nouvelle clé. */
+const GEMINI_QUOTA_LS = 'va_gemini_quota';
+function geminiSaveQuota(){ try { localStorage.setItem(GEMINI_QUOTA_LS, JSON.stringify({ d: new Date().toDateString(), lite: GEMINI_LITE_BLOCKED, all: GEMINI_QUOTA_BLOCKED })); } catch {} }
+function geminiLoadQuota(){
+  try {
+    const q = JSON.parse(localStorage.getItem(GEMINI_QUOTA_LS) || 'null');
+    if (q && q.d === new Date().toDateString()){
+      GEMINI_LITE_BLOCKED = !!q.lite;
+      GEMINI_QUOTA_BLOCKED = !!q.all;
+    } else { try { localStorage.removeItem(GEMINI_QUOTA_LS); } catch {} }
+  } catch {}
+}
+geminiLoadQuota();
 const geminiKeyInput = $('geminiKey'), saveGeminiKeyBtn = $('saveGeminiKey');
 if (geminiKeyInput) geminiKeyInput.value = getGeminiKey();
 if (saveGeminiKeyBtn) saveGeminiKeyBtn.addEventListener('click', () => {
   localStorage.setItem(GEMINI_KEY_LS, (geminiKeyInput.value || '').trim());
-  GEMINI_QUOTA_BLOCKED = false; /* nouvelle clé -> on retente la voix IA */
+  /* nouvelle clé = potentiellement un nouveau projet -> quotas retentés */
+  GEMINI_QUOTA_BLOCKED = false;
+  GEMINI_LITE_BLOCKED = false;
+  try { localStorage.removeItem(GEMINI_QUOTA_LS); } catch {}
   populateVoices(); /* active/désactive les options Google selon la clé */
   toast('Clé Gemini enregistrée ✓ — voix Google IA (2089 voix) activées');
 });
@@ -2919,6 +2940,7 @@ async function speakGemini(text, voiceName, onChunk){
               /* lite epuise -> on relance ce chunk sur le modele COMPLET.
                  Drapeau universel : gere le cas des chunks paralleles. */
               GEMINI_LITE_BLOCKED = true;
+              geminiSaveQuota();
               model = GEMINI_TTS_MODEL_ALT;
               console.log('[GEMINI] Quota lite epuise -> bascule sur ' + GEMINI_TTS_MODEL_ALT);
               res = await call(chunk, model);
@@ -2928,6 +2950,7 @@ async function speakGemini(text, voiceName, onChunk){
               if (res && res.status === 429 && /quota|billing/i.test(errText2)){
                 /* meme le modele complet est epuise -> vraiment fini */
                 GEMINI_QUOTA_BLOCKED = true;
+                geminiSaveQuota();
                 try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
                 return null;
               }
