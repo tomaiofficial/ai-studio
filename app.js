@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.29';
+const APP_VERSION = '10.30';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -3842,7 +3842,14 @@ async function checkUpdate(){
       try { done = localStorage.getItem('va_auto_reloaded') === j.version; } catch {}
       if (!done){
         try { localStorage.setItem('va_auto_reloaded', j.version); } catch {}
-        setTimeout(() => { try { location.reload(true); } catch { location.href = location.pathname + '?v=' + Date.now(); } }, 500);
+        /* v10.30 : rechargement par URL cache-bustée — un simple reload peut
+           retomber sur l'index.html gardé par le cache HTTP de Pages (10 min),
+           et le flag empeche un 2e essai -> l'utilisateur restait en retard.
+           Une URL ?maj= contournée ce cache : index frais tout de suite. */
+        setTimeout(() => {
+          try { location.href = location.pathname + '?maj=' + Date.now(); }
+          catch { location.reload(true); }
+        }, 500);
       }
     } else {
       try { localStorage.removeItem('va_auto_reloaded'); } catch {}
