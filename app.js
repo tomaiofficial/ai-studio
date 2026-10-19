@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.27';
+const APP_VERSION = '10.28';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1560,71 +1560,14 @@ function handleMiniGameAnswer(question){
   if(reply){ addAiMsg(reply,'Jeu local'); speak(reply); return true; }
   return false;
 }
-const ASTRA_RECIPES = [
-  {title:'Pâtes crémeuses aux champignons', category:'Plat', time:'25 min', servings:2, image:'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=1000&q=80', ingredients:['200 g de pâtes','200 g de champignons','15 cl de crème','1 gousse d’ail','Parmesan, sel, poivre'],steps:['Fais cuire les pâtes dans l’eau salée.','Fais revenir les champignons avec l’ail.','Ajoute la crème, poivre, puis mélange aux pâtes égouttées.','Sers avec du parmesan.']},
-  {title:'Curry de pois chiches', category:'Végétarien', time:'30 min', servings:3, image:'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=1000&q=80', ingredients:['400 g de pois chiches cuits','1 oignon','200 ml de lait de coco','2 c. à c. de curry','Tomates concassées, riz'],steps:['Fais revenir l’oignon émincé.','Ajoute le curry et les tomates, puis laisse mijoter 5 minutes.','Ajoute les pois chiches et le lait de coco.','Laisse cuire 15 minutes et sers avec du riz.']},
-  {title:'Saumon citron et légumes rôtis', category:'Plat', time:'35 min', servings:2, image:'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=1000&q=80', ingredients:['2 pavés de saumon','1 citron','Courgette et poivron','Huile d’olive','Herbes, sel, poivre'],steps:['Préchauffe le four à 200 °C.','Coupe les légumes et mélange-les avec huile et herbes.','Enfourne les légumes 15 minutes, ajoute le saumon citronné.','Poursuis la cuisson 12 à 15 minutes, jusqu’à cuisson complète.']},
-  {title:'Salade croquante avocat-feta', category:'Entrée', time:'15 min', servings:2, image:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1000&q=80', ingredients:['1 avocat','1 concombre','150 g de tomates','80 g de feta','Citron, huile d’olive'],steps:['Lave et coupe les légumes et l’avocat.','Émiette la feta par-dessus.','Assaisonne avec citron et huile d’olive.','Mélange doucement et sers frais.']},
-  {title:'Crêpes faciles', category:'Dessert', time:'25 min', servings:4, image:'https://images.unsplash.com/photo-1519676867240-f03562e64548?auto=format&fit=crop&w=1000&q=80', ingredients:['250 g de farine','3 œufs','50 cl de lait','1 c. à s. de sucre','1 pincée de sel'],steps:['Mélange la farine, le sucre et le sel.','Ajoute les œufs puis verse le lait progressivement en fouettant.','Laisse reposer 15 minutes si tu peux.','Fais cuire une fine louche de pâte dans une poêle chaude légèrement huilée.']},
-  {title:'Riz sauté aux légumes', category:'Plat', time:'20 min', servings:2, image:'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=1000&q=80', ingredients:['300 g de riz cuit froid','1 carotte','Petits pois','2 œufs','Sauce soja'],steps:['Fais revenir la carotte en petits dés et les petits pois.','Ajoute le riz froid et fais sauter quelques minutes.','Pousse le riz sur le côté, brouille les œufs dans la poêle.','Mélange et ajoute un peu de sauce soja.']}
-];
-let recipeSearchResults=[];
-async function searchRecipes(query){
-  const q=String(query||'').trim(); if(!q) throw new Error('Dis-moi le nom du plat à chercher.');
-  const response=await fetch('https://www.themealdb.com/api/json/v1/1/search.php?s='+encodeURIComponent(q));
-  if(!response.ok) throw new Error('La recherche de recettes est momentanément indisponible.');
-  const data=await response.json();
-  const meals=Array.isArray(data.meals)?data.meals:[];
-  if(!meals.length) throw new Error(`Je n’ai trouvé aucune recette pour « ${q} ». Essaie un autre nom de plat.`);
-  recipeSearchResults=meals.map(meal=>{
-    const ingredients=[];
-    for(let i=1;i<=20;i++){
-      const ingredient=String(meal['strIngredient'+i]||'').trim();
-      const measure=String(meal['strMeasure'+i]||'').trim();
-      if(ingredient) ingredients.push([measure,ingredient].filter(Boolean).join(' '));
-    }
-    const steps=String(meal.strInstructions||'').split(/\r?\n|(?<=\.)\s+(?=\d+[.)]?\s)/).map(s=>s.replace(/^\s*\d+[.)]?\s*/, '').trim()).filter(Boolean);
-    return {title:meal.strMeal||q,category:meal.strCategory||'Recette',area:meal.strArea||'',time:'Voir les étapes',servings:'',image:meal.strMealThumb||'',ingredients,steps};
-  }).filter(recipe=>recipe.ingredients.length&&recipe.steps.length);
-  if(!recipeSearchResults.length) throw new Error('La recette trouvée ne contient pas assez de détails.');
-  currentRecipeIndex=0;
-  renderRecipe(0,1,recipeSearchResults);
-  return recipeSearchResults;
-}
-let currentRecipeIndex=-1;
-function renderRecipe(index,direction=1,collection=recipeSearchResults.length?recipeSearchResults:ASTRA_RECIPES){
-  currentRecipeIndex=(index+collection.length)%collection.length;
-  const recipe=collection[currentRecipeIndex], page=document.getElementById('recipePage');
-  if(!recipe||!page)return;
-  page.classList.remove('turn-next','turn-prev'); void page.offsetWidth; page.classList.add(direction>=0?'turn-next':'turn-prev');
-  const image=document.getElementById('recipeImage'); image.src=recipe.image; image.alt=recipe.title;
-  document.getElementById('recipeCategory').textContent=[recipe.category,recipe.area,recipe.time,recipe.servings?recipe.servings+' portions':''].filter(Boolean).join(' · ');
-  document.getElementById('recipeTitle').textContent=recipe.title;
-  const ingredients=document.getElementById('recipeIngredients'); ingredients.replaceChildren();
-  recipe.ingredients.forEach(item=>{const li=document.createElement('li');li.textContent=item;ingredients.appendChild(li);});
-  const steps=document.getElementById('recipeSteps'); steps.replaceChildren();
-  recipe.steps.forEach((item,i)=>{const li=document.createElement('li');li.textContent=`${i+1}. ${item}`;steps.appendChild(li);});
-  document.getElementById('recipeCounter').textContent=`Recette ${currentRecipeIndex+1} sur ${collection.length}`;
-}
-function openRecipeBook(index=0){const book=document.getElementById('recipeBook');if(!book)return;book.classList.remove('hidden');renderRecipe(index,1);}
-function closeRecipeBook(){const book=document.getElementById('recipeBook');if(book)book.classList.add('hidden');}
-function nextRecipe(){renderRecipe(currentRecipeIndex+1,1);}
-function previousRecipe(){renderRecipe(currentRecipeIndex-1,-1);}
-function isRecipeRequest(question){
-  const q=String(question||'').toLowerCase();
-  return /(recette|cuisin|plat à faire|plat a faire|que manger|quoi manger)/i.test(q);
-}
-function extractRecipeQuery(question){
-  return String(question||'').replace(/^(?:donne(?:-moi)?|montre(?:-moi)?|trouve(?:-moi)?|cherche(?:-moi)?|ouvre)?\s*(?:une\s+)?recette\s*(?:de|du|des|d['’])?\s*/i,'').replace(/\b(recette|s'il te plaît|s il te plait|stp|svp|s'il vous plaît)\b/gi,'').replace(/[?.!,]+$/,'').trim();
-}
+/* v10.28 : LIVRE DE RECETTES RETIRE COMPLETEMENT (demande utilisateur).
+   Les questions cuisine/gastronomie passent maintenant par le cerveau IA
+   + recherche web en temps reel (webSearch sur TOUTES les questions). */
 document.addEventListener('DOMContentLoaded',()=>{
   const panel=document.getElementById('idleGames');
   const close=document.getElementById('idleGamesClose');
   if(close) close.addEventListener('click',()=>{panel.classList.add('hidden');scheduleIdleGames();});
   document.querySelectorAll('[data-idle-game]').forEach(button=>button.addEventListener('click',()=>startMiniGame(button.dataset.idleGame)));
-  const recipeClose=document.getElementById('recipeClose'),recipeNext=document.getElementById('recipeNext'),recipePrev=document.getElementById('recipePrev'),recipeOverlay=document.getElementById('recipeBook');
-  if(recipeClose)recipeClose.addEventListener('click',closeRecipeBook);if(recipeNext)recipeNext.addEventListener('click',nextRecipe);if(recipePrev)recipePrev.addEventListener('click',previousRecipe);
-  if(recipeOverlay)recipeOverlay.addEventListener('click',event=>{if(event.target===recipeOverlay)closeRecipeBook();});
   ['pointerdown','keydown','touchstart'].forEach(evt=>document.addEventListener(evt,()=>{if(panel)panel.classList.add('hidden');scheduleIdleGames();},{passive:true}));
   document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(idleGameTimer);if(panel)panel.classList.add('hidden');}else scheduleIdleGames();});
   scheduleIdleGames();
@@ -1902,14 +1845,14 @@ async function askAI(question){
   if (mem){
     messages.unshift({ role: 'system', content: 'Memoire de toutes tes conversations passees avec l utilisateur. Tu te souviens de TOUT, meme dans une nouvelle conversation. Quand on te demande si tu te souviens, reponds OUI et cite des exemples de cette memoire. Voici ce qui a ete dit avant :\n' + mem });
   }
-  /* v8.99 : recherche web simplifiee - injectee seulement si question d'actualite.
-     v9.68 : regex elargi (cherche, trouve, va voir, google, en ligne...) */
+/* v10.28 : recherche web TEMPS REEL pour TOUTES les questions (fini le
+     filtre par mots-cles). Astra cherche sur le web pour n'importe quel sujet :
+     cuisine, prix, actus, technique, histoire, meteo, etc.
+     Budget 3 s pour ne pas ralentir la reponse. */
   let webCtx = '';
   try {
-    if (/actualit|nouvelle|aujourd|hier|recemment|dernier|actu|news|election|president|guerre|crise|prix|meteo|temps|resultat|score|match|sortie|annonc|deces|attaque|accord|loi|gouvernement|minister|economie|football|ligue|championnat|internet|web|recherche|cherche|trouve|va voir|regarde sur|google|en ligne|info|derni[eè]res nouvelles|qui a gagn[eé]|qui est le|qui est la/i.test(question)){
-      webCtx = await Promise.race([webSearch(question), new Promise(res => setTimeout(() => res(''), 3000))]);
-      if (webCtx) messages.unshift({ role: 'system', content: 'Web (recherche en direct) : ' + webCtx.slice(0, 800) });
-    }
+    webCtx = await Promise.race([webSearch(question), new Promise(res => setTimeout(() => res(''), 3000))]);
+    if (webCtx) messages.unshift({ role: 'system', content: 'Web (recherche en direct) : ' + webCtx.slice(0, 800) });
   } catch {}
   let r = await askBrain(messages, webCtx);
   if (!r.error){
@@ -2776,8 +2719,14 @@ function playRawAudio(rawAudio){
    pas de fetch -> pas de blocage CORS) */
 function playGoogleChunk(c){
   return new Promise(res => {
-    const url = 'https://translate.google.com/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob';
-    const audio = new Audio(url);
+    /* v10.28 : 2 domaines essayés — si un host renvoie autre chose que de
+       l'audio (403/429/HTML -> MEDIA_ELEMENT_ERROR), on bascule sur l'autre */
+    const hosts = ['https://translate.google.com', 'https://translate.googleapis.com'];
+    const mkUrl = h => h + '/translate_tts?ie=UTF-8&q=' + encodeURIComponent(c) + '&tl=fr&client=tw-ob&idx=0&total=1&textlen=' + c.length + '&ttsspeed=1';
+    let hostIdx = 0;
+    let audio = new Audio(mkUrl(hosts[0]));
+    let done = false, started = false;
+    const finish = v => { if (done) return; done = true; res(v); };
     audio.volume = 1.0;
     /* v9.65 : volume boosté (gain 1.8) via le contexte partagé si dispo */
     try {
@@ -2791,17 +2740,26 @@ function playGoogleChunk(c){
       }
     } catch(e){}
     currentAudios.push(audio);
-    let done = false, started = false;
-    const finish = v => { if (done) return; done = true; res(v); };
     audio.onplaying = () => { started = true; voiceStartedFlag = true; };
     audio.onended = () => finish(true);
-    audio.onerror = () => { console.warn('[VOIX] GoogleTTS audio error:', audio.error && audio.error.code, audio.error && audio.error.message, url.slice(0, 80)); finish(false); };
-    /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
     const tryPlay = n => {
       audio.play().then(() => {}).catch(() => {
         if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
         else finish(false);
       });
+    };
+    audio.onerror = () => {
+      /* domaine KO -> essai sur translate.googleapis.com */
+      hostIdx++;
+      if (hostIdx < hosts.length){
+        console.warn('[VOIX] GoogleTTS host KO -> bascule', hosts[hostIdx]);
+        audio.pause();
+        audio = new Audio(mkUrl(hosts[hostIdx]));
+        audio.onplaying = () => { started = true; voiceStartedFlag = true; };
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(false);
+        tryPlay(0);
+      } else finish(false);
     };
     tryPlay(0);
     /* si rien ne joue apres 4s (reseau bloque) -> voix suivante, pas 25s d'attente */
@@ -2874,29 +2832,41 @@ function geminiPCMToWavBlob(b64, sampleRate){
   buf.set(data, 44);
   return new Blob([buf], { type: 'audio/wav' });
 }
+/* v10.28 : génération TTS Gemini ÉCONOME en quota :
+   - 800 car par requête (2x moins d'appels par réponse)
+   - 429 QUOTA/billing (clé gratuite épuisée ou modèle payant) -> PAS de retry
+     inutile : on rend la main à la chaîne de secours en quelques ms
+   - 429 rate-limit transitoire (par minute) -> UN seul retry après 4 s */
 async function speakGemini(text, voiceName, onChunk){
   const key = getGeminiKey();
   if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
   try {
-    const chunks = splitSentences(text, 400);
-    /* génération EN PARALLÈLE puis lecture dans l'ordre (comme Voxtral) */
+    const chunks = splitSentences(text, 800);
+    const call = async (chunk) => {
+      return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: chunk }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
+          }
+        }),
+        signal: abortSignal(20000)
+      });
+    };
     const results = await Promise.all(chunks.map(async (chunk) => {
       try {
-        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: chunk }] }],
-            generationConfig: {
-              responseModalities: ['AUDIO'],
-              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
-            }
-          }),
-          signal: abortSignal(20000)
-        });
+        let res = await call(chunk);
         if (!res.ok){
-          console.warn('[GEMINI] HTTP', res.status, (await res.text().catch(() => '')).slice(0, 200));
-          return null;
+          const errText = (await res.text().catch(() => '')).slice(0, 200);
+          console.warn('[GEMINI] HTTP', res.status, errText);
+          if (res.status === 429 && !/quota|billing/i.test(errText)){
+            await new Promise(r => setTimeout(r, 4000));
+            res = await call(chunk);
+          }
+          if (!res.ok){ return null; }
         }
         const data = await res.json();
         const part = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0];
@@ -3166,8 +3136,11 @@ function speak(text, onChunk){
     } else if (voiceMode.startsWith('gemini:')) {
       const gv = voiceMode.substring(7);
       /* v10.26 : voix Google IA (Gemini TTS) — secours Système puis Google gratuit si la clé plante (quota, 429...) */
+      /* v10.28 : secours Voxtral (si clé Mistral) AVANT la synthèse
+         navigateur — le système reste le dernier filet silencieux */
       chain = [
         ['Google IA: ' + gv, (t) => speakGemini(t, gv, onChunk)],
+        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)]
       ];
@@ -3498,15 +3471,6 @@ function isWritingRequest(q){
 async function handleQuestion(question){
   if (isProcessing) return;
   const plainCommand=String(question||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  if(/^(ferme|fermer|ferme le livre|fermer le livre|ferme le livre de recettes|cacher le livre)[.!? ]*$/.test(plainCommand)){
-    closeRecipeBook(); const response='Bien sûr, je referme le livre de recettes.'; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
-  }
-  if(/^(recette suivante|page suivante|tourne la page|tourne la page suivante|suivante)[.!? ]*$/.test(plainCommand) && currentRecipeIndex>=0){
-    nextRecipe(); const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`Voilà, nouvelle page : ${r.title}. Tu peux regarder les ingrédients et les étapes à l’écran.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
-  }
-  if(/^(recette precedente|recette précédente|page precedente|page précédente|page d'avant|retourne la page)[.!? ]*$/.test(plainCommand) && currentRecipeIndex>=0){
-    previousRecipe(); const r=ASTRA_RECIPES[currentRecipeIndex]; const response=`On revient à ${r.title}. Les ingrédients et les étapes sont affichés.`; addUserMsg(question); addAiMsg(response,'Livre de recettes'); await speak(response); return;
-  }
   const gamesPanel = document.getElementById('idleGames');
   if (gamesPanel) gamesPanel.classList.add('hidden');
   scheduleIdleGames();
@@ -3575,15 +3539,7 @@ async function handleQuestion(question){
     }
     return;
   }
-  if (/(recette|plat|cuisine|manger|dîner|déjeuner|petit-déjeuner|recette de|plat de)(\s+.*)?/i.test(question)) {
-    const recipePanel = document.getElementById('recipeBook');
-    if (recipePanel) { recipePanel.classList.remove('hidden'); }
-    const reply = "Voici une sélection de recettes locales. Tu peux choisir une recette et la lire, ou dire 'recette suivante' pour tourner la page.";
-    addAiMsg(reply, 'Livre de recettes');
-    isProcessing = false; manualStop = false; setState('idle'); maybeRestartListening();
-    return;
-  }
-  stopAudio(); /* nettoyage etat precedent avant nouvelle question */
+stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   isProcessing = true;
   manualStop = true;
   /* v9.83 : une nouvelle question relance le mode continu a la fin de la reponse */
