@@ -1,0 +1,29 @@
+name: Scan voix b64 (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan python b64
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          echo 'IyAtKi0gY29kaW5nOiB1dGYtOCAtKi0KaW1wb3J0IHJlCm91dCA9IFtdCmFwcCA9IG9wZW4oJ2FwcC5qcycsIGVuY29kaW5nPSd1dGYtOCcpLnJlYWQoKQpodG1sID0gb3BlbignaW5kZXguaHRtbCcsIGVuY29kaW5nPSd1dGYtOCcpLnJlYWQoKQpkZWYgZyhwYXQsIHNyYywgbj0zMCwgbGFiZWw9JycpOgogICAgb3V0LmFwcGVuZCgnPT09ICcgKyBsYWJlbCArICcgPT09JykKICAgIGxpbmVzID0gc3JjLnNwbGl0KCdcbicpCiAgICBmb3IgaSwgbCBpbiBlbnVtZXJhdGUobGluZXMpOgogICAgICAgIGlmIHJlLnNlYXJjaChwYXQsIGwpOgogICAgICAgICAgICBvdXQuYXBwZW5kKHN0cihpKzEpICsgJzogJyArIGwuc3RyaXAoKVs6MTUwXSkKICAgICAgICAgICAgbiAtPSAxCiAgICAgICAgICAgIGlmIG4gPD0gMDogYnJlYWsKZyhyJ01JU1RSQUxfS0VZX0xTfGdldE1pc3RyYWxLZXknLCBhcHAsIDE1LCAnY2xlcyBBUEkgYXBwLmpzJykKZyhyJ3BvcHVsYXRlVm9pY2VzfHZvaWNlU2VsZWN0fHZhX3R0c3ZvaWNlfHNwZWFrVm94dHJhbFwofFZPSUNFU3x2b2ljZXNccyo9JywgYXBwLCA0MCwgJ3ZvaXggYXBwLmpzJykKZyhyJ3NldHRpbmdzfHJlZ2xhZ2V8cmUgV2hnbGFnZXxSZWdsYWdlcycsIGh0bWwsIDQwLCAncmVnbGFnZXMgaW5kZXguaHRtbCcpCmcocidNSVNUUkFMfGNsZXxBUEl8YXBpa2V5fGFwaS1rZXknLCBodG1sLCAzMCwgJ2NsZXMgaW5kZXguaHRtbCcpCmcocid2b2ljZXx2b2l4fHNlbGVjdCcsIGh0bWwsIDQwLCAndm9peCBpbmRleC5odG1sJykKdHh0ID0gJ1xuJy5qb2luKG91dCkKcHJpbnQodHh0Wzo1MDBdKQpvcGVuKCdhc3RyYS12b2ljZXMtc2Nhbi50eHQnLCd3JyxlbmNvZGluZz0ndXRmLTgnKS53cml0ZSh0eHQpCg==' | base64 -d > /tmp/scan.py
+          python3 /tmp/scan.py
+          git add astra-voices-scan.txt
+          git commit -m "chore: scan voix+reglages b64 [skip ci]"
+          git rm -f .github/workflows/scan-voices-b64.yml
+          git commit -m "chore: supp workflow [skip ci]"
+          git push
