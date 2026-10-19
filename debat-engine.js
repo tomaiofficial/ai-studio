@@ -271,7 +271,7 @@ async function speakVoxtral(text, voiceId){
 }
 /* v10.11 : la recherche passe par websearch.js (plusieurs sources,
    car une seule peut etre bloquee CORS depuis le navigateur). */
-async function // searchWeb(query){
+async function searchWeb(query){
   const WS = (typeof window !== 'undefined' && window.WebSearch) ? window.WebSearch : null;
   if (!WS || typeof WS.search !== 'function') return '';
   try {
@@ -538,7 +538,7 @@ async function runLoop(){
         /* v10.10 : MISSION — toutes les 6 interventions, le groupe cherche
            des entreprises IA et intègre le résultat dans la mémoire */
         if (DEBATE_STATE.turn % 6 === 0 && DEBATE_STATE.running){
-          const res = await // searchWeb('entreprises IA OpenAI Mistral Anthropic risques');
+          const res = await searchWeb('entreprises IA OpenAI Mistral Anthropic risques');
           if (res){
             DEBATE_STATE.memory = (DEBATE_STATE.memory ? DEBATE_STATE.memory + ' ' : '') + 'Recherche entreprises IA : ' + res;
             if (DEBATE_STATE.memory.length > 1200) DEBATE_STATE.memory = DEBATE_STATE.memory.slice(-1200);

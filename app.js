@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.25';
+const APP_VERSION = '10.26';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -848,6 +848,35 @@ if (mistralKeyInput) mistralKeyInput.value = getMistralKey();
 if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
   localStorage.setItem(MISTRAL_KEY_LS, (mistralKeyInput.value || '').trim());
   toast('Clé API Mistral enregistrée ✓');
+});
+
+/* v10.26 : clé API Gemini (Google AI Studio) — débloque les VOIX GOOGLE IA
+   dans le sélecteur de voix. Stockée localement, jamais envoyée ailleurs. */
+const GEMINI_KEY_LS = 'va_gemini_key';
+const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+const GEMINI_VOICES = [
+  { id: 'Kore', d: 'fermée et confiante (femme)' },
+  { id: 'Leda', d: 'jeune et vive (femme)' },
+  { id: 'Zephyr', d: 'aérienne (femme)' },
+  { id: 'Aoede', d: 'venteuse (femme)' },
+  { id: 'Autonoe', d: 'lumineuse (femme)' },
+  { id: 'Callirrhoe', d: 'décontractée (femme)' },
+  { id: 'Despina', d: 'douce (femme)' },
+  { id: 'Puck', d: 'optimiste (homme)' },
+  { id: 'Charon', d: 'informative (homme)' },
+  { id: 'Fenrir', d: 'enthousiaste (homme)' },
+  { id: 'Orus', d: 'assuré (homme)' },
+  { id: 'Enceladus', d: 'respirant (homme)' },
+  { id: 'Iapetus', d: 'claire (homme)' },
+  { id: 'Umbriel', d: 'détendue (homme)' }
+];
+function getGeminiKey(){ try { return (localStorage.getItem(GEMINI_KEY_LS) || '').trim(); } catch { return ''; } }
+const geminiKeyInput = $('geminiKey'), saveGeminiKeyBtn = $('saveGeminiKey');
+if (geminiKeyInput) geminiKeyInput.value = getGeminiKey();
+if (saveGeminiKeyBtn) saveGeminiKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(GEMINI_KEY_LS, (geminiKeyInput.value || '').trim());
+  populateVoices(); /* active/désactive les options Google selon la clé */
+  toast('Clé Gemini enregistrée ✓ — voix Google IA activées');
 });
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
@@ -2827,6 +2856,67 @@ function splitSentences(text, max){
 }
 /* Remplit le sélecteur avec les voix : Voxtral (Mistral AI, priorité #1) + Système */
 /* v9.64 : Voxtral TTS (Mistral AI, API cloud, qualité premium) + voix système */
+/* v10.26 : VOIX GOOGLE IA (Gemini TTS) — PCM base64 -> WAV, puis playAudioBlob */
+function geminiPCMToWavBlob(b64, sampleRate){
+  const bin = atob(b64.replace(/\s/g, ''));
+  const n = bin.length;
+  const data = new Uint8Array(n);
+  for (let i = 0; i < n; i++) data[i] = bin.charCodeAt(i);
+  const buf = new Uint8Array(44 + n);
+  const dv = new DataView(buf.buffer);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); dv.setUint32(4, 36 + n, true); str(8, 'WAVE');
+  str(12, 'fmt '); dv.setUint32(16, 16, true);
+  dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sampleRate, true); dv.setUint32(28, sampleRate * 2, true);
+  dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  str(36, 'data'); dv.setUint32(40, n, true);
+  buf.set(data, 44);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+async function speakGemini(text, voiceName, onChunk){
+  const key = getGeminiKey();
+  if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
+  try {
+    const chunks = splitSentences(text, 400);
+    /* génération EN PARALLÈLE puis lecture dans l'ordre (comme Voxtral) */
+    const results = await Promise.all(chunks.map(async (chunk) => {
+      try {
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: chunk }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
+            }
+          }),
+          signal: abortSignal(20000)
+        });
+        if (!res.ok){
+          console.warn('[GEMINI] HTTP', res.status, (await res.text().catch(() => '')).slice(0, 200));
+          return null;
+        }
+        const data = await res.json();
+        const part = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0];
+        const b64 = part && part.inlineData && part.inlineData.data;
+        if (!b64){ console.warn('[GEMINI] Pas de inlineData dans la réponse'); return null; }
+        const mime = (part.inlineData && part.inlineData.mimeType) || '';
+        const m = mime.match(/rate=(\d+)/);
+        return geminiPCMToWavBlob(b64, m ? parseInt(m[1], 10) : 24000);
+      } catch(e){ console.warn('[GEMINI] chunk echec:', e && e.message); return null; }
+    }));
+    if (!results.some(Boolean)){ console.warn('[GEMINI] Tous chunks bloqués'); return false; }
+    for (let i = 0; i < results.length; i++){
+      if (!results[i]) continue;
+      if (onChunk) onChunk(chunks[i]);
+      const ok = await playAudioBlob(results[i]);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[GEMINI] Échec:', e && e.message); return false; }
+}
 async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
@@ -2842,8 +2932,21 @@ async function populateVoices(){
       ttsVoiceSel.appendChild(opt);
     }
   });
-  /* Voix système (navigateur) — secours sans clé */
-  populateSystemVoices();
+/* v10.26 : voix Google IA (Gemini TTS) visible dans la liste avec les autres voix —
+   activées dès qu'une clé Gemini (AI Studio) est enregistrée dans Réglages */
+const hasGeminiKey = getGeminiKey();
+const geminiGroup = document.createElement('optgroup');
+geminiGroup.label = hasGeminiKey ? '💠 Google IA (Gemini)' : '💠 Google IA (Gemini) — colle ta clé dans Réglages';
+GEMINI_VOICES.forEach(v => {
+  const o = document.createElement('option');
+  o.value = 'gemini:' + v.id;
+  o.textContent = '💠 ' + v.id + ' — ' + v.d + (hasGeminiKey ? '' : ' (clé requise)');
+  if (!hasGeminiKey) o.disabled = true;
+  geminiGroup.appendChild(o);
+});
+ttsVoiceSel.appendChild(geminiGroup);
+/* Voix système (navigateur) — secours sans clé */
+populateSystemVoices();
   if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
 }
 
@@ -3076,6 +3179,14 @@ function speak(text, onChunk){
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
+    } else if (voiceMode.startsWith('gemini:')) {
+      const gv = voiceMode.substring(7);
+      /* v10.26 : voix Google IA (Gemini TTS) — secours Système puis Google gratuit si la clé plante (quota, 429...) */
+      chain = [
+        ['Google IA: ' + gv, (t) => speakGemini(t, gv, onChunk)],
+        ['Système', (t) => speakSystem(t, null, onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)]
+      ];
     } else if (voiceMode.startsWith('system:')) {
       const voiceName = voiceMode.substring(7);
       chain = [
