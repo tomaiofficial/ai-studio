@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.37';
+const APP_VERSION = '10.38';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -358,17 +358,27 @@ function playAudioBlob(blob){
         const src = ctx.createBufferSource();
         src.buffer = buf;
         const gain = ctx.createGain();
-        gain.gain.value = 1.8; /* volume boosté */
-        /* v10.37 : LIMITEUR — le gain x1.8 clippait (échantillons > 1.0) sur les
+        /* v10.38 : adaptatif — Voxtral (mp3 tres calme) garde le boost 1.8 ;
+           Gemini (WAV fort, clippait) descend a 1.2 avec LIMITEUR : plus de
+           grésil, volume encore au-dessus du max système. */
+        const isWav = blob.type && blob.type.includes('wav');
+        gain.gain.value = isWav ? 1.2 : 1.8;
+        /* v10.37 : LIMITEUR — le gain clippait (échantillons > 1.0) sur les
            syllabes fortes : crackage/grésil grinçant, puis ça repart de soi
-           même quand la voix retombe. Un compresseur platave les pics avant
-           la sortie -> PLUS de grésil, le volume reste boosted. */
+           même quand la voix retombe. Un compresseur plafonne les pics avant
+           la sortie -> PLUS de grésil, le volume reste boosté. */
         const comp = ctx.createDynamicsCompressor();
         comp.threshold.value = -6;
         comp.knee.value = 4;
         comp.ratio.value = 12;
         comp.attack.value = 0.003;
         comp.release.value = 0.25;
+        /* v10.38 : FONDU D'ENTREE 30 ms — tue le pop/clac et le début d'air
+           au moment du resume du contexte audio */
+        const t0 = ctx.currentTime;
+        const vol = gain.gain.value;
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.linearRampToValueAtTime(vol, t0 + 0.03);
         src.connect(gain);
         gain.connect(comp);
         comp.connect(ctx.destination);
@@ -2831,9 +2841,32 @@ function splitSentences(text, max){
 /* v10.36 : VOIX GOOGLE IA (Gemini 3.8 TTS) — PCM base64 -> WAV, puis playAudioBlob */
 function geminiPCMToWavBlob(b64, sampleRate){
   const bin = atob(b64.replace(/\s/g, ''));
-  const n = bin.length;
+  let n = bin.length;
+  if (n % 2) n--; /* v10.38 : longueur impaire -> dernier octet abandonné (frame PCM complete) */
   const data = new Uint8Array(n);
   for (let i = 0; i < n; i++) data[i] = bin.charCodeAt(i);
+  /* v10.38 : SOUFFLE / AIR AU DEMARRAGE — le modèle inspire 1-2 s avant de
+     parler (bruit d'air grésillant que l'utilisateur entend puis "c'est bon").
+     On scanne le PCM 16 bits et on coupe tout le debut quasi muet
+     (< seuil 350), en gardant 100 ms de pre-roll pour ne pas rogné le mot.
+     Cap de sécurité : jamais plus de 5 s coupées. */
+  try {
+    const cnt = n >> 1;
+    const smp = new Int16Array(data.buffer, 0, cnt);
+    let first = 0;
+    while (first < cnt && Math.abs(smp[first]) < 350) first++;
+    const cap = 5 * sampleRate;
+    const pre = Math.max(0, first - Math.floor(sampleRate * 0.1));
+    if (pre > sampleRate * 0.4 && pre < cnt - sampleRate * 0.5 && pre <= cap){
+      const keep = new Uint8Array((cnt - pre) * 2);
+      for (let j = 0; j < keep.length; j++) keep[j] = data[pre * 2 + j];
+      return buildWav(keep, sampleRate);
+    }
+  } catch(e){ console.warn('[GEMINI] trim souffle echec:', e && e.message); }
+  return buildWav(data, sampleRate);
+}
+function buildWav(pcm, sampleRate){
+  const n = pcm.length;
   const buf = new Uint8Array(44 + n);
   const dv = new DataView(buf.buffer);
   const str = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
@@ -2843,7 +2876,7 @@ function geminiPCMToWavBlob(b64, sampleRate){
   dv.setUint32(24, sampleRate, true); dv.setUint32(28, sampleRate * 2, true);
   dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
   str(36, 'data'); dv.setUint32(40, n, true);
-  buf.set(data, 44);
+  buf.set(pcm, 44);
   return new Blob([buf], { type: 'audio/wav' });
 }
 async function speakGemini(text, voiceName, onChunk){
@@ -2854,45 +2887,38 @@ async function speakGemini(text, voiceName, onChunk){
   if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
   try {
     const chunks = splitSentences(text, 800);
-    /* v10.37 : INSTRUCTION DE STYLE — le model 3.8 accepte une consigne en
-       systemInstruction : articulation claire, debit pose, accent neutre.
-       Si le modèle la refuse (400), on relance SANS instruction (repli). */
-    const TTS_STYLE = 'Prononce ce texte en français clair et naturel : articulation nette, débit posé, intonation fluide, accent standard. Ne lis jamais les ponctuations à voix haute.';
-    const call = async (chunk, withInstr) => {
-      const body = {
-        contents: [{ parts: [{ text: chunk }] }],
-        generationConfig: {
-          responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
-        }
-      };
-      if (withInstr) body.systemInstruction = { parts: [{ text: TTS_STYLE }] };
+    /* v10.38 : PAS de systemInstruction — le modele 3.8-flash-lite-tts la
+       refuse (HTTP 400), chaque chunk coutait donc 2 requetes de quota.
+       Retour a l'appel simple. */
+    const call = async (chunk) => {
       return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: chunk }] }],
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
+          }
+        }),
         signal: abortSignal(20000)
       });
     };
     const results = await Promise.all(chunks.map(async (chunk) => {
       try {
-        let res = await call(chunk, true);
+        let res = await call(chunk);
         if (!res.ok){
           const errText = (await res.text().catch(() => '')).slice(0, 200);
-          /* 400 sur l'instruction de style -> nouvel essai sans instruction */
-          if (res.status === 400){ res = await call(chunk, false); }
-          else {
-            console.warn('[GEMINI] HTTP', res.status, errText);
-            if (res.status === 429 && /quota|billing/i.test(errText)){
-              /* 429 par-modèle (compteur journalier) : structurel, pas de retry */
-              GEMINI_QUOTA_BLOCKED = true;
-              try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
-              return null;
-            }
-            if (res.status === 429){
-              await new Promise(r => setTimeout(r, 4000));
-              res = await call(chunk, false);
-            }
+          console.warn('[GEMINI] HTTP', res.status, errText);
+          if (res.status === 429 && /quota|billing/i.test(errText)){
+            /* 429 par-modèle (compteur journalier) : structurel, pas de retry */
+            GEMINI_QUOTA_BLOCKED = true;
+            try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
+            return null;
+          }
+          if (res.status === 429){
+            await new Promise(r => setTimeout(r, 4000));
+            res = await call(chunk);
           }
           if (!res.ok){ return null; }
         }
