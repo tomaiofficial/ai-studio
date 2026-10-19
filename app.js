@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.32';
+const APP_VERSION = '10.33';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2736,21 +2736,10 @@ function playGoogleChunk(c){
     const attempt = (hostIdx, round) => {
       if (done) return;
       const audio = new Audio(mkUrl(hosts[hostIdx]));
-      audio.volume = 1.0;
-      /* v10.32 : no-referrer demandé aussi côté élément (non standard sur
-         <audio>, relayé par la meta referrer de la page, mais on tente) */
-      try { audio.setAttribute('referrerpolicy', 'no-referrer'); } catch(e){}
-      /* v9.65 : volume boosté (gain 1.8) via le contexte partagé si dispo */
-      try {
-        const ctx = ensureAudio();
-        if (ctx){
-          const src = ctx.createMediaElementSource(audio);
-          const gain = ctx.createGain();
-          gain.gain.value = 1.8;
-          src.connect(gain);
-          gain.connect(ctx.destination);
-        }
-      } catch(e){}
+      /* v10.33 : PAS de routing WebAudio ici — MediaElementSource sur une
+         source cross-origin SANS CORS = sortie zéro (silence) + le warning
+         "MediaElementAudioSource outputs zeroes". L'élément joue en direct. */
+       audio.volume = 1.0;
       currentAudios.push(audio);
       audio.onplaying = () => { started = true; voiceStartedFlag = true; };
       audio.onended = () => finish(true);
