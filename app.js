@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.33';
+const APP_VERSION = '10.34';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2873,6 +2873,7 @@ async function speakGemini(text, voiceName, onChunk){
           if (res.status === 429 && /quota|billing/i.test(errText)){
             /* quota/billing : structurel, pas la peine de retenter */
             GEMINI_QUOTA_BLOCKED = true;
+            try { toast('Quota voix IA épuisé — voix Google en secours (revient demain)'); } catch(e){}
             return null;
           }
           if (res.status === 429){
