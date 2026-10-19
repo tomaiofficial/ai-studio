@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.43';
+const APP_VERSION = '10.44';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -897,6 +897,35 @@ const ELEVEN_VOICES = [
   { id: 'AZnzlk1XvdvUeBnXmlld', n: 'Domi' }
 ];
 function getElevenKey(){ try { return (localStorage.getItem(ELEVEN_LS) || '').trim(); } catch { return ''; } }
+/* v10.44 : VOIX A ACCENT FRANÇAIS NATIF — on interroge l'API avec la clé et
+   on garde UNIQUEMENT les voix dont le français est VERIFIE (accent natif,
+   pas les voix anglophones qui parlent français avec un accent). Cache 24h.
+   Si rien trouvé, repli sur les 4 voix multilingues de base. */
+const ELEVEN_VOICES_LS = 'va_eleven_voices';
+let ELEVEN_ACTIVE_LIST = ELEVEN_VOICES;
+async function fetchElevenVoices(){
+  if (!getElevenKey()){ ELEVEN_ACTIVE_LIST = ELEVEN_VOICES; return ELEVEN_ACTIVE_LIST; }
+  try {
+    const cache = JSON.parse(localStorage.getItem(ELEVEN_VOICES_LS) || 'null');
+    if (cache && cache.d === new Date().toDateString() && cache.list && cache.list.length){ ELEVEN_ACTIVE_LIST = cache.list; return cache.list; }
+    const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': getElevenKey() } });
+    if (r.ok){
+      const data = await r.json();
+      const fr = (data.voices || [])
+        .filter(v => (v.verified_languages || []).some(l => l.language === 'fr'))
+        .map(v => {
+          const f = (v.verified_languages || []).find(l => l.language === 'fr') || {};
+          return { id: v.voice_id, n: (v.name || 'Voix').replace(/ -.*$/, ''), a: (f.accent || 'standard') };
+        });
+      if (fr.length){
+        ELEVEN_ACTIVE_LIST = fr;
+        try { localStorage.setItem(ELEVEN_VOICES_LS, JSON.stringify({ d: new Date().toDateString(), list: fr })); } catch {}
+        return fr;
+      }
+    }
+  } catch {}
+  return ELEVEN_VOICES;
+}
 const elevenKeyInput = $('elevenKey'), saveElevenKeyBtn = $('saveElevenKey');
 if (elevenKeyInput) elevenKeyInput.value = getElevenKey();
 if (saveElevenKeyBtn) saveElevenKeyBtn.addEventListener('click', () => {
@@ -2896,13 +2925,15 @@ async function populateVoices(){
     if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs/.test(c.label || '')) c.remove();
   });
   /* v10.42 : ELEVENLABS — activées dès qu'une clé est enregistrée */
+  /* v10.44 : liste dynamique = voix au français VERIFIÉ (accent natif) */
   const hasElevenKey = getElevenKey();
+  const elevenList = await fetchElevenVoices();
   const elevenGroup = document.createElement('optgroup');
-  elevenGroup.label = hasElevenKey ? '⭐ ElevenLabs IA (les plus réalistes)' : '⭐ ElevenLabs IA — colle ta clé dans Réglages';
-  ELEVEN_VOICES.forEach(v => {
+  elevenGroup.label = hasElevenKey ? '⭐ ElevenLabs IA (français natif vérifié)' : '⭐ ElevenLabs IA — colle ta clé dans Réglages';
+  elevenList.forEach(v => {
     const o = document.createElement('option');
     o.value = 'eleven:' + v.id;
-    o.textContent = '⭐ ElevenLabs: ' + v.n + ' — française ultra-réaliste' + (hasElevenKey ? '' : ' (clé requise)');
+    o.textContent = '⭐ ElevenLabs: ' + v.n + ' — accent ' + (v.a || 'standard français') + (hasElevenKey ? '' : ' (clé requise)');
     if (!hasElevenKey) o.disabled = true;
     elevenGroup.appendChild(o);
   });
@@ -3127,7 +3158,7 @@ function speak(text, onChunk){
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
     } else if (voiceMode.startsWith('eleven:')) {
       const ev = voiceMode.substring(7);
-      const evName = (ELEVEN_VOICES.find(v => v.id === ev) || {}).n || ev.slice(0, 6);
+      const evName = (ELEVEN_ACTIVE_LIST.find(v => v.id === ev) || {}).n || ev.slice(0, 6);
       /* v10.43 : Gemini retiré — ElevenLabs (la + réaliste) puis Voxtral IA
          (sans quota journalier) puis Google Translate puis Système */
       chain = [
