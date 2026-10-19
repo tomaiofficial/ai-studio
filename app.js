@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.41';
+const APP_VERSION = '10.42';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -950,6 +950,63 @@ if (saveGeminiKeyBtn) saveGeminiKeyBtn.addEventListener('click', () => {
   populateVoices(); /* active/désactive les options Google selon la clé */
   toast('Clé Gemini enregistrée ✓ — voix Google IA (2089 voix) activées');
 });
+
+/* v10.42 : ELEVENLABS — LA voix IA la plus réaliste (francais parfait,
+   qualite >= Gemini), CORS ouvert, appel direct du navigateur.
+   Compteur gratuit : 10 000 caracteres / mois (a vie, pas 10/jour).
+   4 voix preset stables (API/open-source, IDs publics permanents). */
+const ELEVEN_LS = 'va_eleven_key';
+const ELEVEN_VOICES = [
+  { id: '21m00Tcm4TlvDq8ikWAM', n: 'Rachel' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', n: 'Sarah' },
+  { id: 'Xb7hH8MSUJpSbSDYk0k2', n: 'Alice' },
+  { id: 'AZnzlk1XvdvUeBnXmlld', n: 'Domi' }
+];
+function getElevenKey(){ try { return (localStorage.getItem(ELEVEN_LS) || '').trim(); } catch { return ''; } }
+const elevenKeyInput = $('elevenKey'), saveElevenKeyBtn = $('saveElevenKey');
+if (elevenKeyInput) elevenKeyInput.value = getElevenKey();
+if (saveElevenKeyBtn) saveElevenKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(ELEVEN_LS, (elevenKeyInput.value || '').trim());
+  populateVoices();
+  toast('Clé ElevenLabs enregistrée ✓ — 4 voix IA ultra-réalistes activées (Rachel, Sarah, Alice, Domi)');
+});
+async function speakEleven(text, voiceId, onChunk){
+  const key = getElevenKey();
+  if (!key){ console.warn('[ELEVEN] Pas de clé ElevenLabs — ajoute-la dans Réglages'); return false; }
+  try {
+    const chunks = splitSentences(text, 1500);
+    const call = async (chunk) => {
+      for (let attempt = 0; attempt < 2; attempt++){
+        try {
+          const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+            body: JSON.stringify({ text: chunk, model_id: 'eleven_flash_v2_5' }),
+            signal: abortSignal(20000)
+          });
+          if (!r.ok){
+            console.warn('[ELEVEN] HTTP', r.status, (await r.text().catch(() => '')).slice(0, 150));
+            if (r.status === 429){ await new Promise(res2 => setTimeout(res2, 3000)); continue; }
+            return null;
+          }
+          const ct = (r.headers.get('content-type') || '');
+          if (!ct.includes('audio')) return null;
+          return await r.blob();
+        } catch(e){ if (attempt === 1) { console.warn('[ELEVEN] chunk echec:', e && e.message); return null; } await new Promise(res2 => setTimeout(res2, 2000)); }
+      }
+      return null;
+    };
+    const results = await Promise.all(chunks.map(call));
+    if (!results.some(Boolean)){ console.warn('[ELEVEN] Tous chunks bloqués'); return false; }
+    for (let i = 0; i < results.length; i++){
+      if (!results[i]) continue;
+      if (onChunk) onChunk(chunks[i]);
+      const ok = await playAudioBlob(results[i]);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[ELEVEN] Échec:', e && e.message); return false; }
+}
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
 const textInput = $('textInput'), sendBtn = $('sendBtn');
@@ -3019,6 +3076,11 @@ async function populateVoices(){
   });
   /* v10.36 : voix Google IA (Gemini 3.8 TTS, 2089 voix) — activées dès qu'une
      clé Gemini est enregistrée dans Réglages */
+  /* v10.42 : dedupe — si populateVoices est rappelé (sauvegarde de clé),
+     on supprime les ANCIENS groupes IA avant d'en rajouter neufs */
+  Array.from(ttsVoiceSel.children).forEach(c => {
+    if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs/.test(c.label || '')) c.remove();
+  });
   const hasGeminiKey = getGeminiKey();
   const geminiGroup = document.createElement('optgroup');
   geminiGroup.label = hasGeminiKey ? '💠 Google IA (2048 voix)' : '💠 Google IA — colle ta clé dans Réglages';
@@ -3030,6 +3092,18 @@ async function populateVoices(){
     geminiGroup.appendChild(o);
   });
   ttsVoiceSel.appendChild(geminiGroup);
+  /* v10.42 : ELEVENLABS — activées dès qu'une clé est enregistrée */
+  const hasElevenKey = getElevenKey();
+  const elevenGroup = document.createElement('optgroup');
+  elevenGroup.label = hasElevenKey ? '⭐ ElevenLabs IA (les plus réalistes)' : '⭐ ElevenLabs IA — colle ta clé dans Réglages';
+  ELEVEN_VOICES.forEach(v => {
+    const o = document.createElement('option');
+    o.value = 'eleven:' + v.id;
+    o.textContent = '⭐ ElevenLabs: ' + v.n + ' — française ultra-réaliste' + (hasElevenKey ? '' : ' (clé requise)');
+    if (!hasElevenKey) o.disabled = true;
+    elevenGroup.appendChild(o);
+  });
+  ttsVoiceSel.appendChild(elevenGroup);
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la synthèse vocale du
      navigateur est la moins belle qualité et l'utilisateur préfère les voix
      Google IA / Voxtral. La lecture système reste branchée UNIQUEMENT comme
@@ -3250,12 +3324,23 @@ function speak(text, onChunk){
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
     } else if (voiceMode.startsWith('gemini:')) {
       const gv = voiceMode.substring(7);
-      /* v10.36 : voix Google IA (Gemini 3.8 TTS, 2089 voix) — secours Google
-         Translate (gratuit, réparé en v10.32) puis Voxtral puis Système */
+      /* v10.42 : secours REALISTES d'abord (Voxtral IA / ElevenLabs), Google
+         Translate (robotique) en dernier recours avant la voix Système */
       chain = [
         ['Google IA: ' + gv, (t) => speakGemini(t, gv, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)],
+        ['ElevenLabs', (t) => speakEleven(t, ELEVEN_VOICES[0].id, onChunk)],
         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)],
+        ['Système', (t) => speakSystem(t, null, onChunk)]
+      ];
+    } else if (voiceMode.startsWith('eleven:')) {
+      const ev = voiceMode.substring(7);
+      const evName = (ELEVEN_VOICES.find(v => v.id === ev) || {}).n || ev.slice(0, 6);
+      chain = [
+        ['ElevenLabs: ' + evName, (t) => speakEleven(t, ev, onChunk)],
+        ['Google IA', (t) => speakGemini(t, GEMINI_VOICES[0].id, onChunk)],
+        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)]
       ];
     } else {
