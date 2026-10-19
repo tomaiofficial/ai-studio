@@ -1,0 +1,99 @@
+==== INDEX.HTML : bloc settingsModal (jusqu a 7000 chars) ====
+<div id="settingsModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="closeSettings">✕</button>
+<h3>⚙️ Réglages</h3>
+
+    <h4 class="settings-title">🧠 Cerveau IA</h4>
+    <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
+
+    <h4 class="settings-title">🗣️ Voix</h4>
+    <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium, 9 langues, zéro-shot voice cloning. Nécessite une clé API Mistral (gratuite sur console.mistral.ai). Les 30+ voix preset se chargent automatiquement avec ta clé.</p>
+    <select id="ttsVoice" class="wide-input">
+      <option value="voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8" selected>🎙️ Voxtral: Paul (anglais US, neutre)</option>
+      <option value="voxtral:e3596645-b1af-469e-b857-f18ddedc7652">🎙️ Voxtral: Oliver (anglais UK, neutre)</option>
+      <option value="voxtral:a3e41ea8-020b-44c0-8d8b-f6cc03524e31">🎙️ Voxtral: Jane (anglais UK, sarcastique)</option>
+    </select>
+    <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
+    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
+    <button class="primary" id="saveMistralKey" style="margin-top:6px">💾 Enregistrer la clé</button>
+    <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
+
+    <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
+    <p class="muted">Un seul cerveau : <b>Pollinations GPT</b> — gratuit, sans clé, répond comme ChatGPT.</p>
+    <select id="brainSel" class="wide-input">
+      <option value="pollinations" selected>⚡ Pollinations GPT — le cerveau unique, gratuit à vie</option>
+    </select>
+    <h4 class="settings-title">🎤 Réveil vocal</h4>
+    <p class="muted">Dis « Hey Astra » pour la réveiller sans toucher la bulle. Le micro reste actif en arrière-plan.</p>
+    <label class="toggle-row">
+      <input type="checkbox" id="wakeToggle">
+      <span>Réveil « Hey Astra »</span>
+    </label>
+
+    <h4 class="settings-title">🎤 Mode vocal continu</h4>
+    <p class="muted">Après chaque réponse, Astra réécoute automatiquement : parle sans toucher à rien. Arrête avec le bouton stop.</p>
+    <label class="toggle-row">
+      <input type="checkbox" id="continuousToggle">
+      <span>Mode continu non stop</span>
+    </label>
+
+    <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+
+
+==== APP.JS : populateVoices complet ====
+2830: async function populateVoices(){
+2831:   if (!ttsVoiceSel) return;
+2832:   const currentValue = ttsVoiceSel.value;
+2833:   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
+2834:   /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 : vraies voix preset (UUID) */
+2835:   const voices = await fetchVoxtralVoices();
+2836:   voices.forEach(v => {
+2837:     const val = 'voxtral:' + v.id;
+2838:     if (!existingOptions.includes(val)){
+2839:       const opt = document.createElement('option');
+2840:       opt.value = val;
+2841:       opt.textContent = '🎙️ ' + v.name;
+2842:       ttsVoiceSel.appendChild(opt);
+2843:     }
+2844:   });
+2845:   /* Voix système (navigateur) — secours sans clé */
+2846:   populateSystemVoices();
+2847:   if (existingOptions.includes(currentValue)) ttsVoiceSel.value = currentValue;
+2848: }
+
+==== APP.JS : zones mistralKey / saveSettings ====
+145:    API: POST https://api.mistral.ai/v1/audio/speech
+148:    Nécessite une clé API Mistral (Réglages → Clé API Mistral)
+150: const VOXTRAL_API_URL = 'https://api.mistral.ai/v1/audio/speech';
+153:    dynamiquement via GET /v1/audio/voices?type=preset avec la clé API */
+181:   const key = getMistralKey();
+201: const MISTRAL_KEY_LS = 'va_mistral_key';
+202: function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
+236:      n'est perdu que si l'API le refuse vraiment. */
+241:   const key = getMistralKey();
+242:   if (!key){ console.warn('[VOXTRAL] Pas de clé API Mistral — ajoute-la dans Réglages'); return false; }
+247:        Timeout 15s par chunk (v9.92 : 10s -> 15s, l'API pend parfois). */
+288:       const res = await fetch(VOXTRAL_API_URL, {
+322:    Reutilise la cle API Mistral deja configuree pour la voix. */
+395:    (réseau/CDN bloqués). Voxtral = API cloud Mistral, fiable, qualité premium. ===== */
+520:      Une API peut renvoyer "content" de trois façons :
+798: /* v9.48 : plus de clés API (Mistral/OpenRouter/OpenAI/Cerebras supprimés) */
+845: /* v9.64 : clé API Mistral (Voxtral TTS) — stockée localement, jamais envoyée ailleurs */
+846: const mistralKeyInput = $('mistralKey'), saveMistralKeyBtn = $('saveMistralKey');
+847: if (mistralKeyInput) mistralKeyInput.value = getMistralKey();
+849:   localStorage.setItem(MISTRAL_KEY_LS, (mistralKeyInput.value || '').trim());
+850:   toast('Clé API Mistral enregistrée ✓');
+1152:       const mistralKey = getMistralKey();
+1153:       if (mistralKey){
+1155:         const txt = await transcribeWithMistral(blob, mistralKey);
+1743:   const mistralKey = getMistralKey();
+1752:           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mistralKey },
+1764:   if (mistralKey){
+1813:   if (getMistralKey()) return;
+3850: console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'configurée' : 'MANQUANTE (Réglages → Clé API Mistral)'));
