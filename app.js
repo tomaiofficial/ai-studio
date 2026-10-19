@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.38';
+const APP_VERSION = '10.39';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -878,6 +878,10 @@ if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
    Casseé CORS ouvert : appel direct du navigateur avec ta clé. */
 const GEMINI_KEY_LS = 'va_gemini_key';
 const GEMINI_TTS_MODEL = 'gemini-3.8-flash-lite-tts';
+/* v10.39 : le compteur gratuit est PAR MODELE (10/j/model) -> quand lite est
+   epuise, on bascule auto sur le modele complet qui a SON PROPRE quota. */
+const GEMINI_TTS_MODEL_ALT = 'gemini-3.8-flash-tts';
+let GEMINI_LITE_BLOCKED = false;
 const GEMINI_VOICES = [
   { id: 'Zephyr', d: 'aérienne et chaleureuse (femme)' },
   { id: 'Leda', d: 'jeune et vive (femme)' },
@@ -2887,11 +2891,8 @@ async function speakGemini(text, voiceName, onChunk){
   if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
   try {
     const chunks = splitSentences(text, 800);
-    /* v10.38 : PAS de systemInstruction — le modele 3.8-flash-lite-tts la
-       refuse (HTTP 400), chaque chunk coutait donc 2 requetes de quota.
-       Retour a l'appel simple. */
-    const call = async (chunk) => {
-      return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key), {
+    const call = async (chunk, model) => {
+      return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2906,21 +2907,36 @@ async function speakGemini(text, voiceName, onChunk){
     };
     const results = await Promise.all(chunks.map(async (chunk) => {
       try {
-        let res = await call(chunk);
+        /* v10.39 : commence sur lite ; si son quota est epuise (429),
+           bascule TOUTE la suite sur le modele complet (quota separé). */
+        let model = GEMINI_LITE_BLOCKED ? GEMINI_TTS_MODEL_ALT : GEMINI_TTS_MODEL;
+        let res = await call(chunk, model);
         if (!res.ok){
           const errText = (await res.text().catch(() => '')).slice(0, 200);
           console.warn('[GEMINI] HTTP', res.status, errText);
           if (res.status === 429 && /quota|billing/i.test(errText)){
-            /* 429 par-modèle (compteur journalier) : structurel, pas de retry */
-            GEMINI_QUOTA_BLOCKED = true;
-            try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
-            return null;
-          }
-          if (res.status === 429){
+            if (model !== GEMINI_TTS_MODEL_ALT){
+              /* lite epuise -> on relance ce chunk sur le modele COMPLET.
+                 Drapeau universel : gere le cas des chunks paralleles. */
+              GEMINI_LITE_BLOCKED = true;
+              model = GEMINI_TTS_MODEL_ALT;
+              console.log('[GEMINI] Quota lite epuise -> bascule sur ' + GEMINI_TTS_MODEL_ALT);
+              res = await call(chunk, model);
+            }
+            if (!res || !res.ok){
+              const errText2 = (await res.text().catch(() => '')).slice(0, 200);
+              if (res && res.status === 429 && /quota|billing/i.test(errText2)){
+                /* meme le modele complet est epuise -> vraiment fini */
+                GEMINI_QUOTA_BLOCKED = true;
+                try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
+                return null;
+              }
+            }
+          } else if (res.status === 429){
             await new Promise(r => setTimeout(r, 4000));
-            res = await call(chunk);
+            res = await call(chunk, model);
           }
-          if (!res.ok){ return null; }
+          if (!res || !res.ok){ return null; }
         }
         const data = await res.json();
         const part = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0];
