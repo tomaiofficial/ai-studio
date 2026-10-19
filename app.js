@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.42';
+const APP_VERSION = '10.43';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -827,6 +827,8 @@ function getVoice(){
      supprimées -> toute valeur obsolète revient à Voxtral par défaut */
   if (v === 'systeme' || v.startsWith('system:') || v.startsWith('kokoro:')
       || v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')) return DEFAULT_VOICE;
+  /* v10.43 : les voix Google IA (Gemini) sont retirées -> retour défaut */
+  if (v.startsWith('gemini:')) return DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -871,85 +873,17 @@ if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
   toast('Clé API Mistral enregistrée ✓');
 });
 
-/* v10.36 : clé API Gemini RE-INTÉGRÉE avec les NOUVEAUX modèles TTS de
-   Google (sept 2026) — gemini-3.8-flash-lite-tts : catalogue de 2 089 voix
-   IA multilingues (FR inclus), le compteur gratuit est PAR MODÈLE donc les
-   nouveaux modèles ont leur propre quota (l'ancien est resté épuisé).
-   Casseé CORS ouvert : appel direct du navigateur avec ta clé. */
-const GEMINI_KEY_LS = 'va_gemini_key';
-const GEMINI_TTS_MODEL = 'gemini-3.8-flash-lite-tts';
-/* v10.39 : le compteur gratuit est PAR MODELE (10/j/model) -> quand lite est
-   epuise, on bascule auto sur le modele complet qui a SON PROPRE quota. */
-const GEMINI_TTS_MODEL_ALT = 'gemini-3.8-flash-tts';
-let GEMINI_LITE_BLOCKED = false;
-const GEMINI_VOICES = [
-  { id: 'Zephyr', d: 'aérienne et chaleureuse (femme)' },
-  { id: 'Leda', d: 'jeune et vive (femme)' },
-  { id: 'Kore', d: 'fermée et confiante (femme)' },
-  { id: 'Aoede', d: 'venteuse (femme)' },
-  { id: 'Callirrhoe', d: 'décontractée (femme)' },
-  { id: 'Despina', d: 'douce (femme)' },
-  { id: 'Puck', d: 'optimiste et pétillant (homme)' },
-  { id: 'Charon', d: 'informative (homme)' },
-  { id: 'Fenrir', d: 'enthousiaste (homme)' },
-  { id: 'Orus', d: 'assuré (homme)' },
-  { id: 'Enceladus', d: 'respirant (homme)' },
-  { id: 'Iapetus', d: 'claire (homme)' },
-  { id: 'Umbriel', d: 'détendue (homme)' }
-];
-function getGeminiKey(){ try { return (localStorage.getItem(GEMINI_KEY_LS) || '').trim(); } catch { return ''; } }
-/* la sélection gemini: est VALIDE de nouveau (v10.36) — on garde les choix */
-let GEMINI_QUOTA_BLOCKED = false;
-/* v10.40 : ETAT QUOTA PERSISTE (localStorage, valable pour le jour même).
-   Avant : mémoire seule -> chaque rechargement de page retentait les 2
-   modèles et régénérait des 429/erreurs console. Maintenant : si le jour
-   courant est noté "épuisé", on NE TENTE PLUS du tout (0 requête gaspillée,
-   bascule Google Translate instantanée). Reset auto au changement de jour
-   ou à l'enregistrement d'une nouvelle clé. */
-const GEMINI_QUOTA_LS = 'va_gemini_quota';
-/* v10.41 : COMPTEURS LOCAUX PAR MODELE ET PAR JOUR — le quota serveur est
-   10 req/j/model comtées par REQUETE ENVOYEE. On compte chaque appel chez
-   nous : a 9 (marge de securite), on arrete d'appeler AVANT de declencher
-   un 429 -> plus aucune erreur rouge en console, jamais. */
-const GEMINI_DAY_LIMIT = 9;
-let GEMINI_USE = { d: '', lite: 0, alt: 0 };
-function geminiUseCount(model){
-  try {
-    const today = new Date().toDateString();
-    if (GEMINI_USE.d !== today){ GEMINI_USE = { d: today, lite: 0, alt: 0 }; }
-    if (model === GEMINI_TTS_MODEL_ALT) GEMINI_USE.alt++;
-    else GEMINI_USE.lite++;
-    if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT) GEMINI_LITE_BLOCKED = true;
-    if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT && GEMINI_USE.alt >= GEMINI_DAY_LIMIT) GEMINI_QUOTA_BLOCKED = true;
-    localStorage.setItem(GEMINI_QUOTA_LS, JSON.stringify({ d: today, lite: GEMINI_LITE_BLOCKED, all: GEMINI_QUOTA_BLOCKED, liten: GEMINI_USE.lite, altn: GEMINI_USE.alt }));
-  } catch {}
-}
-function geminiSaveQuota(){ try { localStorage.setItem(GEMINI_QUOTA_LS, JSON.stringify({ d: new Date().toDateString(), lite: GEMINI_LITE_BLOCKED, all: GEMINI_QUOTA_BLOCKED, liten: GEMINI_USE.lite, altn: GEMINI_USE.alt })); } catch {} }
-function geminiLoadQuota(){
-  try {
-    const q = JSON.parse(localStorage.getItem(GEMINI_QUOTA_LS) || 'null');
-    if (q && q.d === new Date().toDateString()){
-      GEMINI_LITE_BLOCKED = !!q.lite;
-      GEMINI_QUOTA_BLOCKED = !!q.all;
-      GEMINI_USE = { d: q.d, lite: q.liten || 0, alt: q.altn || 0 };
-      /* les compteurs forcent aussi le blocage au seuil */
-      if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT) GEMINI_LITE_BLOCKED = true;
-      if (GEMINI_USE.lite >= GEMINI_DAY_LIMIT && GEMINI_USE.alt >= GEMINI_DAY_LIMIT) GEMINI_QUOTA_BLOCKED = true;
-    } else { try { localStorage.removeItem(GEMINI_QUOTA_LS); } catch {} }
-  } catch {}
-}
-geminiLoadQuota();
-const geminiKeyInput = $('geminiKey'), saveGeminiKeyBtn = $('saveGeminiKey');
-if (geminiKeyInput) geminiKeyInput.value = getGeminiKey();
-if (saveGeminiKeyBtn) saveGeminiKeyBtn.addEventListener('click', () => {
-  localStorage.setItem(GEMINI_KEY_LS, (geminiKeyInput.value || '').trim());
-  /* nouvelle clé = potentiellement un nouveau projet -> quotas retentés */
-  GEMINI_QUOTA_BLOCKED = false;
-  GEMINI_LITE_BLOCKED = false;
-  try { localStorage.removeItem(GEMINI_QUOTA_LS); } catch {}
-  populateVoices(); /* active/désactive les options Google selon la clé */
-  toast('Clé Gemini enregistrée ✓ — voix Google IA (2089 voix) activées');
-});
+/* v10.43 : GEMINI RETIRÉ — quota journalier trop court (10/j/model) au
+   profit d'ElevenLabs (10k chars/mois) + Voxtral (sans quota jour). Les
+   anciennes sélections gemini: reviennent à la voix par défaut. */
+try {
+  const prevVoice = localStorage.getItem(LS.voice) || '';
+  if (prevVoice.startsWith('gemini:')){
+    localStorage.setItem(LS.voice, DEFAULT_VOICE);
+  }
+  localStorage.removeItem('va_gemini_key');
+  localStorage.removeItem('va_gemini_quota');
+} catch {}
 
 /* v10.42 : ELEVENLABS — LA voix IA la plus réaliste (francais parfait,
    qualite >= Gemini), CORS ouvert, appel direct du navigateur.
@@ -2941,124 +2875,6 @@ function splitSentences(text, max){
 }
 /* Remplit le sélecteur avec les voix : Voxtral (Mistral AI, priorité #1) + Système */
 /* v9.64 : Voxtral TTS (Mistral AI, API cloud, qualité premium) + voix système */
-/* v10.36 : VOIX GOOGLE IA (Gemini 3.8 TTS) — PCM base64 -> WAV, puis playAudioBlob */
-function geminiPCMToWavBlob(b64, sampleRate){
-  const bin = atob(b64.replace(/\s/g, ''));
-  let n = bin.length;
-  if (n % 2) n--; /* v10.38 : longueur impaire -> dernier octet abandonné (frame PCM complete) */
-  const data = new Uint8Array(n);
-  for (let i = 0; i < n; i++) data[i] = bin.charCodeAt(i);
-  /* v10.38 : SOUFFLE / AIR AU DEMARRAGE — le modèle inspire 1-2 s avant de
-     parler (bruit d'air grésillant que l'utilisateur entend puis "c'est bon").
-     On scanne le PCM 16 bits et on coupe tout le debut quasi muet
-     (< seuil 350), en gardant 100 ms de pre-roll pour ne pas rogné le mot.
-     Cap de sécurité : jamais plus de 5 s coupées. */
-  try {
-    const cnt = n >> 1;
-    const smp = new Int16Array(data.buffer, 0, cnt);
-    let first = 0;
-    while (first < cnt && Math.abs(smp[first]) < 350) first++;
-    const cap = 5 * sampleRate;
-    const pre = Math.max(0, first - Math.floor(sampleRate * 0.1));
-    if (pre > sampleRate * 0.4 && pre < cnt - sampleRate * 0.5 && pre <= cap){
-      const keep = new Uint8Array((cnt - pre) * 2);
-      for (let j = 0; j < keep.length; j++) keep[j] = data[pre * 2 + j];
-      return buildWav(keep, sampleRate);
-    }
-  } catch(e){ console.warn('[GEMINI] trim souffle echec:', e && e.message); }
-  return buildWav(data, sampleRate);
-}
-function buildWav(pcm, sampleRate){
-  const n = pcm.length;
-  const buf = new Uint8Array(44 + n);
-  const dv = new DataView(buf.buffer);
-  const str = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, 'RIFF'); dv.setUint32(4, 36 + n, true); str(8, 'WAVE');
-  str(12, 'fmt '); dv.setUint32(16, 16, true);
-  dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
-  dv.setUint32(24, sampleRate, true); dv.setUint32(28, sampleRate * 2, true);
-  dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
-  str(36, 'data'); dv.setUint32(40, n, true);
-  buf.set(pcm, 44);
-  return new Blob([buf], { type: 'audio/wav' });
-}
-async function speakGemini(text, voiceName, onChunk){
-  /* 429 quota déjà constaté cette session -> on rend la main IMMÉDIATEMENT
-     (la chaîne bascule sur Google Translate/Voxtral sans délai) */
-  if (GEMINI_QUOTA_BLOCKED){ console.warn('[GEMINI] Quota 429 déjà constaté — bascule directe'); return false; }
-  const key = getGeminiKey();
-  if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
-  try {
-    const chunks = splitSentences(text, 1500);
-    const call = async (chunk, model) => {
-      geminiUseCount(model); /* v10.41 : compteur local, skip prophylactique a 9 */
-      return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: chunk }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
-          }
-        }),
-        signal: abortSignal(20000)
-      });
-    };
-    const results = await Promise.all(chunks.map(async (chunk) => {
-      try {
-        /* v10.39 : commence sur lite ; si son quota est epuise (429),
-           bascule TOUTE la suite sur le modele complet (quota separé). */
-        let model = GEMINI_LITE_BLOCKED ? GEMINI_TTS_MODEL_ALT : GEMINI_TTS_MODEL;
-        let res = await call(chunk, model);
-        if (!res.ok){
-          const errText = (await res.text().catch(() => '')).slice(0, 200);
-          console.warn('[GEMINI] HTTP', res.status, errText);
-          if (res.status === 429 && /quota|billing/i.test(errText)){
-            if (model !== GEMINI_TTS_MODEL_ALT){
-              /* lite epuise -> on relance ce chunk sur le modele COMPLET.
-                 Drapeau universel : gere le cas des chunks paralleles. */
-              GEMINI_LITE_BLOCKED = true;
-              geminiSaveQuota();
-              model = GEMINI_TTS_MODEL_ALT;
-              console.log('[GEMINI] Quota lite epuise -> bascule sur ' + GEMINI_TTS_MODEL_ALT);
-              res = await call(chunk, model);
-            }
-            if (!res || !res.ok){
-              const errText2 = (await res.text().catch(() => '')).slice(0, 200);
-              if (res && res.status === 429 && /quota|billing/i.test(errText2)){
-                /* meme le modele complet est epuise -> vraiment fini */
-                GEMINI_QUOTA_BLOCKED = true;
-                geminiSaveQuota();
-                try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
-                return null;
-              }
-            }
-          } else if (res.status === 429){
-            await new Promise(r => setTimeout(r, 4000));
-            res = await call(chunk, model);
-          }
-          if (!res || !res.ok){ return null; }
-        }
-        const data = await res.json();
-        const part = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0];
-        const b64 = part && part.inlineData && part.inlineData.data;
-        if (!b64){ console.warn('[GEMINI] Pas de inlineData dans la réponse'); return null; }
-        const mime = (part.inlineData && part.inlineData.mimeType) || '';
-        const m = mime.match(/rate=(\d+)/);
-        return geminiPCMToWavBlob(b64, m ? parseInt(m[1], 10) : 24000);
-      } catch(e){ console.warn('[GEMINI] chunk echec:', e && e.message); return null; }
-    }));
-    if (!results.some(Boolean)){ console.warn('[GEMINI] Tous chunks bloqués'); return false; }
-    for (let i = 0; i < results.length; i++){
-      if (!results[i]) continue;
-      if (onChunk) onChunk(chunks[i]);
-      const ok = await playAudioBlob(results[i]);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[GEMINI] Échec:', e && e.message); return false; }
-}
 async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
@@ -3074,24 +2890,11 @@ async function populateVoices(){
       ttsVoiceSel.appendChild(opt);
     }
   });
-  /* v10.36 : voix Google IA (Gemini 3.8 TTS, 2089 voix) — activées dès qu'une
-     clé Gemini est enregistrée dans Réglages */
   /* v10.42 : dedupe — si populateVoices est rappelé (sauvegarde de clé),
      on supprime les ANCIENS groupes IA avant d'en rajouter neufs */
   Array.from(ttsVoiceSel.children).forEach(c => {
     if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs/.test(c.label || '')) c.remove();
   });
-  const hasGeminiKey = getGeminiKey();
-  const geminiGroup = document.createElement('optgroup');
-  geminiGroup.label = hasGeminiKey ? '💠 Google IA (2048 voix)' : '💠 Google IA — colle ta clé dans Réglages';
-  GEMINI_VOICES.forEach(v => {
-    const o = document.createElement('option');
-    o.value = 'gemini:' + v.id;
-    o.textContent = '💠 ' + v.id + ' — ' + v.d + (hasGeminiKey ? '' : ' (clé requise)');
-    if (!hasGeminiKey) o.disabled = true;
-    geminiGroup.appendChild(o);
-  });
-  ttsVoiceSel.appendChild(geminiGroup);
   /* v10.42 : ELEVENLABS — activées dès qu'une clé est enregistrée */
   const hasElevenKey = getElevenKey();
   const elevenGroup = document.createElement('optgroup');
@@ -3322,28 +3125,19 @@ function speak(text, onChunk){
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
-    } else if (voiceMode.startsWith('gemini:')) {
-      const gv = voiceMode.substring(7);
-      /* v10.42 : secours REALISTES d'abord (Voxtral IA / ElevenLabs), Google
-         Translate (robotique) en dernier recours avant la voix Système */
-      chain = [
-        ['Google IA: ' + gv, (t) => speakGemini(t, gv, onChunk)],
-        ['ElevenLabs', (t) => speakEleven(t, ELEVEN_VOICES[0].id, onChunk)],
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)]
-      ];
     } else if (voiceMode.startsWith('eleven:')) {
       const ev = voiceMode.substring(7);
       const evName = (ELEVEN_VOICES.find(v => v.id === ev) || {}).n || ev.slice(0, 6);
+      /* v10.43 : Gemini retiré — ElevenLabs (la + réaliste) puis Voxtral IA
+         (sans quota journalier) puis Google Translate puis Système */
       chain = [
         ['ElevenLabs: ' + evName, (t) => speakEleven(t, ev, onChunk)],
-        ['Google IA', (t) => speakGemini(t, GEMINI_VOICES[0].id, onChunk)],
         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)]
       ];
     } else {
+      /* voix par défaut : Voxtral IA puis Système puis Google Translate */
       chain = [
         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)],
