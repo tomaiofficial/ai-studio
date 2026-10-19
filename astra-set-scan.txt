@@ -1,0 +1,243 @@
+==== APP.JS : cles API / localStorage ====
+---- ligne 127 ----
+127: let userCity = '';
+128: let cityTs = 0;
+129: try { userCity = localStorage.getItem('va_city') || ''; } catch {}
+130: try { cityTs = parseInt(localStorage.getItem('va_city_ts') || '0', 10) || 0; } catch {}
+131: 
+132: /* v10.0 : BLOC-NOTES — declare EN HAUT (getNoteContext appele par
+---- ligne 3271 ----
+3271:   if (!city) return;
+3272:   userCity = city;
+3273:   try { localStorage.setItem('va_city', city); localStorage.setItem('va_city_ts', String(Date.now())); } catch {}
+3274: }
+3275: function refreshCity(){
+---- ligne 3418 ----
+3418:   if (handleMiniGameAnswer(question)) return;
+3419:   /* v10.28 : autonomie locale uniquement si active dans Reglages */
+3420:   const autonomyEnabled = (typeof localStorage !== 'undefined' && localStorage.getItem('va_autonomy') === '1');
+3421:   const normalizedCommand = String(question || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+3422:   if (ASTRA_LOCAL_FEATURES.repeatLastReply && /^(repete|repete ca|repete encore|redis|redis ca|peux-tu repeter|peux tu repeter)[.!? ]*$/.test(normalizedCommand)) {
+---- ligne 3774 ----
+3774:       console.info('[MAJ] Nouvelle version ' + j.version + ' detectee (app ' + APP_VERSION + ')');
+3775:       let done = false;
+3776:       try { done = localStorage.getItem('va_auto_reloaded') === j.version; } catch {}
+3777:       if (!done){
+3778:         try { localStorage.setItem('va_auto_reloaded', j.version); } catch {}
+3779:         setTimeout(() => { try { location.reload(true); } catch { location.href = location.pathname + '?v=' + Date.now(); } }, 500);
+3780:       }
+---- ligne 3786 ----
+3786: async function forceUpdate(){
+3787:   /* c'est NOUS qui actualisons -> l'IA ne doit PAS dire sa phrase de securite */
+3788:   try { localStorage.setItem('va_user_refresh', '1'); } catch {}
+3789:   updateBanner.textContent = 'Mise a jour... patiente 2s';
+3790:   updateBanner.style.pointerEvents = 'none';
+
+==== APP.JS : liste voix / select ====
+---- ligne 113 ----
+113:     return !!(window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition);
+114:   }
+115: }
+116: const stt = new SpeechToTextHandler();
+117: const LS = { voice: 'va_ttsvoice' };
+118: 
+119: /* v9.99.1 : ETAT DU TABLEAU DE MATHS — declare EN HAUT car getSystemPrompt()
+120:    (appele pendant le chargement) y accede via getMathContext(). Un `let`
+121:    declare plus bas causait une erreur TDZ qui tuait tout le script. */
+---- ligne 150 ----
+150: const VOXTRAL_API_URL = 'https://api.mistral.ai/v1/audio/speech';
+151: const VOXTRAL_MODEL = 'voxtral-mini-tts-2603';
+152: /* Voix preset de secours (UUID officiels Mistral) — la vraie liste est chargée
+153:    dynamiquement via GET /v1/audio/voices?type=preset avec la clé API */
+154: const VOXTRAL_FALLBACK_VOICES = [
+155:   { id: 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', name: 'Voxtral: Paul (anglais US, neutre)', lang: 'en' },
+156:   { id: 'e3596645-b1af-469e-b857-f18ddedc7652', name: 'Voxtral: Oliver (anglais UK, neutre)', lang: 'en' },
+157:   { id: 'a3e41ea8-020b-44c0-8d8b-f6cc03524e31', name: 'Voxtral: Jane (anglais UK, sarcastique)', lang: 'en' },
+158: ];
+---- ligne 819 ----
+819:   ttsVoiceSel.value = getVoice();
+820:   brainSel.value = getBrain();
+821:   wakeToggle.checked = wakeEnabled;
+822:   if (continuousToggle) continuousToggle.checked = continuousMode;
+823:   populateVoices();
+824:   settingsModal.classList.remove('hidden');
+825: });
+826: closeSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
+827: settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
+---- ligne 2826 ----
+2826:   return final.length ? final : [text];
+2827: }
+2828: /* Remplit le sélecteur avec les voix : Voxtral (Mistral AI, priorité #1) + Système */
+2829: /* v9.64 : Voxtral TTS (Mistral AI, API cloud, qualité premium) + voix système */
+2830: async function populateVoices(){
+2831:   if (!ttsVoiceSel) return;
+2832:   const currentValue = ttsVoiceSel.value;
+2833:   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
+2834:   /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 : vraies voix preset (UUID) */
+
+==== APP.JS : speak / moteurs TTS ====
+---- ligne 237 ----
+237:   t = sanitizeForVoice(t);
+238:   return t;
+239: }
+240: async function speakVoxtral(text, voiceId, onChunk){
+241:   const key = getMistralKey();
+242:   if (!key){ console.warn('[VOXTRAL] Pas de clé API Mistral — ajoute-la dans Réglages'); return false; }
+243:   try {
+---- ligne 2177 ----
+2177:   session.push({ role: 'assistant', content: "Compris, je m appelle Astra et c est tom point a i qui m a creee le 10 septembre 2026. Il n a pas encore fini : il corrige et renforce ma securite chaque jour." });
+2178: }
+2179: 
+2180: /* ===== VOIX IA FEMME (Google Translate TTS) : gratuite, sans cle, marche partout ===== */
+2181: 
+2182: /* Nombres en toutes lettres pour la voix (perdus dans une refonte -> la voix plantait
+2183:    des que la reponse contenait un chiffre : '2027', 'GPT-5'...) */
+---- ligne 2191 ----
+2191:     if (u === 0) return TENS[t];
+2192:     if (t === 7) return 'soixante-' + UNITS[10+u];
+2193:     if (t === 9) return 'quatre-vingt-' + UNITS[10+u];
+2194:     /* 21, 31, 41, 51, 61 = "vingt ET un" (Google TTS prononce mal "vingt-un") */
+2195:     if (u === 1 && t >= 2 && t <= 6) return TENS[t] + ' et un';
+2196:     return TENS[t] + '-' + UNITS[u];
+2197:   }
+---- ligne 2320 ----
+2320:     .replace(/,[ \t]*([.!?])/g, '$1')
+2321:     .replace(/[ \t]{2,}/g, ' ')
+2322:     /* RE-ACCENTUATION des mots francais courants ecrits sans accents (les
+2323:        anciennes reponses en memoire sont sans accents -> Google TTS les
+2324:        prononce mal : "ca" -> "ka", "deja" -> "de-ja"...). On remplace les
+2325:        mots EXACTS (bordures de mot) pour ne rien casser. */
+2326:     .replace(/\b(ca|Ca)\b/g, 'ça')
+---- ligne 2450 ----
+2450:     .replace(/\bl'appli\b/gi, "l'application")
+2451:     .replace(/\bl'IA\b/gi, "l'intelligence artificielle")
+2452:     .replace(/\bl'ia\b/gi, "l'intelligence artificielle")
+2453:     /* Google TTS : remplacer accents problématiques dans URL */
+2454:     .replace(/\bVoilà\b/g, 'Voila')
+2455:     .replace(/\bvoilà\b/g, 'voila')
+2456:     .replace(/\bparamètres\b/gi, "paramètres")
+---- ligne 2715 ----
+2715:         window.speechSynthesis.cancel();
+2716:       } catch {}
+2717:     }
+2718:     /* Plus de prechargement de modele local : la voix par defaut est Google TTS
+2719:        (gratuite, sans cle, instantanee). */
+2720:   }, { passive: true });
+2721: });
+---- ligne 2743 ----
+2743:     } catch(e){ reject(e); }
+2744:   });
+2745: }
+2746: /* Repli universel : Google Translate TTS via <audio> (gratuit, sans cle, marche partout,
+2747:    pas de fetch -> pas de blocage CORS) */
+2748: function playGoogleChunk(c){
+2749:   return new Promise(res => {
+---- ligne 2766 ----
+2766:     const finish = v => { if (done) return; done = true; res(v); };
+2767:     audio.onplaying = () => { started = true; voiceStartedFlag = true; };
+2768:     audio.onended = () => finish(true);
+2769:     audio.onerror = () => { console.warn('[VOIX] GoogleTTS audio error:', audio.error && audio.error.code, audio.error && audio.error.message, url.slice(0, 80)); finish(false); };
+2770:     /* play() peut etre rejete au 1er essai (autoplay mobile) -> on reessaie */
+2771:     const tryPlay = n => {
+2772:       audio.play().then(() => {}).catch(() => {
+---- ligne 2781 ----
+2781:     setTimeout(() => { if (!done) finish(true); }, 15000);
+2782:   });
+2783: }
+2784: /* v9.64 : Google TTS = dernier recours universel (gratuit, sans clé, marche partout) */
+2785: async function speakGoogle(text, onChunk){
+2786:   try {
+2787:     const chunks = splitSentences(text, 200);
+2788:     for (const chunk of chunks){
+---- ligne 2791 ----
+2791:       if (!ok) return false;
+2792:     }
+2793:     return true;
+2794:   } catch(e){ console.warn('[VOIX] Google TTS échec:', e && e.message); return false; }
+2795: }
+2796: /* Decoupe aux fins de phrases (prosodie naturelle), max caracteres par chunk.
+2797:    Les phrases PLUS LONGUES que max sont decoupees en sous-chunks (sinon Google
+---- ligne 3075 ----
+3075:     if (voiceMode.startsWith('voxtral:')) {
+3076:       const voiceId = voiceMode.substring(8);
+3077:       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
+3078:       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
+3079:     } else if (voiceMode.startsWith('system:')) {
+3080:       const voiceName = voiceMode.substring(7);
+3081:       chain = [
+3082:         ['Système: ' + voiceName, (t) => speakSystem(t, voiceName, onChunk)],
+3083:         ['Google', (t) => speakGoogle(t, onChunk)]
+3084:       ];
+3085:     } else {
+3086:       chain = [
+3087:         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+3088:         ['Système', (t) => speakSystem(t, null, onChunk)],
+3089:         ['Google', (t) => speakGoogle(t, onChunk)]
+3090:       ];
+3091:     }
+3092:     let i = 0;
+---- ligne 3881 ----
+3881:     }
+3882:     function speakSoft(txt){
+3883:       try {
+3884:         if (typeof speakVoxtral === 'function') { speakVoxtral(txt); return; }
+3885:       } catch(e){}
+3886:       try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(txt); u.lang = 'fr-FR'; u.volume = 0.9; speechSynthesis.speak(u); } } catch(e){}
+3887:     }
+
+==== INDEX.HTML : parametres ====
+---- ligne 247 ----
+247: @keyframes popIn{from{opacity:0;transform:scale(.88) translateY(10px)}to{opacity:1;transform:none}}
+248: .modal-card h3{font-size:18px;margin-bottom:16px;color:#fff}
+249: .settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+250: .version-tag{
+251:   font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
+---- ligne 460 ----
+460: <!-- v10.13 : les boutons passent dans une barre laterale GAUCHE.
+461:      Le mode vocal reste identique, seul le conteneur change. -->
+462: <header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgba(124,92,255,.16);display:flex;align-items:center;justify-content:space-between;"><h1 style="font-size:18px;font-weight:700;color:#fff;">Assistant IA</h1><div style="display:flex;gap:8px;"><button class="icon-btn" id="historyBtn" title="Historique">📜</button><button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button></div></header>
+463: <div style="padding:6px 18px;background:rgba(124,92,255,.08);text-align:center;font-size:12px;color:#9a9ab5;border-bottom:1px solid rgba(124,92,255,.12);">
+464:   <b style="color:#fff;">Astra</b> — assistante vocale par <b>Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">@tom.ai.official</a>
+---- ligne 559 ----
+559: 
+560: <!-- MODAL RÉGLAGES -->
+561: <div id="settingsModal" class="modal hidden">
+562:   <div class="modal-card">
+563:     <button class="modal-close" id="closeSettings">✕</button>
+564: <h3>⚙️ Réglages</h3>
+565: 
+566:     <h4 class="settings-title">🧠 Cerveau IA</h4>
+567:     <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
+568: 
+569:     <h4 class="settings-title">🗣️ Voix</h4>
+570:     <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium, 9 langues, zéro-shot voice cloning. Nécessite une clé API Mistral (gratuite sur console.mistral.ai). Les 30+ voix preset se chargent automatiquement avec ta clé.</p>
+571:     <select id="ttsVoice" class="wide-input">
+572:       <option value="voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8" selected>🎙️ Voxtral: Paul (anglais US, neutre)</option>
+---- ligne 574 ----
+574:       <option value="voxtral:a3e41ea8-020b-44c0-8d8b-f6cc03524e31">🎙️ Voxtral: Jane (anglais UK, sarcastique)</option>
+575:     </select>
+576:     <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
+577:     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
+578:     <button class="primary" id="saveMistralKey" style="margin-top:6px">💾 Enregistrer la clé</button>
+579:     <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
+580: 
+581:     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
+582:     <p class="muted">Un seul cerveau : <b>Pollinations GPT</b> — gratuit, sans clé, répond comme ChatGPT.</p>
+583:     <select id="brainSel" class="wide-input">
+584:       <option value="pollinations" selected>⚡ Pollinations GPT — le cerveau unique, gratuit à vie</option>
+585:     </select>
+586:     <h4 class="settings-title">🎤 Réveil vocal</h4>
+587:     <p class="muted">Dis « Hey Astra » pour la réveiller sans toucher la bulle. Le micro reste actif en arrière-plan.</p>
+588:     <label class="toggle-row">
+---- ligne 591 ----
+591:     </label>
+592: 
+593:     <h4 class="settings-title">🎤 Mode vocal continu</h4>
+594:     <p class="muted">Après chaque réponse, Astra réécoute automatiquement : parle sans toucher à rien. Arrête avec le bouton stop.</p>
+595:     <label class="toggle-row">
+---- ligne 598 ----
+598:     </label>
+599: 
+600:     <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
+601:   </div>
+602: </div>
