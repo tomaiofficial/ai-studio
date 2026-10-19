@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.45';
+const APP_VERSION = '10.46';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -465,6 +465,7 @@ const wakeToggle = $('wakeToggle');
 const continuousToggle = $('continuousToggle');
 const toastEl = $('toast'), updateBanner = $('updateBanner');
 const historyBtn = $('historyBtn'), closeHistory = $('closeHistory'), historyModal = $('historyModal');
+const aboutBtn = $('aboutBtn'), closeAbout = $('closeAbout'), aboutModal = $('aboutModal');
 const newConvBtn = $('newConvBtn'), clearHistoryBtn = $('clearHistoryBtn');
 
 /* ===== PROFIL UTILISATEUR (prénom + âge, une seule fois pour la vie) ===== */
@@ -720,6 +721,8 @@ function showConversation(conv){
 }
 if (historyBtn) historyBtn.addEventListener('click', () => { renderHistory(); historyModal.classList.remove('hidden'); });
 if (closeHistory) closeHistory.addEventListener('click', () => historyModal.classList.add('hidden'));
+if (aboutBtn) aboutBtn.addEventListener('click', () => { const av = $('aboutVersion'); if (av) av.textContent = 'Version ' + APP_VERSION; aboutModal.classList.remove('hidden'); });
+if (closeAbout) closeAbout.addEventListener('click', () => aboutModal.classList.add('hidden'));
 if (historyModal) historyModal.addEventListener('click', e => { if (e.target === historyModal) historyModal.classList.add('hidden'); });
 if (newConvBtn) newConvBtn.addEventListener('click', () => { newConversation(); historyModal.classList.add('hidden'); });
 if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', () => {

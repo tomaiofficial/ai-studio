@@ -463,7 +463,7 @@ select.wide-input{appearance:none}
 
 <!-- v10.13 : les boutons passent dans une barre laterale GAUCHE.
      Le mode vocal reste identique, seul le conteneur change. -->
-<header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgba(124,92,255,.16);display:flex;align-items:center;justify-content:space-between;"><h1 style="font-size:18px;font-weight:700;color:#fff;">Assistant IA</h1><div style="display:flex;gap:8px;"><button class="icon-btn" id="historyBtn" title="Historique">📜</button><button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button></div></header>
+<header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgba(124,92,255,.16);display:flex;align-items:center;justify-content:space-between;"><h1 style="font-size:18px;font-weight:700;color:#fff;">Assistant IA</h1><div style="display:flex;gap:8px;"><button class="icon-btn" id="aboutBtn" title="À propos d'Astra">💜</button><button class="icon-btn" id="historyBtn" title="Historique">📜</button><button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button></div></header>
 <div style="padding:6px 18px;background:rgba(124,92,255,.08);text-align:center;font-size:12px;color:#9a9ab5;border-bottom:1px solid rgba(124,92,255,.12);">
   <b style="color:#fff;">Astra</b> — assistante vocale par <b>Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">@tom.ai.official</a>
 </div>
@@ -598,6 +598,50 @@ select.wide-input{appearance:none}
   </div>
 </div>
 
+<!-- MODALE À PROPOS D'ASTRA -->
+<div id="aboutModal" class="modal hidden">
+  <div class="modal-card" style="max-width:520px">
+    <button class="modal-close" id="closeAbout">✕</button>
+    <div style="text-align:center;margin-bottom:18px">
+      <div style="font-size:52px;margin-bottom:6px">💜</div>
+      <h3 style="font-size:24px;margin-bottom:4px">Astra</h3>
+      <p style="font-size:13px;color:#9a9ab5">Assistante vocale IA — créée par <b style="color:#c8c8dd">Tom AI</b></p>
+      <p style="font-size:11px;color:#5a5a75;margin-top:2px" id="aboutVersion"></p>
+    </div>
+
+    <h4 class="settings-title">✨ Qu'est-ce que c'est ?</h4>
+    <p class="muted">Astra est une assistante vocale intelligente qui vit dans ton navigateur. Elle t'écoute, comprend ta question, réfléchit avec une IA, et te répond avec une voix réaliste. <b>100% gratuit, sans compte, sans abonnement.</b></p>
+
+    <h4 class="settings-title">🎙️ Comment l'utiliser</h4>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>🎙️ Micro</b><br>Appuie et parle</div>
+      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>⌨️ Texte</b><br>Écris ta question</div>
+      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>📐 Maths</b><br>« 15 × 7 ? » + tableau</div>
+      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>📝 Notes</b><br>« Écris un poème »</div>
+    </div>
+
+    <h4 class="settings-title">🧠 Cerveau IA</h4>
+    <p class="muted">Astra réfléchit avec <b>Pollinations GPT</b> — gratuit, sans clé API, comme ChatGPT. Un seul cerveau, zéro frais.</p>
+
+    <h4 class="settings-title">🗣️ Voix réalistes</h4>
+    <p class="muted">Trois moteurs vocaux, du plus réaliste au plus accessible :</p>
+    <p class="muted" style="margin-top:4px">⭐ <b>ElevenLabs</b> — voix IA ultra-réalistes, 10 000 caractères/mois gratuits (clé gratuite sur elevenlabs.io)</p>
+    <p class="muted" style="margin-top:4px">🎙️ <b>Voxtral (Mistral AI)</b> — voix premium, gratuite avec une clé Mistral</p>
+    <p class="muted" style="margin-top:4px">🔊 <b>Google Translate</b> — secours gratuit, sans clé</p>
+    <p class="muted" style="margin-top:4px">🖥️ <b>Voix système</b> — dernier recours, hors ligne</p>
+
+    <h4 class="settings-title">🎮 Bonus</h4>
+    <p class="muted">Jeux quand tu attends (devinette, quiz, chaîne de mots, pile ou face) · Réveil vocal « Hey Astra » · Mode continu non-stop · Historique des conversations · Bloc-notes · Calculatrice</p>
+
+    <h4 class="settings-title">🔒 Vie privée</h4>
+    <p class="muted">Tout se passe dans ton navigateur. Les clés API restent sur ton appareil, rien n'est envoyé à un serveur Tom AI.</p>
+
+    <div style="text-align:center;margin-top:16px;padding-top:14px;border-top:1px solid rgba(124,92,255,.15)">
+      <p style="font-size:12px;color:#5a5a75">Fait avec 💜 par <b style="color:#c8c8dd">Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#7c5cff;text-decoration:underline">@tom.ai.official</a></p>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <!-- TABLEAU DE MATHS + CALCULATRICE (v9.98) : s'ouvre quand l'IA fait des maths -->
@@ -648,9 +692,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.45"></script>
+<script src="websearch.js?v=10.46"></script>
 <script>
 </script>
-<script src="app.js?v=10.45"></script>
+<script src="app.js?v=10.46"></script>
 </body>
 </html>
