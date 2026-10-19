@@ -1,0 +1,71 @@
+=== cles API app.js ===
+181: const key = getMistralKey();
+201: const MISTRAL_KEY_LS = 'va_mistral_key';
+202: function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
+241: const key = getMistralKey();
+847: if (mistralKeyInput) mistralKeyInput.value = getMistralKey();
+849: localStorage.setItem(MISTRAL_KEY_LS, (mistralKeyInput.value || '').trim());
+1152: const mistralKey = getMistralKey();
+1743: const mistralKey = getMistralKey();
+1813: if (getMistralKey()) return;
+3850: console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'configurée' : 'MANQUANTE (Réglages → Clé API Mistral)'));
+=== voix app.js ===
+117: const LS = { voice: 'va_ttsvoice' };
+154: const VOXTRAL_FALLBACK_VOICES = [
+163: const all = voxtralVoicesCache || VOXTRAL_FALLBACK_VOICES;
+182: if (!key) return VOXTRAL_FALLBACK_VOICES;
+188: if (!res.ok) return VOXTRAL_FALLBACK_VOICES;
+191: if (!items.length) return VOXTRAL_FALLBACK_VOICES;
+199: } catch(e){ console.warn('[VOXTRAL] Liste voix échouée:', e && e.message); return VOXTRAL_FALLBACK_VOICES; }
+240: async function speakVoxtral(text, voiceId, onChunk){
+823: populateVoices();
+2830: async function populateVoices(){
+2835: const voices = await fetchVoxtralVoices();
+2855: let voices = window.speechSynthesis.getVoices();
+2900: voices = window.speechSynthesis.getVoices();
+2903: setTimeout(() => { if (!waited) { waited = true; voices = window.speechSynthesis.getVoices(); startSpeak(); } }, 1000);
+2912: const voices = window.speechSynthesis.getVoices();
+2918: const voices = getSystemVoices();
+3078: chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
+3087: ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+3884: if (typeof speakVoxtral === 'function') { speakVoxtral(txt); return; }
+=== reglages index.html ===
+249: .settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+462: <header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgb
+561: <div id="settingsModal" class="modal hidden">
+566: <h4 class="settings-title">🧠 Cerveau IA</h4>
+569: <h4 class="settings-title">🗣️ Voix</h4>
+581: <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
+586: <h4 class="settings-title">🎤 Réveil vocal</h4>
+593: <h4 class="settings-title">🎤 Mode vocal continu</h4>
+600: <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
+=== cles index.html ===
+30: .bg-aurora.a1{width:70vmax;height:70vmax;left:-24vmax;top:-24vmax;background:radial-gradient(circle,rgba(124,92,255,.45),transparent 62%);opacity:.5}
+31: .bg-aurora.a2{width:58vmax;height:58vmax;right:-20vmax;bottom:-20vmax;background:radial-gradient(circle,rgba(255,92,168,.3),transparent 62%);animation
+32: .bg-aurora.a3{width:46vmax;height:46vmax;left:30%;top:36%;background:radial-gradient(circle,rgba(61,220,160,.22),transparent 62%);animation-delay:-12s
+48: .bg-particles{position:absolute;inset:0}
+49: .bg-particles span{
+51: background:radial-gradient(circle,rgba(255,255,255,.9),rgba(124,92,255,.4) 60%,transparent);
+171: background:radial-gradient(circle at 35% 28%,#23233c 0%,#0d0d10 68%);
+429: <div class="bg-particles" id="bgParticles"></div>
+506: <article class="recipe-page"><img id="recipeImage" class="recipe-photo" alt="Photo du plat" referrerpolicy="no-referrer"><span id="recipeCategory" cla
+507: <article class="recipe-page"><h3>Étapes</h3><ol id="recipeSteps"></ol><p style="font-size:12px;color:#665e50;">Adapte les quantités selon ton appétit 
+526: <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
+570: <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium, 9 langues, zéro-shot voice cloning. Nécessite une clé API Mistral (gratuite sur
+576: <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
+577: <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
+=== voix index.html ===
+61: .chat,.voice-stage,.shell,.rail,.main-col{position:relative;z-index:1}
+142: .voice-stage{
+260: select.wide-input{appearance:none}
+471: <div class="voice-stage">
+493: <p>On peut jouer ensemble. Choisis un jeu ou dis son nom à voix haute.</p>
+539: <div style="font-size:11px;color:#9a9ab5;">Répond à la voix</div>
+570: <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium, 9 langues, zéro-shot voice cloning. Nécessite une clé API Mistral (gratuite sur
+571: <select id="ttsVoice" class="wide-input">
+572: <option value="voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8" selected>🎙️ Voxtral: Paul (anglais US, neutre)</option>
+575: </select>
+579: <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
+583: <select id="brainSel" class="wide-input">
+584: <option value="pollinations" selected>⚡ Pollinations GPT — le cerveau unique, gratuit à vie</option>
+585: </select>
