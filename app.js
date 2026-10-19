@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.36';
+const APP_VERSION = '10.37';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -359,8 +359,19 @@ function playAudioBlob(blob){
         src.buffer = buf;
         const gain = ctx.createGain();
         gain.gain.value = 1.8; /* volume boosté */
+        /* v10.37 : LIMITEUR — le gain x1.8 clippait (échantillons > 1.0) sur les
+           syllabes fortes : crackage/grésil grinçant, puis ça repart de soi
+           même quand la voix retombe. Un compresseur platave les pics avant
+           la sortie -> PLUS de grésil, le volume reste boosted. */
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -6;
+        comp.knee.value = 4;
+        comp.ratio.value = 12;
+        comp.attack.value = 0.003;
+        comp.release.value = 0.25;
         src.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(comp);
+        comp.connect(ctx.destination);
         currentSources.push(src);
         voiceStartedFlag = true;
         src.onended = () => finish(true);
@@ -2843,35 +2854,45 @@ async function speakGemini(text, voiceName, onChunk){
   if (!key){ console.warn('[GEMINI] Pas de clé Gemini — ajoute-la dans Réglages'); return false; }
   try {
     const chunks = splitSentences(text, 800);
-    const call = async (chunk) => {
+    /* v10.37 : INSTRUCTION DE STYLE — le model 3.8 accepte une consigne en
+       systemInstruction : articulation claire, debit pose, accent neutre.
+       Si le modèle la refuse (400), on relance SANS instruction (repli). */
+    const TTS_STYLE = 'Prononce ce texte en français clair et naturel : articulation nette, débit posé, intonation fluide, accent standard. Ne lis jamais les ponctuations à voix haute.';
+    const call = async (chunk, withInstr) => {
+      const body = {
+        contents: [{ parts: [{ text: chunk }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
+        }
+      };
+      if (withInstr) body.systemInstruction = { parts: [{ text: TTS_STYLE }] };
       return await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: chunk }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } }
-          }
-        }),
+        body: JSON.stringify(body),
         signal: abortSignal(20000)
       });
     };
     const results = await Promise.all(chunks.map(async (chunk) => {
       try {
-        let res = await call(chunk);
+        let res = await call(chunk, true);
         if (!res.ok){
           const errText = (await res.text().catch(() => '')).slice(0, 200);
-          console.warn('[GEMINI] HTTP', res.status, errText);
-          if (res.status === 429 && /quota|billing/i.test(errText)){
-            /* 429 par-modèle (compteur journalier) : structurel, pas de retry */
-            GEMINI_QUOTA_BLOCKED = true;
-            try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
-            return null;
-          }
-          if (res.status === 429){
-            await new Promise(r => setTimeout(r, 4000));
-            res = await call(chunk);
+          /* 400 sur l'instruction de style -> nouvel essai sans instruction */
+          if (res.status === 400){ res = await call(chunk, false); }
+          else {
+            console.warn('[GEMINI] HTTP', res.status, errText);
+            if (res.status === 429 && /quota|billing/i.test(errText)){
+              /* 429 par-modèle (compteur journalier) : structurel, pas de retry */
+              GEMINI_QUOTA_BLOCKED = true;
+              try { toast('Quota voix IA Google épuisé pour la journée — voix Google Translate en secours'); } catch(e){}
+              return null;
+            }
+            if (res.status === 429){
+              await new Promise(r => setTimeout(r, 4000));
+              res = await call(chunk, false);
+            }
           }
           if (!res.ok){ return null; }
         }
