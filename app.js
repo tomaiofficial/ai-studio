@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.63';
+const APP_VERSION = '10.64';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -885,6 +885,8 @@ function getVoice(){
   if (v.startsWith('gemini:')) return DEFAULT_VOICE;
   /* v10.60 : ElevenLabs retire de l'app -> retour Voxtral */
   if (v.startsWith('eleven:')) return DEFAULT_VOICE;
+  /* v10.64 : Google Cloud TTS retire de l'app -> retour Voxtral */
+  if (v.startsWith('gcloudtts:')) return DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -941,70 +943,6 @@ try {
   localStorage.removeItem('va_gemini_quota');
 } catch {}
 
-/* v10.61 : GOOGLE CLOUD TTS — voix IA ultra-realistes gratuites a vie
-   (0.5-1M caracteres/mois sur le compte gratuit). Appele direct navigateur
-   avec cle API (CORS ok chez googleapis). valeurs de voix : gcloudtts:<name> */
-const GCLOUD_LS = 'va_gcloudtts_key';
-const GCLOUD_VOICES = [
-  { n: 'Denise', l: 'fr-FR', v: 'fr-FR-DeniseNeural', d: 'femme, chaleureuse' },
-  { n: 'Coralie', l: 'fr-FR', v: 'fr-FR-CoralieNeural', d: 'femme, claire' },
-  { n: 'Celeste', l: 'fr-FR', v: 'fr-FR-CelesteNeural', d: 'femme, douce' },
-  { n: 'Henri', l: 'fr-FR', v: 'fr-FR-HenriNeural', d: 'homme, grave' },
-  { n: 'Jerome', l: 'fr-FR', v: 'fr-FR-JeromeNeural', d: 'homme, clair' },
-  { n: 'Yves', l: 'fr-FR', v: 'fr-FR-YvesNeural', d: 'homme, mature' }
-];
-function getGCloudKey(){ try { return (localStorage.getItem(GCLOUD_LS) || '').trim(); } catch { return ''; } }
-const gcloudKeyInput = $('gcloudKey'), saveGCloudKeyBtn = $('saveGCloudKey');
-if (gcloudKeyInput) gcloudKeyInput.value = getGCloudKey();
-if (saveGCloudKeyBtn) saveGCloudKeyBtn.addEventListener('click', () => {
-  localStorage.setItem(GCLOUD_LS, (gcloudKeyInput.value || '').trim());
-  populateVoices();
-  toast('Clé Google Cloud TTS enregistrée ✓ — 6 voix IA ultra-réalistes activées');
-});
-let gcloudFailed = false;
-async function speakGCloud(text, voiceName, onChunk){
-  const key = getGCloudKey();
-  if (!key){ console.warn('[GCLOUD] Pas de clé — réglages'); return false; }
-  if (gcloudFailed) return false;
-  try {
-    const chunks = splitSentences(text, 1500);
-    const call = async (chunk) => {
-      try {
-        const r = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=' + encodeURIComponent(key), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            input: { text: chunk },
-            voice: { languageCode: 'fr-FR', name: voiceName },
-            audioConfig: { audioEncoding: 'MP3' }
-          }),
-          signal: abortSignal(20000)
-        });
-        if (!r.ok){
-          const et = (await r.text().catch(() => '')).slice(0, 150);
-          console.warn('[GCLOUD] HTTP', r.status, et);
-          if (r.status === 403 || r.status === 401){ gcloudFailed = true; setStatus('Clé Google Cloud TTS invalide ou API pas activée'); }
-          return null;
-        }
-        const j = await r.json();
-        if (!j || !j.audioContent) return null;
-        const binary = atob(j.audioContent);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        return new Blob([bytes], { type: 'audio/mp3' });
-      } catch(e){ return null; }
-    };
-    const results = await Promise.all(chunks.map(call));
-    if (!results.some(Boolean)) return false;
-    for (let i = 0; i < results.length; i++){
-      if (!results[i]) return false;
-      if (onChunk) onChunk(chunks[i]);
-      const ok = await playAudioBlob(results[i]);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[GCLOUD] échec:', e && e.message); return false; }
-}
 
 /* ===== v10.63 : KOKORO TTS LOCAL — moteur neurale DANS LE NAVIGATEUR ===== */
 /* Principes : modele Kokoro-82M (Apache 2.0, TTS frontiere pour 82M param)
@@ -1013,35 +951,47 @@ async function speakGCloud(text, voiceName, onChunk){
    cache navigateur (marche ensuite meme hors-ligne). Voix Francaise ff_siwis. */
 let kokoroTTS = null, kokoroLoading = false, kokoroReady = false, kokoroFailed = false;
 let kokoroVoice = 'ff_siwis';
+const KOKORO_CDNS = [
+  'https://esm.sh/kokoro-js@1.2.1',
+  'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'
+];
 async function loadKokoro(){
   if (kokoroLoading || kokoroReady) return;
   kokoroLoading = true;
-  setStatus('Je telecharge ma voix premium locale (une fois, ~50 Mo)...');
-  try {
-    let mod = null;
-    try { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'); }
-    catch { mod = await import('https://esm.sh/kokoro-js@1.2.1'); }
-    const { KokoroTTS } = mod;
-    const device = navigator.gpu ? 'webgpu' : 'wasm';
-    kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-      device,
-      dtype: device === 'webgpu' ? 'fp32' : 'q8',
-      progress_callback: (p) => { if (p && p.status === 'progress' && p.progress) console.log('[KOKORO] ' + (p.file || '') + ' ' + Math.round(p.progress) + '%'); }
-    });
-    if (typeof kokoroTTS.list_voices === 'function'){
-      const vs = kokoroTTS.list_voices();
-      if (vs && vs.length){
-        const frv = vs.find(v => String(v).startsWith('ff_'));
-        if (frv) kokoroVoice = frv;
+  setStatus('Je telecharge ma voix neurale locale (une fois, ~50 Mo)...');
+  for (const url of KOKORO_CDNS){
+    try {
+      const mod = await import(url);
+      const { KokoroTTS } = mod;
+      const device = navigator.gpu ? 'webgpu' : 'wasm';
+      kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+        device,
+        dtype: device === 'webgpu' ? 'fp32' : 'q8',
+        progress_callback: (p) => {
+          if (p && p.status === 'progress' && typeof p.progress === 'number'){
+            if (Math.round(p.progress) % 25 === 0) setStatus('Telechargement de ma voix locale... ' + Math.round(p.progress) + '%');
+            console.log('[KOKORO] ' + (p.file || '') + ' ' + Math.round(p.progress) + '%');
+          }
+        }
+      });
+      if (typeof kokoroTTS.list_voices === 'function'){
+        try {
+          const vs = kokoroTTS.list_voices();
+          if (Array.isArray(vs) && vs.length){
+            const frv = vs.find(v => String(v.name || v).startsWith('ff_'));
+            if (frv) kokoroVoice = frv.name || frv;
+          }
+        } catch {}
       }
+      kokoroReady = true;
+      console.log('[KOKORO] pret — voix locale ' + kokoroVoice + ' (' + device + ')');
+      toast('Voix neurale locale prete ✓ (Kokoro, infinie a vie)');
+      break;
+    } catch(e){
+      console.warn('[KOKORO] echec via ' + url + ':', e && (e.message || e));
     }
-    kokoroReady = true;
-    console.log('[KOKORO] pret — voix locale ' + kokoroVoice + ' (' + device + ')');
-    toast('Voix premium locale prete ✓');
-  } catch(e){
-    kokoroFailed = true;
-    console.warn('[KOKORO] chargement echoue:', e && e.message);
   }
+  if (!kokoroReady) { kokoroFailed = true; setStatus('Voix locale indisponible — secours systeme'); }
   kokoroLoading = false;
 }
 async function speakKokoro(text, onChunk){
@@ -3200,20 +3150,8 @@ async function populateVoices(){
   /* v10.42 : dedupe — si populateVoices est rappelé (sauvegarde de clé),
      on supprime les ANCIENS groupes IA avant d'en rajouter neufs */
   Array.from(ttsVoiceSel.children).forEach(c => {
-    if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs|Cloud/.test(c.label || '')) c.remove();
+    if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs/.test(c.label || '')) c.remove();
   });
-  /* v10.61 : GOOGLE CLOUD TTS — groupe visible des qu'une cle est presente */
-  if (getGCloudKey() && !gcloudFailed){
-    const gg = document.createElement('optgroup');
-    gg.label = '☁️ Google Cloud TTS (ultra-réaliste, gratuit à vie)';
-    GCLOUD_VOICES.forEach(v => {
-      const o = document.createElement('option');
-      o.value = 'gcloudtts:' + v.v;
-      o.textContent = '☁️ ' + v.n + ' — ' + v.d;
-      gg.appendChild(o);
-    });
-    ttsVoiceSel.appendChild(gg);
-  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la synthèse vocale du
      navigateur est la moins belle qualité et l'utilisateur préfère les voix
      Google IA / Voxtral. La lecture système reste branchée UNIQUEMENT comme
@@ -3436,25 +3374,6 @@ function speak(text, onChunk){
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
-    } else if (voiceMode.startsWith('gcloudtts:')) {
-      const gv = voiceMode.substring(10);
-      /* Google Cloud TTS choisi : ultra-realiste puis Voxtral puis Systeme */
-      chain = [
-        ['Google Cloud: ' + gv, (t) => speakGCloud(t, gv, onChunk)],
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
-    } else if (getGCloudKey() && !gcloudFailed) {
-      /* v10.61 : clé Google Cloud présente -> elle devient la voix PREMIUM
-         par defaut (ultra-realiste a vie), Voxtral en secours */
-      chain = [
-        ['Google Cloud: Denise', (t) => speakGCloud(t, 'fr-FR-DeniseNeural', onChunk)],
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Kokoro', (t) => speakKokoro(t, onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
     } else {
       /* v10.63 : voix par defaut — Voxtral premium si cle, sinon Kokoro local
          (importe le modele au premier appel, gratuit et infini a vie) */

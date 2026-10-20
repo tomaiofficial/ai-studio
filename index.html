@@ -587,9 +587,6 @@ select.wide-input{appearance:none}
     <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
     <button class="primary" id="saveMistralKey" style="margin-top:6px">💾 Enregistrer la clé</button>
-    <p class="muted" style="margin-top:10px">☁️ <b>Google Cloud TTS</b> — la voix IA LA PLUS réaliste, <b>gratuite à vie</b> (~1M caractères/mois). Clé : <b>console.cloud.google.com</b> → projet "Astra" → APIs &amp; Services → activer "Cloud Text-to-Speech API" → Credentials → API key :</p>
-    <input type="password" id="gcloudKey" class="wide-input" placeholder="Colle ta clé Google Cloud (AIza...) ici..." autocomplete="off">
-    <button class="primary" id="saveGCloudKey" style="margin-top:6px">💾 Enregistrer la clé Google Cloud</button>
     <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
 
     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
@@ -642,7 +639,7 @@ select.wide-input{appearance:none}
 
     <h4 class="settings-title">🗣️ Voix réalistes</h4>
     <p class="muted">Trois moteurs vocaux, du plus réaliste au plus accessible :</p>
-    <p class="muted" style="margin-top:4px">☁️ <b>Google Cloud TTS</b> — voix IA la plus réaliste, <b>gratuite à vie</b> (~1M caractères/mois, clé gratuite une seule fois)</p>
+    <p class="muted" style="margin-top:4px">🧊 <b>Kokoro IA locale</b> — voix neurale FR <b>gratuite et infinie à vie</b>, tourne dans ton navigateur (téléchargée une fois ~50 Mo, marche même hors ligne)</p>
     <p class="muted" style="margin-top:4px">🎙️ <b>Voxtral (Mistral AI)</b> — voix premium, gratuite avec une clé Mistral</p>
     <p class="muted" style="margin-top:4px">🔊 <b>Google Translate</b> — secours gratuit, sans clé</p>
     <p class="muted" style="margin-top:4px">🖥️ <b>Voix système</b> — dernier recours, hors ligne</p>
@@ -728,9 +725,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.63"></script>
+<script src="websearch.js?v=10.64"></script>
 <script>
 </script>
-<script src="app.js?v=10.63"></script>
+<script src="app.js?v=10.64"></script>
 </body>
 </html>
