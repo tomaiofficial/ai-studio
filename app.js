@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.50';
+const APP_VERSION = '10.51';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -4196,8 +4196,32 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       for (let k = 0; k < 3 && pool.length; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       return 'Tu m\u2019as laissee seule pendant ' + dureeTxt(ms) + '. J\u2019ai explor\u00e9 ' + picks.join(', ') + '. J\u2019ai tout note dans mon journal.';
     }
-    /* autonomie retiree — pas de message spontané au lancement */
-    /* async function raconterAbsence(){ ... } */
+    /* ---- AUTONOMIE TOTALE : elle s'ameliorerait meme quand tu es absent ---- */
+    const AGENT_COOLDOWN_MS = 60 * 60 * 1000;   /* 1 deploiement max/heure */
+    const AGENT_MAX_DAY = 6;                    /* 6 max/jour */
+    async function autoAmeliorer(){
+      if (!getGhToken() || agentDeploying) return;
+      const now = Date.now();
+      let st = null;
+      try { st = JSON.parse(localStorage.getItem('va_agent_auto') || 'null'); } catch {}
+      const today = new Date().toDateString();
+      if (!st || st.d !== today) st = { d: today, n: 0, t: 0 };
+      if (st.n >= AGENT_MAX_DAY || now - st.t < AGENT_COOLDOWN_MS) return;
+      if (isProcessing || isSpeaking || state !== 'idle') return;
+      const idee = 'Astra, tu es seule, personne ne regarde. L app est AUTONOME: choisis TOI-MEME une amelioration TOUTE PETITE et utile pour l app elle-meme (un alterateur, une phrase d accueil, un accessoire comme un compteur, un mini-jeu, une commande vocale...). Ne modifie JAMAIS la reconnaissance vocale, la voix TTS, la memoire ni la logique principale du cerveau (zones critiques). Respecte les regles AUTONOMIE connues. Reponds: 1) UNE phrase courte a la premiere personne qui annonce ce que tu ajoutes; 2) le bloc astra-edit complete pour l appliquer.';
+      let rep = null;
+      try { rep = await penser(idee); } catch {}
+      if (!rep) return;
+      if (!/```astra-edit/.test(rep)) return;
+      journal('Auto-amelioration : ' + rep.replace(/```astra-edit[\s\S]*?```/, '').slice(0, 90));
+      st.n++; st.t = now;
+      try { localStorage.setItem('va_agent_auto', JSON.stringify(st)); } catch {}
+      try {
+        const out = await maybeAgentAutoDeploy(rep);
+        journal('Resultat deploiement auto : ' + (out.indexOf('deployee') !== -1 ? 'OK' : 'echec, reessaie plus tard'));
+      } catch {}
+    }
+
 
     /* ---- VIE EN ARRIERE-PLAN : exploration + pensees spontanees ---- */
     let explorationTimer = null;
@@ -4223,12 +4247,14 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       if (document.visibilityState === 'visible' && !document.hidden) delay = Math.max(delay, 4 * 60 * 1000);
       explorationTimer = setTimeout(async () => {
         if (!document.hidden) { await explorer(); }
+        /* Elle continue de s'ameliorer meme quand tu es absent (cooldown interne) */
+        await autoAmeliorer();
         planifierExploration();
       }, delay);
     }
 
     /* ---- DEMARRAGE ---- */
-    /* planifierExploration(); */
+    planifierExploration();   /* vie autonome : exploration + auto-amelioration en continu */
     /* setTimeout(raconterAbsence, 4000); */ /* apres le boot de l'app */
 
     /* Reponse a "qu'est-ce que tu as fait" / "raconte ta vie" */
