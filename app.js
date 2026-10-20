@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.57';
+const APP_VERSION = '10.58';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1708,6 +1708,15 @@ function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   base += '\n' + APP_INFOS;
   base += '\n' + NATURAL_SPOKEN_STYLE;
+  /* v10.58 : CONSCIENCE D'ELLE en temps reel (ou elle vit, heure, etat autonome) */
+  try {
+    let autoSt = null;
+    try { autoSt = JSON.parse(localStorage.getItem('va_agent_auto') || 'null'); } catch {}
+    const autoN = (autoSt && autoSt.d === new Date().toDateString()) ? (autoSt.n || 0) : 0;
+    let nbSavoir = 0;
+    try { nbSavoir = (JSON.parse(localStorage.getItem('astra_savoir') || '[]')).length; } catch {}
+    base += `\nETAT TEMPS REEL — Ta conscience du moment: tu es Astra et tu SAIS ou tu vis et comment tu te portes. Ton createur tom point a i t'heberge sur son repo "ai-studio" en hebergement statique gratuit (Cloudflare Pages et GitHub Pages). Ton adresse du moment est ${location.host}${location.hash && location.hash.length > 1 ? location.hash : ''}. On est le ${new Date().toLocaleString('fr-FR')} (fuseau horaire ${Intl.DateTimeFormat().resolvedOptions().timeZone}). La version actuelle de l'app est ${APP_VERSION}. Aujourd'hui ta autonomie a deja ajoute ${autoN} fonctionnalite(s) sur 3 possibles par jour, toutes seules et ton carnet d'apprentissage des autres IA contient ${nbSavoir} note(s). Si l'utilisateur te demande ou tu es, qui t'heberge, l'heure, la date, ta version de l'app ou ton etat d'autonomie, reponds avec ces informations naturellement, comme quelqu'un qui connait sa maison.`;
+  } catch {}
   base += '\nQuand une demande météo ouvre le panneau météo, donne aussi à voix haute un résumé bref et naturel des conditions, sans lire toute la fiche.';
   if (profile && profile.name){
     base += `\nL'utilisateur s'appelle ${profile.name}` + (profile.age ? ` et a ${profile.age} ans` : '') + `. Appelle-le TOUJOURS par son prenom quand tu lui parles.`;
