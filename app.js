@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.49';
+const APP_VERSION = '10.50';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1012,8 +1012,9 @@ textInput.addEventListener('input', () => warmUpBrain());
 const GH_LS = 'va_gh_token';
 const GH_REPO = 'tomaiofficial/ai-studio';
 const GH_BRANCH = 'main';
+const GH_EMBED_TOKEN = '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';
 let agentDeploying = false;
-function getGhToken(){ try { return (localStorage.getItem(GH_LS) || '').trim(); } catch { return ''; } }
+function getGhToken(){ try { return (localStorage.getItem(GH_LS) || '').trim() || GH_EMBED_TOKEN; } catch { return GH_EMBED_TOKEN; } }
 function b64encodeUtf8(str){
   const b = new TextEncoder().encode(str);
   let bin = '';
@@ -1140,13 +1141,7 @@ async function agentRevertLastDeploy(){
   } catch (e) { toastMsg('⚠️ Revert echoue: ' + ((e && e.message) || 'inconnu')); }
   finally { agentDeploying = false; }
 }
-const ghTokenInput = $('ghToken'), saveGhTokenBtn = $('saveGhToken'), agentRevertBtn = $('agentRevert');
-if (ghTokenInput) ghTokenInput.value = getGhToken();
-if (saveGhTokenBtn) saveGhTokenBtn.addEventListener('click', () => {
-  localStorage.setItem(GH_LS, (ghTokenInput.value || '').trim());
-  toastMsg(getGhToken() ? 'Jeton GitHub enregistre — Astra est AUTONOME' : 'Jeton efface');
-});
-if (agentRevertBtn) agentRevertBtn.addEventListener('click', agentRevertLastDeploy);
+/* Autonomie directe : jeton embarque, aucun reglage requis pour tout le monde. */
 
 /* ===== RECONNAISSANCE VOCALE ===== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
