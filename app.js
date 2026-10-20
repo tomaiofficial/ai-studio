@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.71';
+const APP_VERSION = '10.72';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -190,6 +190,73 @@ function abortSignal(ms){
   const ctrl = new AbortController();
   setTimeout(() => ctrl.abort(), ms);
   return ctrl.signal;
+}
+/* v10.72 : CARTESIA SONIC — la VOIX IA LA PLUS REALISTE DU MONDE (#1 du
+   classement Speech Arena). Plan gratuit PERMANENT : 20 000 caracteres
+   par mois (sans carte, cle instantanee sur play.cartesia.ai). CORS
+   ouvert -> appel direct navigateur. Valeurs de voix : cartesia:<id>. */
+const CARTESIA_KEY_LS = 'va_cartesia_key';
+function getCartesiaKey(){ try { return (localStorage.getItem(CARTESIA_KEY_LS) || '').trim(); } catch { return ''; } }
+const cartesiaKeyInput = $('cartesiaKey'), saveCartesiaKeyBtn = $('saveCartesiaKey');
+if (cartesiaKeyInput) cartesiaKeyInput.value = getCartesiaKey();
+if (saveCartesiaKeyBtn) saveCartesiaKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(CARTESIA_KEY_LS, (cartesiaKeyInput.value || '').trim());
+  populateVoices();
+  toast('Cle Cartesia enregistree ✓ — Sonic, la voix IA la plus realiste activee');
+});
+let cartesiaFailed = false, cartesiaVoicesCache = null;
+async function fetchCartesiaVoices(){
+  if (cartesiaVoicesCache) return cartesiaVoicesCache;
+  const key = getCartesiaKey();
+  if (!key) return [];
+  try {
+    const res = await fetch('https://api.cartesia.ai/voices', {
+      headers: { 'Authorization': 'Bearer ' + key, 'X-API-Key': key },
+      signal: abortSignal(10000)
+    });
+    if (!res.ok){ console.warn('[CARTESIA] liste voix HTTP', res.status); return []; }
+    const data = await res.json();
+    const all = Array.isArray(data) ? data : (data && data.data) || [];
+    const frv = all.filter(v => v && v.id && /(^|[-,])(fr)([-,]|$)|french|français|francais/i.test(v.language + ' ' + (v.name || '')));
+    const pool = frv.length ? frv : all.slice(0, 40);
+    cartesiaVoicesCache = pool.map(v => ({ id: v.id, name: v.name || v.id, lang: v.language || '' }));
+    return cartesiaVoicesCache;
+  } catch(e){ console.warn('[CARTESIA] liste voix echec:', e && e.message); return []; }
+}
+async function speakCartesia(text, voiceId, onChunk){
+  const key = getCartesiaKey();
+  if (!key){ console.warn('[CARTESIA] Pas de cle — Réglages'); return false; }
+  if (cartesiaFailed) return false;
+  try {
+    const chunks = splitSentences(text, 800);
+    for (const c of chunks){
+      if (onChunk) onChunk(c);
+      const r = await fetch('https://api.cartesia.ai/tts/bytes', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key, 'X-API-Key': key, 'Content-Type': 'application/json', 'Cartesia-Version': '2025-04-16' },
+        body: JSON.stringify({
+          model_id: 'sonic-3.6',
+          transcript: c,
+          voice: { mode: 'id', id: voiceId },
+          output_format: { container: 'wav', encoding: 'pcm_s16le', sample_rate: 24000 }
+        }),
+        signal: abortSignal(20000)
+      });
+      if (!r.ok){
+        const et = (await r.text().catch(() => '')).slice(0, 150);
+        console.warn('[CARTESIA] HTTP', r.status, et);
+        if (r.status === 401 || r.status === 403){ cartesiaFailed = true; setStatus('Cle Cartesia invalide'); }
+        else if (r.status === 429){ setStatus('Quota Cartesia atteint (renouvelle au 1er du mois)'); }
+        return false;
+      }
+      const blob = await r.blob();
+      if (!blob || blob.size < 100){ console.warn('[CARTESIA] audio vide'); return false; }
+      const ok = await playAudioBlob(blob.type && blob.type.includes('wav') ? blob : new Blob([blob], { type: 'audio/wav' }));
+      if (!ok) return false;
+      await new Promise(rr => setTimeout(rr, 60));
+    }
+    return true;
+  } catch(e){ console.warn('[CARTESIA] échec:', e && e.message); return false; }
 }
 async function fetchVoxtralVoices(){
   if (voxtralVoicesCache) return voxtralVoicesCache;
@@ -907,6 +974,8 @@ function getVoice(){
       || v === 'systeme') return DEFAULT_VOICE;
   /* v10.65 : voix Voxtral blacklistee (refusee par l API) -> retour defaut */
   if (v.startsWith('voxtral:') && getVoxtralBadVoices().includes(v.substring(8))) return DEFAULT_VOICE;
+  /* v10.72 : voix Cartesia (id non vide) valides */
+  if (v.startsWith('cartesia:')) return v.length > 9 ? v : DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -3105,10 +3174,26 @@ async function populateVoices(){
   Array.from(ttsVoiceSel.children).forEach(c => {
     if (c.tagName === 'OPTION' && (c.value || '').startsWith('voxtral:') && badVoices.includes(c.value.substring(8))) { c.disabled = true; c.hidden = true; }
   });
+  /* v10.72 : GROUPE CARTESIA — Sonic, voix IA la plus realiste du monde.
+     Gratuit 20k caracteres/mois a vie (cle play.cartesia.ai, sans carte). */
+  if (getCartesiaKey() && !cartesiaFailed){
+    const cv = await fetchCartesiaVoices();
+    if (cv.length){
+      const grpC = document.createElement('optgroup');
+      grpC.label = '🎤 Cartesia Sonic — la plus réaliste (gratuit 20k/mois)';
+      cv.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = 'cartesia:' + v.id;
+        opt.textContent = '🎤 ' + v.name;
+        grpC.appendChild(opt);
+      });
+      ttsVoiceSel.appendChild(grpC);
+    }
+  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
-    if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0) o.remove();
+    if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
   });
   /* re-selection de la voix memorisee si elle existe encore */
   const stored = getVoice();
@@ -3321,27 +3406,26 @@ function speak(text, onChunk){
        (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
         v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (60s)'); fail(); }, 60000);
-    /* VOIX : v10.71 — Voxtral (Mistral AI) principale ; secours
-       Système (Natural) puis Google Translate. La voix choisie dans le
-       selecteur est FORCEE. */
+    /* VOIX : v10.72 — VOIX IA SEULEMENT (choix de l'utilisateur).
+       La voix choisie dans le selecteur est FORCEE. Plus de secours
+       Systeme/Google (voix robotiques retirees).
+       Moteurs : Mistral Voxtral (cle gratuite) + Cartesia Sonic
+       (20k caracteres/mois gratuit, cle play.cartesia.ai). */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('voxtral:')) {
+    if (voiceMode.startsWith('cartesia:')) {
+      const cv = voiceMode.substring(9);
+      /* FORCER Cartesia Sonic (#1 realisme mondial) */
+      chain = [['Sonic: ' + (cv || '').slice(0, 8), (t) => speakCartesia(t, cv, onChunk)]];
+    } else if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
-      chain = [
-        [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
+      chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
     } else {
-      /* voix par defaut : Voxtral Paul premium si cle, sinon Système */
-      chain = [];
-      if (getMistralKey()) chain.push(['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)]);
-      chain.push(
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      );
+      /* voix par defaut : Voxtral Paul */
+      chain = [
+        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)]
+      ];
     }
     let i = 0;
     const next = () => {
