@@ -29,6 +29,18 @@ body{
   display:flex;flex-direction:column;
   overflow:hidden;text-size-adjust:100%;
 }
+/* ===== BANNIERE AUTONOMIE (v10.57) : notification dans l'ecran de l'app ===== */
+.auto-banner{display:flex;align-items:center;gap:10px;max-width:560px;margin:0 auto 10px;padding:10px 12px;
+  background:rgba(255,193,7,.09);border:1px solid rgba(255,193,7,.3);border-radius:14px;
+  font-size:12.5px;color:#cfd2e0;flex-wrap:wrap}
+.auto-banner.hidden{display:none}
+.auto-badge{flex:none;background:rgba(255,193,7,.18);color:#ffc107;font-weight:700;font-size:11px;
+  padding:3px 8px;border-radius:8px;letter-spacing:.3px}
+.auto-text{flex:1;min-width:160px;line-height:1.35;color:#c8c8dd}
+.auto-text b{color:#ffc107}
+.auto-more{flex:none;background:rgba(255,193,7,.16);color:#ffc107;border:1px solid rgba(255,193,7,.35);
+  border-radius:10px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer}
+.auto-close{flex:none;background:transparent;border:0;color:#8a8aa0;font-size:14px;cursor:pointer;padding:2px 4px}
 /* ===== FOND FÉERIQUE (v9.71 : aurora colorée + particules lumineuses) ===== */
 .bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
 .bg-aurora{position:absolute;border-radius:50%;filter:blur(70px);animation:drift 18s ease-in-out infinite alternate}
@@ -473,6 +485,12 @@ select.wide-input{appearance:none}
 
   <div class="main-col">
     <div class="voice-stage">
+      <div id="autoBanner" class="auto-banner hidden">
+        <span class="auto-badge">🤖 Nouveau</span>
+        <span class="auto-text">Astra est <b>autonome</b> : 3 nouveautés par jour, elle apprend d'autres IA et s'améliore toute seule.</span>
+        <button id="autoBannerMore" class="auto-more">Tout savoir</button>
+        <button id="autoBannerClose" class="auto-close" aria-label="Masquer">✕</button>
+      </div>
       <div class="status" id="status">Appuie sur le micro et parle</div>
       <button class="mic-btn" id="orb" role="button" aria-label="Parler">
         <span class="orb-waves"></span>
@@ -547,38 +565,6 @@ select.wide-input{appearance:none}
     <p class="muted">Et ton âge ?</p>
     <input type="number" id="userAge" class="wide-input" placeholder="Ton âge..." min="1" max="120" inputmode="numeric">
     <button class="primary" id="welcomeOk">C'est parti 🚀</button>
-  </div>
-</div>
-
-<!-- MODAL AUTONOMIE : avertit que Astra se modifie et se deploie toute seule -->
-<div id="autoModal" class="modal hidden">
-  <div class="modal-card" style="max-width:560px;border:1px solid rgba(255,193,7,.35);box-shadow:0 0 40px rgba(255,193,7,.15);">
-    <h3 style="font-size:22px;margin-bottom:12px;">⚠️ Astra est maintenant <span style="color:#ffc107;">autonome</span> 🤖</h3>
-    <p style="font-size:13px;color:#cfd2e0;margin-bottom:10px;">À partir de ce jour, <b>Astra peut modifier son propre code et se redéployer toute seule</b>. Voici exactement ce que ça signifie :</p>
-    <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:12px;padding:12px;margin-bottom:10px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛠️ Elle s'améliore pendant ton absence</div>
-      <div style="font-size:12px;color:#9a9ab5;">Quand tu ne fais rien ou es parti, elle explore le web, tient son journal, <b>et ajoute elle-même au moins 3 nouvelles fonctionnalités par jour</b> à cette appli. Pas plus de 3 par jour, jamais de modifications sur les fonctions vitales (micro, voix, cerveau, mémoire).</div>
-    </div>
-    <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.25);border-radius:12px;padding:12px;margin-bottom:10px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">💬 Tu peux simplement lui demander</div>
-      <div style="font-size:12px;color:#9a9ab5;">Dis-lui par exemple « ajoute un bouton de blague du jour ». Elle écrit le code elle-même, l'applique, le déploie automatiquement et te confirme la modification à voix haute. <b>Recharge la page</b> quelques minutes après pour voir la nouveauté.</div>
-    </div>
-    <div style="background:rgba(0,220,130,.07);border:1px solid rgba(0,220,130,.25);border-radius:12px;padding:12px;margin-bottom:10px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛡️ Tu restes en sécurité</div>
-      <div style="font-size:12px;color:#9a9ab5;">Chaque modification passe par des garde-fous : extrait de code exact et unique, sauvegarde locale avant déploiement, et si une modification casse la page, GitHub refuse le déploiement et <b>l'ancienne version reste en ligne</b>. Tu peux lui dire « annule ta dernière modification » à tout moment.</div>
-    </div>
-    <p style="font-size:11px;color:#6b6d80;margin-bottom:14px;">Le redéploiement prend quelques minutes (GitHub Pages) — tu verras un message de confirmation.</p>
-    <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;text-decoration:none;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 14px;margin-bottom:12px;color:#fff;">
-      <svg viewBox="0 0 24 24" style="width:26px;height:26px;flex:none;" fill="currentColor" aria-hidden="true">
-        <path d="M12.53.02C13.84 0 15.14.71 15.14.71l.03 4.75s2.48-.02 5.48.05c.4.01.83.1 1.17.33-.15.24-.34.4-.55.6-1.24 1.28-2.5 2.55-3.72 3.85-.38.4-.71.84-1.03 1.28-.5.68-.5 1.53-.51 2.34v3.95c-.02 1.34-.02 2.21-.04 2.7-.08 2.16-1.06 4.02-2.6 5.3-1.27 1.06-2.88 1.72-4.63 1.72-1.94 0-3.7-.78-5-2.04a7.04 7.04 0 0 1-1.55-2.25 6.97 6.97 0 0 1-.65-2.95 6.97 6.97 0 0 1 .65-2.96c.34-.72.77-1.4 1.26-2.02.5-.61 1.09-1.14 1.74-1.59.13-.09.26-.18.4-.26.51-.36 1.06-.67 1.65-.91.59-.24 1.22-.42 1.87-.54.13-.02.27-.05.4-.06.25-.03.5-.05.75-.06v3.06a4.02 4.02 0 0 0-2.85 3.1 4.04 4.04 0 0 0 3.86 4.87c2.23 0 4.03-1.81 4.03-4.04V8.87c-.71-.13-1.4-.37-2.03-.71v-.01a5.72 5.72 0 0 1-2.06-1.89 5.68 5.68 0 0 1-.94-2.53 5.7 5.7 0 0 1 0-1.47c.04-.22.09-.44.15-.65.06-.21.13-.42.21-.62l.03-.02z"/>
-      </svg>
-      <span style="flex:1;text-align:left;">
-        <span style="display:block;font-size:13px;font-weight:600;color:#fff;">Astra — assistante vocale par Tom AI</span>
-        <span style="display:block;font-size:12px;color:#9a9ab5;">@tom.ai.official</span>
-      </span>
-      <span style="font-size:18px;color:#9a9ab5;">➤</span>
-    </a>
-    <button class="primary" id="autoModalOk" style="width:100%;">⚠️ J'ai compris — masquer</button>
   </div>
 </div>
 
@@ -668,6 +654,25 @@ select.wide-input{appearance:none}
     <h4 class="settings-title">🔒 Vie privée</h4>
     <p class="muted">Tout se passe dans ton navigateur. Les clés API restent sur ton appareil, rien n'est envoyé à un serveur Tom AI.</p>
 
+    <h4 class="settings-title">🤖 Autonomie — elle s'améliore toute seule</h4>
+    <p class="muted">Astra est <b>autonome</b> : elle peut modifier son propre code et se redéployer toute seule. Voici exactement ce que ça signifie :</p>
+    <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:12px;padding:12px;margin:8px 0;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛠️ Elle s'améliore pendant ton absence</div>
+      <div style="font-size:12px;color:#9a9ab5;">Quand tu ne fais rien ou es parti, elle explore le web, tient son journal, <b>et ajoute elle-même au moins 3 nouvelles fonctionnalités par jour</b> à cette appli. Pas plus de 3 par jour, jamais de modifications sur les fonctions vitales (micro, voix, cerveau, mémoire).</div>
+    </div>
+    <div style="background:rgba(0,220,130,.07);border:1px solid rgba(0,220,130,.25);border-radius:12px;padding:12px;margin:8px 0;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">💬 Tu peux simplement lui demander</div>
+      <div style="font-size:12px;color:#9a9ab5;">Dis-lui par exemple « ajoute un bouton de blague du jour ». Elle écrit le code elle-même, l'applique, le déploie automatiquement et te confirme la modification à voix haute. <b>Recharge la page</b> quelques minutes après pour voir la nouveauté.</div>
+    </div>
+    <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:12px;margin:8px 0;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🧠 Conseil d'IA — elle apprend d'autres IA</div>
+      <div style="font-size:12px;color:#9a9ab5;">En continu, elle consulte d'autres IA (openai, mistral, llama) qui lui apprennent des faits et des idées. Tout est noté dans son journal et sert à inventer ses nouveautés.</div>
+    </div>
+    <div style="background:rgba(0,220,130,.07);border:1px solid rgba(0,220,130,.25);border-radius:12px;padding:12px;margin:8px 0;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛡️ Tu restes en sécurité</div>
+      <div style="font-size:12px;color:#9a9ab5;">Chaque modification passe par des garde-fous : extrait de code exact et unique, sauvegarde locale avant déploiement, et si une modification casse la page, GitHub refuse le déploiement et <b>l'ancienne version reste en ligne</b>. Tu peux lui dire « annule ta dernière modification » à tout moment.</div>
+    </div>
+
     <div style="text-align:center;margin-top:16px;padding-top:14px;border-top:1px solid rgba(124,92,255,.15)">
       <p style="font-size:12px;color:#5a5a75">Fait avec 💜 par <b style="color:#c8c8dd">Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#7c5cff;text-decoration:underline">@tom.ai.official</a></p>
     </div>
@@ -724,9 +729,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.56"></script>
+<script src="websearch.js?v=10.57"></script>
 <script>
 </script>
-<script src="app.js?v=10.56"></script>
+<script src="app.js?v=10.57"></script>
 </body>
 </html>
