@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.53';
+const APP_VERSION = '10.54';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -4236,9 +4236,9 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       for (let k = 0; k < 3 && pool.length; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       return 'Tu m\u2019as laissee seule pendant ' + dureeTxt(ms) + '. J\u2019ai explor\u00e9 ' + picks.join(', ') + '. J\u2019ai tout note dans mon journal.';
     }
-    /* ---- AUTONOMIE TOTALE : elle s'ameliorerait meme quand tu es absent ---- */
-    const AGENT_COOLDOWN_MS = 60 * 60 * 1000;   /* 1 deploiement max/heure */
-    const AGENT_MAX_DAY = 6;                    /* 6 max/jour */
+    /* ---- AUTONOMIE TOTALE : elle ajoute AU MOINS 3 fonctionnalites par jour ---- */
+    const AGENT_COOLDOWN_MS = 60 * 60 * 1000;   /* essai toutes les heures */
+    const AGENT_MAX_DAY = 3;                    /* 3 fonctionnalites par jour, pas plus */
     async function autoAmeliorer(){
       if (!getGhToken() || agentDeploying) return;
       const now = Date.now();
@@ -4254,11 +4254,22 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       if (!rep) return;
       if (!/```astra-edit/.test(rep)) return;
       journal('Auto-amelioration : ' + rep.replace(/```astra-edit[\s\S]*?```/, '').slice(0, 90));
-      st.n++; st.t = now;
-      try { localStorage.setItem('va_agent_auto', JSON.stringify(st)); } catch {}
       try {
         const out = await maybeAgentAutoDeploy(rep);
-        journal('Resultat deploiement auto : ' + (out.indexOf('deployee') !== -1 ? 'OK' : 'echec, reessaie plus tard'));
+        const oki = out.indexOf('deployee') !== -1 || out.indexOf('envoyee') !== -1;
+        /* v10.54 : on se limite aux vrais deploiements — les tentatives echouees
+           ne consomment pas le quota des 3 par jour ; on reessayait a chaud plus
+           tard pour atteindre les 3 quotidiennes. */
+        if (oki){
+          st.n++; st.t = now;
+          try { localStorage.setItem('va_agent_auto', JSON.stringify(st)); } catch {}
+          journal('Deploiement auto ' + st.n + '/3 aujourd hui : OK');
+          if (st.n < AGENT_MAX_DAY) setTimeout(autoAmeliorer, 20 * 60 * 1000);
+        } else {
+          /* echec : reessaie dans 15 min, le cooldown de reussite n est PAS actif */
+          st.t = now - AGENT_COOLDOWN_MS;
+          setTimeout(autoAmeliorer, 15 * 60 * 1000);
+        }
       } catch {}
     }
 
