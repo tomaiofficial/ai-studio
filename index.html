@@ -578,11 +578,13 @@ select.wide-input{appearance:none}
     <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🧊 <b>Kokoro IA locale</b> — voix neurales <b>100% gratuites et infinies à vie</b>, le modèle (~50 Mo, téléchargé une fois) tourne dans ton navigateur. Aucune clé, aucun compte, marche même hors ligne.</p>
+    <p class="muted">🖥️ <b>Voix du navigateur (Natural)</b> — voix neurales françaises <b>gratuites à vie</b>, incluses dans le navigateur, sans téléchargement ni clé. Voix par défaut.</p>
+    <p class="muted" style="margin-top:4px">🧊 <b>Voix Kokoro locales</b> — neurales <b>infinies à vie</b> (~50 Mo téléchargés une fois, marchent hors ligne) — pour <b>textes en ANGLAIS uniquement</b>, le modèle embarque des voix US/UK.</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="kokoro:ff_siwis" selected>🧊 Siwis — française, douce et réaliste (Kokoro)</option>
+      <option value="systeme" selected>🖥️ Voix du navigateur (Natural, française)</option>
       <option value="kokoro:af_heart">🧊 Heart — anglais US, féminine (qualité A)</option>
       <option value="kokoro:af_bella">🧊 Bella — anglais US, féminine expressive</option>
+      <option value="kokoro:af_nicole">🧊 Nicole — anglais US, féminine douce</option>
       <option value="kokoro:af_nova">🧊 Nova — anglais US, féminine claire</option>
       <option value="kokoro:af_sarah">🧊 Sarah — anglais US, féminine naturelle</option>
       <option value="kokoro:af_kore">🧊 Kore — anglais US, féminine posée</option>
@@ -646,10 +648,9 @@ select.wide-input{appearance:none}
     <p class="muted">Astra réfléchit avec <b>Pollinations GPT</b> — gratuit, sans clé API, comme ChatGPT. Un seul cerveau, zéro frais.</p>
 
     <h4 class="settings-title">🗣️ Voix réalistes</h4>
-    <p class="muted">Deux moteurs vocaux, du plus réaliste au plus accessible :</p>
-    <p class="muted" style="margin-top:4px">🧊 <b>Kokoro IA locale</b> — voix neurale FR <b>gratuite et infinie à vie</b>, tourne dans ton navigateur (téléchargée une fois ~50 Mo, marche même hors ligne)</p>
-    <p class="muted" style="margin-top:4px">🔊 <b>Google Translate</b> — secours gratuit, sans clé</p>
-    <p class="muted" style="margin-top:4px">🖥️ <b>Voix système</b> — dernier recours, hors ligne</p>
+    <p class="muted">Deux moteurs vocaux, du plus fiable au plus local :</p>
+    <p class="muted" style="margin-top:4px">🖥️ <b>Voix du navigateur (Natural)</b> — voix neurales françaises, <b>gratuites à vie</b>, rien à télécharger, aucune clé</p>
+    <p class="muted" style="margin-top:4px">🧊 <b>Kokoro IA locale</b> — voix neurales infinies à vie (~50 Mo une fois, marche hors ligne) — textes <b>anglais</b> uniquement</p>
 
     <h4 class="settings-title">🎮 Bonus</h4>
     <p class="muted">Jeux quand tu attends (devinette, quiz, chaîne de mots, pile ou face) · Réveil vocal « Hey Astra » · Mode continu non-stop · Historique des conversations · Bloc-notes · Calculatrice</p>
@@ -732,9 +733,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.66"></script>
+<script src="websearch.js?v=10.67"></script>
 <script>
 </script>
-<script src="app.js?v=10.66"></script>
+<script src="app.js?v=10.67"></script>
 </body>
 </html>
