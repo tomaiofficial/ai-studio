@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.67';
+const APP_VERSION = '10.68';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -138,7 +138,7 @@ let noteState = { open: false, content: '' };
    et le texte est copie dans le bloc-notes. */
 let writingMode = false;
 
-const DEFAULT_VOICE = 'systeme'; // v10.67 : voix Natural du navigateur par defaut (Kokoro n a pas de voix FR dans kokoro-js)
+const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // v10.68 : retour Voxtral (Mistral AI) — Paul, voix par défaut
 const SPEED = 1.0; // naturel
 
 /* ===== VOXTRAL TTS (Mistral AI) — VOIX PRINCIPALE =====
@@ -156,29 +156,6 @@ const VOXTRAL_FALLBACK_VOICES = [
   { id: 'e3596645-b1af-469e-b857-f18ddedc7652', name: 'Voxtral: Oliver (anglais UK, neutre)', lang: 'en' },
   { id: 'a3e41ea8-020b-44c0-8d8b-f6cc03524e31', name: 'Voxtral: Jane (anglais UK, sarcastique)', lang: 'en' },
 ];
-/* v10.67 : SEQUENCEUR DE VOIX KOKORO — voix 100% LOCALES gratuites a vie.
-   Important : kokoro-js n embarque AUCUNE voix française (liste officielle :
-   af_/am_/bf_/bm_ uniquement, anglais US/UK). Les voix Kokoro sont donc
-   proposees pour des textes ANGLAIS ; en français, la voix par defaut
-   reste la voix Natural du navigateur (reelle requis fr-FR). */
-const KOKORO_VOICE_LIST = [
-  { id: 'af_heart', n: 'Heart', d: 'anglais US, féminine (qualité A)' },
-  { id: 'af_bella', n: 'Bella', d: 'anglais US, féminine expressive' },
-  { id: 'af_nicole', n: 'Nicole', d: 'anglais US, féminine douce' },
-  { id: 'af_nova', n: 'Nova', d: 'anglais US, féminine claire' },
-  { id: 'af_sarah', n: 'Sarah', d: 'anglais US, féminine naturelle' },
-  { id: 'af_kore', n: 'Kore', d: 'anglais US, féminine posée' },
-  { id: 'am_michael', n: 'Michael', d: 'anglais US, masculin grave' },
-  { id: 'am_fenrir', n: 'Fenrir', d: 'anglais US, masculin profond' },
-  { id: 'am_puck', n: 'Puck', d: 'anglais US, masculin vif' },
-  { id: 'bf_emma', n: 'Emma', d: 'anglais UK, féminine chaleureuse' },
-  { id: 'bm_fable', n: 'Fable', d: 'anglais UK, masculin conteur' }
-];
-function kokoroVoiceName(id){
-  const v = KOKORO_VOICE_LIST.find(x => x.id === id);
-  return v ? ('Kokoro: ' + v.n) : 'Kokoro';
-}
-
 let voxtralVoicesCache = null;
 /* v10.65 : liste noire des voix Voxtral refusees par l'API
    (400 "voice is not supported for speech v1", code 3051). Une fois
@@ -922,15 +899,19 @@ function clearChat(){
 function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
-  /* v10.67 : les presets cloud (Voxtral/Gemini/ElevenLabs/GCloud/anciens
-     moteurs locaux SpeechT5/Edge/Piper) sont retires -> retour voix systeme */
+  /* v10.68 : retours aux anciens moteurs retires (Gemini/ElevenLabs/GCloud/
+     SpeechT5/Edge/Piper/Kokoro) -> retour voix Voxtral par defaut */
   if (v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')
       || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
-      || v.startsWith('voxtral:') || v.startsWith('system:')) return DEFAULT_VOICE;
-  /* v10.67 : 'systeme' = voix Natural du navigateur, valeur valide par defaut */
-  if (v === 'systeme') return DEFAULT_VOICE;
-  /* v10.67 : voix kokoro validees uniquement contre la liste qui marche */
-  if (v.startsWith('kokoro:') && !KOKORO_VOICE_LIST.some(k => 'kokoro:' + k.id === v)) return DEFAULT_VOICE;
+      || v.startsWith('kokoro:') || v.startsWith('system:') || v === 'systeme') return DEFAULT_VOICE;
+  /* v10.65 : voix Voxtral blacklistee (refusee par l API) -> retour defaut */
+  if (v.startsWith('voxtral:') && getVoxtralBadVoices().includes(v.substring(8))) return DEFAULT_VOICE;
+  /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
+     -> les vraies voix preset utilisent des UUID */
+  if (v.startsWith('voxtral:')){
+    const id = v.substring(8);
+    if (id === 'marie' || id === 'paul' || id === 'oliver') return DEFAULT_VOICE;
+  }
   return v;
 }
 
@@ -981,77 +962,6 @@ try {
   localStorage.removeItem('va_gemini_quota');
 } catch {}
 
-
-/* ===== v10.63 : KOKORO TTS LOCAL — moteur neurale DANS LE NAVIGATEUR ===== */
-/* Principes : modele Kokoro-82M (Apache 2.0, TTS frontiere pour 82M param)
-   tourne 100% local via kokoro-js (Transformers.js). Infini, a vie, aucun
-   serveur, aucune cle. Premier essai : telecharge ~50 Mo UNE fois puis en
-   cache navigateur (marche ensuite meme hors-ligne). Voix Francaise ff_siwis. */
-let kokoroTTS = null, kokoroLoading = false, kokoroReady = false, kokoroFailed = false;
-let kokoroVoice = 'af_heart';
-const KOKORO_CDNS = [
-  'https://esm.sh/kokoro-js@1.2.1',
-  'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'
-];
-async function loadKokoro(){
-  if (kokoroLoading || kokoroReady) return;
-  kokoroLoading = true;
-  setStatus('Je telecharge ma voix neurale locale (une fois, ~50 Mo)...');
-  for (const url of KOKORO_CDNS){
-    try {
-      const mod = await import(url);
-      const { KokoroTTS } = mod;
-      const device = navigator.gpu ? 'webgpu' : 'wasm';
-      kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-        device,
-        dtype: device === 'webgpu' ? 'fp32' : 'q8',
-        progress_callback: (p) => {
-          if (p && p.status === 'progress' && typeof p.progress === 'number'){
-            if (Math.round(p.progress) % 25 === 0) setStatus('Telechargement de ma voix locale... ' + Math.round(p.progress) + '%');
-            console.log('[KOKORO] ' + (p.file || '') + ' ' + Math.round(p.progress) + '%');
-          }
-        }
-      });
-      if (typeof kokoroTTS.list_voices === 'function'){
-        try {
-          const vs = kokoroTTS.list_voices();
-          if (Array.isArray(vs) && vs.length){
-            const usv = vs.find(v => String(v.name || v).startsWith('af_'));
-            if (usv) kokoroVoice = (usv.name || usv);
-          }
-        } catch {}
-      }
-      kokoroReady = true;
-      console.log('[KOKORO] pret — voix locale ' + kokoroVoice + ' (' + device + ')');
-      toast('Voix neurale locale prete ✓ (Kokoro, infinie a vie)');
-      break;
-    } catch(e){
-      console.warn('[KOKORO] echec via ' + url + ':', e && (e.message || e));
-    }
-  }
-  if (!kokoroReady) { kokoroFailed = true; setStatus('Voix locale indisponible — secours systeme'); }
-  kokoroLoading = false;
-}
-async function speakKokoro(text, onChunk, voiceOverride){
-  if (!kokoroReady) { if (kokoroLoading) { console.warn('[KOKORO] en cours de chargement'); return false; } return false; }
-  const useVoice = (typeof voiceOverride === 'string' && voiceOverride) ? voiceOverride : kokoroVoice;
-  let okAn = false;
-  try {
-    const chunks = splitSentences(text, 200);
-    for (const c of chunks){
-      try {
-        const audio = await kokoroTTS.generate(c, { voice: useVoice });
-        if (onChunk) onChunk(c);
-        if (!audio || typeof audio.toBlob !== 'function'){ console.warn('[KOKORO] pas de toBlob'); continue; }
-        const blob = audio.toBlob();
-        const p = await playAudioBlob(blob);
-        if (!p) return okAn;
-        okAn = true;
-      } catch(e){ console.warn('[KOKORO] chunk:', e && e.message); }
-    }
-    return okAn;
-  } catch(e){ console.warn('[KOKORO] erreur:', e && e.message); return okAn; }
-}
 
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
@@ -3169,28 +3079,36 @@ function splitSentences(text, max){
     }
   return final.length ? final : [text];
 }
-/* Remplit le sélecteur de voix — v10.66 : UNiquement les voix Kokoro
-   (modele local 100% gratuit qui fonctionne vraiment). Aucun preset cloud. */
-function populateVoices(){
+/* Remplit le sélecteur de voix — v10.68 : voix Voxtral (Mistral AI) :
+   presets officiels (UUID) + liste dynamique / v1/audio/voices. */
+async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
-  /* v10.66 : on vide et on reconstruit — les presets Voxtral/particuliers
-     des versions precedentes disparaissent totalement du selecteur */
   Array.from(ttsVoiceSel.options).forEach(o => { o.remove(); });
-  const grpNav = document.createElement('optgroup'); grpNav.label = ' voix gratuites a vie — pas de telechargement';
-  const optNav = document.createElement('option');
-  optNav.value = 'systeme';
-  optNav.textContent = '🖥️ Voix du navigateur (Natural, française)';
-  grpNav.appendChild(optNav);
-  ttsVoiceSel.appendChild(grpNav);
-  const grpKok = document.createElement('optgroup'); grpKok.label = '🧊 Kokoro — textes ANGLAIS (telecharge ~50 Mo une fois)';
-  KOKORO_VOICE_LIST.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = 'kokoro:' + v.id;
-    opt.textContent = '🧊 ' + v.n + ' — ' + v.d;
-    grpKok.appendChild(opt);
+  const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
+  /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 : vraies voix preset (UUID) */
+  const voices = await fetchVoxtralVoices();
+  const badVoicesDyn = getVoxtralBadVoices();
+  voices.forEach(v => {
+    const val = 'voxtral:' + v.id;
+    if (badVoicesDyn.includes(v.id)) return; /* v10.65 voix refusee : pas dans le selecteur */
+    if (!existingOptions.includes(val)){
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = '🎙️ ' + v.name;
+      ttsVoiceSel.appendChild(opt);
+    }
   });
-  ttsVoiceSel.appendChild(grpKok);
+  /* v10.65 : les voix refusees par l API disparaissent du selecteur */
+  const badVoices = getVoxtralBadVoices();
+  Array.from(ttsVoiceSel.children).forEach(c => {
+    if (c.tagName === 'OPTION' && (c.value || '').startsWith('voxtral:') && badVoices.includes(c.value.substring(8))) { c.disabled = true; c.hidden = true; }
+  });
+  /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
+     branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
+  Array.from(ttsVoiceSel.options).forEach(o => {
+    if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0) o.remove();
+  });
   /* re-selection de la voix memorisee si elle existe encore */
   const stored = getVoice();
   const found = Array.from(ttsVoiceSel.options).some(o => o.value === stored);
@@ -3402,24 +3320,23 @@ function speak(text, onChunk){
        (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
         v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (60s)'); fail(); }, 60000);
-    /* VOIX : v10.67 — par defaut la voix Natural du navigateur (fiable, 0s,
-       gratuite a vie). Kokoro (local, "~50 Mo") ne se declenche QUE si
-       l'utilisateur choisit explicitement une voix Kokoro (textes anglais). */
+    /* VOIX : v10.68 — retour Voxtral (Mistral AI) comme source principale.
+       La voix choisie dans le selecteur (voxtral:<uuid>) est FORCEE ;
+       secours Système puis Google Translate. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('kokoro:')) {
-      const kv = voiceMode.substring(7);
-      if (!kokoroReady && !kokoroLoading && !kokoroFailed) loadKokoro();
-      chain = [
-        [kokoroVoiceName(kv), (t) => speakKokoro(t, onChunk, kv)],
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
+    if (voiceMode.startsWith('voxtral:')) {
+      const voiceId = voiceMode.substring(8);
+      /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
+      chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
     } else {
-      chain = [
+      /* voix par defaut : Voxtral Paul premium si cle, sinon Système */
+      chain = [];
+      if (getMistralKey()) chain.push(['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)]);
+      chain.push(
         ['Système', (t) => speakSystem(t, null, onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
+      );
     }
     let i = 0;
     const next = () => {

@@ -578,23 +578,13 @@ select.wide-input{appearance:none}
     <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🖥️ <b>Voix du navigateur (Natural)</b> — voix neurales françaises <b>gratuites à vie</b>, incluses dans le navigateur, sans téléchargement ni clé. Voix par défaut.</p>
-    <p class="muted" style="margin-top:4px">🧊 <b>Voix Kokoro locales</b> — neurales <b>infinies à vie</b> (~50 Mo téléchargés une fois, marchent hors ligne) — pour <b>textes en ANGLAIS uniquement</b>, le modèle embarque des voix US/UK.</p>
+    <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium réalistes, gratuite avec une clé API Mistral (gratuite sur console.mistral.ai). Secours automatiques : voix du navigateur et Google Translate (gratuits, sans clé).</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="systeme" selected>🖥️ Voix du navigateur (Natural, française)</option>
-      <option value="kokoro:af_heart">🧊 Heart — anglais US, féminine (qualité A)</option>
-      <option value="kokoro:af_bella">🧊 Bella — anglais US, féminine expressive</option>
-      <option value="kokoro:af_nicole">🧊 Nicole — anglais US, féminine douce</option>
-      <option value="kokoro:af_nova">🧊 Nova — anglais US, féminine claire</option>
-      <option value="kokoro:af_sarah">🧊 Sarah — anglais US, féminine naturelle</option>
-      <option value="kokoro:af_kore">🧊 Kore — anglais US, féminine posée</option>
-      <option value="kokoro:am_michael">🧊 Michael — anglais US, masculin grave</option>
-      <option value="kokoro:am_fenrir">🧊 Fenrir — anglais US, masculin profond</option>
-      <option value="kokoro:am_puck">🧊 Puck — anglais US, masculin vif</option>
-      <option value="kokoro:bf_emma">🧊 Emma — anglais UK, féminine chaleureuse</option>
-      <option value="kokoro:bm_fable">🧊 Fable — anglais UK, masculin conteur</option>
+      <option value="voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8" selected>🎙️ Voxtral: Paul (anglais US, neutre)</option>
+      <option value="voxtral:e3596645-b1af-469e-b857-f18ddedc7652">🎙️ Voxtral: Oliver (anglais UK, neutre)</option>
+      <option value="voxtral:a3e41ea8-020b-44c0-8d8b-f6cc03524e31">🎙️ Voxtral: Jane (anglais UK, sarcastique)</option>
     </select>
-    <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> — utilisée pour la <b>transcription vocale</b> de tes questions sur mobile (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
+    <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> — requise pour les <b>voix Voxtral</b> et la <b>transcription vocale</b> sur mobile (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
     <button class="primary" id="saveMistralKey" style="margin-top:6px">💾 Enregistrer la clé</button>
     <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
@@ -648,9 +638,10 @@ select.wide-input{appearance:none}
     <p class="muted">Astra réfléchit avec <b>Pollinations GPT</b> — gratuit, sans clé API, comme ChatGPT. Un seul cerveau, zéro frais.</p>
 
     <h4 class="settings-title">🗣️ Voix réalistes</h4>
-    <p class="muted">Deux moteurs vocaux, du plus fiable au plus local :</p>
-    <p class="muted" style="margin-top:4px">🖥️ <b>Voix du navigateur (Natural)</b> — voix neurales françaises, <b>gratuites à vie</b>, rien à télécharger, aucune clé</p>
-    <p class="muted" style="margin-top:4px">🧊 <b>Kokoro IA locale</b> — voix neurales infinies à vie (~50 Mo une fois, marche hors ligne) — textes <b>anglais</b> uniquement</p>
+    <p class="muted">Deux moteurs vocaux, du plus premium au plus accessible :</p>
+    <p class="muted" style="margin-top:4px">🎙️ <b>Voxtral (Mistral AI)</b> — voix IA premium, gratuite avec une clé Mistral</p>
+    <p class="muted" style="margin-top:4px">🔊 <b>Google Translate</b> — secours gratuit, sans clé</p>
+    <p class="muted" style="margin-top:4px">🖥️ <b>Voix système (Natural)</b> — dernier recours, hors ligne</p>
 
     <h4 class="settings-title">🎮 Bonus</h4>
     <p class="muted">Jeux quand tu attends (devinette, quiz, chaîne de mots, pile ou face) · Réveil vocal « Hey Astra » · Mode continu non-stop · Historique des conversations · Bloc-notes · Calculatrice</p>
@@ -733,9 +724,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.67"></script>
+<script src="websearch.js?v=10.68"></script>
 <script>
 </script>
-<script src="app.js?v=10.67"></script>
+<script src="app.js?v=10.68"></script>
 </body>
 </html>
