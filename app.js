@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.47';
+const APP_VERSION = '10.48';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1225,6 +1225,19 @@ async function startRecorder(){
   if (isSpeaking) return;
   recorderBusy = true;
   warmUpBrain();
+  /* v10.48 : diagnostic permission — si Chrome a refuse le micro sur ce domaine,
+     tous les moteurs restent en attente sans jamais rien dire -> on le dit tout de suite. */
+  try {
+    if (navigator.permissions && navigator.permissions.query){
+      const p = await navigator.permissions.query({ name: 'microphone' });
+      if (p && p.state === 'denied'){
+        recorderBusy = false;
+        setState('idle');
+        setStatus('Micro bloque - clic sur l icone cadenas de la barre d adresse -> Autoriser le micro');
+        return;
+      }
+    }
+  } catch {}
   try {
     setState('listening');
     setStatus('Parle maintenant...');
@@ -1236,7 +1249,16 @@ async function startRecorder(){
     if (stt.isSupported()){
       let txt = '';
       let sttFailed = false;
-      try { txt = await stt.listen(); }
+      try {
+        /* v10.48 : filet anti-blocage — si la reconnaissance ne repond JAMAIS
+           (permission en attente, bug moteur sur ce domaine), on force la fin
+           apres 12 s et on part dans l'enregistrement de secours. */
+        txt = await Promise.race([
+          stt.listen(),
+          new Promise(res => setTimeout(() => res('__STT_TIMEOUT__'), 12000))
+        ]);
+        if (txt === '__STT_TIMEOUT__'){ sttFailed = true; console.warn('[STT] Aucune reponse 12s -> fallback enregistrement'); stt.stop(); txt = ''; }
+      }
       catch(e){ sttFailed = true; console.warn('[STT] echec -> fallback enregistrement:', e && e.message); }
       recorderBusy = false;
       if (txt && txt.trim().length >= 2){
