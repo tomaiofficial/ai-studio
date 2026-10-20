@@ -883,6 +883,8 @@ function getVoice(){
       || v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')) return DEFAULT_VOICE;
   /* v10.43 : les voix Google IA (Gemini) sont retirées -> retour défaut */
   if (v.startsWith('gemini:')) return DEFAULT_VOICE;
+  /* v10.60 : ElevenLabs retire de l'app -> retour Voxtral */
+  if (v.startsWith('eleven:')) return DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -939,128 +941,6 @@ try {
   localStorage.removeItem('va_gemini_quota');
 } catch {}
 
-/* v10.42 : ELEVENLABS — LA voix IA la plus réaliste (francais parfait,
-   qualite >= Gemini), CORS ouvert, appel direct du navigateur.
-   Compteur gratuit : 10 000 caracteres / mois (a vie, pas 10/jour).
-   4 voix preset stables (API/open-source, IDs publics permanents). */
-const ELEVEN_LS = 'va_eleven_key';
-const ELEVEN_VOICES = [
-  { id: '21m00Tcm4TlvDq8ikWAM', n: 'Rachel' },
-  { id: 'EXAVITQu4vr4xnSDxMaL', n: 'Sarah' },
-  { id: 'Xb7hH8MSUJpSbSDYk0k2', n: 'Alice' },
-  { id: 'AZnzlk1XvdvUeBnXmlld', n: 'Domi' }
-];
-function getElevenKey(){ try { return (localStorage.getItem(ELEVEN_LS) || '').trim(); } catch { return ''; } }
-/* v10.44 : VOIX A ACCENT FRANÇAIS NATIF — on interroge l'API avec la clé et
-   on garde UNIQUEMENT les voix dont le français est VERIFIE (accent natif,
-   pas les voix anglophones qui parlent français avec un accent). Cache 24h.
-   Si rien trouvé, repli sur les 4 voix multilingues de base. */
-const ELEVEN_VOICES_LS = 'va_eleven_voices';
-let ELEVEN_ACTIVE_LIST = ELEVEN_VOICES;
-async function fetchElevenVoices(){
-  if (!getElevenKey()){ ELEVEN_ACTIVE_LIST = ELEVEN_VOICES; return ELEVEN_ACTIVE_LIST; }
-  try {
-    const cache = JSON.parse(localStorage.getItem(ELEVEN_VOICES_LS) || 'null');
-    if (cache && cache.d === new Date().toDateString() && cache.list && cache.list.length){ ELEVEN_ACTIVE_LIST = cache.list; return cache.list; }
-    const r = await fetch('https://api.elevenlabs.io/v1/voices', { headers: { 'xi-api-key': getElevenKey() } });
-    if (r.ok){
-      const data = await r.json();
-      const fr = (data.voices || [])
-        .filter(v => (v.verified_languages || []).some(l => l.language === 'fr'))
-        .map(v => {
-          const f = (v.verified_languages || []).find(l => l.language === 'fr') || {};
-          return { id: v.voice_id, n: (v.name || 'Voix').replace(/ -.*$/, ''), a: (f.accent || 'standard') };
-        });
-      if (fr.length){
-        ELEVEN_ACTIVE_LIST = fr;
-        try { localStorage.setItem(ELEVEN_VOICES_LS, JSON.stringify({ d: new Date().toDateString(), list: fr })); } catch {}
-        return fr;
-      }
-    }
-  } catch {}
-  return ELEVEN_VOICES;
-}
-const elevenKeyInput = $('elevenKey'), saveElevenKeyBtn = $('saveElevenKey');
-if (elevenKeyInput) elevenKeyInput.value = getElevenKey();
-if (saveElevenKeyBtn) saveElevenKeyBtn.addEventListener('click', () => {
-  localStorage.setItem(ELEVEN_LS, (elevenKeyInput.value || '').trim());
-  populateVoices();
-  toast('Clé ElevenLabs enregistrée ✓ — 4 voix IA ultra-réalistes activées (Rachel, Sarah, Alice, Domi)');
-});
-/* v10.59 : gestion du QUOTA ElevenLabs — on connait le solde de caracteres
-   (GET /v1/user/subscription, cache 10 min). Si le quota est epuise ou si le
-   texte depasse le solde, on saute ce moteur SANS gaspiller les credits
-   restants : les autres moteurs gratuits prennent la relais tout seuls. */
-let elevenQuotaLeft = null, elevenQuotaCheckedAt = 0;
-async function elevenQuota(){
-  const key = getElevenKey();
-  if (!key) return null;
-  if (elevenQuotaCheckedAt && Date.now() - elevenQuotaCheckedAt < 600000) return elevenQuotaLeft;
-  elevenQuotaCheckedAt = Date.now();
-  try {
-    const r = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': key } });
-    if (r.ok){
-      const j = await r.json();
-      elevenQuotaLeft = Math.max(0, (j.character_limit || 0) - (j.character_count || 0));
-      return elevenQuotaLeft;
-    }
-  } catch {}
-  return elevenQuotaLeft;
-}
-async function speakEleven(text, voiceId, onChunk){
-  const key = getElevenKey();
-  if (!key){ console.warn('[ELEVEN] Pas de clé ElevenLabs — ajoute-la dans Réglages'); return false; }
-  try {
-    const restant = await elevenQuota();
-    if (restant === 0){
-      console.warn('[ELEVEN] Quota vide — bascule autre moteur');
-      setStatus('Quota ElevenLabs epuise — voix gratuite automatique');
-      return false;
-    }
-    if (restant != null && restant < text.length + 100){
-      console.warn('[ELEVEN] Solde (' + restant + ') insuffisant pour ce texte (' + text.length + ') — bascule autre moteur');
-      setStatus('Plus assez de credits ElevenLabs pour ce texte — voix gratuite automatique');
-      return false;
-    }
-    const chunks = splitSentences(text, 1500);
-    const call = async (chunk) => {
-      for (let attempt = 0; attempt < 2; attempt++){
-        try {
-          const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voiceId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-            body: JSON.stringify({ text: chunk, model_id: 'eleven_multilingual_v2' }),
-            signal: abortSignal(20000)
-          });
-          if (!r.ok){
-            const et = (await r.text().catch(() => '')).slice(0, 150);
-            console.warn('[ELEVEN] HTTP', r.status, et);
-            if (/quota_exceeded|"code":"quota|exceeds your quota/i.test(et)){
-              elevenQuotaLeft = 0;
-              setStatus('Quota ElevenLabs epuise — voix gratuite automatique');
-              return null;
-            }
-            if (r.status === 429){ await new Promise(res2 => setTimeout(res2, 3000)); continue; }
-            return null;
-          }
-          const ct = (r.headers.get('content-type') || '');
-          if (!ct.includes('audio')) return null;
-          return await r.blob();
-        } catch(e){ if (attempt === 1) { console.warn('[ELEVEN] chunk echec:', e && e.message); return null; } await new Promise(res2 => setTimeout(res2, 2000)); }
-      }
-      return null;
-    };
-    const results = await Promise.all(chunks.map(call));
-    if (!results.some(Boolean)){ console.warn('[ELEVEN] Tous chunks bloqués'); return false; }
-    for (let i = 0; i < results.length; i++){
-      if (!results[i]) continue;
-      if (onChunk) onChunk(chunks[i]);
-      const ok = await playAudioBlob(results[i]);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){ console.warn('[ELEVEN] Échec:', e && e.message); return false; }
-}
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
 const textInput = $('textInput'), sendBtn = $('sendBtn');
@@ -3199,20 +3079,7 @@ async function populateVoices(){
   Array.from(ttsVoiceSel.children).forEach(c => {
     if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs/.test(c.label || '')) c.remove();
   });
-  /* v10.42 : ELEVENLABS — activées dès qu'une clé est enregistrée */
-  /* v10.44 : liste dynamique = voix au français VERIFIÉ (accent natif) */
-  const hasElevenKey = getElevenKey();
-  const elevenList = await fetchElevenVoices();
-  const elevenGroup = document.createElement('optgroup');
-  elevenGroup.label = hasElevenKey ? '⭐ ElevenLabs IA (français natif vérifié)' : '⭐ ElevenLabs IA — colle ta clé dans Réglages';
-  elevenList.forEach(v => {
-    const o = document.createElement('option');
-    o.value = 'eleven:' + v.id;
-    o.textContent = '⭐ ElevenLabs: ' + v.n + ' — accent ' + (v.a || 'standard français') + (hasElevenKey ? '' : ' (clé requise)');
-    if (!hasElevenKey) o.disabled = true;
-    elevenGroup.appendChild(o);
-  });
-  ttsVoiceSel.appendChild(elevenGroup);
+  /* v10.60 : ElevenLabs retire de l'app — plus de groupe dans la liste */
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la synthèse vocale du
      navigateur est la moins belle qualité et l'utilisateur préfère les voix
      Google IA / Voxtral. La lecture système reste branchée UNIQUEMENT comme
@@ -3431,17 +3298,6 @@ function speak(text, onChunk){
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
-    } else if (voiceMode.startsWith('eleven:')) {
-      const ev = voiceMode.substring(7);
-      const evName = (ELEVEN_ACTIVE_LIST.find(v => v.id === ev) || {}).n || ev.slice(0, 6);
-      /* v10.43 : Gemini retiré — ElevenLabs (la + réaliste) puis Voxtral IA
-         (sans quota journalier) puis Google Translate puis Système */
-      chain = [
-        ['ElevenLabs: ' + evName, (t) => speakEleven(t, ev, onChunk)],
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)]
-      ];
     } else {
       /* voix par défaut : Voxtral IA puis Système puis Google Translate */
       chain = [
