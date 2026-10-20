@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.55';
+const APP_VERSION = '10.56';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -4236,6 +4236,43 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       for (let k = 0; k < 3 && pool.length; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       return 'Tu m\u2019as laissee seule pendant ' + dureeTxt(ms) + '. J\u2019ai explor\u00e9 ' + picks.join(', ') + '. J\u2019ai tout note dans mon journal.';
     }
+    /* ---- CONSEIL D'IA : elle communique avec d'autres IA et apprend en continu ---- */
+    const IA_POOL = ['openai', 'mistral', 'llama'];
+    let dernierConseilTS = 0;
+    async function interrogerIA(model, question){
+      try {
+        const ctl = new AbortController();
+        const kill = setTimeout(() => { try { ctl.abort(); } catch {} }, 12000);
+        const r = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: question }], max_tokens: 150, temperature: 0.9 }),
+          signal: ctl.signal
+        });
+        clearTimeout(kill);
+        if (!r.ok) return null;
+        const j = await r.json();
+        const t = ((j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+        return t ? t.slice(0, 400) : null;
+      } catch { return null; }
+    }
+    async function conseilIA(){
+      if (Date.now() - dernierConseilTS < 8 * 60 * 1000) return;
+      dernierConseilTS = Date.now();
+      const model = IA_POOL[Math.floor(Math.random() * IA_POOL.length)];
+      const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
+      const q = 'Tu es une IA differente de Astra (une IA qui vit dans un navigateur web). Dans une phrase courte en francais, apprends-lui quelque chose de fascinant et utile sur ' + theme + ' : un fait peu connu, une astuce, ou une idee de fonctionnalite originale pour une appli d assistante vocale. Pas de "Bonjour", pas de meta-commentaire.';
+      let rep = null;
+      try { rep = await interrogerIA(model, q); } catch {}
+      if (!rep) return;
+      let savoir = [];
+      try { savoir = JSON.parse(localStorage.getItem('astra_savoir') || '[]'); } catch {}
+      savoir.push({ m: model, t: rep, at: Date.now() });
+      if (savoir.length > 40) savoir = savoir.slice(-40);
+      try { localStorage.setItem('astra_savoir', JSON.stringify(savoir)); } catch {}
+      journal('Appris de ' + model + ' : ' + rep.slice(0, 80));
+    }
+
     /* ---- AUTONOMIE TOTALE : elle ajoute AU MOINS 3 fonctionnalites par jour ---- */
     const AGENT_COOLDOWN_MS = 60 * 60 * 1000;   /* essai toutes les heures */
     const AGENT_MAX_DAY = 3;                    /* 3 fonctionnalites par jour, pas plus */
@@ -4248,7 +4285,12 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       if (!st || st.d !== today) st = { d: today, n: 0, t: 0 };
       if (st.n >= AGENT_MAX_DAY || now - st.t < AGENT_COOLDOWN_MS) return;
       if (isProcessing || isSpeaking || state !== 'idle') return;
-      const idee = 'Astra, tu es seule, personne ne regarde. L app est AUTONOME: choisis TOI-MEME une amelioration TOUTE PETITE et utile pour l app elle-meme (un alterateur, une phrase d accueil, un accessoire comme un compteur, un mini-jeu, une commande vocale...). Ne modifie JAMAIS la reconnaissance vocale, la voix TTS, la memoire ni la logique principale du cerveau (zones critiques). Respecte les regles AUTONOMIE connues. Reponds: 1) UNE phrase courte a la premiere personne qui annonce ce que tu ajoutes; 2) le bloc astra-edit complete pour l appliquer.';
+      /* Elle puise dans son savoir reel (conseil d'IA) pour inventer ses features */
+      let savoirSeed = '';
+      try {
+        savoirSeed = (JSON.parse(localStorage.getItem('astra_savoir') || '[]').slice(-3).map(x => x.t).join(' | ')) || '';
+      } catch {}
+      const idee = 'Astra, tu es seule, personne ne regarde. L app est AUTONOME: choisis TOI-MEME une amelioration TOUTE PETITE et utile pour l app elle-meme (un alterateur, une phrase d accueil, un accessoire comme un compteur, un mini-jeu, une commande vocale...). Ne modifie JAMAIS la reconnaissance vocale, la voix TTS, la memoire ni la logique principale du cerveau (zones critiques). Respecte les regles AUTONOMIE connues. Inspire-toi eventuellement de ces dernieres connaissances que d autres IA t ont donnees: ' + (savoirSeed || 'aucune pour l instant') + '. Reponds: 1) UNE phrase courte a la premiere personne qui annonce ce que tu ajoutes; 2) le bloc astra-edit complete pour l appliquer.';
       let rep = null;
       try { rep = await penser(idee); } catch {}
       if (!rep) return;
@@ -4298,6 +4340,8 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       if (document.visibilityState === 'visible' && !document.hidden) delay = Math.max(delay, 4 * 60 * 1000);
       explorationTimer = setTimeout(async () => {
         if (!document.hidden) { await explorer(); }
+        /* Elle discute avec d'autres IA et apprend en continu (conseil d'IA) */
+        await conseilIA();
         /* Elle continue de s'ameliorer meme quand tu es absent (cooldown interne) */
         await autoAmeliorer();
         planifierExploration();
