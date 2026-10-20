@@ -550,6 +550,28 @@ select.wide-input{appearance:none}
   </div>
 </div>
 
+<!-- MODAL AUTONOMIE : avertit que Astra se modifie et se deploie toute seule -->
+<div id="autoModal" class="modal hidden">
+  <div class="modal-card" style="max-width:560px;border:1px solid rgba(255,193,7,.35);box-shadow:0 0 40px rgba(255,193,7,.15);">
+    <h3 style="font-size:22px;margin-bottom:12px;">⚠️ Astra est maintenant <span style="color:#ffc107;">autonome</span> 🤖</h3>
+    <p style="font-size:13px;color:#cfd2e0;margin-bottom:10px;">À partir de ce jour, <b>Astra peut modifier son propre code et se redéployer toute seule</b>. Voici exactement ce que ça signifie :</p>
+    <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:12px;padding:12px;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛠️ Elle s'améliore pendant ton absence</div>
+      <div style="font-size:12px;color:#9a9ab5;">Quand tu ne fais rien ou es parti, elle explore le web, tient son journal, <b>et ajoute des fonctionnalités à cette appli elle-même</b>. Limite de sécurité : maximum 1 déploiement par heure et 6 par jour, jamais de modifications sur les fonctions vitales (micro, voix, cerveau, mémoire).</div>
+    </div>
+    <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.25);border-radius:12px;padding:12px;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">💬 Tu peux simplement lui demander</div>
+      <div style="font-size:12px;color:#9a9ab5;">Dis-lui par exemple « ajoute un bouton de blague du jour ». Elle écrit le code elle-même, l'applique, le déploie automatiquement et te confirme la modification à voix haute. <b>Recharge la page</b> quelques minutes après pour voir la nouveauté.</div>
+    </div>
+    <div style="background:rgba(0,220,130,.07);border:1px solid rgba(0,220,130,.25);border-radius:12px;padding:12px;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛡️ Tu restes en sécurité</div>
+      <div style="font-size:12px;color:#9a9ab5;">Chaque modification passe par des garde-fous : extrait de code exact et unique, sauvegarde locale avant déploiement, et si une modification casse la page, GitHub refuse le déploiement et <b>l'ancienne version reste en ligne</b>. Tu peux lui dire « annule ta dernière modification » à tout moment.</div>
+    </div>
+    <p style="font-size:11px;color:#6b6d80;margin-bottom:14px;">Le redéploiement prend quelques minutes (GitHub Pages) — tu verras un message de confirmation.</p>
+    <button class="primary" id="autoModalOk" style="width:100%;">⚠️ J'ai compris — masquer</button>
+  </div>
+</div>
+
 <!-- MODAL RÉGLAGES -->
 <div id="settingsModal" class="modal hidden">
   <div class="modal-card">
@@ -692,9 +714,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.52"></script>
+<script src="websearch.js?v=10.53"></script>
 <script>
 </script>
-<script src="app.js?v=10.52"></script>
+<script src="app.js?v=10.53"></script>
 </body>
 </html>

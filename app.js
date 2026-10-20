@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.52';
+const APP_VERSION = '10.53';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -759,6 +759,16 @@ if (historyBtn) historyBtn.addEventListener('click', () => { renderHistory(); hi
 if (closeHistory) closeHistory.addEventListener('click', () => historyModal.classList.add('hidden'));
 if (aboutBtn) aboutBtn.addEventListener('click', () => { const av = $('aboutVersion'); if (av) av.textContent = 'Version ' + APP_VERSION; aboutModal.classList.remove('hidden'); });
 if (closeAbout) closeAbout.addEventListener('click', () => aboutModal.classList.add('hidden'));
+/* v10.53 : MODAL AUTONOMIE au lancement (une fois par navigateur) */
+const autoModal = $('autoModal'), autoModalOk = $('autoModalOk');
+function showAutoModal(){ if (autoModal) autoModal.classList.remove('hidden'); }
+let autoSeen = false;
+try { autoSeen = localStorage.getItem('astra_auto_seen') === '1'; } catch {}
+if (!autoSeen) showAutoModal();
+if (autoModalOk) autoModalOk.addEventListener('click', () => {
+  try { localStorage.setItem('astra_auto_seen', '1'); } catch {}
+  if (autoModal) autoModal.classList.add('hidden');
+});
 if (historyModal) historyModal.addEventListener('click', e => { if (e.target === historyModal) historyModal.classList.add('hidden'); });
 if (newConvBtn) newConvBtn.addEventListener('click', () => { newConversation(); historyModal.classList.add('hidden'); });
 if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', () => {
