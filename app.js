@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.61';
+const APP_VERSION = '10.62';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -3189,13 +3189,17 @@ function speakSystem(text, specificVoiceName, onChunk){
           u.pitch = 1.0;
           const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
           let pick = null;
+          /* v10.62 : on choisit TOUJOURS la meilleure voix — les voix
+             Microsoft "Natural / Online" sont des vox neurales gratuites a vie
+             incluses gratuitement dans le navigateur (quasi-realistes).
+             Priorite : Natural/Online > Neural/Premium > Denise/Amelie > autre FR */
+          const naturalVoice = fr.find(v => /natural|online/i.test(v.name))
+            || fr.find(v => /premium|enhanced/i.test(v.name))
+            || fr.find(v => /denise|neural/i.test(v.name));
           if (specificVoiceName){
-            pick = fr.find(v => v.name === specificVoiceName) || fr[0] || voices[0];
+            pick = naturalVoice || fr.find(v => v.name === specificVoiceName) || fr[0] || voices[0];
           } else {
-            const mode = getVoice();
-            pick = (mode === 'systeme')
-              ? (fr.find(v => /amelie|amélie/i.test(v.name)) || fr.find(v => /denise/i.test(v.name)) || fr[0] || voices[0])
-              : (fr.find(v => /denise/i.test(v.name)) || fr.find(v => /natural|neural/i.test(v.name)) || fr[0] || voices[0]);
+            pick = naturalVoice || fr[0] || voices[0];
           }
           if (pick) u.voice = pick;
           u.onend = () => { hasSpoken = true; speakNext(); };
