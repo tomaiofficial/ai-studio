@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.62';
+const APP_VERSION = '10.63';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1004,6 +1004,64 @@ async function speakGCloud(text, voiceName, onChunk){
     }
     return true;
   } catch(e){ console.warn('[GCLOUD] échec:', e && e.message); return false; }
+}
+
+/* ===== v10.63 : KOKORO TTS LOCAL — moteur neurale DANS LE NAVIGATEUR ===== */
+/* Principes : modele Kokoro-82M (Apache 2.0, TTS frontiere pour 82M param)
+   tourne 100% local via kokoro-js (Transformers.js). Infini, a vie, aucun
+   serveur, aucune cle. Premier essai : telecharge ~50 Mo UNE fois puis en
+   cache navigateur (marche ensuite meme hors-ligne). Voix Francaise ff_siwis. */
+let kokoroTTS = null, kokoroLoading = false, kokoroReady = false, kokoroFailed = false;
+let kokoroVoice = 'ff_siwis';
+async function loadKokoro(){
+  if (kokoroLoading || kokoroReady) return;
+  kokoroLoading = true;
+  setStatus('Je telecharge ma voix premium locale (une fois, ~50 Mo)...');
+  try {
+    let mod = null;
+    try { mod = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm'); }
+    catch { mod = await import('https://esm.sh/kokoro-js@1.2.1'); }
+    const { KokoroTTS } = mod;
+    const device = navigator.gpu ? 'webgpu' : 'wasm';
+    kokoroTTS = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+      device,
+      dtype: device === 'webgpu' ? 'fp32' : 'q8',
+      progress_callback: (p) => { if (p && p.status === 'progress' && p.progress) console.log('[KOKORO] ' + (p.file || '') + ' ' + Math.round(p.progress) + '%'); }
+    });
+    if (typeof kokoroTTS.list_voices === 'function'){
+      const vs = kokoroTTS.list_voices();
+      if (vs && vs.length){
+        const frv = vs.find(v => String(v).startsWith('ff_'));
+        if (frv) kokoroVoice = frv;
+      }
+    }
+    kokoroReady = true;
+    console.log('[KOKORO] pret — voix locale ' + kokoroVoice + ' (' + device + ')');
+    toast('Voix premium locale prete ✓');
+  } catch(e){
+    kokoroFailed = true;
+    console.warn('[KOKORO] chargement echoue:', e && e.message);
+  }
+  kokoroLoading = false;
+}
+async function speakKokoro(text, onChunk){
+  if (!kokoroReady) { if (kokoroLoading) { console.warn('[KOKORO] en cours de chargement'); return false; } return false; }
+  let okAn = false;
+  try {
+    const chunks = splitSentences(text, 200);
+    for (const c of chunks){
+      try {
+        const audio = await kokoroTTS.generate(c, { voice: kokoroVoice });
+        if (onChunk) onChunk(c);
+        if (!audio || typeof audio.toBlob !== 'function'){ console.warn('[KOKORO] pas de toBlob'); continue; }
+        const blob = audio.toBlob();
+        const p = await playAudioBlob(blob);
+        if (!p) return okAn;
+        okAn = true;
+      } catch(e){ console.warn('[KOKORO] chunk:', e && e.message); }
+    }
+    return okAn;
+  } catch(e){ console.warn('[KOKORO] erreur:', e && e.message); return okAn; }
 }
 
 
@@ -3393,16 +3451,21 @@ function speak(text, onChunk){
       chain = [
         ['Google Cloud: Denise', (t) => speakGCloud(t, 'fr-FR-DeniseNeural', onChunk)],
         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Kokoro', (t) => speakKokoro(t, onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)]
       ];
     } else {
-      /* voix par défaut : Voxtral IA puis Système puis Google Translate */
-      chain = [
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+      /* v10.63 : voix par defaut — Voxtral premium si cle, sinon Kokoro local
+         (importe le modele au premier appel, gratuit et infini a vie) */
+      if (!kokoroReady && !kokoroLoading && !kokoroFailed) loadKokoro();
+      chain = [];
+      if (getMistralKey()) chain.push(['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)]);
+      chain.push(
+        ['Kokoro', (t) => speakKokoro(t, onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
+      );
     }
     let i = 0;
     const next = () => {
