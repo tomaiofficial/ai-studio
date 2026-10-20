@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.58';
+const APP_VERSION = '10.59';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -987,10 +987,41 @@ if (saveElevenKeyBtn) saveElevenKeyBtn.addEventListener('click', () => {
   populateVoices();
   toast('Clé ElevenLabs enregistrée ✓ — 4 voix IA ultra-réalistes activées (Rachel, Sarah, Alice, Domi)');
 });
+/* v10.59 : gestion du QUOTA ElevenLabs — on connait le solde de caracteres
+   (GET /v1/user/subscription, cache 10 min). Si le quota est epuise ou si le
+   texte depasse le solde, on saute ce moteur SANS gaspiller les credits
+   restants : les autres moteurs gratuits prennent la relais tout seuls. */
+let elevenQuotaLeft = null, elevenQuotaCheckedAt = 0;
+async function elevenQuota(){
+  const key = getElevenKey();
+  if (!key) return null;
+  if (elevenQuotaCheckedAt && Date.now() - elevenQuotaCheckedAt < 600000) return elevenQuotaLeft;
+  elevenQuotaCheckedAt = Date.now();
+  try {
+    const r = await fetch('https://api.elevenlabs.io/v1/user/subscription', { headers: { 'xi-api-key': key } });
+    if (r.ok){
+      const j = await r.json();
+      elevenQuotaLeft = Math.max(0, (j.character_limit || 0) - (j.character_count || 0));
+      return elevenQuotaLeft;
+    }
+  } catch {}
+  return elevenQuotaLeft;
+}
 async function speakEleven(text, voiceId, onChunk){
   const key = getElevenKey();
   if (!key){ console.warn('[ELEVEN] Pas de clé ElevenLabs — ajoute-la dans Réglages'); return false; }
   try {
+    const restant = await elevenQuota();
+    if (restant === 0){
+      console.warn('[ELEVEN] Quota vide — bascule autre moteur');
+      setStatus('Quota ElevenLabs epuise — voix gratuite automatique');
+      return false;
+    }
+    if (restant != null && restant < text.length + 100){
+      console.warn('[ELEVEN] Solde (' + restant + ') insuffisant pour ce texte (' + text.length + ') — bascule autre moteur');
+      setStatus('Plus assez de credits ElevenLabs pour ce texte — voix gratuite automatique');
+      return false;
+    }
     const chunks = splitSentences(text, 1500);
     const call = async (chunk) => {
       for (let attempt = 0; attempt < 2; attempt++){
@@ -1002,7 +1033,13 @@ async function speakEleven(text, voiceId, onChunk){
             signal: abortSignal(20000)
           });
           if (!r.ok){
-            console.warn('[ELEVEN] HTTP', r.status, (await r.text().catch(() => '')).slice(0, 150));
+            const et = (await r.text().catch(() => '')).slice(0, 150);
+            console.warn('[ELEVEN] HTTP', r.status, et);
+            if (/quota_exceeded|"code":"quota|exceeds your quota/i.test(et)){
+              elevenQuotaLeft = 0;
+              setStatus('Quota ElevenLabs epuise — voix gratuite automatique');
+              return null;
+            }
             if (r.status === 429){ await new Promise(res2 => setTimeout(res2, 3000)); continue; }
             return null;
           }
