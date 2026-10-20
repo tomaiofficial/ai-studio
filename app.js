@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.64';
+const APP_VERSION = '10.65';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -157,6 +157,21 @@ const VOXTRAL_FALLBACK_VOICES = [
   { id: 'a3e41ea8-020b-44c0-8d8b-f6cc03524e31', name: 'Voxtral: Jane (anglais UK, sarcastique)', lang: 'en' },
 ];
 let voxtralVoicesCache = null;
+/* v10.65 : liste noire des voix Voxtral refusees par l'API
+   (400 "voice is not supported for speech v1", code 3051). Une fois
+   blacklistee, la voix est retirees du chemin de reconnaissance et du
+   selecteur -> auto-bascule sur la voix par defaut sans retries perdus. */
+const VOXTRAL_BAD_LS = 'va_voxtral_bad_voices';
+function getVoxtralBadVoices(){ try { return JSON.parse(localStorage.getItem(VOXTRAL_BAD_LS) || '[]'); } catch { return []; } }
+function markVoxtralVoiceBad(id){
+  if (!id) return;
+  try {
+    const bad = getVoxtralBadVoices();
+    if (!bad.includes(id)){ bad.push(id); localStorage.setItem(VOXTRAL_BAD_LS, JSON.stringify(bad.slice(0, 50))); }
+  } catch {}
+  const v = localStorage.getItem(LS.voice);
+  if (v === 'voxtral:' + id){ localStorage.setItem(LS.voice, DEFAULT_VOICE); populateVoices(); }
+}
 /* v9.79 : nom court d'une voix Voxtral — "Voxtral: Paul", sans UUID ni
    parenthèses (affiché dans le statut quand l'IA parle) */
 function shortVoiceName(voiceId){
@@ -307,6 +322,13 @@ async function generateChunks(chunks, voiceId, key){
       if (!res.ok){
         const errText = await res.text().catch(() => '');
         console.warn('[VOXTRAL] HTTP', res.status, errText.slice(0, 200));
+        if (res.status === 400 && /voice is not supported/i.test(errText)){
+          /* v10.65 : voix refusee par speech v1 -> liste noire permanente, on evite les retries inutiles */
+          voxtralBlocked = true;
+          console.warn('[VOXTRAL] Voix non supportee par speech v1 -> liste noire + voix par defaut');
+          markVoxtralVoiceBad(voiceId);
+          return null;
+        }
         if (res.status === 403){
           /* v10.9 : distinguer un blocage de CONTENU (guardrail, temporaire,
              lie au texte) d'un refus d'ACCES audio (definitif, lie a la cle) */
@@ -887,6 +909,8 @@ function getVoice(){
   if (v.startsWith('eleven:')) return DEFAULT_VOICE;
   /* v10.64 : Google Cloud TTS retire de l'app -> retour Voxtral */
   if (v.startsWith('gcloudtts:')) return DEFAULT_VOICE;
+  /* v10.65 : voix Voxtral blacklistee (refusee par l API) -> retour defaut */
+  if (v.startsWith('voxtral:') && getVoxtralBadVoices().includes(v.substring(8))) return DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -3138,8 +3162,10 @@ async function populateVoices(){
   const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
   /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 : vraies voix preset (UUID) */
   const voices = await fetchVoxtralVoices();
+  const badVoicesDyn = getVoxtralBadVoices();
   voices.forEach(v => {
     const val = 'voxtral:' + v.id;
+    if (badVoicesDyn.includes(v.id)) return; /* v10.65 voix refusee : pas dans le selecteur */
     if (!existingOptions.includes(val)){
       const opt = document.createElement('option');
       opt.value = val;
@@ -3149,8 +3175,11 @@ async function populateVoices(){
   });
   /* v10.42 : dedupe — si populateVoices est rappelé (sauvegarde de clé),
      on supprime les ANCIENS groupes IA avant d'en rajouter neufs */
+  const badVoices = getVoxtralBadVoices();
   Array.from(ttsVoiceSel.children).forEach(c => {
     if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs/.test(c.label || '')) c.remove();
+    /* v10.65 : les voix refusees par l API disparaissent du selecteur */
+    if (c.tagName === 'OPTION' && (c.value || '').startsWith('voxtral:') && badVoices.includes(c.value.substring(8))) { c.disabled = true; c.hidden = true; }
   });
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la synthèse vocale du
      navigateur est la moins belle qualité et l'utilisateur préfère les voix
