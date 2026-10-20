@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.70';
+const APP_VERSION = '10.71';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -157,66 +157,6 @@ const VOXTRAL_FALLBACK_VOICES = [
   { id: 'a3e41ea8-020b-44c0-8d8b-f6cc03524e31', name: 'Voxtral: Jane (anglais UK, sarcastique)', lang: 'en' },
 ];
 let voxtralVoicesCache = null;
-/* v10.69 : PUTER TTS — gratuit ILLIMITE, sans cle API, via puter.js
-   (model "User-Pays"). Voix neurales Polly fr-FR : Lea/Celine/Mathieu/
-   Gabrielle. A la premiere utilisation, une popup Puter peut demander
-   de valider un compte gratuit (une fois par appareil). */
-const PUTER_VOICE_LIST = [
-  { id: 'Lea', n: 'Léa', d: 'française, neurale expressive' },
-  { id: 'Celine', n: 'Céline', d: 'française, classique' },
-  { id: 'Mathieu', n: 'Mathieu', d: 'française, masculine' },
-  { id: 'Gabrielle', n: 'Gabrielle', d: 'française, neurale douce' }
-];
-function puterVoiceName(id){
-  const v = PUTER_VOICE_LIST.find(x => x.id === id);
-  return v ? ('Puter: ' + v.n) : 'Puter';
-}
-async function speakPuter(text, voiceId, onChunk){
-  try {
-    if (!window.puter || !puter.ai || typeof puter.ai.txt2speech !== 'function'){ console.warn('[PUTER] script puter.js absent'); return false; }
-    const chunks = splitSentences(text, 800);
-    for (const c of chunks){
-      try {
-        if (onChunk) onChunk(c);
-        /* v10.70 : formes d appel EN CASCADE — voix choisie -> voix
-           française defaut -> forme du tutoriel (langue en chaine) ->
-           defaut. La popup Puter (1re fois) sort elle aussi en erreur
-           reutable apres validation du compte. */
-        const variants = [];
-        if (voiceId) variants.push({ voice: voiceId, engine: 'neural', language: 'fr-FR' });
-        variants.push({ language: 'fr-FR', engine: 'neural' });
-        variants.push('fr-FR');
-        variants.push({});
-        let audio = null, lastErr = null;
-        for (const opts of variants){
-          try {
-            let a = await puter.ai.txt2speech(c, opts);
-            if (typeof a === 'string') a = new Audio(a);
-            if (a && typeof a.play === 'function'){ audio = a; break; }
-            console.warn('[PUTER] reponse inattendu', opts);
-          } catch(e){
-            lastErr = e;
-            const msg = ((e && (e.message || e.error_code)) + '') || '';
-            console.warn('[PUTER] tentative echouee:', opts, msg.slice(0, 120));
-            if (/auth|login|sign|permission|denied/i.test(msg)){
-              setStatus('Valide ta fenetre Puter (compte gratuit, une seule fois) puis redemande');
-            }
-          }
-        }
-        if (!audio){ console.warn('[PUTER] toutes tentatives echouees', lastErr && (lastErr.message || lastErr)); return false; }
-        await new Promise(res => {
-          let fin = false;
-          const end = () => { if (!fin){ fin = true; res(); } };
-          try { audio.onended = end; audio.onerror = end; } catch {}
-          try { audio.play().catch(end); } catch(e){ end(); }
-          setTimeout(end, 30000);
-        });
-      } catch(e){ console.warn('[PUTER] chunk:', e && (e.message || e)); return false; }
-      await new Promise(r => setTimeout(r, 60));
-    }
-    return true;
-  } catch(e){ console.warn('[PUTER] échec:', e && (e.message || e)); return false; }
-}
 /* v10.65 : liste noire des voix Voxtral refusees par l'API
    (400 "voice is not supported for speech v1", code 3051). Une fois
    blacklistee, la voix est retirees du chemin de reconnaissance et du
@@ -959,15 +899,14 @@ function clearChat(){
 function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
-  /* v10.68 : retours aux anciens moteurs retires (Gemini/ElevenLabs/GCloud/
-     SpeechT5/Edge/Piper/Kokoro) -> retour voix Voxtral par defaut */
+  /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/GCloud/Kokoro/
+     Puter/SpeechT5/Edge/Piper/anciens system: et systeme) -> Voxtral defaut */
   if (v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')
       || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
-      || v.startsWith('kokoro:') || v.startsWith('system:') || v === 'systeme') return DEFAULT_VOICE;
+      || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
+      || v === 'systeme') return DEFAULT_VOICE;
   /* v10.65 : voix Voxtral blacklistee (refusee par l API) -> retour defaut */
   if (v.startsWith('voxtral:') && getVoxtralBadVoices().includes(v.substring(8))) return DEFAULT_VOICE;
-  /* v10.69 : voix Puter validees uniquement contre la liste officielle Polly */
-  if (v.startsWith('puter:') && !PUTER_VOICE_LIST.some(k => 'puter:' + k.id === v)) return DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -3161,16 +3100,6 @@ async function populateVoices(){
       ttsVoiceSel.appendChild(opt);
     }
   });
-  /* v10.69 : GROUPE PUTER — gratuit illimite, sans cle, voix neurales fr-FR */
-  const grpP = document.createElement('optgroup');
-  grpP.label = '🤖 Puter — gratuit illimité (sans clé)';
-  PUTER_VOICE_LIST.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = 'puter:' + v.id;
-    opt.textContent = '🤖 ' + v.n + ' — ' + v.d;
-    grpP.appendChild(opt);
-  });
-  ttsVoiceSel.appendChild(grpP);
   /* v10.65 : les voix refusees par l API disparaissent du selecteur */
   const badVoices = getVoxtralBadVoices();
   Array.from(ttsVoiceSel.children).forEach(c => {
@@ -3392,9 +3321,9 @@ function speak(text, onChunk){
        (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
         v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (60s)'); fail(); }, 60000);
-    /* VOIX : v10.69 — Voxtral (Mistral AI) principale + PUTER (gratuit
-       illimité, sans clé) en suivi direct. La voix choisie dans le
-       selecteur est FORCEE ; secours Système puis Google Translate. */
+    /* VOIX : v10.71 — Voxtral (Mistral AI) principale ; secours
+       Système (Natural) puis Google Translate. La voix choisie dans le
+       selecteur est FORCEE. */
     const voiceMode = getVoice();
     let chain;
     if (voiceMode.startsWith('voxtral:')) {
@@ -3405,21 +3334,11 @@ function speak(text, onChunk){
         ['Système', (t) => speakSystem(t, null, onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)]
       ];
-    } else if (voiceMode.startsWith('puter:')) {
-      const pv = voiceMode.substring(6);
-      /* FORCER le choix Puter de l'utilisateur (premiere fois : popup Puter) */
-      chain = [
-        [puterVoiceName(pv), (t) => speakPuter(t, pv, onChunk)],
-        ['Système', (t) => speakSystem(t, null, onChunk)],
-        ['Google', (t) => speakGoogle(t, onChunk)]
-      ];
     } else {
-      /* voix par defaut : Voxtral Paul premium si cle, sinon PUTER (gratuit
-         illimité, sans clé — la file se contente du popup Puter la 1re fois) */
+      /* voix par defaut : Voxtral Paul premium si cle, sinon Système */
       chain = [];
       if (getMistralKey()) chain.push(['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)]);
       chain.push(
-        ['Puter: Léa', (t) => speakPuter(t, 'Lea', onChunk)],
         ['Système', (t) => speakSystem(t, null, onChunk)],
         ['Google', (t) => speakGoogle(t, onChunk)]
       );

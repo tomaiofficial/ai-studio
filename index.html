@@ -578,16 +578,11 @@ select.wide-input{appearance:none}
     <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium réalistes, gratuite avec une clé API Mistral (gratuite sur console.mistral.ai).</p>
-    <p class="muted" style="margin-top:4px">🤖 <b>Puter</b> — <b>gratuit illimité, SANS clé</b> ! Voix neurales françaises. À la première utilisation, une fenêtre Puter peut demander de créer un compte gratuit (une seule fois).</p>
+    <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium réalistes, gratuite avec une clé API Mistral (gratuite sur console.mistral.ai). Secours automatiques : voix du navigateur et Google Translate (gratuits, sans clé).</p>
     <select id="ttsVoice" class="wide-input">
       <option value="voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8" selected>🎙️ Voxtral: Paul (anglais US, neutre)</option>
       <option value="voxtral:e3596645-b1af-469e-b857-f18ddedc7652">🎙️ Voxtral: Oliver (anglais UK, neutre)</option>
       <option value="voxtral:a3e41ea8-020b-44c0-8d8b-f6cc03524e31">🎙️ Voxtral: Jane (anglais UK, sarcastique)</option>
-      <option value="puter:Lea">🤖 Puter: Léa — française, neurale expressive</option>
-      <option value="puter:Celine">🤖 Puter: Céline — française, classique</option>
-      <option value="puter:Mathieu">🤖 Puter: Mathieu — française, masculine</option>
-      <option value="puter:Gabrielle">🤖 Puter: Gabrielle — française, neurale douce</option>
     </select>
     <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> — requise pour les <b>voix Voxtral</b> et la <b>transcription vocale</b> sur mobile (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
@@ -644,9 +639,9 @@ select.wide-input{appearance:none}
 
     <h4 class="settings-title">🗣️ Voix réalistes</h4>
     <p class="muted">Trois moteurs vocaux, du plus premium au plus accessible :</p>
-    <p class="muted" style="margin-top:4px">🤖 <b>Puter</b> — voix neurales françaises <b>gratuites ILLIMITÉES sans clé</b> (compte gratuit une fois)</p>
     <p class="muted" style="margin-top:4px">🎙️ <b>Voxtral (Mistral AI)</b> — voix premium, gratuite avec une clé Mistral</p>
     <p class="muted" style="margin-top:4px">🔊 <b>Google Translate</b> — secours gratuit, sans clé</p>
+    <p class="muted" style="margin-top:4px">🖥️ <b>Voix système (Natural)</b> — dernier recours, hors ligne</p>
 
     <h4 class="settings-title">🎮 Bonus</h4>
     <p class="muted">Jeux quand tu attends (devinette, quiz, chaîne de mots, pile ou face) · Réveil vocal « Hey Astra » · Mode continu non-stop · Historique des conversations · Bloc-notes · Calculatrice</p>
@@ -729,10 +724,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="https://js.puter.com/v2/"></script>
-<script src="websearch.js?v=10.70"></script>
+<script src="websearch.js?v=10.71"></script>
 <script>
 </script>
-<script src="app.js?v=10.70"></script>
+<script src="app.js?v=10.71"></script>
 </body>
 </html>
