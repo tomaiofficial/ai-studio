@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.72';
+const APP_VERSION = '10.73';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -197,13 +197,8 @@ function abortSignal(ms){
    ouvert -> appel direct navigateur. Valeurs de voix : cartesia:<id>. */
 const CARTESIA_KEY_LS = 'va_cartesia_key';
 function getCartesiaKey(){ try { return (localStorage.getItem(CARTESIA_KEY_LS) || '').trim(); } catch { return ''; } }
-const cartesiaKeyInput = $('cartesiaKey'), saveCartesiaKeyBtn = $('saveCartesiaKey');
-if (cartesiaKeyInput) cartesiaKeyInput.value = getCartesiaKey();
-if (saveCartesiaKeyBtn) saveCartesiaKeyBtn.addEventListener('click', () => {
-  localStorage.setItem(CARTESIA_KEY_LS, (cartesiaKeyInput.value || '').trim());
-  populateVoices();
-  toast('Cle Cartesia enregistree ✓ — Sonic, la voix IA la plus realiste activee');
-});
+/* v10.72 : branchement des champs Cartesia DEPLACE dans la section
+   REGLAGES (le helper $ n'existe pas encore a ce point du fichier) */
 let cartesiaFailed = false, cartesiaVoicesCache = null;
 async function fetchCartesiaVoices(){
   if (cartesiaVoicesCache) return cartesiaVoicesCache;
@@ -1018,6 +1013,16 @@ if (mistralKeyInput) mistralKeyInput.value = getMistralKey();
 if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
   localStorage.setItem(MISTRAL_KEY_LS, (mistralKeyInput.value || '').trim());
   toast('Clé API Mistral enregistrée ✓');
+});
+
+/* v10.72 : clé Cartesia Sonic (voix IA la plus réaliste, 20k caractères/mois gratuit) */
+const cartesiaKeyInput = $('cartesiaKey'), saveCartesiaKeyBtn = $('saveCartesiaKey');
+if (cartesiaKeyInput) cartesiaKeyInput.value = getCartesiaKey();
+if (saveCartesiaKeyBtn) saveCartesiaKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(CARTESIA_KEY_LS, (cartesiaKeyInput.value || '').trim());
+  cartesiaFailed = false; cartesiaVoicesCache = null;
+  populateVoices();
+  toast('Cle Cartesia enregistree ✓ — Sonic, la voix IA la plus realiste activee');
 });
 
 /* v10.43 : GEMINI RETIRÉ — quota journalier trop court (10/j/model) au
