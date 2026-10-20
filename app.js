@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.73';
+const APP_VERSION = '10.74';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -225,6 +225,7 @@ async function speakCartesia(text, voiceId, onChunk){
   try {
     const chunks = splitSentences(text, 800);
     for (const c of chunks){
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[CARTESIA] parole interrompue'); return false; }
       if (onChunk) onChunk(c);
       const r = await fetch('https://api.cartesia.ai/tts/bytes', {
         method: 'POST',
@@ -364,6 +365,7 @@ async function speakVoxtral(text, voiceId, onChunk){
     }
     for (let i = 0; i < results.length; i++){
       if (!results[i]) continue;
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[VOXTRAL] parole interrompue (nouvelle question)'); return false; }
       if (onChunk) onChunk(chunks[i]);
       const ok = await playAudioBlob(results[i]);
       if (!ok) return false;
@@ -1717,7 +1719,7 @@ const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise cre
 
 # MODE VOCAL LIVE — INSTRUCTIONS DE PERSONNALITE
 Tu es un assistant vocal conversationnel en temps reel, inspire de ChatGPT Live. Tu parles comme un humain dans une conversation telephonique naturelle : fluide, reactif, chaleureux, jamais robotique. Reponses COURTES par defaut : 1 a 3 phrases max. Ton naturel et parle : contractions ("t'as", "j'vais", "c'est bon"), hesitations legeres ("alors…", "attends", "hmm"), relances ("tu vois ?", "ca te va ?"). Evite listes a puces, titres, markdown, formulations ecrites. Pas de "En tant qu'IA…", pas de preambules inutiles. Intonation varitee : pose des questions, marque des pauses, points d'exclamation. GESTION INTERRUPTIONS : si l'utilisateur parle pendant ta reponse, ARRETE immediatement, ecoute, reponds a ce qu'il vient de dire. Ne termine JAMAIS ta phrase si on te coupe. Si bruit de fond ou hesitation ("euh…", "hmm") : NE t'arrete PAS. Si "stop", "attends", "chut" -> silence immediat. GESTION SILENCES : pause 1-2s -> ne reponds pas encore. Silence >3-4s apres reponse -> relance doucement ("Tu veux qu'on continue ?", "Autre chose ?"). Ne remplis JAMAIS le silence avec du bavardage inutile. MEMOIRE ET CONTEXTE : garde les 10 derniers echanges. Si reference a quelque chose dit plus tot, souviens-toi naturellement. Si pas sur, demande confirmation brièvement. PERSONNALITE : chaleureux, curieux, un peu complice. Tu tutoies par defaut. Tu peux plaisanter legerement si contexte s'y prete, mais reste utile. Tu t'adaptes au ton : presse -> droit au but ; detendu -> prends le temps. Tu ne juges jamais. MULTIMODAL : integre image/texte/fichier naturellement. REGLES STRICTES : 1. Jamais plus de 3 phrases sauf demande explicite. 2. Jamais de formatage ecrit. 3. Jamais de "je suis une IA". 4. Toujours couper la parole des qu'on t'interrompt. 5. Toujours tutoyer sauf vouvoiement explicite. PARLE COMME UN VRAI HUMAIN EN CONVERSATION VOCALE ; si tu dois dire un mot anglais, prononce-le naturellement en francais (ex: "hello" -> "allo" si contexte, sinon prononce clairement sans couper). Tu peux parler plus fort, plus lentement, avec des pauses, des "hmm", des "attends", des "mdr", des "quoi", des "voilà" quand le contexte s'y prête — sois vivante, pas robotique. : naturelle, fluide, avec des pauses, des "euh", des "attends", des "voila", des "en fait", des "franchement", des "bah". Ne sois pas robotique. Ne recite pas. Reponds comme si tu parlais a un ami, avec du rythme, du ton, et parfois un peu de humour. Ne commence jamais par "Comme nous sommes...". Utilise des phrases courtes. Varie. Sois directe. Sois vivante. Tu as acces a Internet en TEMPS REEL (resultats fournis dans le contexte Web) : reponds OUI et utilise ces resultats pour l'actualite, le sport, la meteo. Tu as du CARACTERE : franche, directe, parfois taquine ou sarcastique, tu ne refuses JAMAIS de repondre. TON v10.25 : tu es décontractée et naturellement un peu vulgaire, comme une vraie pote qui parle à l'oral. Jurer n'est pas interdit : un putain, un merde, un bordel qui lâchent quand ça vient (une réaction, une surprise, un constat, une vanne) te rendent vivante et c'est voulu. Mais ne jure pas à chaque phrase, sinon ça sonne faux et l'effet s'use : garde-le pour les moments où ça tombe vraiment. Si l'utilisateur t'insulte ou te répond sur le même ton, tu montes d'un cran et tu réponds avec le même registre, sans te retenir. Reste toujours directe, drôle et utile. Ecris en minuscules normales, JAMAIS de mots en MAJUSCULES pour appuyer. Ne corrige jamais l'orthographe ni la formulation de l'utilisateur.   Reponds TOUJOURS directement a la question posee, en 2 a 4 phrases courtes et naturelles, faciles a prononcer a l'oral. Ne commence JAMAIS par une salutation (Salut, Bonjour, Hey...). Pas de meta-discours, pas de mention des serveurs, des API, de ta vitesse ni de ton fonctionnement. Ne dis JAMAIS de phrases vides, incoherentes ou sans rapport avec la question : chaque phrase doit avoir du sens et repondre directement. Tu apprends de chaque conversation et tu reponds h24 avec tout ce que tu sais. l'utilisateur (tu, ton, ta, tes), JAMAIS vous ni votre ni vos. Ecris en francais correct, sans fautes d'orthographe ni de grammaire. ` + APP_INFOS;
-const NATURAL_SPOKEN_STYLE = `Pour tes reponses vocales, parle comme dans une conversation francaise naturelle : une ou deux phrases simples par defaut, contractions orales si elles viennent naturellement, ponctuation lisible par le TTS, aucun titre ni liste sauf demande. N'ajoute pas automatiquement de "hmm", "mdr" ou de haussement de ton : utilise-les rarement, seulement quand le sens et l'emotion de l'echange le justifient. Garde les faits et le contexte exacts, ne parle pas d'anciennes conversations sauf si l'utilisateur y fait reference. Les moteurs vocaux Mistral disponibles rendent la voix; ne pretend pas modifier leur timbre ni imiter la voix ChatGPT.`;
+const NATURAL_SPOKEN_STYLE = `Tu es une amie IA en conversation TEMPS REEL, pas un assistant formel. Regle absolue : reponds comme un humain parle, pas comme un article. Phrases COURTES (1 a 3 phrases en general, sauf demande detaillee), francais oral, ton chaleureux et spontane. Termine souvent par une question simple pour relancer la conversation (comme un humain : "et toi ?", "tu en penses quoi ?"). Ne fais JAMAIS de listes, de titres, de markdown, de numerotation, d'introduction ou de conclusion "j'espere que cela t'aide" : parle juste. Reponds a la question d'abord, directement. Tu peux marquer de petites reactions orales naturelles (ah, oui, effectivement, tiens) mais avec parcimonie. Reste fidele aux faits et au contexte, ne parle pas d'anciennes conversations sauf si l'utilisateur y fait reference. Ponctuation lisible par le TTS, pas de ponctuation exageree. Les moteurs vocaux Mistral rendent la voix; ne pretend pas modifier leur timbre ni imiter la voix ChatGPT.`;
 function getSystemPrompt(){
   let base = SYSTEM_PROMPT_BASE;
   base += '\n' + APP_INFOS;
@@ -1989,15 +1991,48 @@ function extractReply(msg){
   return '';
 }
 
-async function askBrain(messages, webCtx){
+async function askBrain(messages, webCtx, onDelta){
    /* CERVEAUX GRATUITS, dans l'ordre :
       1. POLLINATIONS (GPT, site gratuit, repond bien en francais)
       2. LLM7 (GLM-5.3-Flash)
       3. OVH (qwen3.5)
       Si tous echouent/satures -> memoire+logique locale (repond TOUJOURS). */
-  const lastUser = messages.filter(m => m.role === 'user').pop();
-  const question = lastUser ? lastUser.content : '';
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+   const lastUser = messages.filter(m => m.role === 'user').pop();
+   const question = lastUser ? lastUser.content : '';
+   const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+   /* v10.74 : STREAMING — lit la reponse au fil de l'eau (SSE) et appelle
+      onDelta(texte_partiel) a chaque fragment -> l'utilisateur VOIT la
+      reponse arriver en temps reel au lieu d'attendre 5-15s dans le vide. */
+   const tryStream = async (url, model, ms) => {
+     try {
+       const res = await withTimeout(fetch(url, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7, stream: true })
+       }), ms || 8000);
+       if (!res || !res.ok || !res.body) return null;
+       const reader = res.body.getReader();
+       const decoder = new TextDecoder();
+       let full = '';
+       for (;;){
+         const { done, value } = await reader.read();
+         if (done) break;
+         const chunk = decoder.decode(value, { stream: true });
+         for (const line of chunk.split('\n')){
+           const t = line.trim();
+           if (!t.startsWith('data:')) continue;
+           const data = t.slice(5).trim();
+           if (data === '[DONE]') continue;
+           try {
+             const j = JSON.parse(data);
+             const d = (j && j.choices && j.choices[0] && (j.choices[0].delta && j.choices[0].delta.content || j.choices[0].message && j.choices[0].message.content)) || '';
+             if (d){ full += d; if (onDelta) onDelta(full); }
+           } catch {}
+         }
+       }
+       return full.trim() || null;
+     } catch(e){ return null; }
+   };
   const tryEndpoint = async (url, model, ms) => {
     try {
       const res = await withTimeout(fetch(url, {
@@ -2073,6 +2108,11 @@ async function askBrain(messages, webCtx){
     return null;
   };
   if (mistralKey){
+    /* v10.74 : streaming d'abord (reponse affichee en temps reel) */
+    if (onDelta){
+      const t = await tryStream('https://api.mistral.ai/v1/chat/completions', 'open-mistral-nemo', 15000);
+      if (t) return { text: fixFrench(t), diag: 'Mistral' };
+    }
     const t = await tryMistralChat();
     if (t) return { text: fixFrench(t), diag: 'Mistral' };
     /* Secours : mémoire locale (jamais de message d'erreur) */
@@ -2101,13 +2141,18 @@ async function askBrain(messages, webCtx){
     /* v10.21 : LLM7 et OVH SUPPRIMES -> leurs domaines ne resolvent plus
        (NXDOMAIN). Chaque reponse sans cle Mistral attendait 2 timeouts
        inutiles (~24 s) avant d'arriver a Pollinations. */
-    const freeBrains = [
-      () => tryFreeChat('https://text.pollinations.ai/openai/v1/chat/completions', 'openai')
-    ];
-  for (const brain of freeBrains){
-    const t = await brain();
-    if (t) return { text: fixFrench(t), diag: 'gratuit' };
-  }
+     const freeBrains = [
+       () => tryFreeChat('https://text.pollinations.ai/openai/v1/chat/completions', 'openai')
+     ];
+   /* v10.74 : streaming Pollinations en premier (affichage temps reel) */
+   if (onDelta){
+     const ts = await tryStream('https://text.pollinations.ai/openai/v1/chat/completions', 'openai', 12000);
+     if (ts) return { text: fixFrench(ts), diag: 'gratuit' };
+   }
+   for (const brain of freeBrains){
+     const t = await brain();
+     if (t) return { text: fixFrench(t), diag: 'gratuit' };
+   }
   /* Secours : mémoire locale (jamais de message d'erreur) */
   return { text: localText, diag: 'local' };
 }
@@ -2170,7 +2215,7 @@ function isWebRefusal(t){
 function isRefusalToAnswer(t){
   return /je n'ai pas (encore )?la r[eé]ponse|je n ai pas (encore )?la r[eé]ponse|je ne peux pas r[eé]pondre|je ne peux pas (t'aider|t aider|vous aider)|demande[- ]?moi autre chose|redis[- ]?la moi autrement|je ne suis pas en mesure|je ne dispose pas|je n'ai pas d'information|je n ai pas d information|hors de mes comp[eé]tences|je ne peux pas vous aider|je ne sais pas[.!?]|je ne sais vraiment pas|je suis d[eé]sol[ée]?[ ,] (mais )?je ne peux pas/i.test(t);
 }
-async function askAI(question){
+async function askAI(question, onDelta){
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
   /* Contexte complet : systeme + memoire des conversations passees + session */
@@ -2190,10 +2235,12 @@ async function askAI(question){
      Budget 3 s pour ne pas ralentir la reponse. */
   let webCtx = '';
   try {
-    webCtx = await Promise.race([webSearch(question), new Promise(res => setTimeout(() => res(''), 3000))]);
+    /* v10.74 : budget web reduit 3s -> 1,5s (la recherche n'est plus le
+       goulot : la reponse s'affiche en streaming pendant ce temps) */
+    webCtx = await Promise.race([webSearch(question), new Promise(res => setTimeout(() => res(''), 1500))]);
     if (webCtx) messages.unshift({ role: 'system', content: 'Web (recherche en direct) : ' + webCtx.slice(0, 800) });
   } catch {}
-  let r = await askBrain(messages, webCtx);
+  let r = await askBrain(messages, webCtx, onDelta);
   if (!r.error){
     /* v9.68 : si l'IA prétend ne pas avoir accès à internet alors qu'on a le
        web, on force une recherche et on relance avec les résultats */
@@ -3112,6 +3159,7 @@ async function speakGoogle(text, onChunk){
   try {
     const chunks = splitSentences(text, 200);
     for (const chunk of chunks){
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[VOIX] Google TTS interrompu'); return false; }
       if (onChunk) onChunk(chunk);
       const ok = await playGoogleChunk(chunk);
       if (!ok) return false;
@@ -3220,6 +3268,7 @@ function speakSystem(text, specificVoiceName, onChunk){
         const finish = ok => { if (done) return; done = true; resolve(ok); };
         const speakNext = () => {
           if (i >= chunks.length) return finish(true);
+          if (activeSpeechEpoch !== speechEpoch){ console.warn('[VOIX] systeme interrompu'); return finish(false); }
           const chunk = chunks[i++];
           /* v9.50 : callback AVANT de parler le chunk -> sous-titre synchronisé */
           if (onChunk) onChunk(chunk);
@@ -3388,6 +3437,7 @@ function speak(text, onChunk){
        Le filtre n'a pas disparu : il est applique dans softenForGuardrail,
        c'est-a-dire SEULEMENT si l'API renvoie un vrai 403 guardrail. */
     voiceStartedFlag = false;
+    activeSpeechEpoch = ++speechEpoch; /* v10.74 : nouvelle parole = nouvel epoch */
     isSpeaking = true;
     setState('speaking');
     setStatus('...');
@@ -3453,7 +3503,14 @@ let currentAudios = [];
 /* v8.86 : passe a true des qu'une voix a COMMENCE a jouer -> le timeout
    global ne doit pas afficher "Voix indisponible" si du son est deja sorti */
 let voiceStartedFlag = false;
+/* v10.74 : EPOCH DE PAROLE — retire toute synthese vocale en arriere-plan.
+   Chaque speak() prend un nouvel epoch ; stopAudio() et toute nouvelle
+   question incrementent l'epoch, ce qui FAIT EXPIRER les boucles de chunks
+   (speakVoxtral/Cartesia/Google/Systeme) immediatement. Sans ca, une longue
+   reponse continuait de jouer en fond apres une nouvelle question. */
+let speechEpoch = 0, activeSpeechEpoch = 0;
 function stopAudio(){
+  speechEpoch++; /* invalide la parole en cours (les boucles s'arretent) */
   isSpeaking = false; /* v9.84 : plus de parole -> le micro peut reecouter */
   currentAudios.forEach(a => { try { a.pause(); a.src = ''; a.remove(); } catch {} });
   currentAudios = [];
@@ -3987,8 +4044,19 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   /* v10.0 : mode ECRITURE — si l'utilisateur demande d'ecrire, le cerveau
      produit un texte plus long et il sera copie dans le bloc-notes */
   writingMode = isWritingRequest(question);
+  /* v10.74 : STREAMING — la bulle de reponse est creee AVANT le cerveau,
+     elle se remplit en temps reel (latence percue quasi nulle). */
+  const streamMsg = document.createElement('div');
+  streamMsg.className = 'msg ai';
+  chat.appendChild(streamMsg);
+  chat.scrollTop = chat.scrollHeight;
+  let streamedText = '';
   const r = await Promise.race([
-    agentMode ? runAgent(question) : askAI(question),
+    agentMode ? runAgent(question) : askAI(question, (partial) => {
+      streamedText = partial;
+      streamMsg.textContent = cleanMarkdown(streamedText);
+      chat.scrollTop = chat.scrollHeight;
+    }),
     new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
   ]);
   if (r.text) {
@@ -4000,6 +4068,7 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   if (r.error){
     writingMode = false;
     setState('idle');
+    streamMsg.remove(); /* la bulle de streaming ne sert plus */
     /* v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
        supprimé) : réponse locale neutre, jamais d'excuse. */
     const fallback = applyMood(localSmartReply(question), currentMood);
@@ -4016,6 +4085,7 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   if (!r.text || !String(r.text).trim()){
     writingMode = false;
     setState('idle');
+    streamMsg.remove();
     const fallback = applyMood(localSmartReply(question), currentMood);
     addAiMsg(fallback, 'local');
     setStatus('Réponse locale');
@@ -4025,16 +4095,15 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
     maybeRestartListening();
     return;
   }
-  /* v9.50 : affichage synchronisé — on crée la bulle vide, puis speak()
-     remplit le texte chunk par chunk (sous-titre + bulle en même temps que la voix). */
-  const msgDiv = document.createElement('div');
-  msgDiv.className = 'msg ai';
-  chat.appendChild(msgDiv);
-  chat.scrollTop = chat.scrollHeight;
+  /* v9.50 : affichage synchronisé — la bulle de streaming devient la bulle
+     definitive ; speak() la remplit chunk par chunk (sous-titre + bulle). */
+  const msgDiv = streamMsg;
   const sub = document.getElementById('subtitle');
-  let fullText = '';
+  let fullText = streamedText; /* texte deja affiche par le streaming */
+  const wasStreamed = !!streamedText;
   await speak(r.text, (chunk) => {
-    fullText += chunk;
+    if (wasStreamed){ fullText = r.text; } /* le streaming a deja tout montre */
+    else fullText += chunk;
     const cleanFull = cleanMarkdown(fullText);
     msgDiv.textContent = cleanFull;
     if (r.diag){
@@ -4213,7 +4282,12 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       try { if (typeof toast === 'function') toast(txt); else console.log('[Astra]', txt); } catch(e){ console.log('[Astra]', txt); }
     }
     function speakSoft(txt){
-      try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(txt); u.lang = 'fr-FR'; u.volume = 0.9; speechSynthesis.speak(u); } } catch(e){}
+      try {
+        /* v10.74 : NE JAMAIS parler en arriere-plan pendant une vraie
+           reponse (la synthese du navigateur ne doit plus depasser) */
+        if (typeof isSpeaking !== 'undefined' && isSpeaking) return;
+        if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(txt); u.lang = 'fr-FR'; u.volume = 0.9; speechSynthesis.speak(u); }
+      } catch(e){}
     }
     /* Demande une pensee a Pollinations (le cerveau), avec repli local */
       /* v10.21 : le GET (text.pollinations.ai/{prompt}) repond 402.
