@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.46';
+const APP_VERSION = '10.47';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -326,14 +326,27 @@ async function transcribeWithMistral(blob, key){
     const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : type.includes('wav') ? 'wav' : type.includes('m4a') ? 'm4a' : 'webm';
     const fd = new FormData();
     fd.append('file', blob, 'audio.' + ext);
-    fd.append('model', 'mistral-voxtral');
+    fd.append('model', 'voxtral-small-latest');
     fd.append('language', 'fr');
-    const res = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
+    let res = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + key },
       body: fd,
       signal: abortSignal(30000)
     });
+    if (res.status === 400){
+      /* fallback : modele mini si small indisponible selon le compte */
+      const fd2 = new FormData();
+      fd2.append('file', blob, 'audio.' + ext);
+      fd2.append('model', 'voxtral-mini-latest');
+      fd2.append('language', 'fr');
+      res = await fetch('https://api.mistral.ai/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + key },
+        body: fd2,
+        signal: abortSignal(30000)
+      });
+    }
     if (!res.ok){ console.warn('[STT-MISTRAL] HTTP', res.status, (await res.text().catch(() => '')).slice(0, 200)); return ''; }
     const data = await res.json();
     const t = (data && (data.text || data.transcript)) || '';
