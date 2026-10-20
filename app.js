@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.51';
+const APP_VERSION = '10.52';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -199,7 +199,20 @@ async function fetchVoxtralVoices(){
   } catch(e){ console.warn('[VOXTRAL] Liste voix échouée:', e && e.message); return VOXTRAL_FALLBACK_VOICES; }
 }
 const MISTRAL_KEY_LS = 'va_mistral_key';
-function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
+/* v10.52 : detecteur de cle expiree (401 "expired") — 1 nouveau 1er essai */
+var mistralKeyExpired = false;
+function getMistralKey(){
+  try {
+    const k = (localStorage.getItem(MISTRAL_KEY_LS) || '').trim();
+    /* v10.52 : si l'utilisateur colle une NOUVELLE cle, on reactive Mistral */
+    if (k && mistralKeyExpired && k !== getMistralKey.lastK){
+      mistralKeyExpired = false;
+      console.log('[MISTRAL] Nouvelle cle detectee — reactivation');
+    }
+    getMistralKey.lastK = k;
+    return k;
+  } catch { return ''; }
+}
 /* v9.94 : passe a true si Mistral TTS bloque le texte (403 guardrail) ->
    le retry est INUTILE (blocage definitif), on bascule direct */
 let voxtralBlocked = false;
@@ -320,6 +333,8 @@ async function generateChunks(chunks, voiceId, key){
    (POST /v1/audio/transcriptions, multipart). Fonctionne sur mobile :
    iOS Safari n'a PAS de SpeechRecognition, et Android le bloque sans HTTPS.
    Reutilise la cle API Mistral deja configuree pour la voix. */
+/* v10.52 : si la cle est expiree (401 "expired"), on ne rapelle pas l'API a
+   chaque essai et on guide clairement vers Reglages pour la nouvelle cle. */
 async function transcribeWithMistral(blob, key){
   try {
     const type = (blob && blob.type) || 'audio/webm';
@@ -347,7 +362,15 @@ async function transcribeWithMistral(blob, key){
         signal: abortSignal(30000)
       });
     }
-    if (!res.ok){ console.warn('[STT-MISTRAL] HTTP', res.status, (await res.text().catch(() => '')).slice(0, 200)); return ''; }
+    if (!res.ok){
+      const errTxt = (await res.text().catch(() => '')).slice(0, 200);
+      console.warn('[STT-MISTRAL] HTTP', res.status, errTxt);
+      if (res.status === 401 && /expired/i.test(errTxt)){
+        mistralKeyExpired = true;
+        setStatus('Cle Mistral expiree — colle une nouvelle cle dans Reglages');
+      }
+      return '';
+    }
     const data = await res.json();
     const t = (data && (data.text || data.transcript)) || '';
     console.log('[STT-MISTRAL] Transcription:', t);
@@ -1452,7 +1475,7 @@ async function startRecorder(){
          Reglages). Fonctionne sur iOS Safari (pas de SpeechRecognition) et
          Android : simple requete HTTP, aucune API navigateur requise. */
       const mistralKey = getMistralKey();
-      if (mistralKey){
+      if (mistralKey && !mistralKeyExpired){
         setStatus('Transcription Mistral...');
         const txt = await transcribeWithMistral(blob, mistralKey);
         if (txt){
@@ -1995,6 +2018,13 @@ async function askBrain(messages, webCtx){
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mistralKey },
           body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
         }), 15000);
+        if (res && !res.ok){
+          const et = (await res.text().catch(() => '')).slice(0, 200);
+          if (res.status === 401 && /expired/i.test(et)){
+            mistralKeyExpired = true;
+            setStatus('Cle Mistral expiree — colle une nouvelle cle dans Reglages');
+          }
+        }
         if (res && res.ok){
           const data = await res.json();
           const text = (data?.choices?.[0]?.message?.content || '').trim();
