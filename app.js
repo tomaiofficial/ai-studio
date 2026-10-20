@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.69';
+const APP_VERSION = '10.70';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -174,13 +174,36 @@ function puterVoiceName(id){
 async function speakPuter(text, voiceId, onChunk){
   try {
     if (!window.puter || !puter.ai || typeof puter.ai.txt2speech !== 'function'){ console.warn('[PUTER] script puter.js absent'); return false; }
-    void puterVoiceName(voiceId);
     const chunks = splitSentences(text, 800);
     for (const c of chunks){
       try {
         if (onChunk) onChunk(c);
-        const audio = await puter.ai.txt2speech(c, { voice: voiceId || 'Lea', engine: 'neural', language: 'fr-FR' });
-        if (!audio || typeof audio.play !== 'function'){ console.warn('[PUTER] pas d audio retourné'); return false; }
+        /* v10.70 : formes d appel EN CASCADE — voix choisie -> voix
+           française defaut -> forme du tutoriel (langue en chaine) ->
+           defaut. La popup Puter (1re fois) sort elle aussi en erreur
+           reutable apres validation du compte. */
+        const variants = [];
+        if (voiceId) variants.push({ voice: voiceId, engine: 'neural', language: 'fr-FR' });
+        variants.push({ language: 'fr-FR', engine: 'neural' });
+        variants.push('fr-FR');
+        variants.push({});
+        let audio = null, lastErr = null;
+        for (const opts of variants){
+          try {
+            let a = await puter.ai.txt2speech(c, opts);
+            if (typeof a === 'string') a = new Audio(a);
+            if (a && typeof a.play === 'function'){ audio = a; break; }
+            console.warn('[PUTER] reponse inattendu', opts);
+          } catch(e){
+            lastErr = e;
+            const msg = ((e && (e.message || e.error_code)) + '') || '';
+            console.warn('[PUTER] tentative echouee:', opts, msg.slice(0, 120));
+            if (/auth|login|sign|permission|denied/i.test(msg)){
+              setStatus('Valide ta fenetre Puter (compte gratuit, une seule fois) puis redemande');
+            }
+          }
+        }
+        if (!audio){ console.warn('[PUTER] toutes tentatives echouees', lastErr && (lastErr.message || lastErr)); return false; }
         await new Promise(res => {
           let fin = false;
           const end = () => { if (!fin){ fin = true; res(); } };
