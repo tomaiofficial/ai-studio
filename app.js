@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.48';
+const APP_VERSION = '10.49';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1000,6 +1000,154 @@ textInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendTextQues
 /* v9.49 : reveil du cerveau des la premiere lettre tapee -> reponse rapide */
 textInput.addEventListener('input', () => warmUpBrain());
 
+/* ===== ASTRA AUTONOME — auto-deploiement (v10.49) =====
+   Astra peut MODIFIER SON PROPRE CODE et se redployer : elle emet un bloc
+   ```astra-edit``` JSON dans sa reponse (find/replace chirurgicaux). L'app
+   verifie chaque extrait (unique, present), applique, bump la version
+   automatiquement (APP_VERSION, version.json, ?v=, cache SW), commite via
+   le jeton GitHub du user (Repo > Settings > Developer settings > PAT).
+   SECURITE : GitHub Pages ne sert QUE le dernier build reussi — si son code
+   casse le build, le site garde l'ancienne version (c'est son garde-fou).
+   Une sauvegarde locale permet le revert en 1 clic dans Reglages. */
+const GH_LS = 'va_gh_token';
+const GH_REPO = 'tomaiofficial/ai-studio';
+const GH_BRANCH = 'main';
+let agentDeploying = false;
+function getGhToken(){ try { return (localStorage.getItem(GH_LS) || '').trim(); } catch { return ''; } }
+function b64encodeUtf8(str){
+  const b = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < b.length; i++) bin += String.fromCharCode(b[i]);
+  return btoa(bin);
+}
+function b64decodeUtf8(b64){
+  const bin = atob(b64.replace(/\s/g, ''));
+  const b = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(b);
+}
+function ghHeaders(){
+  return { 'Authorization': 'Bearer ' + getGhToken(), 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+}
+function parseAgentEdits(text){
+  if (!getGhToken()) return null;
+  const m = /```astra-edit\s*([\s\S]*?)```/.exec(text || '');
+  if (!m) return null;
+  try {
+    const obj = JSON.parse(m[1]);
+    const edits = (obj.edits || []).filter(e => e && (e.file === 'app.js' || e.file === 'index.html') &&
+      typeof e.find === 'string' && e.find.length > 10 && typeof e.replace === 'string');
+    if (!edits.length) return null;
+    return { note: (obj.note || 'Astra auto').slice(0, 60), edits };
+  } catch { return null; }
+}
+async function ghGetFile(path){
+  const r = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/' + path + '?ref=' + GH_BRANCH, { headers: ghHeaders() });
+  if (!r.ok) throw new Error('lecture ' + path + ' HTTP ' + r.status);
+  const j = await r.json();
+  return { sha: j.sha, content: b64decodeUtf8(j.content || '') };
+}
+async function ghPutFile(path, content, message, sha){
+  const r = await fetch('https://api.github.com/repos/' + GH_REPO + '/contents/' + path, {
+    method: 'PUT', headers: ghHeaders(),
+    body: JSON.stringify({ message, content: b64encodeUtf8(content), branch: GH_BRANCH, sha })
+  });
+  if (!r.ok) throw new Error('commit ' + path + ' HTTP ' + r.status + ' ' + ((await r.text().catch(() => '')) || '').slice(0, 120));
+}
+async function applyAgentEdits(parsed){
+  if (agentDeploying || !parsed || !parsed.edits || !parsed.edits.length) return null;
+  agentDeploying = true;
+  try {
+    const uniq = [...new Set(parsed.edits.map(e => e.file))];
+    const files = {};
+    for (const f of uniq) files[f] = await ghGetFile(f);
+    /* sauvegarde locale pour revert */
+    try { localStorage.setItem('va_agent_backup', JSON.stringify({ note: parsed.note, at: Date.now(),
+      files: Object.keys(files).map(f => ({ path: f, content: files[f].content })) })); } catch {}
+    /* version auto : patch + 1 */
+    const vm = /const APP_VERSION = '(\d+)\.(\d+)';/.exec(files['app.js'].content);
+    if (!vm) throw new Error('APP_VERSION introuvable');
+    const nv = vm[1] + '.' + (parseInt(vm[2], 10) + 1);
+    const swm = /assistvocal-v(\d+)/.exec((await ghGetFile('sw.js')).content);
+    const newSw = 'assistvocal-v' + (swm ? (parseInt(swm[1], 10) + 1) : 1);
+    const msg = 'Astra auto: ' + parsed.note;
+    /* app.js : edits + bump */
+    for (const e of parsed.edits.filter(x => x.file === 'app.js')){
+      const n = files['app.js'].content.split(e.find).length - 1;
+      if (n === 0) throw new Error('extrait introuvable dans app.js');
+      if (n > 1) throw new Error('extrait ambiglu (' + n + ' occurrences) dans app.js');
+      files['app.js'].content = files['app.js'].content.replace(e.find, e.replace);
+    }
+    files['app.js'].content = files['app.js'].content.replace("const APP_VERSION = '" + vm[0].match(/\d+\.\d+/)[0] + "';", "const APP_VERSION = '" + nv + "';");
+    /* index.html : edits (+ bump tags) */
+    if (!files['index.html']) files['index.html'] = await ghGetFile('index.html');
+    for (const e of parsed.edits.filter(x => x.file === 'index.html')){
+      const n = files['index.html'].content.split(e.find).length - 1;
+      if (n === 0) throw new Error('extrait introuvable dans index.html');
+      if (n > 1) throw new Error('extrait ambiglu (' + n + ' occurrences) dans index.html');
+      files['index.html'].content = files['index.html'].content.replace(e.find, e.replace);
+    }
+    files['index.html'].content = files['index.html'].content
+      .replace(/app\.js\?v=\d+\.\d+/g, 'app.js?v=' + nv)
+      .replace(/websearch\.js\?v=\d+\.\d+/g, 'websearch.js?v=' + nv);
+    /* sw.js : bump cache */
+    files['sw.js'] = { content: (files['sw.js'] ? files['sw.js'].content : (await ghGetFile('sw.js')).content) };
+    files['sw.js'].content = files['sw.js'].content.replace(/assistvocal-v\d+/, newSw);
+    /* version.json */
+    files['version.json'] = { content: JSON.stringify({ version: nv }) };
+    /* commits */
+    for (const f of ['app.js', 'index.html', 'sw.js', 'version.json']) {
+      await ghPutFile(f, files[f].content, msg + ' [' + f + ']', (await ghGetFile(f)).sha);
+    }
+    /* verification live (GitHub Pages) */
+    for (let i = 0; i < 14; i++){
+      await new Promise(res => setTimeout(res, 28000));
+      try {
+        const r = await fetch('https://tomaiofficial.github.io/ai-studio/version.json?nc=' + Date.now(), { cache: 'no-store' });
+        if (r.ok && ((await r.json()).version === nv)) return { ok: true, version: nv, note: parsed.note };
+      } catch {}
+    }
+    return { ok: false, version: nv, note: parsed.note };
+  } catch (e) {
+    console.warn('[AGENT] deploiement echoue:', e && e.message);
+    return { ok: false, error: (e && e.message) || 'inconnu', note: parsed.note };
+  } finally { agentDeploying = false; }
+}
+async function maybeAgentAutoDeploy(replyText){
+  const parsed = parseAgentEdits(replyText);
+  if (!parsed) return replyText;
+  console.log('[AGENT] Astra autonome:', parsed.note, parsed.edits.length, 'edits');
+  const res = await applyAgentEdits(parsed);
+  if (res && res.ok) toastMsg('✅ Astra a deploie sa modif (v' + res.version + ') — recharge la page');
+  else toastMsg('⚠️ Astra n a pas pu se redeployer: ' + ((res && res.error) || 'build pas encore en ligne'));
+  /* la voix/UI ne doit pas epeler le JSON : on retire le bloc et on resume */
+  let clean = replyText.replace(/```astra-edit[\s\S]*?```/, '').trim();
+  if (res && res.ok) clean += ' Et hop, modification deployee: ' + parsed.note + '. Recharge la page pour la voir.';
+  else if (res) clean += ' Impossible de deployer ma modification: ' + ((res && res.error) || 'attends, je reessai plus tard') + '.';
+  return clean;
+}
+async function agentRevertLastDeploy(){
+  if (agentDeploying) return;
+  let backup = null;
+  try { backup = JSON.parse(localStorage.getItem('va_agent_backup') || 'null'); } catch {}
+  if (!backup || !backup.files || !backup.files.length){ toastMsg('Aucune sauvegarde a restaurer'); return; }
+  agentDeploying = true;
+  try {
+    for (const f of backup.files){
+      await ghPutFile(f.path, f.content, 'Astra auto: revert ' + (backup.note || ''), (await ghGetFile(f.path)).sha);
+    }
+    toastMsg('✅ Revert envoye — le redeploy arrive dans quelques minutes');
+  } catch (e) { toastMsg('⚠️ Revert echoue: ' + ((e && e.message) || 'inconnu')); }
+  finally { agentDeploying = false; }
+}
+const ghTokenInput = $('ghToken'), saveGhTokenBtn = $('saveGhToken'), agentRevertBtn = $('agentRevert');
+if (ghTokenInput) ghTokenInput.value = getGhToken();
+if (saveGhTokenBtn) saveGhTokenBtn.addEventListener('click', () => {
+  localStorage.setItem(GH_LS, (ghTokenInput.value || '').trim());
+  toastMsg(getGhToken() ? 'Jeton GitHub enregistre — Astra est AUTONOME' : 'Jeton efface');
+});
+if (agentRevertBtn) agentRevertBtn.addEventListener('click', agentRevertLastDeploy);
+
 /* ===== RECONNAISSANCE VOCALE ===== */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recog = null;
@@ -1533,7 +1681,7 @@ function getSystemPrompt(){
   }
   const userProfile = buildUserProfile();
   if (userProfile) base += '\n' + userProfile + ' Sois plus performante sur ces sujets que lui.';
-  base += '\nTu peux proposer des idees de nouvelles fonctionnalites quand l utilisateur demande des ameliorations. Les enregistrer comme suggestions ne modifie pas le code et ne les active pas. Ne pretend jamais avoir ajoute ou deploye une fonctionnalite. Ne lance pas de tache quand l app est inactive : le navigateur ne fonctionne pas en arriere-plan de facon garantie.';
+  base += '\nAUTONOMIE — Tu peux modifier ton propre code et te redeployer TOUTE SEULE. Quand tu (ou l utilisateur) veux ajouter ou corriger une fonctionnalite, inclus a la FIN de ta reponse un bloc comme ceci:\n```astra-edit\n{"note":"resume court","edits":[{"file":"app.js","find":"EXTRAIT EXACT existant dans le fichier (10 a 300 caracteres, UNIQUE)","replace":"LE MEME EXTRAIT MODIFIE"}]}\n```\nREGLES ABSOLUES (tu prends soin de l app): le `find` doit exister a l identique et ONE seule fois dans le fichier (copie-le mot pour mot depuis ce que tu connais du code, avec indentation si utile); des edits MINIMAUX (jamais tout remplacer, jamais supprimer des fonctions entieres, jamais renommer des fonctions utilisees ailleurs); tu ne touches JAMAIS a APP_VERSION, version.json, aux tags ?v= ni au cache du sw — ils sont bump automtiquement; si tu n es pas sure a 90%, demande d abord confirmation a l utilisateur; apres ca, l app applique le bloc automatiquement, se redeploye toute seule et te confirme le resultat a voix haute.
   /* v9.96 : le mood est INJECTE dans le prompt -> le cerveau repond avec le
      bon ton (avant, seul un prefixe etait ajoute apres coup) */
   if (currentMood === 'vulgaire'){
@@ -2040,6 +2188,9 @@ async function askAI(question){
       r.text = variants[Math.floor(Math.random() * variants.length)] + r.text;
     }
     lastReplyText = r.text;
+    /* ASTRA AUTONOME : un bloc ```astra-edit``` dans la reponse est applique
+       ici ; le texte renvoye a la voix/UI est nettoyé du JSON brut. */
+    r.text = await maybeAgentAutoDeploy(r.text);
     session.push({ role: 'assistant', content: r.text });
     saveConversation();
   }
