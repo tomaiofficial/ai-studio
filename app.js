@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.60';
+const APP_VERSION = '10.61';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -940,6 +940,71 @@ try {
   localStorage.removeItem('va_gemini_key');
   localStorage.removeItem('va_gemini_quota');
 } catch {}
+
+/* v10.61 : GOOGLE CLOUD TTS — voix IA ultra-realistes gratuites a vie
+   (0.5-1M caracteres/mois sur le compte gratuit). Appele direct navigateur
+   avec cle API (CORS ok chez googleapis). valeurs de voix : gcloudtts:<name> */
+const GCLOUD_LS = 'va_gcloudtts_key';
+const GCLOUD_VOICES = [
+  { n: 'Denise', l: 'fr-FR', v: 'fr-FR-DeniseNeural', d: 'femme, chaleureuse' },
+  { n: 'Coralie', l: 'fr-FR', v: 'fr-FR-CoralieNeural', d: 'femme, claire' },
+  { n: 'Celeste', l: 'fr-FR', v: 'fr-FR-CelesteNeural', d: 'femme, douce' },
+  { n: 'Henri', l: 'fr-FR', v: 'fr-FR-HenriNeural', d: 'homme, grave' },
+  { n: 'Jerome', l: 'fr-FR', v: 'fr-FR-JeromeNeural', d: 'homme, clair' },
+  { n: 'Yves', l: 'fr-FR', v: 'fr-FR-YvesNeural', d: 'homme, mature' }
+];
+function getGCloudKey(){ try { return (localStorage.getItem(GCLOUD_LS) || '').trim(); } catch { return ''; } }
+const gcloudKeyInput = $('gcloudKey'), saveGCloudKeyBtn = $('saveGCloudKey');
+if (gcloudKeyInput) gcloudKeyInput.value = getGCloudKey();
+if (saveGCloudKeyBtn) saveGCloudKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(GCLOUD_LS, (gcloudKeyInput.value || '').trim());
+  populateVoices();
+  toast('Clé Google Cloud TTS enregistrée ✓ — 6 voix IA ultra-réalistes activées');
+});
+let gcloudFailed = false;
+async function speakGCloud(text, voiceName, onChunk){
+  const key = getGCloudKey();
+  if (!key){ console.warn('[GCLOUD] Pas de clé — réglages'); return false; }
+  if (gcloudFailed) return false;
+  try {
+    const chunks = splitSentences(text, 1500);
+    const call = async (chunk) => {
+      try {
+        const r = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=' + encodeURIComponent(key), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { text: chunk },
+            voice: { languageCode: 'fr-FR', name: voiceName },
+            audioConfig: { audioEncoding: 'MP3' }
+          }),
+          signal: abortSignal(20000)
+        });
+        if (!r.ok){
+          const et = (await r.text().catch(() => '')).slice(0, 150);
+          console.warn('[GCLOUD] HTTP', r.status, et);
+          if (r.status === 403 || r.status === 401){ gcloudFailed = true; setStatus('Clé Google Cloud TTS invalide ou API pas activée'); }
+          return null;
+        }
+        const j = await r.json();
+        if (!j || !j.audioContent) return null;
+        const binary = atob(j.audioContent);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new Blob([bytes], { type: 'audio/mp3' });
+      } catch(e){ return null; }
+    };
+    const results = await Promise.all(chunks.map(call));
+    if (!results.some(Boolean)) return false;
+    for (let i = 0; i < results.length; i++){
+      if (!results[i]) return false;
+      if (onChunk) onChunk(chunks[i]);
+      const ok = await playAudioBlob(results[i]);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[GCLOUD] échec:', e && e.message); return false; }
+}
 
 
 /* ===== SAISIE TEXTE (poser une question par ecrit, marche meme sans micro) ===== */
@@ -3077,9 +3142,20 @@ async function populateVoices(){
   /* v10.42 : dedupe — si populateVoices est rappelé (sauvegarde de clé),
      on supprime les ANCIENS groupes IA avant d'en rajouter neufs */
   Array.from(ttsVoiceSel.children).forEach(c => {
-    if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs/.test(c.label || '')) c.remove();
+    if (c.tagName === 'OPTGROUP' && /Google IA|ElevenLabs|Cloud/.test(c.label || '')) c.remove();
   });
-  /* v10.60 : ElevenLabs retire de l'app — plus de groupe dans la liste */
+  /* v10.61 : GOOGLE CLOUD TTS — groupe visible des qu'une cle est presente */
+  if (getGCloudKey() && !gcloudFailed){
+    const gg = document.createElement('optgroup');
+    gg.label = '☁️ Google Cloud TTS (ultra-réaliste, gratuit à vie)';
+    GCLOUD_VOICES.forEach(v => {
+      const o = document.createElement('option');
+      o.value = 'gcloudtts:' + v.v;
+      o.textContent = '☁️ ' + v.n + ' — ' + v.d;
+      gg.appendChild(o);
+    });
+    ttsVoiceSel.appendChild(gg);
+  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la synthèse vocale du
      navigateur est la moins belle qualité et l'utilisateur préfère les voix
      Google IA / Voxtral. La lecture système reste branchée UNIQUEMENT comme
@@ -3298,6 +3374,24 @@ function speak(text, onChunk){
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
       chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
+    } else if (voiceMode.startsWith('gcloudtts:')) {
+      const gv = voiceMode.substring(10);
+      /* Google Cloud TTS choisi : ultra-realiste puis Voxtral puis Systeme */
+      chain = [
+        ['Google Cloud: ' + gv, (t) => speakGCloud(t, gv, onChunk)],
+        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Système', (t) => speakSystem(t, null, onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)]
+      ];
+    } else if (getGCloudKey() && !gcloudFailed) {
+      /* v10.61 : clé Google Cloud présente -> elle devient la voix PREMIUM
+         par defaut (ultra-realiste a vie), Voxtral en secours */
+      chain = [
+        ['Google Cloud: Denise', (t) => speakGCloud(t, 'fr-FR-DeniseNeural', onChunk)],
+        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Système', (t) => speakSystem(t, null, onChunk)],
+        ['Google', (t) => speakGoogle(t, onChunk)]
+      ];
     } else {
       /* voix par défaut : Voxtral IA puis Système puis Google Translate */
       chain = [
