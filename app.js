@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.84';
+const APP_VERSION = '10.85';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -138,7 +138,7 @@ let noteState = { open: false, content: '' };
    et le texte est copie dans le bloc-notes. */
 let writingMode = false;
 
-const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // v10.81 : Mistral Voxtral = la SEULE voix IA realiste gratuite a vie (Qwen + Edge retires)
+const DEFAULT_VOICE = 'iw:Ashley'; // v10.85 : Voxtral SUSPENDU (trop lent) -> Inworld TTS-2 #1 + Google filet
 const SPEED = 1.0; // naturel
 
 /* ===== VOXTRAL TTS (Mistral AI) — VOIX PRINCIPALE =====
@@ -377,9 +377,12 @@ function getInworldKey(){
 async function speakInworld(text, voiceId, onChunk){
   const key = getInworldKey();
   if (!key){ console.warn('[INWORLD] Pas de cle — ajoute-la dans Reglages'); return false; }
-  const chunks = splitSentences(text, 800);
+  /* v10.85 : morceaux PLUS COURTS + lecture PROGRESSIVE — on joue le 1er
+     morceau des qu'il arrive (latence ressentie /3), le reste se prepare
+     en parallele pendant la lecture. */
+  const chunks = splitSentences(text, 500);
   try {
-    const results = await Promise.all(chunks.map(async (chunk) => {
+    const fetches = chunks.map(async (chunk) => {
       try {
         const res = await fetch(INWORLD_API, {
           method: 'POST',
@@ -392,7 +395,7 @@ async function speakInworld(text, voiceId, onChunk){
             deliveryMode: 'BALANCED',
             applyTextNormalization: 'ON'
           }),
-          signal: abortSignal(15000)
+          signal: abortSignal(12000)
         });
         if (!res.ok){
           const et = await res.text().catch(() => '');
@@ -411,15 +414,18 @@ async function speakInworld(text, voiceId, onChunk){
         for (let k = 0; k < binary.length; k++) bytes[k] = binary.charCodeAt(k);
         return new Blob([bytes], { type: 'audio/mpeg' });
       } catch(e){ console.warn('[INWORLD] chunk echec:', e && e.message); return null; }
-    }));
-    for (let i = 0; i < results.length; i++){
-      if (!results[i]) continue;
+    });
+    let any = false;
+    for (let i = 0; i < chunks.length; i++){
+      const blob = await fetches[i];
+      if (!blob) continue;
+      any = true;
       if (activeSpeechEpoch !== speechEpoch){ console.warn('[INWORLD] parole interrompue'); return false; }
       if (onChunk) onChunk(chunks[i]);
-      const ok = await playAudioBlob(results[i]);
+      const ok = await playAudioBlob(blob);
       if (!ok) return false;
     }
-    return results.some(Boolean);
+    return any;
   } catch(e){ console.warn('[INWORLD] Echec:', e && e.message); return false; }
 }
 /* v10.6 : FIX MOBILE — transcription audio via Mistral Voxtral
@@ -980,8 +986,10 @@ function getVoice(){
       || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
       || v.startsWith('edge:') || v.startsWith('edg:') || v.startsWith('qwen:')
       || v === 'systeme') return DEFAULT_VOICE;
-  /* v10.65 : voix Voxtral blacklistee (refusee par l API) -> retour defaut */
-  if (v.startsWith('voxtral:') && getVoxtralBadVoices().includes(v.substring(8))) return DEFAULT_VOICE;
+  /* v10.85 : Voxtral SUSPENDU (trop lent, 10-15 s) -> TOUTE voxtral:* bascule
+     sur le defaut = Inworld TTS-2. La cle Mistral reste utilisee pour la
+     TRANSCRIPTION et le cerveau, uniquement. */
+  if (v.startsWith('voxtral:')) return DEFAULT_VOICE;
   /* v10.78 : Cartesia SUPPRIME -> bascule au defaut Voxtral */
   if (v.startsWith('cartesia:')) return DEFAULT_VOICE;
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
@@ -2097,13 +2105,15 @@ async function askBrain(messages, webCtx, onDelta){
    /* v10.74 : STREAMING — lit la reponse au fil de l'eau (SSE) et appelle
       onDelta(texte_partiel) a chaque fragment -> l'utilisateur VOIT la
       reponse arriver en temps reel au lieu d'attendre 5-15s dans le vide. */
-   const tryStream = async (url, model, ms) => {
-     try {
-       const res = await withTimeout(fetch(url, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7, stream: true })
-       }), ms || 8000);
+    /* v10.85 : streaming AVEC auth Bearer optionnelle (avant : 401 immédiat
+       sur api.mistral.ai !) + max_tokens 400 (réponses courtes = plus vite). */
+    const tryStream = async (url, model, ms, authKey) => {
+      try {
+        const res = await withTimeout(fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(authKey ? { 'Authorization': 'Bearer ' + authKey } : {}) },
+          body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7, stream: true })
+        }), ms || 8000);
        if (!res || !res.ok || !res.body) return null;
        const reader = res.body.getReader();
        const decoder = new TextDecoder();
@@ -2178,13 +2188,14 @@ async function askBrain(messages, webCtx, onDelta){
      sature en permanence (429 sur GET ET POST) -> bruit console + lenteur.
      Mistral chat seul : fiable, rapide, repond toujours. */
   const tryMistralChat = async () => {
-    for (const model of ['open-mistral-nemo', 'mistral-small-latest']){
+    /* v10.85 : mistral-small-latest d'abord (plus rapide/recent que nemo) */
+    for (const model of ['mistral-small-latest', 'open-mistral-nemo']){
       try {
         const res = await withTimeout(fetch('https://api.mistral.ai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mistralKey },
-          body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
-        }), 15000);
+          body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
+        }), 9000); /* v10.85 : 15s -> 9s (reaction rapide) */
         if (res && !res.ok){
           const et = (await res.text().catch(() => '')).slice(0, 200);
           if (res.status === 401 && /expired/i.test(et)){
@@ -2202,9 +2213,11 @@ async function askBrain(messages, webCtx, onDelta){
     return null;
   };
   if (mistralKey){
-    /* v10.74 : streaming d'abord (reponse affichee en temps reel) */
+    /* v10.74 : streaming d'abord (reponse affichee en temps reel)
+       v10.85 : mistral-small-latest (plus rapide) + auth Bearer (avant : le
+       streaming etait refuse sans cle -> on perdait 15s a chaque reponse !) */
     if (onDelta){
-      const t = await tryStream('https://api.mistral.ai/v1/chat/completions', 'open-mistral-nemo', 15000);
+      const t = await tryStream('https://api.mistral.ai/v1/chat/completions', 'mistral-small-latest', 15000, mistralKey);
       if (t) return { text: fixFrench(t), diag: 'Mistral' };
     }
     const t = await tryMistralChat();
@@ -2220,7 +2233,7 @@ async function askBrain(messages, webCtx, onDelta){
       const res = await withTimeout(fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, max_tokens: 800, temperature: 0.7 })
+         body: JSON.stringify({ model, messages, max_tokens: 400, temperature: 0.7 })
       }), 12000);
       if (res && res.ok){
         const data = await res.json();
@@ -3298,31 +3311,15 @@ function splitSentences(text, max){
     }
   return final.length ? final : [text];
 }
-/* Remplit le sélecteur de voix — v10.68 : voix Voxtral (Mistral AI) :
-   presets officiels (UUID) + liste dynamique / v1/audio/voices. */
+/* Remplit le sélecteur de voix — v10.85 : Voxtral SUSPENDU (trop lent) :
+   plus aucune option Voxtral. Inworld TTS-2 + filet Google uniquement. */
 async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
   Array.from(ttsVoiceSel.options).forEach(o => { o.remove(); });
-  const existingOptions = Array.from(ttsVoiceSel.options).map(o => o.value);
-  /* Voxtral TTS (Mistral AI) — PRIORITÉ #1 : vraies voix preset (UUID) */
-  const voices = await fetchVoxtralVoices();
-  const badVoicesDyn = getVoxtralBadVoices();
-  voices.forEach(v => {
-    const val = 'voxtral:' + v.id;
-    if (badVoicesDyn.includes(v.id)) return; /* v10.65 voix refusee : pas dans le selecteur */
-    if (!existingOptions.includes(val)){
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = '🎙️ ' + v.name;
-      ttsVoiceSel.appendChild(opt);
-    }
-  });
-  /* v10.65 : les voix refusees par l API disparaissent du selecteur */
-  const badVoices = getVoxtralBadVoices();
-  Array.from(ttsVoiceSel.children).forEach(c => {
-    if (c.tagName === 'OPTION' && (c.value || '').startsWith('voxtral:') && badVoices.includes(c.value.substring(8))) { c.disabled = true; c.hidden = true; }
-  });
+  /* v10.85 : Voxtral suspendu -> on NE charge PAS la liste Mistral (aucune
+     option voxtral:*). Les anciennes options memorisees sont ecartees par
+     getVoice() qui bascule sur iw:Ashley. */
   /* v10.82 : GROUPE INWORLD TTS-2 — arena #7 mondial, gratuit a vie
      (~70 min/mois), cle gratuite sans carte. Defaut : Ashley. */
   {
@@ -3556,32 +3553,20 @@ function speak(text, onChunk){
     /* guard-source v10.79 : timeout global — si AUCUNE voix n'a e
        produit de son en 40s, on lache (avant : 60s tres long pour l'utilisateur) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (40s)'); fail(); }, 40000);
-    /* VOIX : v10.82 — VOIX IA SEULEMENT. Moteurs realistes gratuits a vie :
-       MISTRAL VOXTRAL (#1, aucun quota) + INWORLD TTS-2 (arena #7, ~70 min/mois).
-       Filet final : Google Translate (robotique mais jamais muet). */
+    /* VOIX : v10.85 — Voxtral SUSPENDU (trop lent 10-15 s). La chaîne =
+       INWORLD TTS-2 (realiste, ~2-4 s) puis Google Translate (rapide, jamais muet).
+       voxtral:* (memorise ancien) ->Trait comme le defaut. */
     const voiceMode = getVoice();
     const SAFE = ['Google Translate (filet)', (t) => speakGoogle(t, onChunk)]; /* v10.79 : jamais muet */
-    let chain;
-    if (voiceMode.startsWith('iw:')) {
+    /* v10.85 : default + voxtral:* -> Inworld d'abord (pas de Voxtral partout) */
+    chain = [
+      ['Inworld: Ashley', (t) => speakInworld(t, 'Ashley', onChunk)],
+      SAFE
+    ];
+    if (voiceMode.startsWith('iw:')){
       const ivv = voiceMode.substring(3) || 'Ashley';
-      /* FORCER Inworld TTS-2 (gratuit a vie, arena #7) */
       chain = [
         ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk)],
-        SAFE
-      ];
-    } else if (voiceMode.startsWith('voxtral:')) {
-      const voiceId = voiceMode.substring(8);
-      /* Mistral Voxtral choisi ; secours Inworld si cle presente */
-      chain = [
-        [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
-        ['Inworld (secours)', (t) => speakInworld(t, 'Ashley', onChunk)],
-        SAFE
-      ];
-    } else {
-      /* voix par defaut : Mistral Voxtral Paul puis Inworld Ashley */
-      chain = [
-        ['Mistral Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Inworld: Ashley (secours)', (t) => speakInworld(t, 'Ashley', onChunk)],
         SAFE
       ];
     }

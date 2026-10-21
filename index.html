@@ -578,14 +578,11 @@ select.wide-input{appearance:none}
     <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
 
     <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — la <b>SEULE</b> voix IA réaliste gratuite à vie, sans quota (clé API Mistral gratuite sur console.mistral.ai).</p>
-    <p class="muted" style="margin-top:4px">🎙️ Mistral Voxtral (#1, aucun quota) + 🎭 Inworld TTS-2 (arena #7, ~70 min/mois à vie) en secours. Filet : Google Translate. Qwen/Microsoft/Puter/Kokoro ont été retirés.</p>
+    <p class="muted">🎭 <b>Inworld TTS-2</b> (#1, réaliste, ~70 min/mois à vie) + filet Google Translate (rapide, jamais muet). ⚠️ Voxtral/Mistral suspendu (trop lent) — la clé Mistral sert toujours à la transcription et au cerveau. Qwen/Microsoft/Puter/Kokoro retirés. Inworld = clé type <b>Standard</b> (pas Realtime-only, type fixe à la création !).</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8" selected>🎙️ Voxtral: Paul (anglais US, neutre) — défaut</option>
-      <option value="voxtral:e3596645-b1af-469e-b857-f18ddedc7652">🎙️ Voxtral: Oliver (anglais UK, neutre)</option>
-      <option value="voxtral:a3e41ea8-020b-44c0-8d8b-f6cc03524e31">🎙️ Voxtral: Jane (anglais UK, sarcastique)</option>
+      <option value="iw:Ashley" selected>🎭 Inworld: Ashley (réaliste) — défaut</option>
     </select>
-    <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> — voix Voxtral + transcription vocale mobile (console.mistral.ai → API Keys) :</p>
+    <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> — transcription vocale mobile + cerveau IA (console.mistral.ai → API Keys) :</p>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
     <button class="primary" id="saveMistralKey" style="margin-top:6px">💾 Enregistrer la clé</button>
     <p class="muted" style="margin-top:10px">🎭 <b>2e moteur — Inworld TTS-2</b> (réaliste, arena #7 mondial) — gratuit à vie (~70 min/mois renouvelées) : <b>platform.inworld.ai</b> → compte gratuit → <b>API Keys → Generate new key → type STANDARD</b> ⚠️ (pas "Realtime-only" ! une clé Realtime-only est refusée par TTS avec 403 no scopes, et son type est fixe à la création) → copie le <b>Basic (Base64)</b> et colle-le ici :</p>
@@ -727,9 +724,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=10.84"></script>
+<script src="websearch.js?v=10.85"></script>
 <script>
 </script>
-<script src="app.js?v=10.84"></script>
+<script src="app.js?v=10.85"></script>
 </body>
 </html>
