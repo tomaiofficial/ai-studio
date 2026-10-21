@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.86';
+const APP_VERSION = '10.87';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2421,9 +2421,12 @@ async function askAI(question, onDelta){
    Validation humaine : tu peux l'interrompre a tout moment (touche la bulle micro). */
 function isAgentQuestion(q){
   /* v10.77 : "apprends/apprendre" RETIRES — « apprends-moi l'anglais »
-     lancait le mode agent au lieu d'aller au cerveau */
-  return /mode agent|agent autonome|autonomie|decouvre|decouvrir|explore|explorer/i.test(q) ||
-    /^(planifie|organise|compare|analyse|prepare|elabore|enquete|etudie|fais un rapport|fais des recherches|recherche sur|cherche|trouve|va voir|regarde sur|google|en ligne)/i.test(q.trim()) ||
+      lancait le mode agent au lieu d'aller au cerveau.
+      v10.87 : davantage de declencheurs "agir comme Claude" — ouvrir un site,
+      lire une page, une URL colle directement, comparer/analyser... */
+  return /mode agent|agent autonome|autonomie|decouvre|decouvrir|explore|explorer|navigue|visite|ouvre (le|la|un|cette|ce)|va sur (le site|cette|ce)|consulte|fais le tour/i.test(q) ||
+    /https?:\/\//.test(q) ||
+    /^(planifie|organise|compare|analyse|prepare|elabore|enquete|etudie|fais un rapport|fais des recherches|recherche sur|cherche|trouve|va voir|va lire|lis|regarde sur|google|en ligne)/i.test(q.trim()) ||
     q.trim().length > 100;
 }
 function addAgentStep(i, total, label){
@@ -2489,9 +2492,22 @@ function nowInfo(){
 function memoryInfo(){
   try { return buildMemoryContext() || 'Aucune fiche memoire pour l instant.'; } catch(e){ return ''; }
 }
+/* OUTIL LIRE (v10.87) : naviguer sur N'IMPORTE QUELLE site/page web —
+   comme Claude, Astra ouvre l'URL elle-meme et en lit le contenu. */
+async function agentReadUrl(url){
+  try {
+    if (typeof WebSearch !== 'undefined' && WebSearch.read){
+      const r = await WebSearch.read(url);
+      if (r && r.ok) return 'Contenu de ' + (r.source || url) + ' :\n' + String(r.text || '').slice(0, 3500);
+      return '';
+    }
+  } catch(e){}
+  return '';
+}
 /* REGISTRE DES OUTILS */
 const AGENT_TOOLS = {
   web:      { desc: 'recherche sur le web (actualite, sport, prix, infos recentes)', run: q => webSearch(q) },
+  lire:     { desc: 'ouvrir et lire une page web precise (argument = URL complete http...)', run: q => agentReadUrl(q) },
   wikipedia:{ desc: 'resume d un article Wikipedia', run: q => wikiSummary(q) },
   calcul:   { desc: 'calcul arithmetique (ex: 15*7+3)', run: q => { const v = safeCalc(q); return v === null ? 'Calcul impossible.' : 'Resultat : ' + v; } },
   heure:    { desc: 'date et heure actuelles', run: () => nowInfo() },
@@ -2503,12 +2519,12 @@ function agentToolList(){
 async function runAgent(question){
   setStatus('🤖 Agent autonome : je choisis mes outils...');
   const toolList = agentToolList();
-  const sys = 'Tu es Astra, agent autonome en LECTURE SEULE (tu ne peux JAMAIS envoyer, acheter, supprimer, modifier ou payer quoi que ce soit ; ne dis jamais que tu as fait une action reelle). Tu dois resoudre la tache de l utilisateur en utilisant les outils disponibles, un a la fois.\n\nOutils disponibles :\n' + toolList + '\n\nRegles :\n- Pour utiliser un outil, reponds EXACTEMENT sur une seule ligne : [OUTIL:nom] arguments [/OUTIL]\n- Quand tu as assez d infos, reponds EXACTEMENT : [REPONSE] ta reponse finale en francais, 2 a 5 phrases, avec ton caractere habituel, en tutoyant [/REPONSE]\n- Utilise les outils un par un, attends le resultat avant de continuer.\n- Ne reponds JAMAIS directement a la tache sans avoir utilise au moins un outil (sauf si la tache est triviale).';
+  const sys = 'Tu es Astra, agent autonome en LECTURE SEULE (tu ne peux JAMAIS envoyer, acheter, supprimer, modifier ou payer quoi que ce soit ; ne dis jamais que tu as fait une action reelle). Tu dois resoudre la tache de l utilisateur en utilisant les outils disponibles, un a la fois.\n\nOutils disponibles :\n' + toolList + '\n\nRegles :\n- Pour utiliser un outil, reponds EXACTEMENT sur une seule ligne : [OUTIL:nom] arguments [/OUTIL]\n- Quand tu as assez d infos, reponds EXACTEMENT : [REPONSE] ta reponse finale en francais, 2 a 5 phrases, avec ton caractere habituel, en tutoyant [/REPONSE]\n- Utilise les outils un par un, attends le resultat avant de continuer.\n- OUTIL:lire te permet de voir SUR un site precis : un article, un profil, une doc, une page de news. Donne l URL complete (si tu ne la connais pas, utilise d abord OUTIL:web puis OUTIL:lire sur un resultat). Tu peux enchainer plusieurs lectures.\n- Ne reponds JAMAIS directement a la tache sans avoir utilise au moins un outil (sauf si la tache est triviale).';
   const history = [{ role: 'system', content: sys }, { role: 'user', content: 'Tache : ' + question }];
   let final = '';
-  for (let it = 0; it < 6; it++){
+  for (let it = 0; it < 8; it++){ /* v10.87 : 6 -> 8 (lire + naviguer demande plus d'etapes) */
     if (manualStop) break;
-    setStatus('🤖 Agent autonome : itération ' + (it + 1) + '/6');
+    setStatus('🤖 Agent autonome : itération ' + (it + 1) + '/8');
     const r = await askBrain(history);
     const txt = (r && r.text) || '';
     const m = txt.match(/\[OUTIL:(\w+)\]([\s\S]*?)\[\/OUTIL\]/i);
@@ -2518,11 +2534,12 @@ async function runAgent(question){
       break;
     }
     if (m){
+      /* v10.87 : balise OUTIL:*/
       const name = m[1].toLowerCase();
       const args = m[2].trim();
       const tool = AGENT_TOOLS[name];
       if (tool){
-        addAgentStep(it + 1, 6, 'Outil ' + name + (args ? ' : ' + args.slice(0, 60) : ''));
+        addAgentStep(it + 1, 8, (name === 'lire' ? '🌐 Je vais sur ' : 'Outil ' + name + ' : ') + (args ? args.slice(0, 70) : ''));
         let out = '';
         try { out = await tool.run(args); } catch(e){ out = ''; }
         history.push({ role: 'assistant', content: '[OUTIL:' + name + '] ' + args });

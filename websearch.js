@@ -181,6 +181,59 @@ async function viaProxy(query){
   return null;
 }
 
+/* ---------- LECTURE D'UNE PAGE WEB (v10.87) ----------
+   OUTIL "agir comme Claude" : Astra peut ouvrir N'IMPORTE QUELLE page
+   (un article, un profil, une doc, un site...) et en lire le texte.
+   Plusieurs passerelles, la premiere qui marche gagne :
+     1. r.jina.ai/URL       -> markdown propre, CORS ouvert
+     2. allorigins/raw      -> HTML brut qu'on nettoie
+     3. corsproxy.io        -> HTML brut qu'on nettoie
+   Lecture seule : on ne POST jamais, on ne se "connecte" nulle part. */
+function stripHtml(h){
+  return String(h || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<\/(p|div|li|h\d|tr|br)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+async function readUrlPage(url){
+  const u = String(url || '').trim();
+  if (!/^https?:\/\//i.test(u)) return { ok: false, text: '', reason: "URL invalide (http/https requis)" };
+  const norm = u.replace(/^https?:\/\//i, '');
+  /* 1) r.jina.ai — le plus propre et fiable pour la lecture */
+  try {
+    const r = await fetch('https://r.jina.ai/https://' + norm, { signal: to(15000) });
+    if (r.ok){
+      const t = (await r.text()).trim();
+      if (t && t.length > 40) return { ok: true, text: t.slice(0, 6000), source: 'r.jina.ai ' + norm };
+    }
+  } catch(e){}
+  /* 2) allorigins raw */
+  try {
+    const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(u), { signal: to(15000) });
+    if (r.ok){
+      const t = stripHtml(await r.text());
+      if (t && t.length > 40) return { ok: true, text: t.slice(0, 6000), source: 'allorigins ' + norm };
+    }
+  } catch(e){}
+  /* 3) corsproxy */
+  try {
+    const r = await fetch('https://corsproxy.io/?url=' + encodeURIComponent(u), { signal: to(15000) });
+    if (r.ok){
+      const t = stripHtml(await r.text());
+      if (t && t.length > 40) return { ok: true, text: t.slice(0, 6000), source: 'corsproxy ' + norm };
+    }
+  } catch(e){}
+  return { ok: false, text: '', reason: 'page inaccessible depuis ce reseau' };
+}
+
 /* ---------- API publique ---------- */
 /* Renvoie ALWAYS un objet, jamais une exception :
      { ok, text, source, live }  live=false = pas de web, l'IAreflectit seule */
@@ -224,5 +277,5 @@ async function probe(){
   return { live: !!res.live, source: res.source || 'aucune', reason: res.reason || '' };
 }
 
-window.WebSearch = { search, probe };
+window.WebSearch = { search, probe, read: readUrlPage };
 })();
