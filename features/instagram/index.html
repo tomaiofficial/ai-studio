@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📸 Instagram — Astra</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; background: linear-gradient(180deg, #120f28, #0a0818); color: #e9e9f5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 12px; }
+  a { color: #b79cff; }
+  header { width: 100%; max-width: 720px; display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  header b { font-size: 17px; }
+  .back { margin-left: auto; font-size: 13px; text-decoration: none; color: #9a9ab5; }
+  .card { background: rgba(124,92,255,.08); border: 1px solid rgba(124,92,255,.18); border-radius: 16px; padding: 16px; margin-bottom: 14px; width: 100%; max-width: 560px; }
+  .card h3 { margin: 0 0 10px; font-size: 14.5px; }
+  ol { margin: 0; padding-left: 19px; font-size: 13.5px; }
+  ol li { margin-bottom: 6px; }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  input { background: rgba(10,8,26,.75); border: 1px solid rgba(124,92,255,.25); color: #fff; border-radius: 10px; padding: 10px 12px; font: 14px system-ui; }
+  input:focus { outline: 1.5px solid #b79cff; border-color: #b79cff; }
+  input.ok { border-color: #3cdca0; }
+  .btn { background: #7c5cff; color: #fff; border: 0; border-radius: 10px; padding: 11px 16px; font: 600 14px system-ui; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  .btn.small { padding: 5px 12px; font-size: 12px; }
+  .btn.ig { background: linear-gradient(90deg, #833ab4, #e1306c); padding: 13px 20px; font-size: 15px; }
+  .btn.ghost { background: transparent; border: 1px solid rgba(124,92,255,.5); }
+  .chip { display: inline-flex; align-items: center; gap: 7px; background: rgba(60,220,160,.14); border: 1px solid rgba(60,220,160,.4); color: #3cdca0; padding: 7px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600; }
+  .chip.off { background: rgba(240,110,110,.12); border-color: rgba(240,110,110,.35); color: #f08e8e; }
+  .note { font-size: 12.5px; color: #9a9ab5; margin: 10px 0 0; }
+  .uri { user-select: all; word-break: break-all; font-size: 12.5px; background: rgba(0,0,0,.3); padding: 6px 9px; border-radius: 8px; color: #b79cff; }
+  code { background: rgba(0,0,0,.35); padding: 2px 7px; border-radius: 6px; font-size: 12.5px; color: #b79cff; }
+  #profile { display: none; align-items: center; gap: 12px; }
+  #profile img { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #e1306c; }
+  #igErr { color: #f08e8e; font-size: 13px; margin-top: 8px; white-space: pre-wrap; }
+  details summary { cursor: pointer; font-size: 13px; color: #b79cff; }
+</style>
+</head>
+<body>
+
+  <header>
+    <span style="font-size:22px">📸</span>
+    <b>Fonction Instagram officielle</b>
+    <a href=".." class="back">← Retour &agrave; Astra</a>
+  </header>
+
+  <div class="card" id="statusCard">
+    <div class="row" style="margin:0">
+      <div id="profile">
+        <img id="avatar" alt="">
+        <div>
+          <div style="font-weight:700;font-size:15px" id="uname">—</div>
+          <div style="font-size:12px;color:#9a9ab5">Compte Instagram connecté via le bouton officiel</div>
+        </div>
+      </div>
+      <span class="chip off" id="chip">🔴 Non connecté</span>
+      <button class="btn ghost small hidden" id="disc" style="display:none">⏏ Déconnecter</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <button class="btn ig hidden" id="connect">Se connecter avec Instagram</button>
+    <div id="igErr"></div>
+    <p class="note">🔒 La connexion se fait <b>dans la fenêtre officielle d'Instagram</b> (tu entres ton mot de passe uniquement là-bas). Astra ne stocke <b>jamais</b> ton mot de passe — elle reçoit seulement un jeton de lecture jeté après ton compte.</p>
+  </div>
+
+  <div class="card" id="wizardCard">
+    <h3>🪄 Brancher Instagram (5 minutes, une seule fois)</h3>
+    <ol>
+      <li>Ouvre <a href="https://developers.facebook.com/apps/create/" target="_blank" rel="noopener">developers.facebook.com — Créer une app</a> (gratuit)</li>
+      <li>Type d'app : <b>Business</b> → ajoute le produit <b>Instagram</b> → <b>Connexion via Instagram</b></li>
+      <li>Panneau Instagram : colle ce <b>redirect URI officiel</b> : <span class="uri" id="redirectLbl">…</span> <button class="btn small ghost" id="copyUri">📋 copier</button></li>
+      <li>Copie l'<b>ID de l'app</b> (numérique) dans le champ ci-dessous</li>
+      <li>Donne le <b>secret</b> à ton assistant (une fois) : <code>npx wrangler secret put IG_CLIENT_SECRET</code> — il vit sur le serveur Cloudflare, <b>jamais dans cette page</b></li>
+    </ol>
+    <div class="row">
+      <input id="appId" placeholder="ID de l'app Instagram (chiffres)" style="flex:1;min-width:220px">
+    </div>
+    <p class="note" id="wizErr"></p>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (i) => document.getElementById(i);
+  const KEY = 'astra_ig_v1';
+
+  const xorB64 = (s) => {
+    let o = '';
+    for (let i = 0; i < s.length; i++) o += String.fromCharCode(s.charCodeAt(i) ^ 'AstraIG'.charCodeAt(i % 7));
+    return btoa(o);
+  };
+  const b64Xor = (b) => {
+    try {
+      const raw = atob(b);
+      let o = '';
+      for (let i = 0; i < raw.length; i++) o += String.fromCharCode(raw.charCodeAt(i) ^ 'AstraIG'.charCodeAt(i % 7));
+      return o;
+    } catch (e) { return ''; }
+  };
+
+  let appKey = '';
+  try { appKey = localStorage.getItem('astra_ig_app_key') || ''; } catch (e) {}
+  $('appId').value = appKey;
+
+  function validAppKey() {
+    const v = ($('appId').value || '').trim();
+    return /^\d{10,20}$/.test(v);
+  }
+  function renderKey() {
+    const v = ($('appId').value || '').trim();
+    $('appId').classList.toggle('ok', validAppKey());
+    $('wizErr').textContent = v ? (validAppKey() ? '✅ ID valide — branche le secret sur le serveur (étape 5), puis clique Se connecter.' : '⚠️ Un ID d\u2019app Instagram n\u2019a que des chiffres.') : '';
+  }
+  $('appId').addEventListener('input', () => {
+    renderKey();
+    try { localStorage.setItem('astra_ig_app_key', ($('appId').value || '').trim()); } catch (e) {}
+  });
+  renderKey();
+
+  const originFull = location.origin;
+  const pageUri = originFull + location.pathname;
+  $('redirectLbl').textContent = pageUri;
+  $('copyUri').addEventListener('click', () => {
+    try { navigator.clipboard.writeText(pageUri); $('copyUri').textContent = '✅ copié'; setTimeout(() => { $('copyUri').textContent = '📋 copier'; }, 1500); } catch (e) {}
+  });
+
+  function token() {
+    try {
+      const row = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (row && row.x > Date.now()) return row;
+      if (row) localStorage.removeItem(KEY);
+    } catch (e) {}
+    return null;
+  }
+
+  function render() {
+    const t = token();
+    const appOk = validAppKey();
+    $('connect').style.display = appOk ? '' : 'none';
+    $('profile').style.display = 'none';
+    $('chip').style.display = '';
+    if (t) {
+      $('chip').className = 'chip';
+      $('chip').textContent = '🟢 Connecté';
+      $('disc').style.display = '';
+      POST('/api/ig/me', { access_token: t.a }).then((j) => {
+        if (j && (j.username || j.user_id || j.id)) {
+          $('profile').style.display = 'flex';
+          $('uname').textContent = '@' + (j.username || j.user_id || j.id);
+          if (j.profile_picture_url) { $('avatar').src = j.profile_picture_url; $('avatar').style.display = ''; }
+          else { $('avatar').style.display = 'none'; }
+        } else {
+          $('chip').className = 'chip off';
+          $('chip').textContent = '🔴 Jeton expiré — reconnecte-toi';
+        }
+      }).catch(() => {});
+    } else {
+      $('chip').className = 'chip off';
+      $('chip').textContent = '🔴 Non connecté';
+      $('disc').style.display = 'none';
+    }
+  }
+
+  function POST(path, body) {
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
+  $('disc').addEventListener('click', () => {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    render();
+    $('igErr').textContent = 'Déconnecté. (Optionnel : révoque la session sur Instagram → Paramètres → Site web et applications.';
+  });
+
+  $('connect').addEventListener('click', () => {
+    $('igErr').textContent = '';
+    if (!validAppKey()) return;
+    const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    try { sessionStorage.setItem('astra_ig_state', state); } catch (e) {}
+    const p = new URLSearchParams({
+      client_id: ($('appId').value || '').trim(),
+      redirect_uri: pageUri,
+      response_type: 'code',
+      scope: 'instagram_business_basic',
+      state
+    });
+    window.location.assign('https://www.instagram.com/oauth/authorize?' + p.toString());
+  });
+
+  (async function handleCallback() {
+    const q = new URLSearchParams(location.search);
+    const code = q.get('code');
+    const qsState = q.get('state');
+    const err = q.get('error_description') || q.get('error');
+    if (err) { $('igErr').textContent = '⚠️ ' + err; history.replaceState(null, '', location.pathname); return; }
+    if (!code) { render(); return; }
+    let st = null;
+    try { st = sessionStorage.getItem('astra_ig_state'); } catch (e) {}
+    if (!st || !qsState || st !== qsState) {
+      $('igErr').textContent = "Session de connexion invalide (state). Ferme la fenêtre et réessaie.";
+      history.replaceState(null, '', location.pathname);
+      render();
+      return;
+    }
+    try {
+      const j = await POST('/api/ig/exchange', { code, redirect_uri: pageUri });
+      if (!j || j.error) {
+        $('igErr').textContent = '⚠️ Échec de la connexion : ' + ((j && j.error) || 'réponse invalide du serveur');
+        history.replaceState(null, '', location.pathname);
+        render();
+        return;
+      }
+      const me = await POST('/api/ig/me', { access_token: j.access_token }).catch(() => null);
+      const expires = Date.now() + Math.max(60, (j.expires_in || 3600) - 600) * 1000;
+      try { localStorage.setItem(KEY, JSON.stringify({ a: xorB64(j.access_token), x: expires })); } catch (e) {}
+      if (me && (me.username || me.user_id || me.id)) {
+        try { localStorage.setItem(KEY, JSON.stringify({ a: xorB64(j.access_token), x: expires })); } catch (e) {}
+      }
+      history.replaceState(null, '', location.pathname);
+      render();
+      if (me && me.error) $('igErr').textContent = '⚠️ Jeton OK mais profil indisponible : ' + (me.error && me.error.message || '');
+    } catch (e) {
+      $('igErr').textContent = '⚠️ Serveur injoignable pour échanger le jeton.';
+      history.replaceState(null, '', location.pathname);
+      render();
+    }
+  })();
+
+  render();
+})();
+</script>
+</body>
+</html>
