@@ -1,10 +1,10 @@
 /* ============================================================
-   ASSISTANT VOCAL IA � 100% vocal, sans chat
+   ASSISTANT VOCAL IA - 100% vocal, sans chat
    v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans cle,
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.87';
+const APP_VERSION = '10.88';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -574,7 +574,7 @@ function applyMood(text, mood){
 }
 
 
-/* ===== �L�MENTS ===== */
+/* ===== ELEMENTS ===== */
 const $ = id => document.getElementById(id);
 const orb = $('orb'), orbIcon = $('orbIcon'), statusEl = $('status');
 const stopBtn = $('stopBtn');
@@ -608,7 +608,7 @@ const PROFILE_KEY = 'va_profile';
 let profile = null;
 try { profile = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null'); } catch { profile = null; }
 
-/* ===== �TAT ===== */
+/* ===== ETAT ===== */
 let state = 'idle';
 let session = [];
 let toastTimer = null;
@@ -4301,7 +4301,7 @@ async function forceUpdate(){
   updateBanner.style.pointerEvents = 'none';
   try { sessionStorage.clear(); } catch {}
   try { localStorage.removeItem('va_reloaded_once'); } catch {}
-  // Purge VRAIE : on attend que tout soit supprim� avant de recharger
+  // Purge VRAIE : on attend que tout soit supprime avant de recharger
   try {
     if ('caches' in window) {
       const keys = await caches.keys();
@@ -4317,7 +4317,7 @@ async function forceUpdate(){
   // Hard reload qui bypass le cache
   const url = location.pathname + '?force=' + Date.now() + '&v=' + APP_VERSION;
   location.href = url;
-  // filet de s�curit� si href bloqu� par l'ancien SW
+  // filet de securite si href bloque par l'ancien SW
   setTimeout(() => { try { location.reload(true); } catch { location.href = url; } }, 800);
 }
 updateBanner.addEventListener('click', forceUpdate);
