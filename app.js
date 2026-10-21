@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.76';
+const APP_VERSION = '10.77';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -233,6 +233,9 @@ async function speakCartesia(text, voiceId, onChunk){
         body: JSON.stringify({
           model_id: 'sonic-3.6',
           transcript: c,
+          /* v10.77 : language 'fr' OBLIGATOIRE — sans ce champ l API prononce
+             le francais avec des regles anglaises (son totalement illisible) */
+          language: 'fr',
           voice: { mode: 'id', id: voiceId },
           output_format: { container: 'wav', encoding: 'pcm_s16le', sample_rate: 24000 }
         }),
@@ -2397,7 +2400,9 @@ async function askAI(question, onDelta){
    supprimer ou modifier, et son prompt lui interdit de pretendre le contraire.
    Validation humaine : tu peux l'interrompre a tout moment (touche la bulle micro). */
 function isAgentQuestion(q){
-  return /mode agent|agent autonome|autonomie|apprends|apprendre|decouvre|decouvrir|explore|explorer/i.test(q) ||
+  /* v10.77 : "apprends/apprendre" RETIRES — « apprends-moi l'anglais »
+     lancait le mode agent au lieu d'aller au cerveau */
+  return /mode agent|agent autonome|autonomie|decouvre|decouvrir|explore|explorer/i.test(q) ||
     /^(planifie|organise|compare|analyse|prepare|elabore|enquete|etudie|fais un rapport|fais des recherches|recherche sur|cherche|trouve|va voir|regarde sur|google|en ligne)/i.test(q.trim()) ||
     q.trim().length > 100;
 }
@@ -3901,7 +3906,7 @@ async function handleQuestion(question){
 
     return;
   }
-  if (ASTRA_LOCAL_FEATURES.englishPractice && /^(cours d anglais|cours anglais|apprendre l anglais|apprendre anglais|phrase anglaise du jour|une phrase en anglais|apprends moi l anglais)[.!? ]*$/.test(normalizedCommand)) {
+  if (ASTRA_LOCAL_FEATURES.englishPractice && /^(cours d anglais|cours anglais|apprendre l anglais|apprendre anglais|apprend[sz]? moi l anglais|apprend moi anglais|apprend l anglais|apprends anglais|phrase anglaise du jour|une phrase en anglais|anglais du jour)[.!? ]*$/.test(normalizedCommand)) {
     const lesson = nextEnglishLesson();
     addUserMsg(question);
     addAiMsg(lesson, 'Leçon locale d’anglais');
@@ -4085,9 +4090,12 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
     maybeRestartListening();
     return;
   }
-  /* v10.0 : l'IA dit son humeur du moment */
-  /* v10.0.2 : AUTONOMIE — l'IA apprend et repond h24 */
-  if (/(autonomie|apprends|apprendre|decouvre|decouvrir|explore|explorer|mode agent|agent autonome)/.test(question)){
+  /* v10.0.2 : AUTONOMIE — l'IA apprend et repond h24
+     v10.77 : le declencheur ne doit catcher que les vraies commandes
+     d'autonomie. Avant, "apprend moi l anglais" contenait "apprend" ->
+     reponse spontanee "je suis en mode autonomie" au lieu du cerveau ! */
+  if (/(mode autonomie|mode agent|agent autonome|ton autonomie|ta autonomie|l'autonomie|l autonomie|active.?autonom|desactive.?autonom)/i.test(question)
+      && !/anglais|espagnol|allemand|italien|arabe|japonais|chinois|russe|cours|langue|vocabulaire|mots? en|traduis/i.test(question)){
     const rep = "Je suis en mode autonomie : je planifie, je cherche, j'apprends et je reponds h24. Pose ta question, je m'occupe du reste.";
     addAiMsg(rep, 'local');
     setStatus('Réponse locale');
