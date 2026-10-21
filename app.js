@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.94';
+const APP_VERSION = '10.95';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2571,6 +2571,163 @@ async function runAgent(question){
   saveConversation();
   return { text: clean };
 }
+/* ============================================================
+   v10.95 : EQUIPE D EXPERTS (style agents multiples).
+   Astra = chef d'equipe visible a l'ecran ; elle decoupe la tache,
+   le CHERCHEUR lit le web (outils), l'ANALYTE verifie/croise, le
+   REDACTEUR redige le rapport final. Tout est lecture seule,
+   arrêtable (manualStop), budget d'outils borne.
+   ============================================================ */
+function isTeamRequest(q){
+  return /equipe|team|experts|rapport (complet|detaille|detail)|recherche approfondie|deep research|enquete (complete|approfondie)|fais[- ]moi un rapport|analyse (complete|approfondie)|etude (complete|approfondie)/i.test(q);
+}
+function createTeamCard(streamMsg){
+  if (chatEmpty) chatEmpty.style.display = 'none';
+  const card = document.createElement('div');
+  card.style.cssText = 'background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.22);border-radius:14px;padding:10px 12px;margin:6px 0;max-width:92%;';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:12px;font-weight:700;color:#b79cff;margin-bottom:6px;';
+  title.textContent = '🎭 Équipe d\u2019experts déployée';
+  card.appendChild(title);
+  const rows = {};
+  [['chef','🧠','Astra — cheffe d\u2019équipe'],['cher','🔍','Chercheur'],['ana','🧮','Analyste'],['red','✍️','Rédacteur']].forEach(([k, emoji, name]) => {
+    const r = document.createElement('div');
+    r.style.cssText = 'display:flex;gap:6px;align-items:baseline;font-size:12.5px;line-height:1.45;margin:3px 0;';
+    const st = document.createElement('span');
+    st.style.cssText = 'flex:0 0 auto;font-weight:600;color:#9a9ab5;white-space:nowrap;';
+    st.textContent = '⏸️';
+    const nm = document.createElement('b');
+    nm.style.cssText = 'color:#fff;white-space:nowrap;';
+    nm.textContent = ' ' + name;
+    const act = document.createElement('span');
+    act.style.cssText = 'color:#9a9ab5;overflow-wrap:break-word;min-width:0;';
+    r.appendChild(st); r.appendChild(nm); r.appendChild(act);
+    card.appendChild(r);
+    rows[k] = { st, act };
+  });
+  const foot = document.createElement('div');
+  foot.style.cssText = 'font-size:11px;color:#7a7a99;margin-top:6px;';
+  foot.textContent = 'Lecture seule · STOP interrompt tout';
+  card.appendChild(foot);
+  chat.insertBefore(card, streamMsg);
+  chat.scrollTop = chat.scrollHeight;
+  return { card, rows, foot, findings: { plan: '', chercheur: '', analyste: '' } };
+}
+function teamStatus(rows, key, emoji, text, actText){
+  const row = rows[key];
+  if (!row) return;
+  row.st.textContent = emoji;
+  if (text) row.st.insertAdjacentText('afterbegin', ' ' + text);
+  if (actText !== undefined) row.act.textContent = actText;
+  chat.scrollTop = chat.scrollHeight;
+}
+async function runSubAgent(rows, key, sys, task, budget, maxIter){
+  const history = [{ role: 'system', content: sys }, { role: 'user', content: task }];
+  for (let it = 0; it < maxIter; it++){
+    if (manualStop) return '';
+    teamStatus(rows, key, '🟡', 'travaille', 'Réflexion ' + (it + 1) + '/' + maxIter + '…');
+    const r = await askBrain(history);
+    const txt = (r && r.text) || '';
+    const fm = txt.match(/\[(?:RAPPORT|REPONSE)\]([\s\S]*?)\[(?:\/RAPPORT|\/REPONSE)\]/i);
+    if (fm) return fm[1].trim();
+    const m = txt.match(/\[OUTIL:(\w+)\]([\s\S]*?)\[\/OUTIL\]/i);
+    if (m && budget.n > 0){
+      const name = m[1].toLowerCase();
+      const args = m[2].trim();
+      const tool = AGENT_TOOLS[name];
+      if (tool){
+        budget.n--;
+        teamStatus(rows, key, '🟡', 'travaille', (name === 'lire' ? '🌐 Lecture : ' : 'Outil ' + name + ' : ') + args.slice(0, 80));
+        let out = '';
+        try { out = await tool.run(args); } catch(e){ out = ''; }
+        history.push({ role: 'assistant', content: '[OUTIL:' + name + '] ' + args });
+        history.push({ role: 'user', content: 'Resultat : ' + (out || 'Aucun resultat.') });
+        continue;
+      }
+      history.push({ role: 'user', content: 'Outil inconnu. Choisis-en un autre.' });
+      continue;
+    }
+    if (m){
+      history.push({ role: 'user', content: 'Plus aucun outil disponible (budget epuise). Reponds maintenant avec [RAPPORT] tes faits [/RAPPORT].' });
+      continue;
+    }
+    return txt.slice(0, 1200);
+  }
+  return '';
+}
+async function runTeamAgent(question, streamMsg){
+  const team = createTeamCard(streamMsg);
+  const rows = team.rows;
+  /* budget partage : 8 appels d'outils max pour toute l'equipe */
+  const budget = { n: 8 };
+  /* 1. CHEFFE : decoupe la tache */
+  teamStatus(rows, 'chef', '🟡', 'travaille', 'Analyse de la demande…');
+  const chef = await askBrain([
+    { role: 'system', content: 'Tu es Astra, CHEFFE D EQUIPE. Découpe la tache de l utilisateur en 2 a 3 etapes de RECHERCHE (lecture web, jamais d action reelle). Reponds EXACTEMENT : [PLAN] puis une etape par ligne (1. ... 2. ...) puis [/PLAN]. Rien d autre.' },
+    { role: 'user', content: 'Tache : ' + question }
+  ]);
+  const plan = ((chef && chef.text) || '').match(/\[PLAN\]([\s\S]*?)(\[\/PLAN\]|$)/i);
+  team.findings.plan = plan ? plan[1].trim() : '';
+  if (manualStop){ return teamFinishInterrupted(team, question); }
+  teamStatus(rows, 'chef', '✅', "fini", 'Plan validé' + (team.findings.plan ? ' : ' + team.findings.plan.split('\n').length + ' étape(s)' : ''));
+  /* 2. CHERCHEUR : pilote les outils sur le plan */
+  const cherSys = 'Tu es le CHERCHEUR de l equipe Astra, agent en LECTURE SEULE (jamais d achat/envoi/modification). Outils disponibles :\n' + agentToolList() + '\nRegles : pour utiliser un outil reponds EXACTEMENT sur une ligne : [OUTIL:nom] arguments [/OUTIL]. Quand tu as assez de faits, reponds EXACTEMENT : [RAPPORT] liste des faits trouves, une ligne par fait, prefixes par la source (selon <site>) [/RAPPORT]. OUTIL:lire ouvre une URL precise ; si tu n as pas l URL, utilise d abord OUTIL:web. Ne reponds jamais sans avoir utilise au moins un outil.';
+  const cherTask = 'Tache globale : ' + question + (team.findings.plan ? '\nPlan du chef :\n' + team.findings.plan : '');
+  teamStatus(rows, 'cher', '🟡', 'travaille', 'Recherche web en cours…');
+  const cherOut = await runSubAgent(rows, 'cher', cherSys, cherTask, budget, 6);
+  team.findings.chercheur = cherOut;
+  teamStatus(rows, 'cher', cherOut ? '✅' : '⚠️', cherOut ? 'fini' : 'bloqué', cherOut ? (cherOut.split('\n').length + ' fait(s) collecté(s)') : 'Le web n a rien donné — je passe en analyse interne');
+  if (manualStop){ return teamFinishInterrupted(team, question); }
+  /* 3. ANALYTE : croise et securise les faits */
+  teamStatus(rows, 'ana', '🟡', 'travaille', 'Vérification des faits…');
+  const ana = await askBrain([
+    { role: 'system', content: 'Tu es l ANALYTE de l equipe Astra. On te donne des faits collectes sur le web ; ecarte les répétitions et ce qui se contredit, garde le solide. Reponds EXACTEMENT : [RAPPORT] faits fiables (max 10 lignes) [/RAPPORT]. Rien d autre.' },
+    { role: 'user', content: 'Faits du chercheur :\n' + (cherOut || '(aucun fait externe — reponds que le dossier repose sur la reflexion interne)') }
+  ]);
+  team.findings.analyste = (ana && ana.text || '').match(/\[RAPPORT\]([\s\S]*?)(\[\/RAPPORT\]|$)/i);
+  team.findings.analyste = team.findings.analyste ? team.findings.analyste[1].trim() : '';
+  const anaCount = team.findings.analyste.trim() ? 0 : 1;
+  teamStatus(rows, 'ana', '✅', 'fini', (team.findings.analyste ? 'Faits vérifiés' : 'Dossier basé sur la reflexion'));
+  if (manualStop){ return teamFinishInterrupted(team, question); }
+  /* 4. REDACTEUR : rapport final avec la personnalite d Astra */
+  teamStatus(rows, 'red', '🟡', 'travaille', 'Rédaction du rapport…');
+  const red = await askBrain([
+    { role: 'system', content: getSystemPrompt() + '\n\nMode.special : REDACTEUR de l equipe. On te donne un dossier pret ; redige la reponse finale (4 a 8 phrases), ton caractere habituel, sans aucune balise, sans mentionner l equipe.' },
+    { role: 'user', content: 'Dossier :\nPlan : ' + (team.findings.plan || '(sans plan)') + '\nFaits vérifiés :\n' + (team.findings.analyste || '(aucun)') + '\nQuestion d Origine : ' + question }
+  ]);
+  let final = (red && red.text) || '';
+  final = stripGreeting(enforceIdentity(fixFrench(final)));
+  teamStatus(rows, 'red', '✅', 'fini', 'Rapport prêt (' + final.length + ' caractères)');
+  /* export du rapport */
+  const dl = document.createElement('button');
+  dl.style.cssText = 'margin-top:6px;font:600 11px system-ui;background:rgba(124,92,255,.2);color:#b79cff;border:1px solid rgba(124,92,255,.4);border-radius:8px;padding:5px 10px;cursor:pointer;';
+  dl.textContent = '💾 Enregistrer le rapport';
+  dl.addEventListener('click', () => {
+    try {
+      const body = 'Rapport Astra — ' + nowInfo() + '\n\nQuestion : ' + question + '\n\nPLAN\n' + (team.findings.plan || '(sans)') + '\n\nFAITS CHERCHEUR\n' + (team.findings.chercheur || '(aucun)') + '\n\nANALYSE\n' + (team.findings.analyste || '(aucune)') + '\n\nRAPPORT FINAL\n' + final;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([body], { type: 'text/markdown' }));
+      a.download = 'astra-rapport.md';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch(e){}
+  });
+  team.card.appendChild(dl);
+  const clean = final;
+  session.push({ role: 'user', content: question });
+  if (session.length > 12) session = session.slice(-12);
+  session.push({ role: 'assistant', content: clean });
+  saveConversation();
+  return { text: clean };
+  function teamFinishInterrupted(t, q){
+    const clean = 'Équipe stoppée. Voici déjà ce qui est prêt : ' + ((t.findings.chercheur || '').slice(0, 300) || 'une base partielle — redemande et j accélère.');
+    session.push({ role: 'user', content: q });
+    if (session.length > 12) session = session.slice(-12);
+    session.push({ role: 'assistant', content: clean });
+    saveConversation();
+    return { text: clean };
+  }
+}
 function enforceIdentity(reply){
   /* v9.82 : l'IA ne doit JAMAIS se faire passer pour ChatGPT/OpenAI/GPT */
   if (/\bchatgpt\b|openai|\bgpt[- ]?\d/i.test(reply)){
@@ -4146,7 +4303,8 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
      analyse, recherche sur...), Astra passe en agent autonome : plan -> etapes ->
      synthese, avec son travail affiche en direct. Plus de temps (90s) car elle
      fait plusieurs recherches. Validation humaine : interruption a tout moment. */
-  const agentMode = isAgentQuestion(question);
+  const agentMode = isAgentQuestion(question) || isTeamRequest(question);
+  const teamMode = isTeamRequest(question) || (isAgentQuestion(question) && /equipe|experts/i.test(question));
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente).
      v9.48 : 45s pour laisser les 3 tentatives Pollinations + POST se terminer. */
   /* v9.96 : humeur mise a jour AVANT la question -> le cerveau recoit le mood
@@ -4164,12 +4322,12 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   chat.scrollTop = chat.scrollHeight;
   let streamedText = '';
   const r = await Promise.race([
-    agentMode ? runAgent(question) : askAI(question, (partial) => {
+    agentMode ? (teamMode ? runTeamAgent(question, streamMsg) : runAgent(question)) : askAI(question, (partial) => {
       streamedText = partial;
       streamMsg.textContent = cleanMarkdown(streamedText);
       chat.scrollTop = chat.scrollHeight;
     }),
-    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
+    new Promise(res => setTimeout(() => res({ error: 'timeout' }), teamMode ? 110000 : agentMode ? 50000 : 45000))
   ]);
   if (r.text) {
     r.text = r.text.replace(/\betc\.?\b/gi, 'et cetera');
