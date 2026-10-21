@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.00';
+const APP_VERSION = '11.01';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -4683,9 +4683,8 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   const nqTrimmed = question.trim();
   const teamMode = (/[eéèÉÈ]quipe|experts?/i.test(nqTrimmed) && nqTrimmed.length > 8) ||
     (isTeamRequest(question) && nqTrimmed.length > 20);
-  const teamRunner = teamMode
-    ? runTeamAgent(question, streamMsg).catch(function (eTeam) { console.warn('[Team] bascule agent simple :', eTeam); return runAgent(question); })
-    : null;
+  /* v11.00b : teamRunner est cree APRES la declaration de streamMsg (sinon
+     ReferenceError : can't access lexical declaration 'streamMsg'). */
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente).
      v9.48 : 45s pour laisser les 3 tentatives Pollinations + POST se terminer. */
   /* v9.96 : humeur mise a jour AVANT la question -> le cerveau recoit le mood
@@ -4702,6 +4701,10 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
   chat.appendChild(streamMsg);
   chat.scrollTop = chat.scrollHeight;
   let streamedText = '';
+  /* v11.00b : l'equipe demarre maintenant que la bulle existe */
+  const teamRunner = teamMode
+    ? runTeamAgent(question, streamMsg).catch(function (eTeam) { console.warn('[Team] bascule agent simple :', eTeam); return runAgent(question); })
+    : null;
   const r = await Promise.race([
     agentMode ? (teamRunner || runAgent(question)) : askAI(askCtx(question), (partial) => {
       streamedText = partial;
