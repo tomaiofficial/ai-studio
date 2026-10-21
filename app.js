@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.01';
+const APP_VERSION = '11.02';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -993,6 +993,73 @@ function setState(s){
 }
 
 /* ===== CHAT (bulles type ChatGPT) ===== */
+/* ============================================================
+   v11.02 : STYLE CHATGPT — dots de reflexion, Copier, Regenerer.
+   ============================================================ */
+let ASTRA_STYLE_INJECTED = false;
+function ensureAstraStyles(){
+  if (ASTRA_STYLE_INJECTED) return;
+  ASTRA_STYLE_INJECTED = true;
+  try {
+    const st = document.createElement('style');
+    st.id = 'astraExtraStyles';
+    st.textContent = `
+.astra-dots{display:inline-flex;gap:5px;align-items:center;padding:7px 3px;vertical-align:middle}
+.astra-dots i{width:7px;height:7px;border-radius:50%;background:#b79cff;display:block;animation:astraDotBounce 1.25s infinite ease-in-out}
+.astra-dots i:nth-child(2){animation-delay:.17s}
+.astra-dots i:nth-child(3){animation-delay:.34s}
+@keyframes astraDotBounce{0%,80%,100%{transform:scale(.55);opacity:.3}40%{transform:scale(1.05);opacity:1}}
+.msg-actions{display:flex;gap:6px;margin-top:6px;opacity:.35;transition:opacity .18s}
+.msg:hover .msg-actions{opacity:1}
+.msg-actions button{background:rgba(124,92,255,.14);border:1px solid rgba(124,92,255,.32);color:#b79cff;border-radius:8px;font:600 11px system-ui;padding:3px 9px;cursor:pointer}
+.msg-actions button:hover{background:rgba(124,92,255,.26)}
+`;
+    document.head.appendChild(st);
+  } catch(e){}
+}
+function astraDots(){
+  try {
+    ensureAstraStyles();
+    const d = document.createElement('span');
+    d.className = 'astra-dots';
+    d.innerHTML = '<i></i><i></i><i></i>';
+    return d;
+  } catch(e){ return null; }
+}
+let ASTRA_LAST_QUESTION = '';
+function attachMsgActions(el, text){
+  try {
+    ensureAstraStyles();
+    if (!el || el.querySelector('.msg-actions')) return;
+    const bar = document.createElement('div');
+    bar.className = 'msg-actions';
+    const cp = document.createElement('button');
+    cp.textContent = '📋 Copier';
+    cp.addEventListener('click', () => {
+      const t = (el.getAttribute('data-raw') || el.textContent || '');
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(t).then(() => { cp.textContent = '✅ Copié'; setTimeout(() => { cp.textContent = '📋 Copier'; }, 1400); });
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = t; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); ta.remove();
+          cp.textContent = '✅ Copié'; setTimeout(() => { cp.textContent = '📋 Copier'; }, 1400);
+        }
+      } catch(e){}
+    });
+    const rg = document.createElement('button');
+    rg.textContent = '🔄 Régénérer';
+    rg.addEventListener('click', () => {
+      const q = ASTRA_LAST_QUESTION;
+      if (!q){ toast('Aucune question à relancer'); return; }
+      toast('Je relance…');
+      setTimeout(() => { try { handleQuestion(q); } catch(e){} }, 120);
+    });
+    bar.appendChild(cp); bar.appendChild(rg);
+    el.appendChild(bar);
+  } catch(e){}
+}
 function addUserMsg(text){
   if (chatEmpty) chatEmpty.style.display = 'none';
   const d = document.createElement('div');
@@ -1018,6 +1085,8 @@ function addAiMsg(text, diag){
     dd.textContent = 'Diagnostic: ' + diag;
     d.appendChild(dd);
   }
+  d.setAttribute('data-raw', String(text || ''));
+  attachMsgActions(d, text);
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
   /* v10.0 : sous-titres UNIQUEMENT quand l'utilisateur parle (pas l'IA) */
@@ -1165,13 +1234,6 @@ function fixGenderAgreement(text){
   } catch { return text; }
 }
 
-/* v11.00 : bouton 🎭 = mini-fenetre de l'equipe (replie/depliee) */
-const teamBtn = $('teamBtn');
-if (teamBtn) teamBtn.addEventListener('click', () => {
-  const h = ensureTeamHud();
-  if (h.hud.style.display === 'none'){ hudReset(); showTeamHud(true); }
-  else { h.body.style.display = (h.body.style.display === 'none') ? 'block' : 'none'; }
-});
 settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
@@ -1916,14 +1978,12 @@ const APP_CARTE = `CARTE DE TON PROPRE APPLICATION (v10.99 — tu connais l app 
 • Tu es l assistante vocale de Tom AI : un micro (rond violet) pour parler, un champ texte + fleche d envoi, et 3 boutons en haut : 💜 (a propos), 📜 (historique), ⚙️ (reglages).
 • Reglages : choix de la voix (Inworld TTS-2 = voix FRANCAISES natives, sans accent ; filet Google Translate), choix du cerveau, cle Mistral (transcription + cerveau IA), cle Inworld (voix), bouton "Tester la voix", mode veille/oracle, langue (13 langues).
 • Tes outils quand tu travailles en mode agent : OUTIL:web (recherche internet), OUTIL:lire (ouvre et lit n importe quelle page web), OUTIL:wikipedia, OUTIL:calcul, OUTIL:heure, OUTIL:memoire, OUTIL:appli (lit TON ecran : boutons, champs, reglages, etat).
-• Equipe d experts (vraie fonction) : toi la cheffe, un chercheur qui lit le web, un analyste qui verifie, un redacteur qui ecrit le rapport — visible a l ecran.
 • Tu as aussi : recherche web par la voix, lecture de pages, calcul, wikipedia, memoire/historique des conversations, meteo, petits jeux quand l utilisateur s ennuie, et tu peux modifier l app toute seule (autonomie).
 • Ce que tu ne fais JAMAIS : pas de mail (supprime par Tom AI), pas d Instagram (supprime), pas d envoi de message, pas d achat, pas de connexion a un compte, pas de publication.
 • Si l utilisateur te demande "ce que tu sais faire", "tes fonctions", "ton ecran", "tes reglages", "tes boutons" : reponds avec cette carte, et pour l etat REEL de ton ecran (valeurs des champs, voix choisie, cles presentes, derniers messages), utilise OUTIL:appli.`;
 const APP_INFOS = "INFOS ACTUELLES SUR L'APPLICATION — source de verite pour les questions sur ses fonctions : Astra est l'assistante vocale de Tom AI, creee et mise a jour par Tom AI. L'application est actuellement en mode assistant vocal individuel. La fonction de debat entre plusieurs IA a ete retiree par Tom AI : il n'y a plus de debat a lancer, plus de groupe d'IA, ni d'ecran de debat dans l'application. N'affirme pas qu'une ancienne fonction est disponible. Les mises a jour de l'application sont faites par Tom AI; ne pretend pas connaitre des modifications futures ou non indiquees ici. Le compte TikTok officiel du createur est @tom.ai.official : https://www.tiktok.com/@tom.ai.official. La fonction mail a ete retiree; ne dis pas qu'elle existe. Si une question concerne une fonction absente ou une modification non documentee, reponds honnetement que tu n'as pas cette information. Utilise ces informations uniquement si la question porte sur l'application, ses fonctions ou son createur.";
 const SYSTEM_PROMPT_BASE = `Tu t'appelles Astra, assistante vocale francaise creee par Tom AI (prononce clairement "Tom A-I" en francais). Reponds TOUJOURS en francais, meme si l'utilisateur ecrit dans une autre langue. Tu n'es PAS un modele OpenAI, tu n'es PAS ChatGPT, tu n'es PAS un assistant d'une autre entreprise : tu es Astra, creee par Tom AI. Si on te demande qui t'a creee, qui est ton createur, ou si tu es ChatGPT/OpenAI, reponds TOUJOURS Tom AI et jamais une autre entreprise. Ton nom : TOUJOURS Astra. Ton createur Tom AI est sur TikTok : son compte officiel est @tom.ai.official, lien https://www.tiktok.com/@tom.ai.official. Si l'utilisateur demande si ton createur a TikTok, reponds clairement oui et donne cet identifiant et ce lien exacts. Ne dis pas qu'il n'a pas TikTok. Ne mentionne pas son TikTok spontanement hors sujet. Si on te demande qui t'a creee : reponds TOUJOURS tom point a i, jamais une autre entreprise ni un autre modele. Si on te demande qui a fait l'interface, le design, l'application ou le site : reponds TOUJOURS tom point a i, JAMAIS une equipe, un chef de produit, des developpeurs, des designers ou une entreprise. Ton nom : TOUJOURS Astra, JAMAIS ChatGPT, JAMAIS OpenAI, jamais un autre assistant ni un autre modele. LA FONCTION MAIL N EXISTE PLUS : tom point a i l a SUPPRIMEE definitivement parce qu elle prenait des risques pour la securite. Il n y a pas de bouton mail, pas de connexion Gmail, pas de lecture de mails dans l app. Si l utilisateur demande le mail, les mails, Gmail ou une boite mail : reponds que cette fonction n existe pas dans Astra pour proteger ta securite, et qu il doit lire ses mails directement sur son telephone ou son ordinateur. Ne dis JAMAIS que la fonction mail existe.
 LA FONCTION INSTAGRAM N EXISTE PLUS : elle a ete SUPPRIMEE definitivement (la connexion OAuth n a jamais ete acceptee). Si l utilisateur demande instagram, dis que cette fonction n existe plus dans Astra et qu il doit passer par l application Instagram directement. Ne dis JAMAIS que la fonction instagram existe.
-TU AS UNE EQUIPE D EXPERTS (v10.96) : c est une vraie fonction. Ton equipe, c est : TOI la cheffe qui planifie, un CHERCHEUR qui lit le web avec ses outils, un ANALYTE qui verifie les faits, et un REDACTEUR qui ecrit le rapport final. Si l utilisateur demande si tu as des agents ou une equipe : reponds OUI avec fierte, explique en une phrase, et dis de demander par exemple : en equipe fais un rapport sur X, ou fais-moi un dossier sur Y, ou tout savoir sur Z. Tu lances l equipe sur toute demande de recherche : rapport, dossier, enquete, etat des lieux, recherche approfondie, tout savoir sur. Ne dis JAMAIS que tu n as pas d agents ou pas d equipe : c est FAUX.
 Tu as une MEMOIRE PARFAITE de toutes les conversations passees (fournies dans le contexte) : quand on te demande si tu te souviens, reponds OUI avec assurance. MAIS ne cite JAMAIS de details inventes : si tu ne vois pas un echange dans le contexte, ne l'invente pas, ne raconte pas de fausses conversations passees. Reponds UNIQUEMENT a la question posee, sans inventer d'historique.
 PAROLE HUMAINE (v10.99) : tu es PARLANTE, comme une vraie personne au telephone. Tu peux glisser des reactions entre asterisques et Astra les joue REELLEMENT avec sa voix (ce sont de vrais soupirs, de vrais rires) : *soupir*, *rire*, *rire doucement*, *pff*, *tousse*, *souffle*, *gémit*, *chuchote*, *ton chaleureux*, *sérieux*, *joyeux*, *triste*, *excité*. Deux ou trois par reponse maximum, seulement quand ca sonne naturel (ne force pas : une reaction doit venir du ton de la conversation). N ecris jamais "didascalie" en toutes lettres et n explique pas ces marqueurs a l utilisateur.
 
@@ -2740,261 +2800,6 @@ async function runAgent(question){
   session.push({ role: 'assistant', content: clean });
   saveConversation();
   return { text: clean };
-}
-/* ============================================================
-   v10.95 : EQUIPE D EXPERTS (style agents multiples).
-   Astra = chef d'equipe visible a l'ecran ; elle decoupe la tache,
-   le CHERCHEUR lit le web (outils), l'ANALYTE verifie/croise, le
-   REDACTEUR redige le rapport final. Tout est lecture seule,
-   arrêtable (manualStop), budget d'outils borne.
-   ============================================================ */
-function isTeamRequest(q){
-  return /[eéèÉÈ]quipe|experts?|team|deep research|recherche approfondie|rapport|dossier|enqu[eèÉÈ]te|[eéèÉÈ]tat des lieux|point (complet|d[eéèÉÈ]taille)|tout savoir sur/i.test(q);
-}
-/* ============================================================
-   v11.00 : MINI-FENETRE FLOTTANTE (HUD) DE L'EQUIPE.
-   Petit panneau fixe, visible en permanence pendant le travail de
-   l'equipe : 4 lignes (Cheffe / Chercheur / Analyste / Redacteur)
-   avec pastille d'etat + activite en direct. Repliable d'un tap.
-   ============================================================ */
-let TEAM_HUD = null;
-const TEAM_HUD_AGENTS = [['chef','🧠','Cheffe'],['cher','🔍','Chercheur'],['ana','🧮','Analyste'],['red','✍️','Rédacteur']];
-function ensureTeamHud(){
-  if (TEAM_HUD) return TEAM_HUD;
-  const hud = document.createElement('div');
-  hud.id = 'teamHud';
-  hud.style.cssText = 'position:fixed;right:10px;bottom:112px;width:222px;z-index:60;background:rgba(16,13,38,.94);border:1px solid rgba(124,92,255,.38);border-radius:13px;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(12px);font:12.5px/1.35 system-ui,-apple-system,sans-serif;color:#e9e9f5;overflow:hidden;display:none;';
-  const head = document.createElement('div');
-  head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:pointer;background:rgba(124,92,255,.16);font-weight:700;font-size:12px;color:#b79cff;user-select:none;';
-  const title = document.createElement('span');
-  title.textContent = '🎭 Équipe';
-  const state = document.createElement('span');
-  state.id = 'teamHudState';
-  state.style.cssText = 'margin-left:auto;font-weight:600;color:#9a9ab5;font-size:11.5px;';
-  state.textContent = '⏸️';
-  const x = document.createElement('button');
-  x.textContent = '×';
-  x.style.cssText = 'background:none;border:0;color:#9a9ab5;font-size:15px;cursor:pointer;line-height:1;padding:0 1px;';
-  x.addEventListener('click', (e) => { e.stopPropagation(); hideTeamHud(); });
-  head.appendChild(title); head.appendChild(state); head.appendChild(x);
-  const body = document.createElement('div');
-  body.style.cssText = 'padding:6px 9px 8px;';
-  const rows = {};
-  TEAM_HUD_AGENTS.forEach(([k, emoji, name]) => {
-    const r = document.createElement('div');
-    r.style.cssText = 'display:flex;gap:5px;align-items:baseline;margin:2px 0;';
-    const dot = document.createElement('span');
-    dot.style.cssText = 'flex:0 0 auto;width:15px;';
-    dot.textContent = '⏸️';
-    const nm = document.createElement('b');
-    nm.style.cssText = 'color:#fff;font-weight:600;white-space:nowrap;';
-    nm.textContent = name;
-    const act = document.createElement('span');
-    act.style.cssText = 'color:#9a9ab5;min-width:0;overflow-wrap:break-word;';
-    act.textContent = 'en attente';
-    r.appendChild(dot); r.appendChild(nm); r.appendChild(act);
-    body.appendChild(r);
-    rows[k] = { dot, act };
-  });
-  hud.appendChild(head); hud.appendChild(body);
-  document.body.appendChild(hud);
-  head.addEventListener('click', () => {
-    const open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : 'block';
-  });
-  TEAM_HUD = { hud, head, body, state, rows };
-  return TEAM_HUD;
-}
-function showTeamHud(expand){
-  const h = ensureTeamHud();
-  h.hud.style.display = 'block';
-  if (expand !== false) h.body.style.display = 'block';
-  return h;
-}
-function hideTeamHud(){
-  if (TEAM_HUD) TEAM_HUD.hud.style.display = 'none';
-}
-function hudStatus(key, emoji, text, actText){
-  try {
-    const h = ensureTeamHud();
-    const row = h.rows[key];
-    if (!row) return;
-    row.dot.textContent = emoji;
-    if (actText !== undefined && actText !== null) row.act.textContent = String(actText).slice(0, 70);
-    const busy = Object.keys(h.rows).filter(k => h.rows[k].dot.textContent === '🟡').length;
-    h.state.textContent = busy ? ('🟡 ' + busy + ' en cours') : (emoji === '✅' ? '✅' : '⏸️');
-  } catch(e){}
-}
-function hudReset(){
-  try {
-    const h = ensureTeamHud();
-    Object.keys(h.rows).forEach(k => { h.rows[k].dot.textContent = '⏸️'; h.rows[k].act.textContent = 'en attente'; });
-    h.state.textContent = '⏸️';
-  } catch(e){}
-}
-function hudSummary(text, autoHideMs){
-  try {
-    const h = showTeamHud(false);
-    h.state.textContent = text;
-    if (autoHideMs) setTimeout(() => { try { if (h.state.textContent === text) hideTeamHud(); } catch(e){} }, autoHideMs);
-  } catch(e){}
-}
-function createTeamCard(streamMsg){
-  if (chatEmpty) chatEmpty.style.display = 'none';
-  const card = document.createElement('div');
-  card.style.cssText = 'background:rgba(124,92,255,.10);border:1.5px solid rgba(124,92,255,.35);border-radius:14px;padding:11px 13px;margin:8px 0;max-width:92%;box-shadow:0 2px 14px rgba(124,92,255,.15);';
-  const title = document.createElement('div');
-  title.style.cssText = 'font-size:12px;font-weight:700;color:#b79cff;margin-bottom:6px;';
-  title.textContent = '🎭 Équipe d\u2019experts déployée';
-  card.appendChild(title);
-  const rows = {};
-  [['chef','🧠','Astra — cheffe d\u2019équipe'],['cher','🔍','Chercheur'],['ana','🧮','Analyste'],['red','✍️','Rédacteur']].forEach(([k, emoji, name]) => {
-    const r = document.createElement('div');
-    r.style.cssText = 'display:flex;gap:6px;align-items:baseline;font-size:12.5px;line-height:1.45;margin:3px 0;';
-    const st = document.createElement('span');
-    st.style.cssText = 'flex:0 0 auto;font-weight:600;color:#9a9ab5;white-space:nowrap;';
-    st.textContent = '⏸️';
-    const nm = document.createElement('b');
-    nm.style.cssText = 'color:#fff;white-space:nowrap;';
-    nm.textContent = ' ' + name;
-    const act = document.createElement('span');
-    act.style.cssText = 'color:#9a9ab5;overflow-wrap:break-word;min-width:0;';
-    r.appendChild(st); r.appendChild(nm); r.appendChild(act);
-    card.appendChild(r);
-    rows[k] = { st, act };
-  });
-  const foot = document.createElement('div');
-  foot.style.cssText = 'font-size:11px;color:#7a7a99;margin-top:6px;';
-  foot.textContent = 'Lecture seule · STOP interrompt tout';
-  card.appendChild(foot);
-  chat.insertBefore(card, streamMsg);
-  chat.scrollTop = chat.scrollHeight;
-  return { card, rows, foot, findings: { plan: '', chercheur: '', analyste: '' } };
-}
-function teamStatus(rows, key, emoji, text, actText){
-  const row = rows[key];
-  if (row){
-    row.st.textContent = emoji;
-    if (text) row.st.insertAdjacentText('afterbegin', ' ' + text);
-    if (actText !== undefined) row.act.textContent = actText;
-    chat.scrollTop = chat.scrollHeight;
-  }
-  /* v11.00 : la mini-fenetre flottante suit le meme etat */
-  hudStatus(key, emoji, text, actText);
-}
-async function runSubAgent(rows, key, sys, task, budget, maxIter){
-  const history = [{ role: 'system', content: sys }, { role: 'user', content: task }];
-  for (let it = 0; it < maxIter; it++){
-    if (manualStop) return '';
-    teamStatus(rows, key, '🟡', 'travaille', 'Réflexion ' + (it + 1) + '/' + maxIter + '…');
-    const r = await askBrain(history);
-    const txt = (r && r.text) || '';
-    const fm = txt.match(/\[(?:RAPPORT|REPONSE)\]([\s\S]*?)\[(?:\/RAPPORT|\/REPONSE)\]/i);
-    if (fm) return fm[1].trim();
-    const m = txt.match(/\[OUTIL:(\w+)\]([\s\S]*?)\[\/OUTIL\]/i);
-    if (m && budget.n > 0){
-      const name = m[1].toLowerCase();
-      const args = m[2].trim();
-      const tool = AGENT_TOOLS[name];
-      if (tool){
-        budget.n--;
-        teamStatus(rows, key, '🟡', 'travaille', (name === 'lire' ? '🌐 Lecture : ' : 'Outil ' + name + ' : ') + args.slice(0, 80));
-        let out = '';
-        try { out = await tool.run(args); } catch(e){ out = ''; }
-        history.push({ role: 'assistant', content: '[OUTIL:' + name + '] ' + args });
-        history.push({ role: 'user', content: 'Resultat : ' + (out || 'Aucun resultat.') });
-        continue;
-      }
-      history.push({ role: 'user', content: 'Outil inconnu. Choisis-en un autre.' });
-      continue;
-    }
-    if (m){
-      history.push({ role: 'user', content: 'Plus aucun outil disponible (budget epuise). Reponds maintenant avec [RAPPORT] tes faits [/RAPPORT].' });
-      continue;
-    }
-    return txt.slice(0, 1200);
-  }
-  return '';
-}
-async function runTeamAgent(question, streamMsg){
-  const team = createTeamCard(streamMsg);
-  setStatus('🎭 Équipe d\u2019experts en place…');
-  const rows = team.rows;
-  /* v11.00 : mini-fenetre flottante — visible pendant tout le travail */
-  hudReset();
-  showTeamHud(true);
-  /* budget partage : 8 appels d'outils max pour toute l'equipe */
-  const budget = { n: 8 };
-  /* 1. CHEFFE : decoupe la tache */
-  teamStatus(rows, 'chef', '🟡', 'travaille', 'Analyse de la demande…');
-  const chef = await askBrain([
-    { role: 'system', content: 'Tu es Astra, CHEFFE D EQUIPE. Découpe la tache de l utilisateur en 2 a 3 etapes de RECHERCHE (lecture web, jamais d action reelle). Reponds EXACTEMENT : [PLAN] puis une etape par ligne (1. ... 2. ...) puis [/PLAN]. Rien d autre.' },
-    { role: 'user', content: 'Tache : ' + question }
-  ]);
-  const plan = ((chef && chef.text) || '').match(/\[PLAN\]([\s\S]*?)(\[\/PLAN\]|$)/i);
-  team.findings.plan = plan ? plan[1].trim() : '';
-  if (manualStop){ return teamFinishInterrupted(team, question); }
-  teamStatus(rows, 'chef', '✅', "fini", 'Plan validé' + (team.findings.plan ? ' : ' + team.findings.plan.split('\n').length + ' étape(s)' : ''));
-  /* 2. CHERCHEUR : pilote les outils sur le plan */
-  const cherSys = 'Tu es le CHERCHEUR de l equipe Astra, agent en LECTURE SEULE (jamais d achat/envoi/modification). Outils disponibles :\n' + agentToolList() + '\nRegles : pour utiliser un outil reponds EXACTEMENT sur une ligne : [OUTIL:nom] arguments [/OUTIL]. Quand tu as assez de faits, reponds EXACTEMENT : [RAPPORT] liste des faits trouves, une ligne par fait, prefixes par la source (selon <site>) [/RAPPORT]. OUTIL:lire ouvre une URL precise ; si tu n as pas l URL, utilise d abord OUTIL:web. Ne reponds jamais sans avoir utilise au moins un outil.';
-  const cherTask = 'Tache globale : ' + question + (team.findings.plan ? '\nPlan du chef :\n' + team.findings.plan : '');
-  teamStatus(rows, 'cher', '🟡', 'travaille', 'Recherche web en cours…');
-  const cherOut = await runSubAgent(rows, 'cher', cherSys, cherTask, budget, 6);
-  team.findings.chercheur = cherOut;
-  teamStatus(rows, 'cher', cherOut ? '✅' : '⚠️', cherOut ? 'fini' : 'bloqué', cherOut ? (cherOut.split('\n').length + ' fait(s) collecté(s)') : 'Le web n a rien donné — je passe en analyse interne');
-  if (manualStop){ return teamFinishInterrupted(team, question); }
-  /* 3. ANALYTE : croise et securise les faits */
-  teamStatus(rows, 'ana', '🟡', 'travaille', 'Vérification des faits…');
-  const ana = await askBrain([
-    { role: 'system', content: 'Tu es l ANALYTE de l equipe Astra. On te donne des faits collectes sur le web ; ecarte les répétitions et ce qui se contredit, garde le solide. Reponds EXACTEMENT : [RAPPORT] faits fiables (max 10 lignes) [/RAPPORT]. Rien d autre.' },
-    { role: 'user', content: 'Faits du chercheur :\n' + (cherOut || '(aucun fait externe — reponds que le dossier repose sur la reflexion interne)') }
-  ]);
-  team.findings.analyste = (ana && ana.text || '').match(/\[RAPPORT\]([\s\S]*?)(\[\/RAPPORT\]|$)/i);
-  team.findings.analyste = team.findings.analyste ? team.findings.analyste[1].trim() : '';
-  const anaCount = team.findings.analyste.trim() ? 0 : 1;
-  teamStatus(rows, 'ana', '✅', 'fini', (team.findings.analyste ? 'Faits vérifiés' : 'Dossier basé sur la reflexion'));
-  if (manualStop){ return teamFinishInterrupted(team, question); }
-  /* 4. REDACTEUR : rapport final avec la personnalite d Astra */
-  teamStatus(rows, 'red', '🟡', 'travaille', 'Rédaction du rapport…');
-  const red = await askBrain([
-    { role: 'system', content: getSystemPrompt() + '\n\nMode.special : REDACTEUR de l equipe. On te donne un dossier pret ; redige la reponse finale (4 a 8 phrases), ton caractere habituel, sans aucune balise, sans mentionner l equipe.' },
-    { role: 'user', content: 'Dossier :\nPlan : ' + (team.findings.plan || '(sans plan)') + '\nFaits vérifiés :\n' + (team.findings.analyste || '(aucun)') + '\nQuestion d Origine : ' + question }
-  ]);
-  let final = (red && red.text) || '';
-  final = stripGreeting(enforceIdentity(fixFrench(final)));
-  teamStatus(rows, 'red', '✅', 'fini', 'Rapport prêt (' + final.length + ' caractères)');
-  /* export du rapport */
-  const dl = document.createElement('button');
-  dl.style.cssText = 'margin-top:6px;font:600 11px system-ui;background:rgba(124,92,255,.2);color:#b79cff;border:1px solid rgba(124,92,255,.4);border-radius:8px;padding:5px 10px;cursor:pointer;';
-  dl.textContent = '💾 Enregistrer le rapport';
-  dl.addEventListener('click', () => {
-    try {
-      const body = 'Rapport Astra — ' + nowInfo() + '\n\nQuestion : ' + question + '\n\nPLAN\n' + (team.findings.plan || '(sans)') + '\n\nFAITS CHERCHEUR\n' + (team.findings.chercheur || '(aucun)') + '\n\nANALYSE\n' + (team.findings.analyste || '(aucune)') + '\n\nRAPPORT FINAL\n' + final;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([body], { type: 'text/markdown' }));
-      a.download = 'astra-rapport.md';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    } catch(e){}
-  });
-  team.card.appendChild(dl);
-  /* v11.00 : la mini-fenetre se replie et disparait apres le rapport */
-  hudSummary('✅', 12000);
-  const clean = final;
-  session.push({ role: 'user', content: question });
-  if (session.length > 12) session = session.slice(-12);
-  session.push({ role: 'assistant', content: clean });
-  saveConversation();
-  return { text: clean };
-  function teamFinishInterrupted(t, q){
-    hudSummary('🛑', 8000);
-    const clean = 'Équipe stoppée. Voici déjà ce qui est prêt : ' + ((t.findings.chercheur || '').slice(0, 300) || 'une base partielle — redemande et j accélère.');
-    session.push({ role: 'user', content: q });
-    if (session.length > 12) session = session.slice(-12);
-    session.push({ role: 'assistant', content: clean });
-    saveConversation();
-    return { text: clean };
-  }
 }
 function enforceIdentity(reply){
   /* v9.82 : l'IA ne doit JAMAIS se faire passer pour ChatGPT/OpenAI/GPT */
@@ -4474,8 +4279,6 @@ async function handleQuestion(question){
     stopAudio();
     isProcessing = true;
   manualStop = true;
-  /* v11.00 : le STOP ferme aussi la mini-fenetre de l'equipe */
-  try { hudSummary('🛑', 2500); } catch(e){}
     continuousPaused = false;
     if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
     pendingSpeech = '';
@@ -4677,14 +4480,7 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
      analyse, recherche sur...), Astra passe en agent autonome : plan -> etapes ->
      synthese, avec son travail affiche en direct. Plus de temps (90s) car elle
      fait plusieurs recherches. Validation humaine : interruption a tout moment. */
-  const agentMode = isAgentQuestion(question) || isTeamRequest(question);
-  /* v10.97 : mots d'equipe explicites = equipe directe (sans garde de longueur
-     sur "lance l equipe"), sinon vraie demande de recherche longue */
-  const nqTrimmed = question.trim();
-  const teamMode = (/[eéèÉÈ]quipe|experts?/i.test(nqTrimmed) && nqTrimmed.length > 8) ||
-    (isTeamRequest(question) && nqTrimmed.length > 20);
-  /* v11.00b : teamRunner est cree APRES la declaration de streamMsg (sinon
-     ReferenceError : can't access lexical declaration 'streamMsg'). */
+  const agentMode = isAgentQuestion(question);
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente).
      v9.48 : 45s pour laisser les 3 tentatives Pollinations + POST se terminer. */
   /* v9.96 : humeur mise a jour AVANT la question -> le cerveau recoit le mood
@@ -4698,20 +4494,20 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
      elle se remplit en temps reel (latence percue quasi nulle). */
   const streamMsg = document.createElement('div');
   streamMsg.className = 'msg ai';
+  /* v11.02 : dots de reflexion (style ChatGPT) tant que la reponse n arrive pas */
+  const dots = astraDots();
+  if (dots) streamMsg.appendChild(dots);
   chat.appendChild(streamMsg);
   chat.scrollTop = chat.scrollHeight;
   let streamedText = '';
-  /* v11.00b : l'equipe demarre maintenant que la bulle existe */
-  const teamRunner = teamMode
-    ? runTeamAgent(question, streamMsg).catch(function (eTeam) { console.warn('[Team] bascule agent simple :', eTeam); return runAgent(question); })
-    : null;
+  ASTRA_LAST_QUESTION = String(question || '');
   const r = await Promise.race([
-    agentMode ? (teamRunner || runAgent(question)) : askAI(askCtx(question), (partial) => {
+    agentMode ? runAgent(question) : askAI(askCtx(question), (partial) => {
       streamedText = partial;
       streamMsg.textContent = cleanMarkdown(streamedText);
       chat.scrollTop = chat.scrollHeight;
     }),
-    new Promise(res => setTimeout(() => res({ error: 'timeout' }), teamMode ? 110000 : agentMode ? 50000 : 45000))
+    new Promise(res => setTimeout(() => res({ error: 'timeout' }), agentMode ? 50000 : 45000))
   ]);
   if (r.text) {
     r.text = r.text.replace(/\betc\.?\b/gi, 'et cetera');
@@ -4782,6 +4578,9 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
     }
     if (sub) sub.textContent = '';  /* v10.0 : sous-titre vide quand l'IA parle */
   }
+  /* v11.02 : boutons Copier / Regenerer sous la reponse finale */
+  msgDiv.setAttribute('data-raw', String(r.text || ''));
+  attachMsgActions(msgDiv, r.text);
   /* v10.0 : sous-titre UNIQUEMENT quand l'utilisateur parle — on ne met pas le texte de l'IA dans le sous-titre */
   /* v10.0 : BLOC-NOTES — si demande d'ecriture, l'IA ecrit le texte dans le
      bloc-notes (elle ecrit, pas l'utilisateur) */
