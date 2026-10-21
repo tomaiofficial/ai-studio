@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.08';
+const APP_VERSION = '11.09';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1132,15 +1132,34 @@ function refreshQuotaHud(){
   try {
     const hud = $('quotaHud');
     if (!hud) return;
-    if (!getInworldKey()){ hud.hidden = true; return; }
+    if (!getInworldKey() && !isKokoroVoice()){ hud.hidden = true; return; }
     hud.hidden = false;
     const d = quotaUsage();
     const mins = d.chars / INWORLD_CHARS_PER_MIN;
     const pct = Math.min(100, (mins / INWORLD_FREE_MIN) * 100);
     const pill = $('quotaPill'), fill = $('quotaFill'), minEl = $('quotaMin');
-    if (minEl) minEl.textContent = mins >= 10 ? Math.round(mins) : mins.toFixed(1);
-    if (fill){ fill.style.width = pct.toFixed(1) + '%'; fill.className = pct >= 95 ? 'danger' : pct >= 80 ? 'warn' : ''; }
-    if (pill) pill.className = 'quota-pill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '');
+    const kok = isKokoroVoice();
+    /* v11.09 : voix locale Kokoro = 0 quota consomme, illimite -> la jauge
+       affiche "illimite" au lieu du compteur Inworld. */
+    if (kok){
+      if (minEl) minEl.textContent = '∞';
+      if (fill){ fill.style.width = '100%'; fill.className = ''; }
+      if (pill){
+        pill.className = 'quota-pill';
+        const lab = pill.querySelector('span:nth-child(2)');
+        if (lab) lab.innerHTML = 'Kokoro <b>∞</b> local';
+        pill.title = 'Voix locale Kokoro : illimitée, hors ligne — aucun quota consommé';
+      }
+    } else {
+      if (minEl) minEl.textContent = mins >= 10 ? Math.round(mins) : mins.toFixed(1);
+      if (fill){ fill.style.width = pct.toFixed(1) + '%'; fill.className = pct >= 95 ? 'danger' : pct >= 80 ? 'warn' : ''; }
+      if (pill){
+        pill.className = 'quota-pill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '');
+        const lab = pill.querySelector('span:nth-child(2)');
+        if (lab) lab.innerHTML = 'Inworld <b>' + (mins >= 10 ? Math.round(mins) : mins.toFixed(1)) + '</b>/70 min';
+        pill.title = 'Quota Inworld TTS-2 (clique pour le détail)';
+      }
+    }
     const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
     set('qMin', mins.toFixed(1) + ' / ' + INWORLD_FREE_MIN);
     set('qChars', d.chars.toLocaleString('fr-FR'));
@@ -1152,7 +1171,18 @@ function refreshQuotaHud(){
     const avg = daysPassed > 0 ? mins / daysPassed : 0;
     set('qAvg', avg.toFixed(1) + ' min');
     set('qProj', (avg * daysInMonth).toFixed(0) + ' min' + (avg * daysInMonth > INWORLD_FREE_MIN ? ' ⚠️' : ''));
+    /* bloc Kokoro : visible seulement quand la voix locale est active */
+    const kokBox = $('qKok');
+    if (kokBox){
+      kokBox.style.display = kok ? '' : 'none';
+      set('qKokTxt', '🎧 Voix locale Kokoro active — illimitée, hors ligne, 0 quota Inworld consommé.');
+    }
+    const inwBox = $('qInw');
+    if (inwBox) inwBox.style.display = kok ? 'none' : '';
   } catch(e){}
+}
+function isKokoroVoice(){
+  try { return String(getVoice() || '').startsWith('kok:'); } catch(e){ return false; }
 }
 function quotaSnapshot(){
   const d = quotaUsage();
@@ -1178,10 +1208,14 @@ function quotaSpoken(){
   const m = s.mins < 10 ? s.mins.toFixed(1) : String(Math.round(s.mins));
   const l = s.left < 10 ? s.left.toFixed(1) : String(Math.round(s.left));
   const p = Math.round(s.proj);
+  /* v11.09 : si la voix locale Kokoro est active, elle est illimitee -> on le dit */
+  if (isKokoroVoice()){
+    return 'Tu as choisi ma voix locale Kokoro : elle est illimitee, fonctionne meme sans internet, et ne consomme rien du tout. Ton quota Inworld reste a ' + m + ' minute sur ' + s.freeMin + ' ce mois-ci, donc ' + l + ' minutes de credit restent disponibles si tu veux repasser sur la voix Inworld.';
+  }
   let out = 'Ce mois-ci, j ai utilise ' + m + ' minute de parole sur les ' + s.freeMin + ' offertes par Inworld, soit ' + s.chars.toLocaleString('fr-FR') + ' caracteres et ' + s.req + ' reponses vocales. Il te reste environ ' + l + ' minutes. ';
   out += 'Moyenne aujourd hui : ' + s.avg.toFixed(1) + ' minute par jour, projection de fin de mois : ' + p + ' minutes. ';
   if (s.pct >= 80) out += 'Attention, on approche de la limite du palier gratuit. ';
-  out += 'Au-dela des ' + s.freeMin + ' minutes, Inworld facture 25 dollars par million de caracteres, et je bascule automatiquement sur la voix Google Translate, gratuite et illimitee.';
+  out += 'Au-dela des ' + s.freeMin + ' minutes, Inworld facture 25 dollars par million de caracteres, et je bascule automatiquement sur ma voix locale Kokoro, gratuite et illimitee, puis sur Google Translate.';
   return out;
 }
 function isQuotaQuestion(q){
@@ -1205,6 +1239,9 @@ function initQuotaHud(){
     }
     refreshQuotaHud();
     setInterval(refreshQuotaHud, 60000);
+    /* v11.09 : la jauge suit la voix choisie (Kokoro = illimite) */
+    const sel = $('ttsVoice');
+    if (sel) sel.addEventListener('change', () => setTimeout(refreshQuotaHud, 60));
   } catch(e){}
 }
 /* ============================================================
