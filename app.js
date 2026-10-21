@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.77';
+const APP_VERSION = '10.78';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -138,7 +138,7 @@ let noteState = { open: false, content: '' };
    et le texte est copie dans le bloc-notes. */
 let writingMode = false;
 
-const DEFAULT_VOICE = 'voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8'; // v10.68 : retour Voxtral (Mistral AI) — Paul, voix par défaut
+const DEFAULT_VOICE = 'qwen:Ryan'; // v10.78 : Qwen3-TTS (HF) — realiste, gratuit A VIE
 const SPEED = 1.0; // naturel
 
 /* ===== VOXTRAL TTS (Mistral AI) — VOIX PRINCIPALE =====
@@ -191,71 +191,98 @@ function abortSignal(ms){
   setTimeout(() => ctrl.abort(), ms);
   return ctrl.signal;
 }
-/* v10.72 : CARTESIA SONIC — la VOIX IA LA PLUS REALISTE DU MONDE (#1 du
-   classement Speech Arena). Plan gratuit PERMANENT : 20 000 caracteres
-   par mois (sans carte, cle instantanee sur play.cartesia.ai). CORS
-   ouvert -> appel direct navigateur. Valeurs de voix : cartesia:<id>. */
-const CARTESIA_KEY_LS = 'va_cartesia_key';
-function getCartesiaKey(){ try { return (localStorage.getItem(CARTESIA_KEY_LS) || '').trim(); } catch { return ''; } }
-/* v10.72 : branchement des champs Cartesia DEPLACE dans la section
-   REGLAGES (le helper $ n'existe pas encore a ce point du fichier) */
-let cartesiaFailed = false, cartesiaVoicesCache = null;
-async function fetchCartesiaVoices(){
-  if (cartesiaVoicesCache) return cartesiaVoicesCache;
-  const key = getCartesiaKey();
-  if (!key) return [];
-  try {
-    const res = await fetch('https://api.cartesia.ai/voices', {
-      headers: { 'Authorization': 'Bearer ' + key, 'X-API-Key': key },
-      signal: abortSignal(10000)
-    });
-    if (!res.ok){ console.warn('[CARTESIA] liste voix HTTP', res.status); return []; }
-    const data = await res.json();
-    const all = Array.isArray(data) ? data : (data && data.data) || [];
-    const frv = all.filter(v => v && v.id && /(^|[-,])(fr)([-,]|$)|french|français|francais/i.test(v.language + ' ' + (v.name || '')));
-    const pool = frv.length ? frv : all.slice(0, 40);
-    cartesiaVoicesCache = pool.map(v => ({ id: v.id, name: v.name || v.id, lang: v.language || '' }));
-    return cartesiaVoicesCache;
-  } catch(e){ console.warn('[CARTESIA] liste voix echec:', e && e.message); return []; }
+/* v10.78 : QWEN3-TTS — la voix IA la plus realiste jamais proposee GRATUITE
+   A VIE (modele open-source Apache 2.0 d'Alibaba, servi via le Space public
+   Qwen/Qwen3-TTS, qui remplace Cartesia Sonic supprime). 9 voix presets
+   statiques (pas de fetch), francais natif, CORS ouvert verifie depuis
+   tomaiofficial.github.io. Sans token HF : quota anonyme ZeroGPU variable ;
+   avec un token HF gratuit a vie : beaucoup plus de quota.
+   Cle : https://huggingface.co/settings/tokens -> valeurs : qwen:<Speaker>. */
+const QWEN_API = 'https://qwen-qwen3-tts.hf.space';
+const QWEN_KEY_LS = 'va_qwen_key';
+const QWEN_VOICES = [
+  { name: 'Ryan (masculin US)', id: 'Ryan', g: 'm' },
+  { name: 'Eric (masculin US)', id: 'Eric', g: 'm' },
+  { name: 'Aiden (masculin)', id: 'Aiden', g: 'm' },
+  { name: 'Dylan (masculin)', id: 'Dylan', g: 'm' },
+  { name: 'Uncle Fu (masculin)', id: 'Uncle_fu', g: 'm' },
+  { name: 'Serena (feminine US)', id: 'Serena', g: 'f' },
+  { name: 'Vivian (feminine)', id: 'Vivian', g: 'f' },
+  { name: 'Sohee (feminine)', id: 'Sohee', g: 'f' },
+  { name: 'Ono Anna (feminine)', id: 'Ono_anna', g: 'f' },
+];
+function getQwenKey(){ try { return (localStorage.getItem(QWEN_KEY_LS) || '').trim(); } catch { return ''; } }
+function qwenHeaders(extra){
+  const h = Object.assign({ 'Origin': 'https://tomaiofficial.github.io' }, extra || {});
+  const key = getQwenKey();
+  if (key) h['Authorization'] = 'Bearer ' + key;
+  return h;
 }
-async function speakCartesia(text, voiceId, onChunk){
-  const key = getCartesiaKey();
-  if (!key){ console.warn('[CARTESIA] Pas de cle — Réglages'); return false; }
-  if (cartesiaFailed) return false;
+async function speakQwen(text, speaker, onChunk){
   try {
-    const chunks = splitSentences(text, 800);
+    const chunks = splitSentences(text, 160);
     for (const c of chunks){
-      if (activeSpeechEpoch !== speechEpoch){ console.warn('[CARTESIA] parole interrompue'); return false; }
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[QWEN] parole interrompue'); return false; }
       if (onChunk) onChunk(c);
-      const r = await fetch('https://api.cartesia.ai/tts/bytes', {
+      const hash = 'astra' + Math.random().toString(36).slice(2, 8);
+      const rj = await fetch(QWEN_API + '/gradio_api/queue/join', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + key, 'X-API-Key': key, 'Content-Type': 'application/json', 'Cartesia-Version': '2025-04-16' },
-        body: JSON.stringify({
-          model_id: 'sonic-3.6',
-          transcript: c,
-          /* v10.77 : language 'fr' OBLIGATOIRE — sans ce champ l API prononce
-             le francais avec des regles anglaises (son totalement illisible) */
-          language: 'fr',
-          voice: { mode: 'id', id: voiceId },
-          output_format: { container: 'wav', encoding: 'pcm_s16le', sample_rate: 24000 }
-        }),
-        signal: abortSignal(20000)
+        headers: qwenHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ data: [c, 'French', speaker, null, '1.7B'], fn_index: 2, session_hash: hash }),
+        signal: abortSignal(15000)
       });
-      if (!r.ok){
-        const et = (await r.text().catch(() => '')).slice(0, 150);
-        console.warn('[CARTESIA] HTTP', r.status, et);
-        if (r.status === 401 || r.status === 403){ cartesiaFailed = true; setStatus('Cle Cartesia invalide'); }
-        else if (r.status === 429){ setStatus('Quota Cartesia atteint (renouvelle au 1er du mois)'); }
+      if (!rj.ok){
+        const et = (await rj.text().catch(() => '')).slice(0, 120);
+        console.warn('[QWEN] join HTTP', rj.status, et);
+        if (rj.status === 401 || rj.status === 403) setStatus('Token HF invalide — Réglages');
         return false;
       }
-      const blob = await r.blob();
-      if (!blob || blob.size < 100){ console.warn('[CARTESIA] audio vide'); return false; }
-      const ok = await playAudioBlob(blob.type && blob.type.includes('wav') ? blob : new Blob([blob], { type: 'audio/wav' }));
+      /* SSE de la file : data: {msg: estimation|process_starts|process_completed}
+         -> output.data[0] = {path,url,...} -> blob audio */
+      let audioUrl = null, gerr = null;
+      const rd = await fetch(QWEN_API + '/gradio_api/queue/data?session_hash=' + hash, {
+        headers: qwenHeaders(),
+        signal: abortSignal(90000)
+      });
+      const reader = rd.body && rd.body.getReader();
+      if (!reader){ console.warn('[QWEN] pas de flux SSE'); return false; }
+      const dec = new TextDecoder();
+      let buf = '';
+      outer: for (;;){
+        const { done, value } = await reader.read().catch(() => ({ done: true }));
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0){
+          const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1);
+          if (!line.startsWith('data:')) continue;
+          let m; try { m = JSON.parse(line.slice(5).trim()); } catch { continue; }
+          if (m.msg === 'process_completed'){
+            const out = m.output || {};
+            if (out.error){ gerr = out.error; break outer; }
+            const f = out.data && out.data[0];
+            audioUrl = f && (f.url || (f.path && QWEN_API + '/gradio_api/file=' + f.path));
+            break outer;
+          }
+          if (m.msg === 'close_stream') break outer;
+        }
+      }
+      if (gerr){
+        const e = String(gerr);
+        console.warn('[QWEN] erreur generation:', e.slice(0, 120));
+        if (/quota/i.test(e)) setStatus('Quota ZeroGPU : ajoute un token HF gratuit a vie dans Reglages');
+        return false;
+      }
+      if (!audioUrl){ console.warn('[QWEN] pas d audio'); return false; }
+      const ra = await fetch(audioUrl, { headers: qwenHeaders(), signal: abortSignal(20000) });
+      if (!ra.ok){ console.warn('[QWEN] audio HTTP', ra.status); return false; }
+      const blob = await ra.blob();
+      if (!blob || blob.size < 100){ console.warn('[QWEN] audio vide'); return false; }
+      const ok = await playAudioBlob(new Blob([blob], { type: 'audio/wav' }));
       if (!ok) return false;
-      await new Promise(rr => setTimeout(rr, 60));
     }
     return true;
-  } catch(e){ console.warn('[CARTESIA] échec:', e && e.message); return false; }
+  } catch(e){ console.warn('[QWEN] échec:', e && e.message); return false; }
 }
 async function fetchVoxtralVoices(){
   if (voxtralVoicesCache) return voxtralVoicesCache;
@@ -974,8 +1001,8 @@ function getVoice(){
       || v === 'systeme') return DEFAULT_VOICE;
   /* v10.65 : voix Voxtral blacklistee (refusee par l API) -> retour defaut */
   if (v.startsWith('voxtral:') && getVoxtralBadVoices().includes(v.substring(8))) return DEFAULT_VOICE;
-  /* v10.72 : voix Cartesia (id non vide) valides */
-  if (v.startsWith('cartesia:')) return v.length > 9 ? v : DEFAULT_VOICE;
+  /* v10.78 : Cartesia SUPPRIME -> les anciennes valeurs basculent sur Qwen3 : Ryan */
+  if (v.startsWith('cartesia:')) return 'qwen:Ryan';
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -998,9 +1025,9 @@ function currentVoiceGender(){
       const all = voxtralVoicesCache || VOXTRAL_FALLBACK_VOICES;
       const found = all.find(x => x.id === v.substring(8));
       if (found) name = found.name || '';
-    } else if (v.startsWith('cartesia:')){
-      const found = (cartesiaVoicesCache || []).find(x => x.id === v.substring(9));
-      if (found) name = found.name || '';
+    } else if (v.startsWith('qwen:')){
+      const found = QWEN_VOICES.find(x => x.id === v.substring(5));
+      if (found) return found.g;
     }
     if (!name){
       const opt = document.querySelector('#tts-voice option:checked');
@@ -1093,14 +1120,13 @@ if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
   toast('Clé API Mistral enregistrée ✓');
 });
 
-/* v10.72 : clé Cartesia Sonic (voix IA la plus réaliste, 20k caractères/mois gratuit) */
-const cartesiaKeyInput = $('cartesiaKey'), saveCartesiaKeyBtn = $('saveCartesiaKey');
-if (cartesiaKeyInput) cartesiaKeyInput.value = getCartesiaKey();
-if (saveCartesiaKeyBtn) saveCartesiaKeyBtn.addEventListener('click', () => {
-  localStorage.setItem(CARTESIA_KEY_LS, (cartesiaKeyInput.value || '').trim());
-  cartesiaFailed = false; cartesiaVoicesCache = null;
-  populateVoices();
-  toast('Cle Cartesia enregistree ✓ — Sonic, la voix IA la plus realiste activee');
+/* v10.78 : token HF gratuit a vie pour Qwen3-TTS (voix la plus realiste,
+   quota ZeroGPU elargi) — cf https://huggingface.co/settings/tokens */
+const qwenKeyInput = $('qwenKey'), saveQwenKeyBtn = $('saveQwenKey');
+if (qwenKeyInput) qwenKeyInput.value = getQwenKey();
+if (saveQwenKeyBtn) saveQwenKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(QWEN_KEY_LS, (qwenKeyInput.value || '').trim());
+  toast('Token HF enregistre ✓ — Qwen3-TTS voix realiste A VIE armee');
 });
 
 /* v10.43 : GEMINI RETIRÉ — quota journalier trop court (10/j/model) au
@@ -3316,21 +3342,20 @@ async function populateVoices(){
   Array.from(ttsVoiceSel.children).forEach(c => {
     if (c.tagName === 'OPTION' && (c.value || '').startsWith('voxtral:') && badVoices.includes(c.value.substring(8))) { c.disabled = true; c.hidden = true; }
   });
-  /* v10.72 : GROUPE CARTESIA — Sonic, voix IA la plus realiste du monde.
-     Gratuit 20k caracteres/mois a vie (cle play.cartesia.ai, sans carte). */
-  if (getCartesiaKey() && !cartesiaFailed){
-    const cv = await fetchCartesiaVoices();
-    if (cv.length){
-      const grpC = document.createElement('optgroup');
-      grpC.label = '🎤 Cartesia Sonic — la plus réaliste (gratuit 20k/mois)';
-      cv.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = 'cartesia:' + v.id;
-        opt.textContent = '🎤 ' + v.name;
-        grpC.appendChild(opt);
-      });
-      ttsVoiceSel.appendChild(grpC);
-    }
+  /* v10.78 : GROUPE QWEN3-TTS — la voix IA la plus realiste, gratuite A VIE
+     (modele open-source Apache 2.0 embarque dans le Space public Qwen).
+     9 presets statiques FR, pas de fetch. Token HF (gratuit a vie) = plus
+     de quota ZeroGPU, mais fonctionne aussi sans token. */
+  {
+    const grpQ = document.createElement('optgroup');
+    grpQ.label = '🚀 Qwen3-TTS — la plus réaliste, gratuite À VIE (HF)';
+    QWEN_VOICES.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = 'qwen:' + v.id;
+      opt.textContent = '🚀 ' + v.name + (v.id === 'Ryan' ? ' — défaut' : '');
+      grpQ.appendChild(opt);
+    });
+    ttsVoiceSel.appendChild(grpQ);
   }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
@@ -3550,25 +3575,27 @@ function speak(text, onChunk){
        (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
         v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (60s)'); fail(); }, 60000);
-    /* VOIX : v10.72 — VOIX IA SEULEMENT (choix de l'utilisateur).
-       La voix choisie dans le selecteur est FORCEE. Plus de secours
-       Systeme/Google (voix robotiques retirees).
-       Moteurs : Mistral Voxtral (cle gratuite) + Cartesia Sonic
-       (20k caracteres/mois gratuit, cle play.cartesia.ai). */
+    /* VOIX : v10.78 — VOIX IA SEULEMENT. Cartesia supprime.
+       Moteurs : Qwen3-TTS (gratuit A VIE, token HF optionnel) + Mistral
+       Voxtral (cle gratuite). Secours final : Qwen Ryan sans token. */
     const voiceMode = getVoice();
     let chain;
-    if (voiceMode.startsWith('cartesia:')) {
-      const cv = voiceMode.substring(9);
-      /* FORCER Cartesia Sonic (#1 realisme mondial) */
-      chain = [['Sonic: ' + (cv || '').slice(0, 8), (t) => speakCartesia(t, cv, onChunk)]];
+    if (voiceMode.startsWith('qwen:')) {
+      const qv = voiceMode.substring(5) || 'Ryan';
+      /* FORCER Qwen3-TTS (#1 realisme gratuit a vie) */
+      chain = [['Qwen3: ' + qv, (t) => speakQwen(t, qv, onChunk)]];
     } else if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
-      /* FORCER VOXTRAL TOUJOURS — pas de bascule même si 403 */
-      chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
-    } else {
-      /* voix par defaut : Voxtral Paul */
+      /* FORCER VOXTRAL si la cle est valide ; secours final Qwen Ryan */
       chain = [
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)]
+        [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
+        ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)]
+      ];
+    } else {
+      /* voix par defaut : Voxtral Paul puis Qwen Ryan */
+      chain = [
+        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)]
       ];
     }
     let i = 0;
@@ -3595,7 +3622,7 @@ let voiceStartedFlag = false;
 /* v10.74 : EPOCH DE PAROLE — retire toute synthese vocale en arriere-plan.
    Chaque speak() prend un nouvel epoch ; stopAudio() et toute nouvelle
    question incrementent l'epoch, ce qui FAIT EXPIRER les boucles de chunks
-   (speakVoxtral/Cartesia/Google/Systeme) immediatement. Sans ca, une longue
+   (speakVoxtral/Qwen/Google/Systeme) immediatement. Sans ca, une longue
    reponse continuait de jouer en fond apres une nouvelle question. */
 let speechEpoch = 0, activeSpeechEpoch = 0;
 function stopAudio(){
