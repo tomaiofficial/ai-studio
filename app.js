@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.81';
+const APP_VERSION = '10.82';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -351,6 +351,71 @@ async function generateChunks(chunks, voiceId, key){
       return new Blob([bytes], { type: 'audio/mpeg' });
     } catch(e){ console.warn('[VOXTRAL] chunk echec:', e && e.message); return null; }
   }));
+}
+/* v10.82 : INWORLD TTS-2 — 2e moteur IA realiste, gratuit a VIE
+   (~70 min/mois renouvele a vie, compte gratuit, sans carte).
+   Arena #7 mondial. CORS ouvert verifie depuis tomaiofficial.github.io.
+   Cle = credential Base64 du portail, colle telle quelle dans Reglages.
+   POST /tts/v1/voice -> base64 MP3 -> blob -> playAudioBlob. */
+const INWORLD_API = 'https://api.inworld.ai/tts/v1/voice';
+const INWORLD_KEY_LS = 'va_inworld_key';
+const INWORLD_MODEL = 'inworld-tts-2';
+const INWORLD_VOICES = [
+  { id: 'Ashley', n: 'Ashley (femme, naturelle)' },
+  { id: 'Rachel', n: 'Rachel (femme)' },
+  { id: 'Hana',   n: 'Hana (femme)' },
+  { id: 'Kayla',  n: 'Kayla (femme)' },
+  { id: 'Dennis', n: 'Dennis (homme)' },
+  { id: 'Marcus', n: 'Marcus (homme)' },
+  { id: 'Hugo',   n: 'Hugo (homme)' },
+  { id: 'Sam',    n: 'Sam (homme)' }
+];
+function getInworldKey(){
+  try { return (localStorage.getItem(INWORLD_KEY_LS) || '').trim().replace(/^Basic /i, ''); }
+  catch { return ''; }
+}
+async function speakInworld(text, voiceId, onChunk){
+  const key = getInworldKey();
+  if (!key){ console.warn('[INWORLD] Pas de cle — ajoute-la dans Reglages'); return false; }
+  const chunks = splitSentences(text, 800);
+  try {
+    const results = await Promise.all(chunks.map(async (chunk) => {
+      try {
+        const res = await fetch(INWORLD_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + key },
+          body: JSON.stringify({
+            text: chunk,
+            voiceId: voiceId || 'Ashley',
+            modelId: INWORLD_MODEL,
+            audioConfig: { audioEncoding: 'MP3' },
+            deliveryMode: 'BALANCED',
+            applyTextNormalization: 'ON'
+          }),
+          signal: abortSignal(15000)
+        });
+        if (!res.ok){
+          const et = await res.text().catch(() => '');
+          console.warn('[INWORLD] HTTP', res.status, et.slice(0, 160));
+          return null;
+        }
+        const data = await res.json();
+        if (!data || !data.audioContent){ console.warn('[INWORLD] Pas de audioContent dans la reponse'); return null; }
+        const binary = atob(data.audioContent);
+        const bytes = new Uint8Array(binary.length);
+        for (let k = 0; k < binary.length; k++) bytes[k] = binary.charCodeAt(k);
+        return new Blob([bytes], { type: 'audio/mpeg' });
+      } catch(e){ console.warn('[INWORLD] chunk echec:', e && e.message); return null; }
+    }));
+    for (let i = 0; i < results.length; i++){
+      if (!results[i]) continue;
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[INWORLD] parole interrompue'); return false; }
+      if (onChunk) onChunk(chunks[i]);
+      const ok = await playAudioBlob(results[i]);
+      if (!ok) return false;
+    }
+    return results.some(Boolean);
+  } catch(e){ console.warn('[INWORLD] Echec:', e && e.message); return false; }
 }
 /* v10.6 : FIX MOBILE — transcription audio via Mistral Voxtral
    (POST /v1/audio/transcriptions, multipart). Fonctionne sur mobile :
@@ -936,6 +1001,9 @@ function currentVoiceGender(){
       const all = voxtralVoicesCache || VOXTRAL_FALLBACK_VOICES;
       const found = all.find(x => x.id === v.substring(8));
       if (found) name = found.name || '';
+    } else if (v.startsWith('iw:')){
+      const found = INWORLD_VOICES.find(x => x.id === v.substring(3));
+      if (found) name = found.n || '';
     }
     if (!name){
       const opt = document.querySelector('#tts-voice option:checked');
@@ -1028,8 +1096,14 @@ if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
   toast('Clé API Mistral enregistrée ✓');
 });
 
-/* v10.81 : token HF/Qwen RETIRE — Mistral Voxtral reste le seul moteur
-   realiste gratuit a vie ; le champ qwenKey est passe au garbage. */
+/* v10.82 : cle API Inworld (TTS-2, arena #7, gratuit a vie ~70 min/mois) —
+   le portail donne un credential Base64 a coller tel quel. */
+const inworldKeyInput = $('inworldKey'), saveInworldKeyBtn = $('saveInworldKey');
+if (inworldKeyInput) inworldKeyInput.value = getInworldKey();
+if (saveInworldKeyBtn) saveInworldKeyBtn.addEventListener('click', () => {
+  localStorage.setItem(INWORLD_KEY_LS, (inworldKeyInput.value || '').trim().replace(/^Basic /i, ''));
+  toast('Clé API Inworld enregistrée ✓');
+});
 
 /* v10.43 : GEMINI RETIRÉ — quota journalier trop court (10/j/model) au
    profit d'ElevenLabs (10k chars/mois) + Voxtral (sans quota jour). Les
@@ -3244,6 +3318,19 @@ async function populateVoices(){
   Array.from(ttsVoiceSel.children).forEach(c => {
     if (c.tagName === 'OPTION' && (c.value || '').startsWith('voxtral:') && badVoices.includes(c.value.substring(8))) { c.disabled = true; c.hidden = true; }
   });
+  /* v10.82 : GROUPE INWORLD TTS-2 — arena #7 mondial, gratuit a vie
+     (~70 min/mois), cle gratuite sans carte. Defaut : Ashley. */
+  {
+    const grpI = document.createElement('optgroup');
+    grpI.label = '🎭 Inworld TTS-2 — réaliste, gratuite à vie (clé gratuite)';
+    INWORLD_VOICES.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = 'iw:' + v.id;
+      opt.textContent = '🎭 ' + v.n + (v.id === 'Ashley' ? ' — secours par défaut' : '');
+      grpI.appendChild(opt);
+    });
+    ttsVoiceSel.appendChild(grpI);
+  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
@@ -3464,24 +3551,32 @@ function speak(text, onChunk){
     /* guard-source v10.79 : timeout global — si AUCUNE voix n'a e
        produit de son en 40s, on lache (avant : 60s tres long pour l'utilisateur) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (40s)'); fail(); }, 40000);
-    /* VOIX : v10.81 — VOIX IA SEULEMENT. Qwen3-TTS et Edge neural SUPPRIMES
-       (quota HF / proxy Microsoft non desires). Moteurs : MISTRAL VOXTRAL
-       (gratuit a vie, cle gratuite) — la seule voix IA realiste sans quota.
+    /* VOIX : v10.82 — VOIX IA SEULEMENT. Moteurs realistes gratuits a vie :
+       MISTRAL VOXTRAL (#1, aucun quota) + INWORLD TTS-2 (arena #7, ~70 min/mois).
        Filet final : Google Translate (robotique mais jamais muet). */
     const voiceMode = getVoice();
     const SAFE = ['Google Translate (filet)', (t) => speakGoogle(t, onChunk)]; /* v10.79 : jamais muet */
     let chain;
-    if (voiceMode.startsWith('voxtral:')) {
+    if (voiceMode.startsWith('iw:')) {
+      const ivv = voiceMode.substring(3) || 'Ashley';
+      /* FORCER Inworld TTS-2 (gratuit a vie, arena #7) */
+      chain = [
+        ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk)],
+        SAFE
+      ];
+    } else if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
-      /* Mistral Voxtral choisi (gratuit a vie, realiste) ; filet Google */
+      /* Mistral Voxtral choisi ; secours Inworld si cle presente */
       chain = [
         [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
+        ['Inworld (secours)', (t) => speakInworld(t, 'Ashley', onChunk)],
         SAFE
       ];
     } else {
-      /* voix par defaut : Mistral Voxtral Paul */
+      /* voix par defaut : Mistral Voxtral Paul puis Inworld Ashley */
       chain = [
         ['Mistral Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Inworld: Ashley (secours)', (t) => speakInworld(t, 'Ashley', onChunk)],
         SAFE
       ];
     }
