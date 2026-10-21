@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.95';
+const APP_VERSION = '10.96';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -2579,12 +2579,12 @@ async function runAgent(question){
    arrêtable (manualStop), budget d'outils borne.
    ============================================================ */
 function isTeamRequest(q){
-  return /equipe|team|experts|rapport (complet|detaille|detail)|recherche approfondie|deep research|enquete (complete|approfondie)|fais[- ]moi un rapport|analyse (complete|approfondie)|etude (complete|approfondie)/i.test(q);
+  return /[eéèÉÈ]quipe|experts?|team|deep research|recherche approfondie|rapport|dossier|enqu[eèÉÈ]te|[eéèÉÈ]tat des lieux|point (complet|d[eéèÉÈ]taille)|tout savoir sur/i.test(q);
 }
 function createTeamCard(streamMsg){
   if (chatEmpty) chatEmpty.style.display = 'none';
   const card = document.createElement('div');
-  card.style.cssText = 'background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.22);border-radius:14px;padding:10px 12px;margin:6px 0;max-width:92%;';
+  card.style.cssText = 'background:rgba(124,92,255,.10);border:1.5px solid rgba(124,92,255,.35);border-radius:14px;padding:11px 13px;margin:8px 0;max-width:92%;box-shadow:0 2px 14px rgba(124,92,255,.15);';
   const title = document.createElement('div');
   title.style.cssText = 'font-size:12px;font-weight:700;color:#b79cff;margin-bottom:6px;';
   title.textContent = '🎭 Équipe d\u2019experts déployée';
@@ -2657,6 +2657,7 @@ async function runSubAgent(rows, key, sys, task, budget, maxIter){
 }
 async function runTeamAgent(question, streamMsg){
   const team = createTeamCard(streamMsg);
+  setStatus('🎭 Équipe d\u2019experts en place…');
   const rows = team.rows;
   /* budget partage : 8 appels d'outils max pour toute l'equipe */
   const budget = { n: 8 };
@@ -4304,7 +4305,9 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
      synthese, avec son travail affiche en direct. Plus de temps (90s) car elle
      fait plusieurs recherches. Validation humaine : interruption a tout moment. */
   const agentMode = isAgentQuestion(question) || isTeamRequest(question);
-  const teamMode = isTeamRequest(question) || (isAgentQuestion(question) && /equipe|experts/i.test(question));
+  /* v10.96 : equipe = mots d'equipe explicites OU demande "rapport/dossier" assez longue
+     (vraie recherche), pour ne pas gaspiller le budget outils sur une mini-question */
+  const teamMode = (isTeamRequest(question) && question.trim().length > 20) || (isAgentQuestion(question) && /[eéèÉÈ]quipe|experts?/i.test(question));
   /* garde-fou GLOBAL : l'IA ne doit JAMAIS tourner sans fin (reseau bloque, API lente).
      v9.48 : 45s pour laisser les 3 tentatives Pollinations + POST se terminer. */
   /* v9.96 : humeur mise a jour AVANT la question -> le cerveau recoit le mood
