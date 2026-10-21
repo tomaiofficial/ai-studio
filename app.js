@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.09';
+const APP_VERSION = '11.10';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1004,90 +1004,6 @@ function setState(s){
 
 /* ===== CHAT (bulles type ChatGPT) ===== */
 /* ============================================================
-   v11.08 : VOIX LOCALE KOKORO — gratuite A VIE, hors ligne,
-   francaises, sans cle API, sans quota.
-   Le modele (84 Mo) est telecharge UNE fois depuis Hugging Face
-   puis reste dans le cache du navigateur. Si le telechargement
-   echoue, la chaine de voix bascule automatiquement (Inworld/Google).
-   ============================================================ */
-const KOKORO_CDN = 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
-const KOKORO_REPO = 'onnx-community/Kokoro-82M-v1.0-ONNX';
-const KOKORO_VOICES = [
-  { id: 'ff_siwis', n: 'Siwis (femme, douce)' },
-  { id: 'hf_alpha', n: 'Alpha (femme, posée)' },
-  { id: 'hf_beta',  n: 'Beta (femme, vive)' },
-  { id: 'pf_dora',  n: 'Dora (femme, chaleureuse)' },
-  { id: 'hm_omega', n: 'Omega (homme, posé)' },
-  { id: 'hm_psi',   n: 'Psi (homme, dynamique)' },
-  { id: 'pm_alex',  n: 'Alex (homme, clair)' }
-];
-let kokoroTts = null, kokoroLoading = null;
-async function getKokoro(){
-  if (kokoroTts) return kokoroTts;
-  if (kokoroLoading) return kokoroLoading;
-  kokoroLoading = (async () => {
-    try { setStatus('🎧 Téléchargement de la voix locale (84 Mo, une fois)…'); } catch(e){}
-    const mod = await import(KOKORO_CDN);
-    const tts = await mod.KokoroTTS.from_pretrained(KOKORO_REPO, { dtype: 'q8', device: 'wasm' });
-    kokoroTts = tts;
-    return tts;
-  })();
-  try {
-    const t = await kokoroLoading;
-    try { setStatus('Appuie sur le micro et parle'); } catch(e){}
-    return t;
-  } catch(e){
-    kokoroLoading = null;
-    console.warn('[KOKORO] chargement impossible:', e && e.message);
-    throw e;
-  }
-}
-function playRawAudio(raw, sr){
-  return new Promise(resolve => {
-    try {
-      const ctx = ensureAudio();
-      if (!ctx) return resolve(false);
-      if (ctx.state !== 'running'){ try { ctx.resume(); } catch(e){} }
-      const buf = ctx.createBuffer(1, raw.length, sr || 24000);
-      buf.copyToChannel(raw, 0);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      const gain = ctx.createGain();
-      gain.gain.value = 1.0;
-      src.connect(gain); gain.connect(ctx.destination);
-      currentSources.push(src);
-      voiceStartedFlag = true;
-      let settled = false;
-      const fin = v => { if (settled) return; settled = true; resolve(v); };
-      src.onended = () => fin(true);
-      src.start();
-      const ms = Math.ceil((raw.length / (sr || 24000)) * 1000) + 400;
-      setTimeout(() => fin(true), ms);
-    } catch(e){ console.warn('[KOKORO] lecture KO:', e && e.message); resolve(false); }
-  });
-}
-async function speakKokoro(text, voiceId, onChunk){
-  try {
-    const tts = await getKokoro();
-    const chunks = splitSentences(text, 300);
-    for (const c of chunks){
-      if (activeSpeechEpoch !== speechEpoch){ console.warn('[KOKORO] interrompu'); return false; }
-      const out = await tts.generate(c, { voice: voiceId || 'ff_siwis' });
-      const raw = out && out.raw ? out.raw : (out && out.audio && out.audio.getChannelData ? out.audio.getChannelData(0) : null);
-      const sr = (out && out.sampling_rate) || 24000;
-      if (!raw) return false;
-      if (onChunk) onChunk(c);
-      const ok = await playRawAudio(raw, sr);
-      if (!ok) return false;
-    }
-    return true;
-  } catch(e){
-    console.warn('[KOKORO] échec:', e && e.message);
-    try { toast('Voix locale indisponible → repli sur la voix en ligne'); } catch(e2){}
-    return false;
-  }
-}
-/* ============================================================
    v11.07 : JAUGE DU QUOTA INWORLD (sur l ecran vocal, pas dans
    les reglages). On compte les caracteres reellement envoyes a
    Inworld chaque mois (le palier gratuit = 70 min de TTS/mois).
@@ -1103,9 +1019,19 @@ function quotaUsage(){
   try {
     const d = JSON.parse(localStorage.getItem(INWORLD_USAGE_LS) || 'null');
     const mk = usageMonthKey();
-    if (!d || d.m !== mk) return { m: mk, chars: 0, req: 0 };
-    return { m: mk, chars: d.chars || 0, req: d.req || 0 };
-  } catch(e){ return { m: usageMonthKey(), chars: 0, req: 0 }; }
+    if (!d || d.m !== mk) return { m: mk, chars: 0, req: 0, gchars: 0, greq: 0 };
+    return { m: mk, chars: d.chars || 0, req: d.req || 0, gchars: d.gchars || 0, greq: d.greq || 0 };
+  } catch(e){ return { m: usageMonthKey(), chars: 0, req: 0, gchars: 0, greq: 0 }; }
+}
+function trackGcloudUsage(nChars){
+  try {
+    const mk = usageMonthKey();
+    const d = quotaUsage();
+    d.gchars = (d.gchars || 0) + Math.max(0, nChars | 0);
+    d.greq = (d.greq || 0) + 1;
+    localStorage.setItem(INWORLD_USAGE_LS, JSON.stringify(d));
+    refreshQuotaHud();
+  } catch(e){}
 }
 function trackInworldUsage(nChars){
   try {
@@ -1132,30 +1058,31 @@ function refreshQuotaHud(){
   try {
     const hud = $('quotaHud');
     if (!hud) return;
-    if (!getInworldKey() && !isKokoroVoice()){ hud.hidden = true; return; }
+    const gcloud = isGcloudVoice();
+    if (!getInworldKey() && !gcloud){ hud.hidden = true; return; }
     hud.hidden = false;
     const d = quotaUsage();
     const mins = d.chars / INWORLD_CHARS_PER_MIN;
     const pct = Math.min(100, (mins / INWORLD_FREE_MIN) * 100);
     const pill = $('quotaPill'), fill = $('quotaFill'), minEl = $('quotaMin');
-    const kok = isKokoroVoice();
-    /* v11.09 : voix locale Kokoro = 0 quota consomme, illimite -> la jauge
-       affiche "illimite" au lieu du compteur Inworld. */
-    if (kok){
-      if (minEl) minEl.textContent = '∞';
-      if (fill){ fill.style.width = '100%'; fill.className = ''; }
+    const lab = pill ? pill.querySelector('span:nth-child(2)') : null;
+    if (gcloud){
+      /* v11.10 : Google Cloud TTS — quota en caracteres (1 M/mois en
+         Neural2/Chirp3, 4 M en Standard) */
+      const lim = 1000000;
+      const gp = Math.min(100, ((d.gchars || 0) / lim) * 100);
+      if (minEl) minEl.textContent = Math.round((d.gchars || 0) / 1000) + 'k';
+      if (fill){ fill.style.width = gp.toFixed(1) + '%'; fill.className = gp >= 95 ? 'danger' : gp >= 80 ? 'warn' : ''; }
       if (pill){
-        pill.className = 'quota-pill';
-        const lab = pill.querySelector('span:nth-child(2)');
-        if (lab) lab.innerHTML = 'Kokoro <b>∞</b> local';
-        pill.title = 'Voix locale Kokoro : illimitée, hors ligne — aucun quota consommé';
+        pill.className = 'quota-pill' + (gp >= 95 ? ' danger' : gp >= 80 ? ' warn' : '');
+        if (lab) lab.innerHTML = 'Google <b>' + Math.round((d.gchars || 0) / 1000) + 'k</b>/1M car.';
+        pill.title = 'Quota Google Cloud TTS (1 M caractères/mois offerts en Neural2/Chirp3)';
       }
     } else {
       if (minEl) minEl.textContent = mins >= 10 ? Math.round(mins) : mins.toFixed(1);
       if (fill){ fill.style.width = pct.toFixed(1) + '%'; fill.className = pct >= 95 ? 'danger' : pct >= 80 ? 'warn' : ''; }
       if (pill){
         pill.className = 'quota-pill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '');
-        const lab = pill.querySelector('span:nth-child(2)');
         if (lab) lab.innerHTML = 'Inworld <b>' + (mins >= 10 ? Math.round(mins) : mins.toFixed(1)) + '</b>/70 min';
         pill.title = 'Quota Inworld TTS-2 (clique pour le détail)';
       }
@@ -1171,18 +1098,16 @@ function refreshQuotaHud(){
     const avg = daysPassed > 0 ? mins / daysPassed : 0;
     set('qAvg', avg.toFixed(1) + ' min');
     set('qProj', (avg * daysInMonth).toFixed(0) + ' min' + (avg * daysInMonth > INWORLD_FREE_MIN ? ' ⚠️' : ''));
-    /* bloc Kokoro : visible seulement quand la voix locale est active */
-    const kokBox = $('qKok');
-    if (kokBox){
-      kokBox.style.display = kok ? '' : 'none';
-      set('qKokTxt', '🎧 Voix locale Kokoro active — illimitée, hors ligne, 0 quota Inworld consommé.');
-    }
+    set('qGchars', (d.gchars || 0).toLocaleString('fr-FR') + ' / 1 000 000');
+    set('qGreq', String(d.greq || 0));
     const inwBox = $('qInw');
-    if (inwBox) inwBox.style.display = kok ? 'none' : '';
+    if (inwBox) inwBox.style.display = gcloud ? 'none' : '';
+    const gBox = $('qGcloud');
+    if (gBox) gBox.style.display = gcloud ? '' : 'none';
   } catch(e){}
 }
-function isKokoroVoice(){
-  try { return String(getVoice() || '').startsWith('kok:'); } catch(e){ return false; }
+function isGcloudVoice(){
+  try { return String(getVoice() || '').startsWith('gcloud:'); } catch(e){ return false; }
 }
 function quotaSnapshot(){
   const d = quotaUsage();
@@ -1195,6 +1120,8 @@ function quotaSnapshot(){
     mins: mins,
     chars: d.chars,
     req: d.req,
+    gchars: d.gchars || 0,
+    greq: d.greq || 0,
     left: Math.max(0, INWORLD_FREE_MIN - mins),
     avg: avg,
     proj: avg * daysInMonth,
@@ -1208,14 +1135,16 @@ function quotaSpoken(){
   const m = s.mins < 10 ? s.mins.toFixed(1) : String(Math.round(s.mins));
   const l = s.left < 10 ? s.left.toFixed(1) : String(Math.round(s.left));
   const p = Math.round(s.proj);
-  /* v11.09 : si la voix locale Kokoro est active, elle est illimitee -> on le dit */
-  if (isKokoroVoice()){
-    return 'Tu as choisi ma voix locale Kokoro : elle est illimitee, fonctionne meme sans internet, et ne consomme rien du tout. Ton quota Inworld reste a ' + m + ' minute sur ' + s.freeMin + ' ce mois-ci, donc ' + l + ' minutes de credit restent disponibles si tu veux repasser sur la voix Inworld.';
+  /* v11.10 : si la voix Google Cloud est active, on parle de son quota */
+  if (isGcloudVoice()){
+    const s = quotaSnapshot();
+    const gk = s.gchars || 0;
+    return 'Tu as choisi ma voix Google Cloud TTS : elle est realiste et son palier gratuit offre un million de caracteres par mois en Neural2 et Chirp3, quatre millions en Standard. J en ai utilise ' + gk.toLocaleString('fr-FR') + ' caracteres ce mois-ci. Ton quota Inworld reste a ' + (s.mins < 10 ? s.mins.toFixed(1) : Math.round(s.mins)) + ' minute sur ' + s.freeMin + ', donc ' + (s.left < 10 ? s.left.toFixed(1) : Math.round(s.left)) + ' minutes restent disponibles si tu veux repasser sur Inworld.';
   }
   let out = 'Ce mois-ci, j ai utilise ' + m + ' minute de parole sur les ' + s.freeMin + ' offertes par Inworld, soit ' + s.chars.toLocaleString('fr-FR') + ' caracteres et ' + s.req + ' reponses vocales. Il te reste environ ' + l + ' minutes. ';
   out += 'Moyenne aujourd hui : ' + s.avg.toFixed(1) + ' minute par jour, projection de fin de mois : ' + p + ' minutes. ';
   if (s.pct >= 80) out += 'Attention, on approche de la limite du palier gratuit. ';
-  out += 'Au-dela des ' + s.freeMin + ' minutes, Inworld facture 25 dollars par million de caracteres, et je bascule automatiquement sur ma voix locale Kokoro, gratuite et illimitee, puis sur Google Translate.';
+  out += 'Au-dela des ' + s.freeMin + ' minutes, Inworld facture 25 dollars par million de caracteres, et je bascule automatiquement sur ma voix Google Cloud TTS, qui offre un million de caracteres offerts par mois, puis sur Google Translate.';
   return out;
 }
 function isQuotaQuestion(q){
@@ -1239,7 +1168,7 @@ function initQuotaHud(){
     }
     refreshQuotaHud();
     setInterval(refreshQuotaHud, 60000);
-    /* v11.09 : la jauge suit la voix choisie (Kokoro = illimite) */
+    /* v11.10 : la jauge suit la voix choisie (Inworld / Google Cloud) */
     const sel = $('ttsVoice');
     if (sel) sel.addEventListener('change', () => setTimeout(refreshQuotaHud, 60));
   } catch(e){}
@@ -1373,8 +1302,10 @@ function clearChat(){
 function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
-  /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/GCloud/Kokoro/
-      Puter/SpeechT5/Edge/Qwen/Piper/anciens system: et systeme) -> Voxtral defaut */
+  /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/Puter/
+      SpeechT5/Edge/Qwen/Piper/anciens system: et systeme) -> Voxtral defaut */
+  /* v11.10 : Google Cloud TTS est REAJOUTE (prefixe gcloud:) : voix FR
+     realistes (Chirp3-HD / Neural2) avec 1 a 4 M caracteres/mois offerts */
   /* v10.81 : Qwen3-TTS et Edge neural SUPPRIMES -> Mistral Voxtral reste
      la seule voix IA realiste gratuite a vie ; 'edge:'/'qwen:' sont
      redevenus des prefixes obsolètes -> basculement au defaut Voxtral */
@@ -1403,11 +1334,12 @@ function getVoice(){
       return 'iw:' + id;
     }
   }
-  /* v11.08 : voix locale Kokoro (prefixe kok:) — conservee telle quelle */
-  if (v.startsWith('kok:')){
-    const id = v.substring(4);
-    if (KOKORO_VOICES.some(x => x.id === id)) return 'kok:' + id;
-    return 'kok:ff_siwis';
+  /* v11.10 : voix Google Cloud TTS (prefixe gcloud:) */
+  if (v.startsWith('gcloud:')){
+    const id = v.substring(7);
+    if (id === '__needkey__') return DEFAULT_VOICE;
+    if (GCLOUD_VOICES.some(x => x.id === id)) return 'gcloud:' + id;
+    return 'gcloud:fr-FR-Chirp3-HD-Denise';
   }
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
@@ -2459,6 +2391,23 @@ document.addEventListener('DOMContentLoaded',()=>{
   scheduleIdleGames();
   /* v11.07 : jauge du quota Inworld sur l ecran vocal */
   try { initQuotaHud(); } catch(e){ console.warn('[QUOTA] init:', e && e.message); }
+  /* v11.10 : champ de cle Google Cloud TTS (reglages) */
+  try {
+    const gk = $('gcloudKey'), gb = $('saveGcloudKey');
+    if (gk) gk.value = getGcloudKey();
+    if (gb) gb.addEventListener('click', async () => {
+      localStorage.setItem(GCLOUD_KEY_LS, (gk.value || '').trim());
+      toast('Clé Google Cloud TTS enregistrée ✓');
+      try {
+        populateVoices();
+        refreshQuotaHud();
+        const v = getVoice();
+        if (String(v).startsWith('gcloud:') && getGcloudKey()){
+          await speakGcloud('Bonjour Tom, voici ma nouvelle voix Google Cloud.', 'fr-FR-Chirp3-HD-Denise');
+        }
+      } catch(e){}
+    });
+  } catch(e){ console.warn('[GCLOUD] init:', e && e.message); }
 });
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.
@@ -3930,17 +3879,24 @@ async function populateVoices(){
     }
     ttsVoiceSel.appendChild(grpI);
   }
-  /* v11.08 : VOIX LOCALE KOKORO — groupe a part (gratuite a vie, hors ligne) */
+  /* v11.10 : VOIX GOOGLE CLOUD TTS — realistes, 1 a 4 M caracteres/mois offerts */
   {
-    const grpK = document.createElement('optgroup');
-    grpK.label = '🎧 Voix locale Kokoro — 🇫🇷 gratuites à vie (84 Mo au 1er usage, hors ligne ensuite)';
-    KOKORO_VOICES.forEach(v => {
+    const grpG = document.createElement('optgroup');
+    grpG.label = '☁️ Google Cloud TTS — 🇫🇷 réalistes (1 à 4 M caractères/mois offerts)';
+    if (getGcloudKey()){
+      GCLOUD_VOICES.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = 'gcloud:' + v.id;
+        opt.textContent = '☁️ ' + v.n;
+        grpG.appendChild(opt);
+      });
+    } else {
       const opt = document.createElement('option');
-      opt.value = 'kok:' + v.id;
-      opt.textContent = '🎧 ' + v.n;
-      grpK.appendChild(opt);
-    });
-    ttsVoiceSel.appendChild(grpK);
+      opt.value = 'gcloud:__needkey__';
+      opt.textContent = '☁️ Ajoute ta clé Google Cloud TTS (Réglages) pour ces voix réalistes';
+      grpG.appendChild(opt);
+    }
+    ttsVoiceSel.appendChild(grpG);
   }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
@@ -4204,22 +4160,20 @@ function speak(text, onChunk){
     /* v10.85 : default + voxtral:* -> Inworld d'abord (pas de Voxtral partout) */
     chain = [
       ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
-      ['Kokoro (local)', (t) => speakKokoro(t, 'ff_siwis', onChunk)],
       SAFE
     ];
     if (voiceModeFinal.startsWith('iw:')){
       const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
       chain = [
         ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk, taggedText)],
-        ['Kokoro (local)', (t) => speakKokoro(t, 'ff_siwis', onChunk)],
         SAFE
       ];
     }
-    /* v11.08 : voix locale Kokoro choisie -> elle passe en tete de chaine */
-    if (voiceModeFinal.startsWith('kok:')){
-      const kv = voiceModeFinal.substring(4) || 'ff_siwis';
+    /* v11.10 : voix Google Cloud TTS choisie -> elle passe en tete de chaine */
+    if (voiceModeFinal.startsWith('gcloud:')){
+      const gv = voiceModeFinal.substring(7) || 'fr-FR-Chirp3-HD-Denise';
       chain = [
-        ['Kokoro: ' + kv, (t) => speakKokoro(t, kv, onChunk)],
+        ['Google Cloud TTS: ' + gv, (t) => speakGcloud(t, gv, onChunk)],
         (getInworldKey() && frDef) ? ['Inworld: ' + frDef, (t) => speakInworld(t, frDef, onChunk, taggedText)] : null,
         SAFE
       ].filter(Boolean);
