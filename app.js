@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.05';
+const APP_VERSION = '11.06';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -695,6 +695,14 @@ let isProcessing = false;
 /* v9.84 : l'IA n'ecoute JAMAIS pendant qu'elle parle (sinon le micro capte sa
    propre voix -> elle s'interrompt elle-meme en boucle en mode continu) */
 let isSpeaking = false;
+/* v11.06 : ANTI-ECHO — le micro peut capter la voix d'Astra (par les
+   haut-parleurs) et la transcrire : elle se repete et deux voix se
+   repondent en meme temps. On ignore donc tout ce que le micro capte
+   PENDANT qu elle parle et juste apres (fenetre de garde). */
+let echoGuardUntil = 0;
+function inEchoWindow(){
+  return isSpeaking || Date.now() < echoGuardUntil;
+}
 let manualStop = false;
 let lastReplyText = ''; /* anti-repetition : jamais 2 fois la meme reponse */
 
@@ -1122,7 +1130,14 @@ function initQuotaHud(){
    ============================================================ */
 const ASTRA_NEWS = [
   {
-    v: '11.05', date: 'Aujourd hui', badge: 'NOUVEAU',
+    v: '11.06', date: 'Aujourd hui', badge: 'NOUVEAU',
+    items: [
+      '🔇 <b>Fin des doubles voix</b> : Astra ignore ce que le micro capte pendant qu\'elle parle (et juste après) — elle ne se transcrit plus sa propre voix et ne se repond plus à elle-même.',
+      '🛑 Repli automatique après un délai : la parole en cours est coupée avant la réponse de secours (plus de superposition).'
+    ]
+  },
+  {
+    v: '11.05', date: 'Il y a peu', badge: '',
     items: [
       '🗣️ <b>Astra te dit son quota à voix haute</b> : demande-lui « mon quota ? » ou « combien de minutes il me reste ? » — elle répond avec les vrais chiffres (minutes, caractères, restant, projection).',
       '🎙️ Un clic sur la jauge → elle lit le détail de ta consommation vocale.',
@@ -1758,7 +1773,9 @@ if (SR){
   recog.continuous = true;
   recog.onresult = e => {
     /* v9.84 : on ignore tout ce que le micro capte pendant que l'IA parle */
-    if (isSpeaking) return;
+    /* v11.06 : + fenetre anti-echo apres la parole (le micro entend encore
+       Astra dans les haut-parleurs -> elle se repete) */
+    if (inEchoWindow()) return;
     let finalTxt = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const r = e.results[i];
@@ -1848,6 +1865,9 @@ function startWakeRecog(){
       }
     }
     w.onresult = e => {
+      /* v11.06 : anti-echo — on ignore ce que le micro capte pendant que
+         Astra parle (sinon elle se reveille sur sa propre voix) */
+      if (inEchoWindow()) return;
       let txt = '';
       let hasFinal = false;
       for (let i = e.resultIndex; i < e.results.length; i++){
@@ -4145,12 +4165,20 @@ function speak(text, onChunk){
     voiceStartedFlag = false;
     activeSpeechEpoch = ++speechEpoch; /* v10.74 : nouvelle parole = nouvel epoch */
     isSpeaking = true;
+    /* v11.06 : anti-echo — on ouvre la fenetre de garde et on vide le tampon
+       de transcription, sinon le micro renvoie la voix d'Astra et elle se
+       repond (deux voix en meme temps). */
+    echoGuardUntil = Date.now() + 2500;
+    try { pendingSpeech = ''; if (pendingTimer){ clearTimeout(pendingTimer); pendingTimer = null; } } catch(e){}
     setState('speaking');
     setStatus('...');
     let settled = false;
     const done = ok => {
       if (settled) return;
       settled = true;
+      /* v11.06 : fenetre anti-echo apres la parole (~1,2 s) + tampon vide */
+      echoGuardUntil = Date.now() + 1200;
+      try { pendingSpeech = ''; } catch(e){}
       clearTimeout(globalTimer);
       isSpeaking = false;
       setState('idle');
@@ -4813,6 +4841,9 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
     writingMode = false;
     setState('idle');
     streamMsg.remove(); /* la bulle de streaming ne sert plus */
+    /* v11.06 : on coupe TOUTE parole en cours avant le repli local, sinon la
+       reponse de secours parle par-dessus (deux voix en meme temps) */
+    try { stopAudio(); } catch(e){}
     /* v9.48 : plus AUCUN message d'erreur ("Je n'arrive pas à me connecter..."
        supprimé) : réponse locale neutre, jamais d'excuse. */
     const fallback = applyMood(localSmartReply(question), currentMood);
@@ -4830,6 +4861,8 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
     writingMode = false;
     setState('idle');
     streamMsg.remove();
+    /* v11.06 : idem — on coupe la parole en cours avant le repli */
+    try { stopAudio(); } catch(e){}
     const fallback = applyMood(localSmartReply(question), currentMood);
     addAiMsg(fallback, 'local');
     setStatus('Réponse locale');
