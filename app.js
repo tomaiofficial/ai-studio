@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.83';
+const APP_VERSION = '10.84';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -397,10 +397,10 @@ async function speakInworld(text, voiceId, onChunk){
         if (!res.ok){
           const et = await res.text().catch(() => '');
           console.warn('[INWORLD] HTTP', res.status, et.slice(0, 160));
-          /* v10.83 : 403 "required scopes" = cle creee SANS scope TTS —
-             message clair et action precise au lieu de bascule silencieuse */
+          /* v10.84 : 403 "required scopes" = cle de type Realtime-only
+             (type fixe a la creation) — TTS exige une cle Standard */
           if (res.status === 403 && /scope/i.test(et)){
-            try { if (typeof setStatus === 'function') setStatus('Clé Inworld sans scope TTS — recrée-la avec TTS coché'); } catch(e){}
+            try { if (typeof setStatus === 'function') setStatus('Clé Inworld = type Realtime-only → TTS refusé. Recrée une clé type STANDARD : platform.inworld.ai → API Keys → Generate new key → Standard → copie le Basic (Base64)'); } catch(e){}
           }
           return null;
         }
