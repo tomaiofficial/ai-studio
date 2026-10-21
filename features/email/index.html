@@ -51,18 +51,24 @@
     <span style="color:#9be3b4;font-size:12px">Tokens OAuth conservés 1 h max, chiffrés localement sur cet appareil. Lecture/dossiers basée uniquement sur ce que tu cliques : rien en arrière-plan. Mail envoyé ? Impossible depuis ici : il faut un brouillon validé à la main.</span>
   </div>
 
-  <div class="card">
-    <h3 style="margin:0 0 8px;font-size:14px">🔑 IDs client OAuth (une seule fois)</h3>
-    <div class="cids">
-      <label>Gmail → Google Cloud (OAuth 2.0 client, type Web, origin = cette page)
-        <input id="cidGmail" placeholder="xxxxxx.apps.googleusercontent.com">
-      </label>
-      <label>Outlook → portal.azure.com (App registrations)
-        <input id="cidOutlook" placeholder="xxxxxxx-xxxx-xxxx-...">
-      </label>
-    </div>
-    <div class="row"><button class="btn" id="saveCids">💾 Enregistrer les IDs</button></div>
-    <p class="note">Les IDs restent dans le cache local de l'appareil (localStorage), pas ailleurs. Redirect/origin : la page doit être servie depuis le même domaine que Astra.</p>
+  <div class="card" id="wizard">
+    <h3 style="margin:0 0 8px;font-size:14px">🪄 Se connecter en 2 minutes (une seule fois)</h3>
+    <ol style="font-size:13px;line-height:1.7;margin:0;padding-left:18px">
+      <li>Ouvre <a href="https://console.cloud.google.com/apis/credentials/oauthclient" target="_blank" rel="noopener">Google : créer l'ID client OAuth</a> (compte Google gratuit)</li>
+      <li>Type : <b>Application Web</b> · colle ces <b>origines JavaScript</b> : <code id="originLbl" style="user-select:all"></code> <button class="btn" id="copyOrigin" style="padding:3px 10px;font-size:11px">📋 copy</button></li>
+      <li>Scopes &#8594; <b>gmail.readonly</b> + <b>gmail.compose</b> (uniquement)</li>
+      <li>Colle l'ID obtenu ci-dessous, puis clique <b>Connecter Gmail</b> → la fenêtre Google s'ouvre : <b>choisis ton compte → Accepter</b>, c'est tout.</li>
+    </ol>
+    <div class="row"><input id="cidGmail" placeholder="xxxxxx.apps.googleusercontent.com" style="flex:1"></div>
+    <details style="margin-top:8px"><summary>Pour Outlook/Hotmail (facultatif)</summary>
+      <ol style="font-size:12px;line-height:1.6;padding-left:18px;color:#9db4c8">
+        <li><a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Azure : créer une App registration</a> → plateformes Web → URI : <code id="originLbl2" style="user-select:all"></code></li>
+        <li>Permissions API : <b>Mail.Read</b> + <b>Mail.ReadWrite</b> (delegated)</li>
+        <li>Colle l'ID d'application ci-dessous puis <b>Connecter Outlook</b></li>
+      </ol>
+      <div class="row"><input id="cidOutlook" placeholder="ID d'application (client) Outlook" style="flex:1"></div>
+    </details>
+    <p class="note" id="wizNote"></p>
   </div>
 
   <div class="card">
@@ -144,11 +150,27 @@ function logOut(){
 /* ---------- wiring ---------- */
 $('cidGmail').value = EmailAuth.clientId('google');
 $('cidOutlook').value = EmailAuth.clientId('outlook');
-$('saveCids').addEventListener('click', () => {
-  EmailAuth.setClientId('google', $('cidGmail').value);
-  EmailAuth.setClientId('outlook', $('cidOutlook').value);
-  $('outActions').textContent = 'IDs enregistrés localement. ✅';
-});
+/* wizard v10.90 : origin affichee + copy + validation d'ID en direct */
+(function(){
+  const org = location.origin + location.pathname.replace('index.html', '');
+  ['originLbl','originLbl2'].forEach(id => { if ($(id)) $(id).textContent = org; });
+  const cp = $('copyOrigin');
+  if (cp) cp.addEventListener('click', () => {
+    try { navigator.clipboard.writeText(org); cp.textContent = '✅ copié'; setTimeout(() => { cp.textContent = '📋 copy'; }, 1500); } catch(e){}
+  });
+  const warn = $('wizNote');
+  function check(){
+    const v = ($('cidGmail').value || '').trim();
+    const ok = /^\d+[-a-z0-9_]*\.apps\.googleusercontent\.com$/i.test(v);
+    if (warn) warn.textContent = v ? (ok ? '✅ ID Gmail valide — clique Connecter Gmail' : '⚠️ Format inattendu : un ID Gmail finit par .apps.googleusercontent.com') : '';
+    EmailAuth.setClientId('google', v);
+    EmailAuth.setClientId('outlook', $('cidOutlook').value);
+    setSt('google'); setSt('outlook');
+  }
+  $('cidGmail').addEventListener('input', check);
+  $('cidOutlook').addEventListener('input', check);
+  check();
+})();
 function busy(btn, txt){ btn.disabled = true; btn.dataset.txt = btn.textContent; btn.textContent = txt; }
 function free(btn){ btn.disabled = false; btn.textContent = btn.dataset.txt; }
 
