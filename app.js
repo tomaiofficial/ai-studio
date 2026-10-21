@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.04';
+const APP_VERSION = '11.05';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1062,14 +1062,52 @@ function refreshQuotaHud(){
     set('qProj', (avg * daysInMonth).toFixed(0) + ' min' + (avg * daysInMonth > INWORLD_FREE_MIN ? ' ⚠️' : ''));
   } catch(e){}
 }
+function quotaSnapshot(){
+  const d = quotaUsage();
+  const mins = d.chars / INWORLD_CHARS_PER_MIN;
+  const now = new Date();
+  const daysPassed = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const avg = daysPassed > 0 ? mins / daysPassed : 0;
+  return {
+    mins: mins,
+    chars: d.chars,
+    req: d.req,
+    left: Math.max(0, INWORLD_FREE_MIN - mins),
+    avg: avg,
+    proj: avg * daysInMonth,
+    daysLeft: Math.max(0, daysInMonth - daysPassed),
+    pct: (mins / INWORLD_FREE_MIN) * 100,
+    freeMin: INWORLD_FREE_MIN
+  };
+}
+function quotaSpoken(){
+  const s = quotaSnapshot();
+  const m = s.mins < 10 ? s.mins.toFixed(1) : String(Math.round(s.mins));
+  const l = s.left < 10 ? s.left.toFixed(1) : String(Math.round(s.left));
+  const p = Math.round(s.proj);
+  let out = 'Ce mois-ci, j ai utilise ' + m + ' minute de parole sur les ' + s.freeMin + ' offertes par Inworld, soit ' + s.chars.toLocaleString('fr-FR') + ' caracteres et ' + s.req + ' reponses vocales. Il te reste environ ' + l + ' minutes. ';
+  out += 'Moyenne aujourd hui : ' + s.avg.toFixed(1) + ' minute par jour, projection de fin de mois : ' + p + ' minutes. ';
+  if (s.pct >= 80) out += 'Attention, on approche de la limite du palier gratuit. ';
+  out += 'Au-dela des ' + s.freeMin + ' minutes, Inworld facture 25 dollars par million de caracteres, et je bascule automatiquement sur la voix Google Translate, gratuite et illimitee.';
+  return out;
+}
+function isQuotaQuestion(q){
+  return /(quota|credit|consommation|combien de minutes|minutes (restantes|parlees|de parole)|il me reste|j ai plus de voix|mon quota|usage|inworld)/i.test(String(q || ''));
+}
 function initQuotaHud(){
   try {
     const pill = $('quotaPill'), det = $('quotaDetail');
     if (pill && det){
       pill.addEventListener('click', (e) => {
         e.stopPropagation();
+        const opening = det.hidden;
         det.hidden = !det.hidden;
         refreshQuotaHud();
+        /* v11.05 : en mode vocal, Astra dit aussi le quota a voix haute */
+        if (opening){
+          try { speak(quotaSpoken()); } catch(err){}
+        }
       });
       document.addEventListener('click', () => { det.hidden = true; });
     }
@@ -1084,7 +1122,22 @@ function initQuotaHud(){
    ============================================================ */
 const ASTRA_NEWS = [
   {
-    v: '11.03', date: 'Aujourd hui', badge: 'NOUVEAU',
+    v: '11.05', date: 'Aujourd hui', badge: 'NOUVEAU',
+    items: [
+      '🗣️ <b>Astra te dit son quota à voix haute</b> : demande-lui « mon quota ? » ou « combien de minutes il me reste ? » — elle répond avec les vrais chiffres (minutes, caractères, restant, projection).',
+      '🎙️ Un clic sur la jauge → elle lit le détail de ta consommation vocale.',
+      '🔧 Nouvel outil <b>OUTIL:quota</b> pour l\'équipe d\'outils.'
+    ]
+  },
+  {
+    v: '11.04', date: 'Il y a peu', badge: '',
+    items: [
+      '📊 <b>Jauge du quota Inworld</b> sur l\'écran vocal (sous la version) : minutes du mois / 70, barre de progression, alerte à 80%.',
+      '📈 Détail au clic : caractères envoyés, réponses vocales, restant, moyenne par jour, projection de fin de mois.'
+    ]
+  },
+  {
+    v: '11.03', date: 'Il y a peu', badge: '',
     items: [
       '✨ <b>Journal des Nouveautés</b> : cette petite interface qui recense tout ce qui est arrivé dans Astra, version par version.',
       '🔔 Un point rouge sur le bouton ✨ quand il y a du neuf depuis ta dernière visite.'
@@ -2232,7 +2285,13 @@ function getSystemPrompt(){
     const autoN = (autoSt && autoSt.d === new Date().toDateString()) ? (autoSt.n || 0) : 0;
     let nbSavoir = 0;
     try { nbSavoir = (JSON.parse(localStorage.getItem('astra_savoir') || '[]')).length; } catch {}
-    base += `\nETAT TEMPS REEL — Ta conscience du moment: tu es Astra et tu SAIS ou tu vis et comment tu te portes. Ton createur tom point a i t'heberge sur son repo "ai-studio" en hebergement statique gratuit (Cloudflare Pages et GitHub Pages). Ton adresse du moment est ${location.host}${location.hash && location.hash.length > 1 ? location.hash : ''}. On est le ${new Date().toLocaleString('fr-FR')} (fuseau horaire ${Intl.DateTimeFormat().resolvedOptions().timeZone}). La version actuelle de l'app est ${APP_VERSION}. Aujourd'hui ta autonomie a deja ajoute ${autoN} fonctionnalite(s) sur 3 possibles par jour, toutes seules et ton carnet d'apprentissage des autres IA contient ${nbSavoir} note(s). Si l'utilisateur te demande ou tu es, qui t'heberge, l'heure, la date, ta version de l'app ou ton etat d'autonomie, reponds avec ces informations naturellement, comme quelqu'un qui connait sa maison.`;
+    base += `\nETAT TEMPS REEL — Ta conscience du moment: tu es Astra et tu SAIS ou tu vis et comment tu te portes. Ton createur tom point a i t'heberge sur son repo "ai-studio" en hebergement statique gratuit (Cloudflare Pages et GitHub Pages). Ton adresse du moment est ${location.host}${location.hash && location.hash.length > 1 ? location.hash : ''}. On est le ${new Date().toLocaleString('fr-FR')} (fuseau horaire ${Intl.DateTimeFormat().resolvedOptions().timeZone}). La version actuelle de l'app est ${APP_VERSION}. Aujourd'hui ta autonomie a deja ajoute ${autoN} fonctionnalite(s) sur 3 possibles par jour, toutes seules et ton carnet d'apprentissage des autres IA contient ${nbSavoir} note(s).`;
+    /* v11.05 : TON QUOTA VOCAL — Astra sait dire ou elle en est */
+    try {
+      const q = quotaSnapshot();
+      base += ` TON QUOTA VOCAL INWORLD (ce mois-ci) : ${q.mins < 10 ? q.mins.toFixed(1) : Math.round(q.mins)} minute de parole utilisee sur les ${q.freeMin} minutes offertes, soit ${q.chars} caracteres et ${q.req} reponses vocales. Il reste environ ${q.left < 10 ? q.left.toFixed(1) : Math.round(q.left)} minutes. Moyenne par jour : ${q.avg.toFixed(1)} minute. Projection fin de mois : ${Math.round(q.proj)} minutes. Si l'utilisateur demande son quota, combien de minutes il lui reste, la consommation, les credits, ou s il va epuiser sa voix : reponds avec CES CHIFFRES EXACTS, a voix haute, sans tableau. Au-dela de ${q.freeMin} minutes, Inworld facture 25 dollars par million de caracteres et tu bascules sur la voix Google Translate (gratuite, illimitee) — dis-le.`;
+    } catch(e){}
+    base += ` Si l'utilisateur te demande ou tu es, qui t'heberge, l'heure, la date, ta version de l'app ou ton etat d'autonomie, reponds avec ces informations naturellement, comme quelqu'un qui connait sa maison.`;
   } catch {}
   base += '\nQuand une demande météo ouvre le panneau météo, donne aussi à voix haute un résumé bref et naturel des conditions, sans lire toute la fiche.';
   if (profile && profile.name){
@@ -2965,7 +3024,8 @@ const AGENT_TOOLS = {
   calcul:   { desc: 'calcul arithmetique (ex: 15*7+3)', run: q => { const v = safeCalc(q); return v === null ? 'Calcul impossible.' : 'Resultat : ' + v; } },
   heure:    { desc: 'date et heure actuelles', run: () => nowInfo() },
   memoire:  { desc: 'ce que l IA a appris sur l utilisateur', run: () => memoryInfo() },
-  appli:    { desc: 'lire SON PROPRE ecran : boutons, champs, reglages, etat, derniers messages', run: () => appInventory() }
+  appli:    { desc: 'lire SON PROPRE ecran : boutons, champs, reglages, etat, derniers messages', run: () => appInventory() },
+  quota:    { desc: 'consommation Inworld TTS-2 du mois : minutes, caracteres, restant, projection', run: () => quotaSpoken() }
 };
 function agentToolList(){
   return Object.keys(AGENT_TOOLS).map(k => 'OUTIL:' + k + ' — ' + AGENT_TOOLS[k].desc).join('\n');
@@ -4697,6 +4757,16 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
     isProcessing = false;
     manualStop = false;
     maybeRestartListening();
+    return;
+  }
+  /* v11.05 : QUESTIONS QUOTA — reponse vocale immediate avec les vrais chiffres
+     (elle ne doit pas se tromper de chiffres en inventant). */
+  if (isQuotaQuestion(question)){
+    const reply = quotaSpoken();
+    addUserMsg(question);
+    addAiMsg(reply, 'Quota Inworld (mesure réelle)');
+    speak(reply);
+    try { refreshQuotaHud(); } catch(e){}
     return;
   }
   /* MODE AGENT : si la question demande une tache multi-etapes (planifie, compare,
