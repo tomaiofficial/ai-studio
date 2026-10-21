@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.79';
+const APP_VERSION = '10.80';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -138,7 +138,7 @@ let noteState = { open: false, content: '' };
    et le texte est copie dans le bloc-notes. */
 let writingMode = false;
 
-const DEFAULT_VOICE = 'qwen:Ryan'; // v10.78 : Qwen3-TTS (HF) — realiste, gratuit A VIE
+const DEFAULT_VOICE = 'edge:fr-FR-VivienneMultilingualNeural'; // v10.80 : Edge neural via worker — realiste, gratuit A VIE, zero cle
 const SPEED = 1.0; // naturel
 
 /* ===== VOXTRAL TTS (Mistral AI) — VOIX PRINCIPALE =====
@@ -191,6 +191,45 @@ function abortSignal(ms){
   setTimeout(() => ctrl.abort(), ms);
   return ctrl.signal;
 }
+/* v10.80 : EDGE-TTS NEURAL via NOTRE worker Cloudflare (auto-deploy du repo)
+   — les vraies voix Microsoft (Vivienne, Remy, Denise, Henri...) reelles,
+   gratuites A VIE, sans aucune cle : le Proxy Web service interdit au
+   navigateur (headers Sec-MS-GEC) est pose par le worker /api/tts qui
+   spoke WS avec Microsoft et renvoie du mp3. */
+const EDGE_WORKER = 'https://ai-studio.tom16112008.workers.dev/api/tts';
+const EDGE_VOICES = [
+  { v: 'fr-FR-VivienneMultilingualNeural', n: 'Vivienne (femelle, multilingue, top qualité)', g: 'f' },
+  { v: 'fr-FR-RemyMultilingualNeural', n: 'Rémy (mâle, multilingue, top qualité)', g: 'm' },
+  { v: 'fr-FR-DeniseNeural', n: 'Denise (femelle)', g: 'f' },
+  { v: 'fr-FR-HenriNeural', n: 'Henri (mâle)', g: 'm' },
+  { v: 'fr-FR-EloiseNeural', n: 'Eloise (femelle)', g: 'f' },
+  { v: 'fr-FR-SylvieNeural', n: 'Sylvie (femelle)', g: 'f' },
+  { v: 'fr-FR-CoralieNeural', n: 'Coralie (femelle)', g: 'f' },
+  { v: 'fr-FR-AlainNeural', n: 'Alain (mâle)', g: 'm' },
+  { v: 'fr-FR-CharlineNeural', n: 'Charline (femelle)', g: 'f' }
+];
+async function speakEdgeWorker(text, voice, onChunk){
+  try {
+    const chunks = splitSentences(text, 280);
+    for (const c of chunks){
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[EDGE] parole interrompue'); return false; }
+      if (onChunk) onChunk(c);
+      const r = await fetch(EDGE_WORKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: c, voice }),
+        signal: abortSignal(25000)
+      });
+      if (!r.ok){ console.warn('[EDGE] HTTP', r.status); return false; }
+      const blob = await r.blob();
+      if (!blob || blob.size < 200){ console.warn('[EDGE] audio vide'); return false; }
+      const ok = await playAudioBlob(new Blob([blob], { type: 'audio/mpeg' }));
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){ console.warn('[EDGE] échec:', e && e.message); return false; }
+}
+
 /* v10.78 : QWEN3-TTS — la voix IA la plus realiste jamais proposee GRATUITE
    A VIE (modele open-source Apache 2.0 d'Alibaba, servi via le Space public
    Qwen/Qwen3-TTS, qui remplace Cartesia Sonic supprime). 9 voix presets
@@ -1020,7 +1059,8 @@ function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
   /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/GCloud/Kokoro/
      Puter/SpeechT5/Edge/Piper/anciens system: et systeme) -> Voxtral defaut */
-  if (v.startsWith('speecht5:') || v.startsWith('edge:') || v.startsWith('piper:')
+  /* v10.80 : 'edge:' redevient un vrai moteur (Edge neural via worker) */
+  if (v.startsWith('speecht5:') || v.startsWith('piper:')
       || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
       || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
       || v === 'systeme') return DEFAULT_VOICE;
@@ -1050,6 +1090,9 @@ function currentVoiceGender(){
       const all = voxtralVoicesCache || VOXTRAL_FALLBACK_VOICES;
       const found = all.find(x => x.id === v.substring(8));
       if (found) name = found.name || '';
+    } else if (v.startsWith('edge:')){
+      const found = EDGE_VOICES.find(x => x.v === v.substring(5));
+      if (found) return found.g;
     } else if (v.startsWith('qwen:')){
       const found = QWEN_VOICES.find(x => x.id === v.substring(5));
       if (found) return found.g;
@@ -3368,13 +3411,26 @@ async function populateVoices(){
   Array.from(ttsVoiceSel.children).forEach(c => {
     if (c.tagName === 'OPTION' && (c.value || '').startsWith('voxtral:') && badVoices.includes(c.value.substring(8))) { c.disabled = true; c.hidden = true; }
   });
+  /* v10.80 : GROUPE EDGE NEURAL — vraies voix Microsoft via notre worker,
+     gratuites a vIE, sans aucune cle. Defaut de l'app. */
+  {
+    const grpE = document.createElement('optgroup');
+    grpE.label = '🔷 Microsoft Neural — réaliste, gratuite À VIE (zéro clé)';
+    EDGE_VOICES.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = 'edge:' + v.v;
+      opt.textContent = '🔷 ' + v.n + (v.v === 'fr-FR-VivienneMultilingualNeural' ? ' — défaut' : '');
+      grpE.appendChild(opt);
+    });
+    ttsVoiceSel.appendChild(grpE);
+  }
   /* v10.78 : GROUPE QWEN3-TTS — la voix IA la plus realiste, gratuite A VIE
      (modele open-source Apache 2.0 embarque dans le Space public Qwen).
      9 presets statiques FR, pas de fetch. Token HF (gratuit a vie) = plus
      de quota ZeroGPU, mais fonctionne aussi sans token. */
   {
     const grpQ = document.createElement('optgroup');
-    grpQ.label = '🚀 Qwen3-TTS — la plus réaliste, gratuite À VIE (HF)';
+    grpQ.label = '🚀 Qwen3-TTS — réaliste, gratuite À VIE (token HF optionnel)';
     QWEN_VOICES.forEach(v => {
       const opt = document.createElement('option');
       opt.value = 'qwen:' + v.id;
@@ -3609,22 +3665,26 @@ function speak(text, onChunk){
     const voiceMode = getVoice();
     const SAFE = ['Google Translate (filet)', (t) => speakGoogle(t, onChunk)]; /* v10.79 : jamais muet */
     let chain;
-    if (voiceMode.startsWith('qwen:')) {
+    if (voiceMode.startsWith('edg:') || voiceMode.startsWith('edge:')) {
+      const evv = voiceMode.replace(/^edg:/, 'edge:').substring(5) || 'fr-FR-VivienneMultilingualNeural';
+      /* FORCER Edge neural (gratuit a vie, zero cle, via worker) */
+      chain = [['Edge ' + evv.split('-').pop().replace('Neural', ''), (t) => speakEdgeWorker(t, evv, onChunk)], SAFE];
+    } else if (voiceMode.startsWith('qwen:')) {
       const qv = voiceMode.substring(5) || 'Ryan';
       /* FORCER Qwen3-TTS (#1 realisme gratuit a vie) */
       chain = [['Qwen3: ' + qv, (t) => speakQwen(t, qv, onChunk)], SAFE];
     } else if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
-      /* FORCER VOXTRAL si la cle est valide ; secours final Qwen Ryan */
+      /* Voxtral choisi ; secours Edge neural puis Qwen */
       chain = [
         [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
-        ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)],
+        ['Edge Vivienne (secours)', (t) => speakEdgeWorker(t, 'fr-FR-VivienneMultilingualNeural', onChunk)],
         SAFE
       ];
     } else {
-      /* voix par defaut : Voxtral Paul puis Qwen Ryan */
+      /* voix par defaut : Edge Vivienne -> Qwen Ryan */
       chain = [
-        ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
+        ['Edge Vivienne', (t) => speakEdgeWorker(t, 'fr-FR-VivienneMultilingualNeural', onChunk)],
         ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)],
         SAFE
       ];

@@ -1,5 +1,8 @@
 name = "ai-studio"
 compatibility_date = "2026-01-01"
+main = "./worker.mjs"
 
 [assets]
 directory = "./"
+# v10.80 : worker.mjs sert les assets via env.ASSETS + /api/tts (Edge-TTS neural
+# gratuit a vie, sans cle) pour les voix IA realistes de l'app.
