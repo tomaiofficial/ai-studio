@@ -68,7 +68,7 @@
     <ol>
       <li>Ouvre <a href="https://developers.facebook.com/apps/create/" target="_blank" rel="noopener">developers.facebook.com — Créer une app</a> (gratuit)</li>
       <li>Type d'app : <b>Business</b> → ajoute le produit <b>Instagram</b> → <b>Connexion via Instagram</b></li>
-      <li>Panneau Instagram : colle ce <b>redirect URI officiel</b> : <span class="uri" id="redirectLbl">…</span> <button class="btn small ghost" id="copyUri">📋 copier</button></li>
+      <li>Panneau Instagram : colle ce <b>redirect URI officiel</b> : <span class="uri" id="redirectLbl">…</span> <button class="btn small ghost" id="copyUri">📋 copier</button> — ajoute aussi <span class="uri">https://ai-studio.tom16112008.workers.dev/features/instagram/index.html</span> si tu utilises les deux adresses</li>
       <li>Copie l'<b>ID de l'app</b> (numérique) dans le champ ci-dessous</li>
       <li>Donne le <b>secret</b> à ton assistant (une fois) : <code>npx wrangler secret put IG_CLIENT_SECRET</code> — il vit sur le serveur Cloudflare, <b>jamais dans cette page</b></li>
     </ol>
@@ -162,7 +162,8 @@
   }
 
   function POST(path, body) {
-    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const base = location.hostname.endsWith('.github.io') ? 'https://ai-studio.tom16112008.workers.dev' : '';
+    return fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   }
 
   $('disc').addEventListener('click', () => {

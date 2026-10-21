@@ -1,6 +1,10 @@
 export default {
   async fetch(req, env) {
     const u = new URL(req.url);
+    if (u.pathname === '/api/ig/exchange' || u.pathname === '/api/ig/me') {
+      if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } });
+      if (req.method !== 'POST') return json({ error: 'POST attendu' }, 405);
+    }
     if (u.pathname === '/api/ig/exchange' && req.method === 'POST') {
       const b = await req.json().catch(() => ({}));
       const code = String(b.code || '');
@@ -54,5 +58,5 @@ export default {
 };
 
 function json(o, s) {
-  return new Response(JSON.stringify(o), { status: s || 200, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(o), { status: s || 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
 }
