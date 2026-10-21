@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.75';
+const APP_VERSION = '10.76';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -982,6 +982,79 @@ function getVoice(){
   return v;
 }
 
+/* v10.76 : GENRE DE LA VOIX — Astra accorde son vocabulaire a la voix qui
+   la porte (une voix masculine dit "partant", pas "partante"). Detecte le
+   genre a partir du nom de la voix selectionnee. */
+const VOICE_FEMALE_RE = /\b(jane|marie|lea|l[eé]a|celine|c[eé]line|denise|henrietta|alice|camille|[eé]lise|claire|aur[eé]lie|charlotte|[eé]loise|virginie|hortense|margaux|female|femme|madame)\b/i;
+const VOICE_MALE_RE = /\b(paul|oliver|mathieu|matthieu|nicolas|claude|henri|antoine|luc|gabriel|j[eé]r[oô]me|thomas|male|homme|monsieur)\b/i;
+function currentVoiceGender(){
+  try {
+    const v = getVoice();
+    let name = '';
+    if (v.startsWith('voxtral:')){
+      const all = voxtralVoicesCache || VOXTRAL_FALLBACK_VOICES;
+      const found = all.find(x => x.id === v.substring(8));
+      if (found) name = found.name || '';
+    } else if (v.startsWith('cartesia:')){
+      const found = (cartesiaVoicesCache || []).find(x => x.id === v.substring(9));
+      if (found) name = found.name || '';
+    }
+    if (!name){
+      const opt = document.querySelector('#tts-voice option:checked');
+      if (opt) name = opt.textContent || '';
+    }
+    if (!name) return null;
+    if (VOICE_FEMALE_RE.test(name)) return 'f';
+    if (VOICE_MALE_RE.test(name)) return 'm';
+    return null;
+  } catch { return null; }
+}
+/* v10.76 : correctif texte — remplace les accords feminins par les
+   masculins (et inverse) quand le genre de la voix est connu. Ancre sur les
+   formulations a la 1re personne ("je suis / je reste / je me sens" + 30
+   caracteres) pour ne jamais toucher un adjectif hors contexte. */
+const JESUIS = '(je\\s+(?:suis|reste|me\\s+sens|sens)\\b[^.,;!?\\n]{0,30}?|\\bje\\s+suis\\s+pas\\b[^.,;!?\\n]{0,30}?)';
+const GENDER_FORMS_M = [
+  'partante>partant', 'pr[eê]?te>prêt', 's[uû]re>sûr', 'contente>content',
+  'curieuse>curieux', 'fi[eè]re>fier', 'fatigu[eé]e>fatigué',
+  'surprise>surpris', 'ravie>ravi', 'enchant[eé]e>enchanté',
+  'impatiente>impatient', 'inqui[eè]te>inquiet', 'd[eé]sol[eé]e>désolé',
+  'ennuy[eé]e>ennuyé', 'étonn?ée?>étonné', 'pr[eé]sente>présent',
+  'motiv[eé]e>motivé'
+];
+const GENDER_FORMS_F = [
+  'partant>partante', 'pr[eê]t(?!e)>prête', 's[uû]r(?!e)>sûre',
+  'content(?!e)>contente',   'curieux(?!se)>curieuse', 'fier(?!ce)>fière',
+  'fatigu[eé](?!e)>fatiguée', 'surpris(?!e)>surprise', 'ravi(?!e)>ravie',
+  'enchant[eé](?!e)>enchantée', 'impatient(?!e)>impatiente',
+  'inquiet(?!e)>inquiète', 'd[eé]sol[eé](?!e)>désolée',
+  'ennuy[eé](?!e)>ennuyée', 'étonné(?!e)>étonnée', 'pr[eé]sent(?!e)>présente',
+  'motiv[eé](?!e)>motivée'
+];
+function mineGenderForms(forms){
+  const m = [];
+  for (const f of forms){
+    const i = f.indexOf('>');
+    if (i < 0) continue;
+    m.push([f.slice(0, i), f.slice(i + 1)]);
+  }
+  return m;
+}
+const GENDER_MAP_M = mineGenderForms(GENDER_FORMS_M);
+const GENDER_MAP_F = mineGenderForms(GENDER_FORMS_F);
+function fixGenderAgreement(text){
+  try {
+    const g = currentVoiceGender();
+    if (!g || !text) return text;
+    const map = g === 'm' ? GENDER_MAP_M : GENDER_MAP_F;
+    let out = text;
+    for (const [from, to] of map){
+      out = out.replace(new RegExp(JESUIS + from + '\\b', 'gi'), (mm, pre) => pre + to);
+    }
+    return out;
+  } catch { return text; }
+}
+
 settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
@@ -1005,7 +1078,7 @@ ttsVoiceSel.addEventListener('change', () => {
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
-  const ok = await speak("Bonjour ! Je suis ton assistante vocale. Comment puis-je t'aider ?");
+  const ok = await speak("Bonjour ! Moi, je suis là, à l'écoute. Comment puis-je t'aider ?");
   setStatus(ok ? 'Voix OK - appuie sur le micro et parle' : 'Voix système active', !ok);
 });
 
@@ -1728,6 +1801,13 @@ function getSystemPrompt(){
   base += '\n' + APP_INFOS;
   base += '\n' + NATURAL_SPOKEN_STYLE;
   base += '\n' + SAFETY_RULE;
+  /* v10.76 : le genre de la voix -> accords corrects (partant/partante) */
+  const vg = currentVoiceGender();
+  if (vg === 'm'){
+    base += `\nGENRE DE TA VOIX : la voix qui te porte est MASCULINE. Quand tu te decris toi-meme, accorde TOUJOURS au masculin : "je suis partant", "pret", "content", "curieux", "ravi", "desole". Ne dis JAMAIS "partante", "contente", "prete", "desolee" quand tu parles de toi.`;
+  } else if (vg === 'f'){
+    base += `\nGENRE DE TA VOIX : la voix qui te porte est FEMININE. Quand tu te decris toi-meme, accorde au feminin : "je suis partante", "prete", "contente", "curieuse", "ravie", "desolee". Ne dis JAMAIS "partant", "content", "pret" quand tu parles de toi.`;
+  }
   /* v10.58 : CONSCIENCE D'ELLE en temps reel (ou elle vit, heure, etat autonome) */
   try {
     let autoSt = null;
@@ -4068,6 +4148,7 @@ stopAudio(); /* nettoyage etat precedent avant nouvelle question */
     /* v10.0.2 : supprimer les phrases vides / incoherentes (juste des points, etc.) */
     r.text = r.text.replace(/\n\s*\n/g, '\n').replace(/\.\s*\.\s*\./g, '.').trim();
     r.text = applyMood(r.text, currentMood);
+    r.text = fixGenderAgreement(r.text); /* v10.76 : accords selon la voix */
   }
   if (r.error){
     writingMode = false;
