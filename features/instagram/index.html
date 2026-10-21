@@ -43,6 +43,12 @@
     <a href=".." class="back">← Retour &agrave; Astra</a>
   </header>
 
+  <div class="card" id="localWarn" style="display:none;border-color:rgba(240,110,110,.5)">
+    <h3 style="color:#f08e8e">⚠️ Tu es en local — Instagram refusera la connexion</h3>
+    <p style="font-size:13px;margin:6px 0">La connexion Instagram ne peut se faire que depuis les adresses en ligne enregistrées dans ton app Meta.</p>
+    <a class="btn ig" href="https://ai-studio.tom16112008.workers.dev/features/instagram/index.html">Ouvrir la version en ligne →</a>
+  </div>
+
   <div class="card" id="statusCard">
     <div class="row" style="margin:0">
       <div id="profile">
@@ -69,6 +75,7 @@
       <li>Ouvre <a href="https://developers.facebook.com/apps/create/" target="_blank" rel="noopener">developers.facebook.com — Créer une app</a> (gratuit)</li>
       <li>Type d'app : <b>Business</b> → ajoute le produit <b>Instagram</b> → <b>Connexion via Instagram</b></li>
       <li>Panneau Instagram : colle ce <b>redirect URI officiel</b> : <span class="uri" id="redirectLbl">…</span> <button class="btn small ghost" id="copyUri">📋 copier</button> — ajoute aussi <span class="uri">https://ai-studio.tom16112008.workers.dev/features/instagram/index.html</span> si tu utilises les deux adresses</li>
+      <li>⚠️ L'URI doit être <b>identique au caractère près</b> : https, même chemin, <b>sans slash final</b>. Il se colle dans <b>Instagram → OAuth client → Add or remove redirect URIs</b> (PAS dans Facebook Login)</li>
       <li>Copie l'<b>ID de l'app</b> (numérique) dans le champ ci-dessous</li>
       <li>Donne le <b>secret</b> à ton assistant (une fois) : <code>npx wrangler secret put IG_CLIENT_SECRET</code> — il vit sur le serveur Cloudflare, <b>jamais dans cette page</b></li>
     </ol>
@@ -110,6 +117,7 @@
     const v = ($('appId').value || '').trim();
     $('appId').classList.toggle('ok', validAppKey());
     $('wizErr').textContent = v ? (validAppKey() ? '✅ ID valide — branche le secret sur le serveur (étape 5), puis clique Se connecter.' : '⚠️ Un ID d\u2019app Instagram n\u2019a que des chiffres.') : '';
+    $('wizErr').innerHTML = v && validAppKey() ? $('wizErr').textContent + ' <a href="https://developers.facebook.com/apps/' + v + '" target="_blank" rel="noopener">Ouvrir les réglages de ton app ↗</a>' : $('wizErr').textContent;
   }
   $('appId').addEventListener('input', () => {
     renderKey();
@@ -123,6 +131,14 @@
   $('copyUri').addEventListener('click', () => {
     try { navigator.clipboard.writeText(pageUri); $('copyUri').textContent = '✅ copié'; setTimeout(() => { $('copyUri').textContent = '📋 copier'; }, 1500); } catch (e) {}
   });
+
+  /* v10.93 : local/file = connexion impossible, proposer la version en ligne */
+  const isLocal = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (isLocal) {
+    $('localWarn').style.display = '';
+    $('connect').style.display = 'none';
+    $('wizardCard').style.display = 'none';
+  }
 
   function token() {
     try {

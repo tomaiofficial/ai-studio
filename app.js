@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.92';
+const APP_VERSION = '10.93';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
