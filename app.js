@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.97';
+const APP_VERSION = '10.98';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -360,16 +360,70 @@ async function generateChunks(chunks, voiceId, key){
 const INWORLD_API = 'https://api.inworld.ai/tts/v1/voice';
 const INWORLD_KEY_LS = 'va_inworld_key';
 const INWORLD_MODEL = 'inworld-tts-2';
-const INWORLD_VOICES = [
-  { id: 'Ashley', n: 'Ashley (femme, naturelle)' },
-  { id: 'Rachel', n: 'Rachel (femme)' },
-  { id: 'Hana',   n: 'Hana (femme)' },
-  { id: 'Kayla',  n: 'Kayla (femme)' },
-  { id: 'Dennis', n: 'Dennis (homme)' },
-  { id: 'Marcus', n: 'Marcus (homme)' },
-  { id: 'Hugo',   n: 'Hugo (homme)' },
-  { id: 'Sam',    n: 'Sam (homme)' }
-];
+/* v10.98 : VOIX FRANCAISES UNIQUEMENT.
+   Inworld expose 2 API de liste de voix :
+     - Voices API (nouvelle) : GET /voices/v1/voices?filter=lang_code = "fr"
+     - TTS API (legacy)      : GET /tts/v1/voices?filter=language=fr
+   Une voix FR = enregistrement natif francais -> AUCUN accent anglais.
+   On force aussi language=fr-FR a la synthese (le modele ecrit en francais
+   avec la phonetique du francais, pas de l anglais). */
+const INWORLD_VOICES_API = 'https://api.inworld.ai/voices/v1/voices';
+const INWORLD_VOICES_API_LEGACY = 'https://api.inworld.ai/tts/v1/voices?filter=language=fr';
+const INWORLD_FR_LS = 'va_inworld_fr_voices';
+/* { id, n (libelle), g (genre), d (description) } */
+let INWORLD_VOICES = [];
+let INWORLD_FR_READY = false;
+function inworldFrDefault(){
+  if (!INWORLD_VOICES.length) return null;
+  const f = INWORLD_VOICES.find(v => v.g === 'female') || INWORLD_VOICES.find(v => /femme|female/i.test(v.n || ''));
+  return (f || INWORLD_VOICES[0]).id;
+}
+async function loadInworldFrenchVoices(force){
+  if (INWORLD_FR_READY && !force) return INWORLD_VOICES;
+  try {
+    const cached = JSON.parse(localStorage.getItem(INWORLD_FR_LS) || 'null');
+    if (cached && cached.length && !INWORLD_VOICES.length){
+      INWORLD_VOICES = cached;
+      INWORLD_FR_READY = true;
+    }
+  } catch(e){}
+  const key = getInworldKey();
+  if (!key) return INWORLD_VOICES;
+  const headers = { 'Authorization': 'Basic ' + key };
+  let list = [];
+  try {
+    const r = await fetch(INWORLD_VOICES_API + '?filter=' + encodeURIComponent('lang_code = "fr"') + '&pageSize=50', { headers, signal: abortSignal(12000) });
+    if (r.ok){
+      const j = await r.json();
+      list = (j.voices || []).map(v => ({
+        id: v.voiceId,
+        n: (v.displayName || v.voiceId) + (v.gender ? ' (' + (v.gender === 'male' ? 'homme' : 'femme') + ')' : ''),
+        g: v.gender || (/male|homme/i.test(v.description || '') ? 'male' : 'female'),
+        d: v.description || ''
+      }));
+    }
+  } catch(e){}
+  if (!list.length){
+    try {
+      const r = await fetch(INWORLD_VOICES_API_LEGACY, { headers, signal: abortSignal(12000) });
+      if (r.ok){
+        const j = await r.json();
+        list = (j.voices || []).map(v => ({
+          id: v.voiceId,
+          n: (v.displayName || v.voiceId) + ((v.tags || []).indexOf('male') >= 0 ? ' (homme)' : ' (femme)'),
+          g: (v.tags || []).indexOf('male') >= 0 ? 'male' : 'female',
+          d: v.description || ''
+        }));
+      }
+    } catch(e){}
+  }
+  if (list.length){
+    INWORLD_VOICES = list;
+    INWORLD_FR_READY = true;
+    try { localStorage.setItem(INWORLD_FR_LS, JSON.stringify(list)); } catch(e){}
+  }
+  return INWORLD_VOICES;
+}
 function getInworldKey(){
   try { return (localStorage.getItem(INWORLD_KEY_LS) || '').trim().replace(/^Basic /i, ''); }
   catch { return ''; }
@@ -380,23 +434,43 @@ async function speakInworld(text, voiceId, onChunk){
   /* v10.85 : morceaux PLUS COURTS + lecture PROGRESSIVE — on joue le 1er
      morceau des qu'il arrive (latence ressentie /3), le reste se prepare
      en parallele pendant la lecture. */
-  const chunks = splitSentences(text, 500);
-  try {
-    const fetches = chunks.map(async (chunk) => {
-      try {
-        const res = await fetch(INWORLD_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + key },
-          body: JSON.stringify({
+    const chunks = splitSentences(text, 500);
+    try {
+      const fetches = chunks.map(async (chunk, idx) => {
+        try {
+          const body = {
             text: chunk,
             voiceId: voiceId || 'Ashley',
             modelId: INWORLD_MODEL,
             audioConfig: { audioEncoding: 'MP3' },
             deliveryMode: 'BALANCED',
-            applyTextNormalization: 'ON'
-          }),
-          signal: abortSignal(12000)
-        });
+            applyTextNormalization: 'ON',
+            /* v10.98 : FRANCAIS NATIF — language=fr-FR force la phonetique
+               francaise (plus de prononciation anglaise) + enhanceGeneration
+               denoise le son. synthesisContext : continuite de prosodie entre
+               les morceaux (une seule voix, pas de reset d accent). */
+            language: 'fr-FR',
+            enhanceGeneration: true
+          };
+          const prev = chunks.slice(0, idx).join(' ').slice(-1800);
+          if (prev) body.synthesisContext = { previousRequests: [{ text: prev }] };
+          const post = async (b) => await fetch(INWORLD_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + key },
+            body: JSON.stringify(b),
+            signal: abortSignal(12000)
+          });
+          let res = await post(body);
+          /* v10.98 : si l API refuse les champs optionnels (language/
+             enhanceGeneration/synthesisContext), on rejoue en mode minimal —
+             la voix parle quand meme. */
+          if (!res.ok && res.status === 400){
+            const probe = await res.clone().text().catch(() => '');
+            if (/language|enhance|synthesis_context|INVALID_ARGUMENT/i.test(probe)){
+              const minimal = { text: chunk, voiceId: voiceId || 'Ashley', modelId: INWORLD_MODEL, audioConfig: { audioEncoding: 'MP3' }, deliveryMode: 'BALANCED', applyTextNormalization: 'ON' };
+              res = await post(minimal);
+            }
+          }
         if (!res.ok){
           const et = await res.text().catch(() => '');
           console.warn('[INWORLD] HTTP', res.status, et.slice(0, 160));
@@ -992,6 +1066,20 @@ function getVoice(){
   if (v.startsWith('voxtral:')) return DEFAULT_VOICE;
   /* v10.78 : Cartesia SUPPRIME -> bascule au defaut Voxtral */
   if (v.startsWith('cartesia:')) return DEFAULT_VOICE;
+  /* v10.98 : Inworld = FRANCAIS UNIQUEMENT. Si la voix memorisee n est pas
+     une voix FR native (Ashley/Rachel/Dennis... sont anglaises), on bascule
+     automatiquement sur la 1re voix francaise trouvee par l API. */
+  if (v.startsWith('iw:')){
+    const id = v.substring(3);
+    if (id === '__fr__') return DEFAULT_VOICE; /* placeholder = pas encore de liste FR */
+    if (INWORLD_VOICES.length){
+      const found = INWORLD_VOICES.find(x => x.id === id);
+      if (!found) return 'iw:' + (inworldFrDefault() || id);
+    } else if (id === 'Ashley' || id === 'Rachel' || id === 'Dennis' || id === 'Marcus' || id === 'Hugo' || id === 'Sam' || id === 'Kayla' || id === 'Hana'){
+      /* liste FR pas encore chargee : on garde en attendant le fetch */
+      return 'iw:' + id;
+    }
+  }
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -1113,9 +1201,18 @@ if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
    le portail donne un credential Base64 a coller tel quel. */
 const inworldKeyInput = $('inworldKey'), saveInworldKeyBtn = $('saveInworldKey');
 if (inworldKeyInput) inworldKeyInput.value = getInworldKey();
-if (saveInworldKeyBtn) saveInworldKeyBtn.addEventListener('click', () => {
+if (saveInworldKeyBtn) saveInworldKeyBtn.addEventListener('click', async () => {
   localStorage.setItem(INWORLD_KEY_LS, (inworldKeyInput.value || '').trim().replace(/^Basic /i, ''));
   toast('Clé API Inworld enregistrée ✓');
+  /* v10.98 : on charge immediatement les voix FRANCAISES et on rafraichit
+     le selecteur (la liste FR remplace les voix anglaises). */
+  try {
+    INWORLD_FR_READY = false;
+    const list = await loadInworldFrenchVoices(true);
+    populateVoices();
+    if (list && list.length) toast(list.length + ' voix françaises détectées 🇫🇷');
+    else toast('Clé enregistrée — aucune voix FR trouvée (vérifie le type Standard)');
+  } catch(e){}
 });
 
 /* v10.43 : GEMINI RETIRÉ — quota journalier trop court (10/j/model) au
@@ -3498,17 +3595,27 @@ async function populateVoices(){
   /* v10.85 : Voxtral suspendu -> on NE charge PAS la liste Mistral (aucune
      option voxtral:*). Les anciennes options memorisees sont ecartees par
      getVoice() qui bascule sur iw:Ashley. */
-  /* v10.82 : GROUPE INWORLD TTS-2 — arena #7 mondial, gratuit a vie
-     (~70 min/mois), cle gratuite sans carte. Defaut : Ashley. */
+  /* v10.98 : GROUPE INWORLD TTS-2 — UNIQUEMENT les voix FRANCAISES natives
+     (aucun accent anglais). La liste est chargee depuis l API Inworld
+     (filtre lang_code=fr) des que la cle est presente. */
   {
     const grpI = document.createElement('optgroup');
-    grpI.label = '🎭 Inworld TTS-2 — réaliste, gratuite à vie (clé gratuite)';
-    INWORLD_VOICES.forEach(v => {
+    grpI.label = '🎭 Inworld TTS-2 — 🇫🇷 voix françaises (réalistes, gratuites à vie)';
+    const fr = INWORLD_VOICES;
+    if (fr.length){
+      const def = inworldFrDefault();
+      fr.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = 'iw:' + v.id;
+        opt.textContent = '🇫🇷 ' + v.n + (v.id === def ? ' — défaut' : '');
+        grpI.appendChild(opt);
+      });
+    } else {
       const opt = document.createElement('option');
-      opt.value = 'iw:' + v.id;
-      opt.textContent = '🎭 ' + v.n + (v.id === 'Ashley' ? ' — secours par défaut' : '');
+      opt.value = 'iw:__fr__';
+      opt.textContent = getInworldKey() ? '🇫🇷 Chargement des voix françaises…' : '🇫🇷 Ajoute ta clé Inworld (Réglages) pour les voix françaises';
       grpI.appendChild(opt);
-    });
+    }
     ttsVoiceSel.appendChild(grpI);
   }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
@@ -3519,7 +3626,14 @@ async function populateVoices(){
   /* re-selection de la voix memorisee si elle existe encore */
   const stored = getVoice();
   const found = Array.from(ttsVoiceSel.options).some(o => o.value === stored);
-  ttsVoiceSel.value = found ? stored : DEFAULT_VOICE;
+  ttsVoiceSel.value = found ? stored : (inworldFrDefault() ? 'iw:' + inworldFrDefault() : DEFAULT_VOICE);
+  /* v10.98 : si la liste FR n est pas encore chargee (cle ajoutee a l instant),
+     on la charge en arriere-plan puis on rafraichit le selecteur. */
+  if (!INWORLD_VOICES.length && getInworldKey()){
+    loadInworldFrenchVoices().then(list => {
+      if (list && list.length) populateVoices();
+    }).catch(() => {});
+  }
 }
 
 /* ===== VOIX SYSTÈME SEULE : navigateur, hors ligne, 100% fiable, sans clé. ===== */
@@ -3686,7 +3800,7 @@ function sanitizeForVoice(t){
   return t;
 }
 function speak(text, onChunk){
-  return new Promise(resolve => {
+  return new Promise(async (resolve) => {
     /* v10.0.2 : garde-fou — si le texte est vide/undefined, on ne parle pas */
     if (typeof text !== 'string' || !text.trim()){
       if (onChunk) onChunk('');
@@ -3736,13 +3850,22 @@ function speak(text, onChunk){
        voxtral:* (memorise ancien) ->Trait comme le defaut. */
     const voiceMode = getVoice();
     const SAFE = ['Google Translate (filet)', (t) => speakGoogle(t, onChunk)]; /* v10.79 : jamais muet */
+    /* v10.98 : voix FRANCAISES — on charge la liste FR (cachee) avant de
+     parler, pour n utiliser QUE des voix natives francaises. */
+    if (getInworldKey()){
+      try { await loadInworldFrenchVoices(); } catch(e){}
+    }
+    const frDef = inworldFrDefault();
+    const voiceModeFinal = (voiceMode.startsWith('iw:') && INWORLD_VOICES.length && !INWORLD_VOICES.some(x => x.id === voiceMode.substring(3)))
+      ? ('iw:' + (frDef || voiceMode.substring(3)))
+      : voiceMode;
     /* v10.85 : default + voxtral:* -> Inworld d'abord (pas de Voxtral partout) */
     chain = [
-      ['Inworld: Ashley', (t) => speakInworld(t, 'Ashley', onChunk)],
+      ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk)],
       SAFE
     ];
-    if (voiceMode.startsWith('iw:')){
-      const ivv = voiceMode.substring(3) || 'Ashley';
+    if (voiceModeFinal.startsWith('iw:')){
+      const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
       chain = [
         ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk)],
         SAFE
