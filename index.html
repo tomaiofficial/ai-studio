@@ -263,10 +263,40 @@ body{
 @keyframes popIn{from{opacity:0;transform:scale(.88) translateY(10px)}to{opacity:1;transform:none}}
 .modal-card h3{font-size:18px;margin-bottom:16px;color:#fff}
 .settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
-.version-tag{
-  font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
-  pointer-events:none;
-}
+ .version-tag{
+   font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
+   pointer-events:none;
+ }
+ /* v11.04 : jauge du quota Inworld TTS-2 (sous la version, ecran vocal) */
+ .quota-hud{position:relative;display:flex;justify-content:center;margin-top:7px;z-index:5}
+ .quota-hud[hidden]{display:none}
+ .quota-pill{
+   display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+   background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.22);
+   color:#9a9ab5;border-radius:999px;padding:4px 11px;font:600 11px system-ui;
+   transition:border-color .2s,background .2s;
+ }
+ .quota-pill:hover{background:rgba(124,92,255,.16);border-color:rgba(124,92,255,.45)}
+ .quota-pill b{color:#c8c8dd;font-weight:700}
+ .quota-pill.warn{border-color:rgba(255,159,46,.55);color:#ffb066}
+ .quota-pill.warn b{color:#ffb066}
+ .quota-pill.danger{border-color:rgba(240,110,110,.6);color:#f08e8e}
+ .quota-pill.danger b{color:#f08e8e}
+ .quota-bar{display:block;width:52px;height:4px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+ .quota-bar i{display:block;height:100%;width:0%;border-radius:3px;background:linear-gradient(90deg,#3cdca0,#7c5cff);transition:width .4s}
+ .quota-bar i.warn{background:linear-gradient(90deg,#ffb066,#ff8a3d)}
+ .quota-bar i.danger{background:linear-gradient(90deg,#f08e8e,#e1306c)}
+ .quota-detail{
+   position:absolute;bottom:30px;left:50%;transform:translateX(-50%);
+   width:252px;background:rgba(16,13,38,.96);border:1px solid rgba(124,92,255,.3);
+   border-radius:13px;padding:11px 12px;box-shadow:0 12px 34px rgba(0,0,0,.5);
+   font:12px/1.55 system-ui;color:#c8c8dd;text-align:left;z-index:30;
+ }
+ .quota-detail[hidden]{display:none}
+ .quota-detail h5{margin:0 0 7px;font-size:12.5px;color:#b79cff}
+ .quota-detail .qrow{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+ .quota-detail .qrow span:last-child{color:#fff;font-weight:600}
+ .quota-detail .qnote{margin:7px 0 0;font-size:11px;color:#7a7a99;line-height:1.5}
 .muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
 .wide-input{
   width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
@@ -499,6 +529,23 @@ select.wide-input{appearance:none}
       <div class="subtitle" id="subtitle" style="font-size:13px;color:#3cdca0;font-weight:600;padding:6px 0;text-align:center;line-height:1.35;display:block;width:100%;margin:0 auto;"></div>
       <button class="stop-btn" id="stopBtn" aria-label="Arrêter">■</button>
       <div class="version-tag" id="versionTag"></div>
+      <div class="quota-hud" id="quotaHud" hidden>
+        <button class="quota-pill" id="quotaPill" type="button" title="Quota Inworld TTS-2 (clique pour le détail)">
+          <span>🎙️</span>
+          <span>Inworld <b id="quotaMin">0</b>/70 min</span>
+          <span class="quota-bar"><i id="quotaFill"></i></span>
+        </button>
+        <div class="quota-detail" id="quotaDetail" hidden>
+          <h5>🎙️ Quota Inworld TTS-2 — ce mois-ci</h5>
+          <div class="qrow"><span>Minutes de parole</span><span id="qMin">0 / 70</span></div>
+          <div class="qrow"><span>Caractères envoyés</span><span id="qChars">0</span></div>
+          <div class="qrow"><span>Réponses vocales</span><span id="qReq">0</span></div>
+          <div class="qrow"><span>Restant estimé</span><span id="qLeft">70 min</span></div>
+          <div class="qrow"><span>Moyenne / jour</span><span id="qAvg">0 min</span></div>
+          <div class="qrow"><span>Projection fin de mois</span><span id="qProj">70 min</span></div>
+          <p class="qnote">Le palier gratuit Inworld offre <b>70 min de TTS par mois</b> (plan On-Demand, sans carte bancaire). Au-delà, chaque minute est facturée $25/1M caractères — Astra bascule alors automatiquement sur la voix Google Translate (gratuite, illimitée).</p>
+        </div>
+      </div>
     </div>
 
     <!-- SAISIE TEXTE -->
@@ -736,9 +783,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=11.03"></script>
+<script src="websearch.js?v=11.04"></script>
 <script>
 </script>
-<script src="app.js?v=11.03"></script>
+<script src="app.js?v=11.04"></script>
 </body>
 </html>

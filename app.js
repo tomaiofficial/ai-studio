@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.03';
+const APP_VERSION = '11.04';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -496,6 +496,8 @@ async function speakInworld(text, voiceId, onChunk, taggedText){
       const blob = await fetches[i];
       if (!blob) continue;
       any = true;
+      /* v11.04 : on compte les caracteres reellement factures par Inworld */
+      try { trackInworldUsage(stripInworldTags(chunks[i]).length); } catch(e){}
       if (activeSpeechEpoch !== speechEpoch){ console.warn('[INWORLD] parole interrompue'); return false; }
       /* v10.99 : le sous-titre affiche le texte SANS les balises techniques */
       if (onChunk) onChunk(stripInworldTags(chunks[i]));
@@ -993,6 +995,88 @@ function setState(s){
 }
 
 /* ===== CHAT (bulles type ChatGPT) ===== */
+/* ============================================================
+   v11.04 : JAUGE DU QUOTA INWORLD (sur l ecran vocal, pas dans
+   les reglages). On compte les caracteres reellement envoyes a
+   Inworld chaque mois (le palier gratuit = 70 min de TTS/mois).
+   ============================================================ */
+const INWORLD_USAGE_LS = 'astra_inworld_usage_v1';
+const INWORLD_FREE_MIN = 70;      /* minutes offertes par le plan gratuit */
+const INWORLD_CHARS_PER_MIN = 1000; /* ~1000 caracteres = 1 minute d audio */
+function usageMonthKey(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function quotaUsage(){
+  try {
+    const d = JSON.parse(localStorage.getItem(INWORLD_USAGE_LS) || 'null');
+    const mk = usageMonthKey();
+    if (!d || d.m !== mk) return { m: mk, chars: 0, req: 0 };
+    return { m: mk, chars: d.chars || 0, req: d.req || 0 };
+  } catch(e){ return { m: usageMonthKey(), chars: 0, req: 0 }; }
+}
+function trackInworldUsage(nChars){
+  try {
+    const mk = usageMonthKey();
+    const d = quotaUsage();
+    d.chars += Math.max(0, nChars | 0);
+    d.req += 1;
+    localStorage.setItem(INWORLD_USAGE_LS, JSON.stringify(d));
+    refreshQuotaHud();
+    quotaWarnIfNeeded(d);
+  } catch(e){}
+}
+function quotaWarnIfNeeded(d){
+  try {
+    const pct = (d.chars / (INWORLD_FREE_MIN * INWORLD_CHARS_PER_MIN)) * 100;
+    const flagKey = 'astra_inworld_warn_' + d.m;
+    if (pct >= 80 && !localStorage.getItem(flagKey)){
+      localStorage.setItem(flagKey, '1');
+      toast('⚠️ Quota Inworld : ' + Math.round(pct) + '% des 70 min/mois utilisées');
+    }
+  } catch(e){}
+}
+function refreshQuotaHud(){
+  try {
+    const hud = $('quotaHud');
+    if (!hud) return;
+    if (!getInworldKey()){ hud.hidden = true; return; }
+    hud.hidden = false;
+    const d = quotaUsage();
+    const mins = d.chars / INWORLD_CHARS_PER_MIN;
+    const pct = Math.min(100, (mins / INWORLD_FREE_MIN) * 100);
+    const pill = $('quotaPill'), fill = $('quotaFill'), minEl = $('quotaMin');
+    if (minEl) minEl.textContent = mins >= 10 ? Math.round(mins) : mins.toFixed(1);
+    if (fill){ fill.style.width = pct.toFixed(1) + '%'; fill.className = pct >= 95 ? 'danger' : pct >= 80 ? 'warn' : ''; }
+    if (pill) pill.className = 'quota-pill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '');
+    const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+    set('qMin', mins.toFixed(1) + ' / ' + INWORLD_FREE_MIN);
+    set('qChars', d.chars.toLocaleString('fr-FR'));
+    set('qReq', String(d.req));
+    set('qLeft', Math.max(0, INWORLD_FREE_MIN - mins).toFixed(1) + ' min');
+    const now = new Date();
+    const daysPassed = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const avg = daysPassed > 0 ? mins / daysPassed : 0;
+    set('qAvg', avg.toFixed(1) + ' min');
+    set('qProj', (avg * daysInMonth).toFixed(0) + ' min' + (avg * daysInMonth > INWORLD_FREE_MIN ? ' ⚠️' : ''));
+  } catch(e){}
+}
+function initQuotaHud(){
+  try {
+    const pill = $('quotaPill'), det = $('quotaDetail');
+    if (pill && det){
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        det.hidden = !det.hidden;
+        refreshQuotaHud();
+      });
+      document.addEventListener('click', () => { det.hidden = true; });
+    }
+    refreshQuotaHud();
+    setInterval(refreshQuotaHud, 60000);
+  } catch(e){}
+}
 /* ============================================================
    v11.03 : JOURNAL DES NOUVEAUTES — toute l evolution d Astra
    dans une petite interface dediee (bouton ✨ du header).
@@ -2326,6 +2410,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   scheduleIdleGames();
   /* v11.03 : journal des Nouveautés (bouton ✨) */
   try { initNews(); } catch(e){ console.warn('[NEWS] init:', e && e.message); }
+  /* v11.04 : jauge du quota Inworld sur l ecran vocal */
+  try { initQuotaHud(); } catch(e){ console.warn('[QUOTA] init:', e && e.message); }
 });
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.
