@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.82';
+const APP_VERSION = '10.83';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -397,6 +397,11 @@ async function speakInworld(text, voiceId, onChunk){
         if (!res.ok){
           const et = await res.text().catch(() => '');
           console.warn('[INWORLD] HTTP', res.status, et.slice(0, 160));
+          /* v10.83 : 403 "required scopes" = cle creee SANS scope TTS —
+             message clair et action precise au lieu de bascule silencieuse */
+          if (res.status === 403 && /scope/i.test(et)){
+            try { if (typeof setStatus === 'function') setStatus('Clé Inworld sans scope TTS — recrée-la avec TTS coché'); } catch(e){}
+          }
           return null;
         }
         const data = await res.json();
