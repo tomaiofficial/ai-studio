@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.02';
+const APP_VERSION = '11.03';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -993,6 +993,141 @@ function setState(s){
 }
 
 /* ===== CHAT (bulles type ChatGPT) ===== */
+/* ============================================================
+   v11.03 : JOURNAL DES NOUVEAUTES — toute l evolution d Astra
+   dans une petite interface dediee (bouton ✨ du header).
+   ASTRA_NEWS = source de verite : ajoute une entree par version.
+   ============================================================ */
+const ASTRA_NEWS = [
+  {
+    v: '11.03', date: 'Aujourd hui', badge: 'NOUVEAU',
+    items: [
+      '✨ <b>Journal des Nouveautés</b> : cette petite interface qui recense tout ce qui est arrivé dans Astra, version par version.',
+      '🔔 Un point rouge sur le bouton ✨ quand il y a du neuf depuis ta dernière visite.'
+    ]
+  },
+  {
+    v: '11.02', date: 'Il y a peu', badge: '',
+    items: [
+      '⚫ <b>Dots de réflexion</b> animés pendant qu Astra réfléchit (comme ChatGPT).',
+      '📋 Bouton <b>Copier</b> sous chaque réponse.',
+      '🔄 Bouton <b>Régénérer</b> : elle refait sa réponse autrement.'
+    ]
+  },
+  {
+    v: '10.99', date: 'Il y a peu', badge: '',
+    items: [
+      '🧠 Astra connaît <b>toute son application</b> : elle lit sa propre carte (boutons, réglages, outils).',
+      '👁️ Nouvel outil <b>OUTIL:appli</b> : elle scanne son écran réel (champs, valeurs, clés, derniers messages).',
+      '🎭 <b>Parole humaine</b> : elle soupire, rit, fait des pff — et sa voix Inworld les imite vraiment ([sigh], [laugh]…).'
+    ]
+  },
+  {
+    v: '10.98', date: 'Il y a peu', badge: '',
+    items: [
+      '🇫🇷 <b>Voix 100 % françaises</b> : Astra ne propose plus que des voix Inworld natives françaises — <b>plus aucun accent anglais</b>.',
+      '🔎 Détection automatique de tes voix FR à l enregistrement de la clé Inworld.',
+      '✨ Qualité sonore : `language=fr-FR`, dé-noisage et continuité de prosodie entre les morceaux.'
+    ]
+  },
+  {
+    v: '10.87', date: 'Il y a peu', badge: '',
+    items: [
+      '🌐 <b>Navigation web</b> : dis « va sur ce site » et Astra ouvre et lit la page elle-même (3 passerelles de secours).',
+      '🤖 Mode agent autonome : elle choisit ses outils (web, lire, wikipedia, calcul, heure, mémoire, appli) et travaille par étapes.'
+    ]
+  },
+  {
+    v: '10.85', date: 'Il y a peu', badge: '',
+    items: [
+      '🎙️ <b>Inworld TTS-2</b> en voix principale (qualité #1 mondiale) + lecture progressive : le 1er morceau plays avant la fin.',
+      '⏱️ Cerveau accéléré : réponse en streaming, tokens réduits, temps de latence divisés.'
+    ]
+  },
+  {
+    v: '10.6 → 10.8', date: 'Avant', badge: '',
+    items: [
+      '🌤️ <b>Météo</b> parlée avec conseil vestimentaire.',
+      '📝 <b>Bloc-notes</b> : « écris un poème » et ça écrit pour toi.',
+      '📜 <b>Historique</b> complet de tes conversations, reprenable en un clic.',
+      '🧠 <b>Mémoire</b> : Astra se souvient de tout ce que tu lui as dit, même dans une nouvelle conversation.',
+      '🎮 Petits <b>jeux</b> quand tu t ennuis (devinette et copains).',
+      '📷 <b>Vision</b> : envoie une image, elle la décrit.',
+      '🤖 <b>Autonomie</b> : elle s améliore toute seule (3 nouveautés par jour max).',
+      '⏰ <b>Mode vocal continu</b> et <b>réveil vocal</b> : elle t écoute en permanence si tu veux.'
+    ]
+  }
+];
+const NEWS_SEEN_LS = 'astra_news_seen_v';
+function renderNews(){
+  const list = $('newsList');
+  if (!list) return;
+  list.innerHTML = '';
+  ASTRA_NEWS.forEach((n, idx) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:13px;padding:11px 13px;margin-bottom:9px;';
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:7px;margin-bottom:6px;';
+    const v = document.createElement('b');
+    v.style.cssText = 'color:#b79cff;font-size:13px;';
+    v.textContent = 'v' + n.v;
+    const d = document.createElement('span');
+    d.style.cssText = 'font-size:11px;color:#7a7a99;';
+    d.textContent = n.date;
+    head.appendChild(v); head.appendChild(d);
+    if (n.badge){
+      const b = document.createElement('span');
+      b.style.cssText = 'margin-left:auto;font:700 9.5px system-ui;letter-spacing:.6px;background:linear-gradient(90deg,#e1306c,#833ab4);color:#fff;padding:3px 8px;border-radius:999px;';
+      b.textContent = n.badge;
+      head.appendChild(b);
+    }
+    card.appendChild(head);
+    const ul = document.createElement('div');
+    ul.style.cssText = 'font-size:12.8px;line-height:1.6;color:#c8c8dd;';
+    n.items.forEach(t => {
+      const row = document.createElement('div');
+      row.style.cssText = 'margin:3px 0;';
+      row.innerHTML = t;
+      ul.appendChild(row);
+    });
+    card.appendChild(ul);
+    list.appendChild(card);
+    if (idx === 0){
+      const hr = document.createElement('div');
+      hr.style.cssText = 'text-align:center;font-size:11px;color:#7a7a99;margin:2px 0 9px;';
+      hr.textContent = '— versions précédentes —';
+      list.appendChild(hr);
+    }
+  });
+  const sub = $('newsSub');
+  if (sub) sub.textContent = 'Tout ce qui est arrivé dans Astra, version par version. Version actuelle : v' + APP_VERSION + ' — créée par Tom AI.';
+}
+function openNews(){
+  renderNews();
+  const m = $('newsModal');
+  if (m) m.classList.remove('hidden');
+  try { localStorage.setItem(NEWS_SEEN_LS, APP_VERSION); } catch(e){}
+  try { const b = $('newsBtn'); if (b) b.style.boxShadow = 'none'; } catch(e){}
+}
+function initNews(){
+  try {
+    const seen = localStorage.getItem(NEWS_SEEN_LS) || '';
+    const btn = $('newsBtn');
+    if (btn && seen !== APP_VERSION){
+      btn.style.boxShadow = '0 0 0 2px rgba(225,48,108,.75)';
+      btn.title = 'Nouveautés d’Astra — du nouveau !';
+      setTimeout(() => {
+        try { toast('✨ Astra a du nouveau : appuie sur ✨ pour voir'); } catch(e){}
+      }, 2600);
+    }
+  } catch(e){}
+  const nb = $('newsBtn');
+  if (nb) nb.addEventListener('click', openNews);
+  const cl = $('closeNews');
+  if (cl) cl.addEventListener('click', () => { const m = $('newsModal'); if (m) m.classList.add('hidden'); });
+  const m = $('newsModal');
+  if (m) m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); });
+}
 /* ============================================================
    v11.02 : STYLE CHATGPT — dots de reflexion, Copier, Regenerer.
    ============================================================ */
@@ -2189,6 +2324,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   ['pointerdown','keydown','touchstart'].forEach(evt=>document.addEventListener(evt,()=>{if(panel)panel.classList.add('hidden');scheduleIdleGames();},{passive:true}));
   document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(idleGameTimer);if(panel)panel.classList.add('hidden');}else scheduleIdleGames();});
   scheduleIdleGames();
+  /* v11.03 : journal des Nouveautés (bouton ✨) */
+  try { initNews(); } catch(e){ console.warn('[NEWS] init:', e && e.message); }
 });
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.

@@ -475,7 +475,7 @@ select.wide-input{appearance:none}
 
 <!-- v10.13 : les boutons passent dans une barre laterale GAUCHE.
      Le mode vocal reste identique, seul le conteneur change. -->
-<header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgba(124,92,255,.16);display:flex;align-items:center;justify-content:space-between;"><h1 style="font-size:18px;font-weight:700;color:#fff;">Assistant IA</h1><div style="display:flex;gap:8px;"><button class="icon-btn" id="aboutBtn" title="À propos d'Astra">💜</button><button class="icon-btn" id="historyBtn" title="Historique">📜</button><button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button></div></header>
+<header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgba(124,92,255,.16);display:flex;align-items:center;justify-content:space-between;"><h1 style="font-size:18px;font-weight:700;color:#fff;">Assistant IA</h1><div style="display:flex;gap:8px;"><button class="icon-btn" id="newsBtn" title="Nouveautés d'Astra" style="position:relative">✨</button><button class="icon-btn" id="aboutBtn" title="À propos d'Astra">💜</button><button class="icon-btn" id="historyBtn" title="Historique">📜</button><button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button></div></header>
 <div style="padding:6px 18px;background:rgba(124,92,255,.08);text-align:center;font-size:12px;color:#9a9ab5;border-bottom:1px solid rgba(124,92,255,.12);">
   <b style="color:#fff;">Astra</b> — assistante vocale par <b>Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">@tom.ai.official</a>
 </div>
@@ -614,6 +614,18 @@ select.wide-input{appearance:none}
 </div>
 
 <!-- MODALE À PROPOS D'ASTRA -->
+<div id="newsModal" class="modal hidden">
+  <div class="modal-card" style="max-width:560px">
+    <button class="modal-close" id="closeNews">✕</button>
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+      <span style="font-size:26px">✨</span>
+      <h3 style="font-size:19px;margin:0">Nouveautés d'Astra</h3>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 12px" id="newsSub">Tout ce qui est arrivé dans l'application, version par version.</p>
+    <div id="newsList" style="max-height:58vh;overflow-y:auto;padding-right:4px"></div>
+  </div>
+</div>
+
 <div id="aboutModal" class="modal hidden">
   <div class="modal-card" style="max-width:520px">
     <button class="modal-close" id="closeAbout">✕</button>
@@ -724,9 +736,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=11.02"></script>
+<script src="websearch.js?v=11.03"></script>
 <script>
 </script>
-<script src="app.js?v=11.02"></script>
+<script src="app.js?v=11.03"></script>
 </body>
 </html>
