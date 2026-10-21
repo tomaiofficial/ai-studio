@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.99';
+const APP_VERSION = '11.00';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1165,6 +1165,13 @@ function fixGenderAgreement(text){
   } catch { return text; }
 }
 
+/* v11.00 : bouton 🎭 = mini-fenetre de l'equipe (replie/depliee) */
+const teamBtn = $('teamBtn');
+if (teamBtn) teamBtn.addEventListener('click', () => {
+  const h = ensureTeamHud();
+  if (h.hud.style.display === 'none'){ hudReset(); showTeamHud(true); }
+  else { h.body.style.display = (h.body.style.display === 'none') ? 'block' : 'none'; }
+});
 settingsBtn.addEventListener('click', () => {
   ttsVoiceSel.value = getVoice();
   brainSel.value = getBrain();
@@ -2744,6 +2751,94 @@ async function runAgent(question){
 function isTeamRequest(q){
   return /[eéèÉÈ]quipe|experts?|team|deep research|recherche approfondie|rapport|dossier|enqu[eèÉÈ]te|[eéèÉÈ]tat des lieux|point (complet|d[eéèÉÈ]taille)|tout savoir sur/i.test(q);
 }
+/* ============================================================
+   v11.00 : MINI-FENETRE FLOTTANTE (HUD) DE L'EQUIPE.
+   Petit panneau fixe, visible en permanence pendant le travail de
+   l'equipe : 4 lignes (Cheffe / Chercheur / Analyste / Redacteur)
+   avec pastille d'etat + activite en direct. Repliable d'un tap.
+   ============================================================ */
+let TEAM_HUD = null;
+const TEAM_HUD_AGENTS = [['chef','🧠','Cheffe'],['cher','🔍','Chercheur'],['ana','🧮','Analyste'],['red','✍️','Rédacteur']];
+function ensureTeamHud(){
+  if (TEAM_HUD) return TEAM_HUD;
+  const hud = document.createElement('div');
+  hud.id = 'teamHud';
+  hud.style.cssText = 'position:fixed;right:10px;bottom:112px;width:222px;z-index:60;background:rgba(16,13,38,.94);border:1px solid rgba(124,92,255,.38);border-radius:13px;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(12px);font:12.5px/1.35 system-ui,-apple-system,sans-serif;color:#e9e9f5;overflow:hidden;display:none;';
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:pointer;background:rgba(124,92,255,.16);font-weight:700;font-size:12px;color:#b79cff;user-select:none;';
+  const title = document.createElement('span');
+  title.textContent = '🎭 Équipe';
+  const state = document.createElement('span');
+  state.id = 'teamHudState';
+  state.style.cssText = 'margin-left:auto;font-weight:600;color:#9a9ab5;font-size:11.5px;';
+  state.textContent = '⏸️';
+  const x = document.createElement('button');
+  x.textContent = '×';
+  x.style.cssText = 'background:none;border:0;color:#9a9ab5;font-size:15px;cursor:pointer;line-height:1;padding:0 1px;';
+  x.addEventListener('click', (e) => { e.stopPropagation(); hideTeamHud(); });
+  head.appendChild(title); head.appendChild(state); head.appendChild(x);
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:6px 9px 8px;';
+  const rows = {};
+  TEAM_HUD_AGENTS.forEach(([k, emoji, name]) => {
+    const r = document.createElement('div');
+    r.style.cssText = 'display:flex;gap:5px;align-items:baseline;margin:2px 0;';
+    const dot = document.createElement('span');
+    dot.style.cssText = 'flex:0 0 auto;width:15px;';
+    dot.textContent = '⏸️';
+    const nm = document.createElement('b');
+    nm.style.cssText = 'color:#fff;font-weight:600;white-space:nowrap;';
+    nm.textContent = name;
+    const act = document.createElement('span');
+    act.style.cssText = 'color:#9a9ab5;min-width:0;overflow-wrap:break-word;';
+    act.textContent = 'en attente';
+    r.appendChild(dot); r.appendChild(nm); r.appendChild(act);
+    body.appendChild(r);
+    rows[k] = { dot, act };
+  });
+  hud.appendChild(head); hud.appendChild(body);
+  document.body.appendChild(hud);
+  head.addEventListener('click', () => {
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+  });
+  TEAM_HUD = { hud, head, body, state, rows };
+  return TEAM_HUD;
+}
+function showTeamHud(expand){
+  const h = ensureTeamHud();
+  h.hud.style.display = 'block';
+  if (expand !== false) h.body.style.display = 'block';
+  return h;
+}
+function hideTeamHud(){
+  if (TEAM_HUD) TEAM_HUD.hud.style.display = 'none';
+}
+function hudStatus(key, emoji, text, actText){
+  try {
+    const h = ensureTeamHud();
+    const row = h.rows[key];
+    if (!row) return;
+    row.dot.textContent = emoji;
+    if (actText !== undefined && actText !== null) row.act.textContent = String(actText).slice(0, 70);
+    const busy = Object.keys(h.rows).filter(k => h.rows[k].dot.textContent === '🟡').length;
+    h.state.textContent = busy ? ('🟡 ' + busy + ' en cours') : (emoji === '✅' ? '✅' : '⏸️');
+  } catch(e){}
+}
+function hudReset(){
+  try {
+    const h = ensureTeamHud();
+    Object.keys(h.rows).forEach(k => { h.rows[k].dot.textContent = '⏸️'; h.rows[k].act.textContent = 'en attente'; });
+    h.state.textContent = '⏸️';
+  } catch(e){}
+}
+function hudSummary(text, autoHideMs){
+  try {
+    const h = showTeamHud(false);
+    h.state.textContent = text;
+    if (autoHideMs) setTimeout(() => { try { if (h.state.textContent === text) hideTeamHud(); } catch(e){} }, autoHideMs);
+  } catch(e){}
+}
 function createTeamCard(streamMsg){
   if (chatEmpty) chatEmpty.style.display = 'none';
   const card = document.createElement('div');
@@ -2778,11 +2873,14 @@ function createTeamCard(streamMsg){
 }
 function teamStatus(rows, key, emoji, text, actText){
   const row = rows[key];
-  if (!row) return;
-  row.st.textContent = emoji;
-  if (text) row.st.insertAdjacentText('afterbegin', ' ' + text);
-  if (actText !== undefined) row.act.textContent = actText;
-  chat.scrollTop = chat.scrollHeight;
+  if (row){
+    row.st.textContent = emoji;
+    if (text) row.st.insertAdjacentText('afterbegin', ' ' + text);
+    if (actText !== undefined) row.act.textContent = actText;
+    chat.scrollTop = chat.scrollHeight;
+  }
+  /* v11.00 : la mini-fenetre flottante suit le meme etat */
+  hudStatus(key, emoji, text, actText);
 }
 async function runSubAgent(rows, key, sys, task, budget, maxIter){
   const history = [{ role: 'system', content: sys }, { role: 'user', content: task }];
@@ -2822,6 +2920,9 @@ async function runTeamAgent(question, streamMsg){
   const team = createTeamCard(streamMsg);
   setStatus('🎭 Équipe d\u2019experts en place…');
   const rows = team.rows;
+  /* v11.00 : mini-fenetre flottante — visible pendant tout le travail */
+  hudReset();
+  showTeamHud(true);
   /* budget partage : 8 appels d'outils max pour toute l'equipe */
   const budget = { n: 8 };
   /* 1. CHEFFE : decoupe la tache */
@@ -2877,6 +2978,8 @@ async function runTeamAgent(question, streamMsg){
     } catch(e){}
   });
   team.card.appendChild(dl);
+  /* v11.00 : la mini-fenetre se replie et disparait apres le rapport */
+  hudSummary('✅', 12000);
   const clean = final;
   session.push({ role: 'user', content: question });
   if (session.length > 12) session = session.slice(-12);
@@ -2884,6 +2987,7 @@ async function runTeamAgent(question, streamMsg){
   saveConversation();
   return { text: clean };
   function teamFinishInterrupted(t, q){
+    hudSummary('🛑', 8000);
     const clean = 'Équipe stoppée. Voici déjà ce qui est prêt : ' + ((t.findings.chercheur || '').slice(0, 300) || 'une base partielle — redemande et j accélère.');
     session.push({ role: 'user', content: q });
     if (session.length > 12) session = session.slice(-12);
@@ -4369,7 +4473,9 @@ async function handleQuestion(question){
     astraLastSpokenReply = String(question || '').trim().slice(0, 4000);
     stopAudio();
     isProcessing = true;
-    manualStop = true;
+  manualStop = true;
+  /* v11.00 : le STOP ferme aussi la mini-fenetre de l'equipe */
+  try { hudSummary('🛑', 2500); } catch(e){}
     continuousPaused = false;
     if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
     pendingSpeech = '';
