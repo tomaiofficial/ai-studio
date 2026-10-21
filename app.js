@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.06';
+const APP_VERSION = '11.08';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1004,7 +1004,91 @@ function setState(s){
 
 /* ===== CHAT (bulles type ChatGPT) ===== */
 /* ============================================================
-   v11.04 : JAUGE DU QUOTA INWORLD (sur l ecran vocal, pas dans
+   v11.08 : VOIX LOCALE KOKORO — gratuite A VIE, hors ligne,
+   francaises, sans cle API, sans quota.
+   Le modele (84 Mo) est telecharge UNE fois depuis Hugging Face
+   puis reste dans le cache du navigateur. Si le telechargement
+   echoue, la chaine de voix bascule automatiquement (Inworld/Google).
+   ============================================================ */
+const KOKORO_CDN = 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
+const KOKORO_REPO = 'onnx-community/Kokoro-82M-v1.0-ONNX';
+const KOKORO_VOICES = [
+  { id: 'ff_siwis', n: 'Siwis (femme, douce)' },
+  { id: 'hf_alpha', n: 'Alpha (femme, posée)' },
+  { id: 'hf_beta',  n: 'Beta (femme, vive)' },
+  { id: 'pf_dora',  n: 'Dora (femme, chaleureuse)' },
+  { id: 'hm_omega', n: 'Omega (homme, posé)' },
+  { id: 'hm_psi',   n: 'Psi (homme, dynamique)' },
+  { id: 'pm_alex',  n: 'Alex (homme, clair)' }
+];
+let kokoroTts = null, kokoroLoading = null;
+async function getKokoro(){
+  if (kokoroTts) return kokoroTts;
+  if (kokoroLoading) return kokoroLoading;
+  kokoroLoading = (async () => {
+    try { setStatus('🎧 Téléchargement de la voix locale (84 Mo, une fois)…'); } catch(e){}
+    const mod = await import(KOKORO_CDN);
+    const tts = await mod.KokoroTTS.from_pretrained(KOKORO_REPO, { dtype: 'q8', device: 'wasm' });
+    kokoroTts = tts;
+    return tts;
+  })();
+  try {
+    const t = await kokoroLoading;
+    try { setStatus('Appuie sur le micro et parle'); } catch(e){}
+    return t;
+  } catch(e){
+    kokoroLoading = null;
+    console.warn('[KOKORO] chargement impossible:', e && e.message);
+    throw e;
+  }
+}
+function playRawAudio(raw, sr){
+  return new Promise(resolve => {
+    try {
+      const ctx = ensureAudio();
+      if (!ctx) return resolve(false);
+      if (ctx.state !== 'running'){ try { ctx.resume(); } catch(e){} }
+      const buf = ctx.createBuffer(1, raw.length, sr || 24000);
+      buf.copyToChannel(raw, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.value = 1.0;
+      src.connect(gain); gain.connect(ctx.destination);
+      currentSources.push(src);
+      voiceStartedFlag = true;
+      let settled = false;
+      const fin = v => { if (settled) return; settled = true; resolve(v); };
+      src.onended = () => fin(true);
+      src.start();
+      const ms = Math.ceil((raw.length / (sr || 24000)) * 1000) + 400;
+      setTimeout(() => fin(true), ms);
+    } catch(e){ console.warn('[KOKORO] lecture KO:', e && e.message); resolve(false); }
+  });
+}
+async function speakKokoro(text, voiceId, onChunk){
+  try {
+    const tts = await getKokoro();
+    const chunks = splitSentences(text, 300);
+    for (const c of chunks){
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[KOKORO] interrompu'); return false; }
+      const out = await tts.generate(c, { voice: voiceId || 'ff_siwis' });
+      const raw = out && out.raw ? out.raw : (out && out.audio && out.audio.getChannelData ? out.audio.getChannelData(0) : null);
+      const sr = (out && out.sampling_rate) || 24000;
+      if (!raw) return false;
+      if (onChunk) onChunk(c);
+      const ok = await playRawAudio(raw, sr);
+      if (!ok) return false;
+    }
+    return true;
+  } catch(e){
+    console.warn('[KOKORO] échec:', e && e.message);
+    try { toast('Voix locale indisponible → repli sur la voix en ligne'); } catch(e2){}
+    return false;
+  }
+}
+/* ============================================================
+   v11.07 : JAUGE DU QUOTA INWORLD (sur l ecran vocal, pas dans
    les reglages). On compte les caracteres reellement envoyes a
    Inworld chaque mois (le palier gratuit = 70 min de TTS/mois).
    ============================================================ */
@@ -1122,163 +1206,6 @@ function initQuotaHud(){
     refreshQuotaHud();
     setInterval(refreshQuotaHud, 60000);
   } catch(e){}
-}
-/* ============================================================
-   v11.03 : JOURNAL DES NOUVEAUTES — toute l evolution d Astra
-   dans une petite interface dediee (bouton ✨ du header).
-   ASTRA_NEWS = source de verite : ajoute une entree par version.
-   ============================================================ */
-const ASTRA_NEWS = [
-  {
-    v: '11.06', date: 'Aujourd hui', badge: 'NOUVEAU',
-    items: [
-      '🔇 <b>Fin des doubles voix</b> : Astra ignore ce que le micro capte pendant qu\'elle parle (et juste après) — elle ne se transcrit plus sa propre voix et ne se repond plus à elle-même.',
-      '🛑 Repli automatique après un délai : la parole en cours est coupée avant la réponse de secours (plus de superposition).'
-    ]
-  },
-  {
-    v: '11.05', date: 'Il y a peu', badge: '',
-    items: [
-      '🗣️ <b>Astra te dit son quota à voix haute</b> : demande-lui « mon quota ? » ou « combien de minutes il me reste ? » — elle répond avec les vrais chiffres (minutes, caractères, restant, projection).',
-      '🎙️ Un clic sur la jauge → elle lit le détail de ta consommation vocale.',
-      '🔧 Nouvel outil <b>OUTIL:quota</b> pour l\'équipe d\'outils.'
-    ]
-  },
-  {
-    v: '11.04', date: 'Il y a peu', badge: '',
-    items: [
-      '📊 <b>Jauge du quota Inworld</b> sur l\'écran vocal (sous la version) : minutes du mois / 70, barre de progression, alerte à 80%.',
-      '📈 Détail au clic : caractères envoyés, réponses vocales, restant, moyenne par jour, projection de fin de mois.'
-    ]
-  },
-  {
-    v: '11.03', date: 'Il y a peu', badge: '',
-    items: [
-      '✨ <b>Journal des Nouveautés</b> : cette petite interface qui recense tout ce qui est arrivé dans Astra, version par version.',
-      '🔔 Un point rouge sur le bouton ✨ quand il y a du neuf depuis ta dernière visite.'
-    ]
-  },
-  {
-    v: '11.02', date: 'Il y a peu', badge: '',
-    items: [
-      '⚫ <b>Dots de réflexion</b> animés pendant qu Astra réfléchit (comme ChatGPT).',
-      '📋 Bouton <b>Copier</b> sous chaque réponse.',
-      '🔄 Bouton <b>Régénérer</b> : elle refait sa réponse autrement.'
-    ]
-  },
-  {
-    v: '10.99', date: 'Il y a peu', badge: '',
-    items: [
-      '🧠 Astra connaît <b>toute son application</b> : elle lit sa propre carte (boutons, réglages, outils).',
-      '👁️ Nouvel outil <b>OUTIL:appli</b> : elle scanne son écran réel (champs, valeurs, clés, derniers messages).',
-      '🎭 <b>Parole humaine</b> : elle soupire, rit, fait des pff — et sa voix Inworld les imite vraiment ([sigh], [laugh]…).'
-    ]
-  },
-  {
-    v: '10.98', date: 'Il y a peu', badge: '',
-    items: [
-      '🇫🇷 <b>Voix 100 % françaises</b> : Astra ne propose plus que des voix Inworld natives françaises — <b>plus aucun accent anglais</b>.',
-      '🔎 Détection automatique de tes voix FR à l enregistrement de la clé Inworld.',
-      '✨ Qualité sonore : `language=fr-FR`, dé-noisage et continuité de prosodie entre les morceaux.'
-    ]
-  },
-  {
-    v: '10.87', date: 'Il y a peu', badge: '',
-    items: [
-      '🌐 <b>Navigation web</b> : dis « va sur ce site » et Astra ouvre et lit la page elle-même (3 passerelles de secours).',
-      '🤖 Mode agent autonome : elle choisit ses outils (web, lire, wikipedia, calcul, heure, mémoire, appli) et travaille par étapes.'
-    ]
-  },
-  {
-    v: '10.85', date: 'Il y a peu', badge: '',
-    items: [
-      '🎙️ <b>Inworld TTS-2</b> en voix principale (qualité #1 mondiale) + lecture progressive : le 1er morceau plays avant la fin.',
-      '⏱️ Cerveau accéléré : réponse en streaming, tokens réduits, temps de latence divisés.'
-    ]
-  },
-  {
-    v: '10.6 → 10.8', date: 'Avant', badge: '',
-    items: [
-      '🌤️ <b>Météo</b> parlée avec conseil vestimentaire.',
-      '📝 <b>Bloc-notes</b> : « écris un poème » et ça écrit pour toi.',
-      '📜 <b>Historique</b> complet de tes conversations, reprenable en un clic.',
-      '🧠 <b>Mémoire</b> : Astra se souvient de tout ce que tu lui as dit, même dans une nouvelle conversation.',
-      '🎮 Petits <b>jeux</b> quand tu t ennuis (devinette et copains).',
-      '📷 <b>Vision</b> : envoie une image, elle la décrit.',
-      '🤖 <b>Autonomie</b> : elle s améliore toute seule (3 nouveautés par jour max).',
-      '⏰ <b>Mode vocal continu</b> et <b>réveil vocal</b> : elle t écoute en permanence si tu veux.'
-    ]
-  }
-];
-const NEWS_SEEN_LS = 'astra_news_seen_v';
-function renderNews(){
-  const list = $('newsList');
-  if (!list) return;
-  list.innerHTML = '';
-  ASTRA_NEWS.forEach((n, idx) => {
-    const card = document.createElement('div');
-    card.style.cssText = 'background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:13px;padding:11px 13px;margin-bottom:9px;';
-    const head = document.createElement('div');
-    head.style.cssText = 'display:flex;align-items:center;gap:7px;margin-bottom:6px;';
-    const v = document.createElement('b');
-    v.style.cssText = 'color:#b79cff;font-size:13px;';
-    v.textContent = 'v' + n.v;
-    const d = document.createElement('span');
-    d.style.cssText = 'font-size:11px;color:#7a7a99;';
-    d.textContent = n.date;
-    head.appendChild(v); head.appendChild(d);
-    if (n.badge){
-      const b = document.createElement('span');
-      b.style.cssText = 'margin-left:auto;font:700 9.5px system-ui;letter-spacing:.6px;background:linear-gradient(90deg,#e1306c,#833ab4);color:#fff;padding:3px 8px;border-radius:999px;';
-      b.textContent = n.badge;
-      head.appendChild(b);
-    }
-    card.appendChild(head);
-    const ul = document.createElement('div');
-    ul.style.cssText = 'font-size:12.8px;line-height:1.6;color:#c8c8dd;';
-    n.items.forEach(t => {
-      const row = document.createElement('div');
-      row.style.cssText = 'margin:3px 0;';
-      row.innerHTML = t;
-      ul.appendChild(row);
-    });
-    card.appendChild(ul);
-    list.appendChild(card);
-    if (idx === 0){
-      const hr = document.createElement('div');
-      hr.style.cssText = 'text-align:center;font-size:11px;color:#7a7a99;margin:2px 0 9px;';
-      hr.textContent = '— versions précédentes —';
-      list.appendChild(hr);
-    }
-  });
-  const sub = $('newsSub');
-  if (sub) sub.textContent = 'Tout ce qui est arrivé dans Astra, version par version. Version actuelle : v' + APP_VERSION + ' — créée par Tom AI.';
-}
-function openNews(){
-  renderNews();
-  const m = $('newsModal');
-  if (m) m.classList.remove('hidden');
-  try { localStorage.setItem(NEWS_SEEN_LS, APP_VERSION); } catch(e){}
-  try { const b = $('newsBtn'); if (b) b.style.boxShadow = 'none'; } catch(e){}
-}
-function initNews(){
-  try {
-    const seen = localStorage.getItem(NEWS_SEEN_LS) || '';
-    const btn = $('newsBtn');
-    if (btn && seen !== APP_VERSION){
-      btn.style.boxShadow = '0 0 0 2px rgba(225,48,108,.75)';
-      btn.title = 'Nouveautés d’Astra — du nouveau !';
-      setTimeout(() => {
-        try { toast('✨ Astra a du nouveau : appuie sur ✨ pour voir'); } catch(e){}
-      }, 2600);
-    }
-  } catch(e){}
-  const nb = $('newsBtn');
-  if (nb) nb.addEventListener('click', openNews);
-  const cl = $('closeNews');
-  if (cl) cl.addEventListener('click', () => { const m = $('newsModal'); if (m) m.classList.add('hidden'); });
-  const m = $('newsModal');
-  if (m) m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); });
 }
 /* ============================================================
    v11.02 : STYLE CHATGPT — dots de reflexion, Copier, Regenerer.
@@ -1438,6 +1365,12 @@ function getVoice(){
       /* liste FR pas encore chargee : on garde en attendant le fetch */
       return 'iw:' + id;
     }
+  }
+  /* v11.08 : voix locale Kokoro (prefixe kok:) — conservee telle quelle */
+  if (v.startsWith('kok:')){
+    const id = v.substring(4);
+    if (KOKORO_VOICES.some(x => x.id === id)) return 'kok:' + id;
+    return 'kok:ff_siwis';
   }
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
@@ -2487,9 +2420,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   ['pointerdown','keydown','touchstart'].forEach(evt=>document.addEventListener(evt,()=>{if(panel)panel.classList.add('hidden');scheduleIdleGames();},{passive:true}));
   document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(idleGameTimer);if(panel)panel.classList.add('hidden');}else scheduleIdleGames();});
   scheduleIdleGames();
-  /* v11.03 : journal des Nouveautés (bouton ✨) */
-  try { initNews(); } catch(e){ console.warn('[NEWS] init:', e && e.message); }
-  /* v11.04 : jauge du quota Inworld sur l ecran vocal */
+  /* v11.07 : jauge du quota Inworld sur l ecran vocal */
   try { initQuotaHud(); } catch(e){ console.warn('[QUOTA] init:', e && e.message); }
 });
 
@@ -3962,6 +3893,18 @@ async function populateVoices(){
     }
     ttsVoiceSel.appendChild(grpI);
   }
+  /* v11.08 : VOIX LOCALE KOKORO — groupe a part (gratuite a vie, hors ligne) */
+  {
+    const grpK = document.createElement('optgroup');
+    grpK.label = '🎧 Voix locale Kokoro — 🇫🇷 gratuites à vie (84 Mo au 1er usage, hors ligne ensuite)';
+    KOKORO_VOICES.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = 'kok:' + v.id;
+      opt.textContent = '🎧 ' + v.n;
+      grpK.appendChild(opt);
+    });
+    ttsVoiceSel.appendChild(grpK);
+  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
@@ -4224,14 +4167,25 @@ function speak(text, onChunk){
     /* v10.85 : default + voxtral:* -> Inworld d'abord (pas de Voxtral partout) */
     chain = [
       ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
+      ['Kokoro (local)', (t) => speakKokoro(t, 'ff_siwis', onChunk)],
       SAFE
     ];
     if (voiceModeFinal.startsWith('iw:')){
       const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
       chain = [
         ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk, taggedText)],
+        ['Kokoro (local)', (t) => speakKokoro(t, 'ff_siwis', onChunk)],
         SAFE
       ];
+    }
+    /* v11.08 : voix locale Kokoro choisie -> elle passe en tete de chaine */
+    if (voiceModeFinal.startsWith('kok:')){
+      const kv = voiceModeFinal.substring(4) || 'ff_siwis';
+      chain = [
+        ['Kokoro: ' + kv, (t) => speakKokoro(t, kv, onChunk)],
+        (getInworldKey() && frDef) ? ['Inworld: ' + frDef, (t) => speakInworld(t, frDef, onChunk, taggedText)] : null,
+        SAFE
+      ].filter(Boolean);
     }
     let i = 0;
     const next = () => {
