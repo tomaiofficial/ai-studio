@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '10.78';
+const APP_VERSION = '10.79';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -212,6 +212,21 @@ const QWEN_VOICES = [
   { name: 'Ono Anna (feminine)', id: 'Ono_anna', g: 'f' },
 ];
 function getQwenKey(){ try { return (localStorage.getItem(QWEN_KEY_LS) || '').trim(); } catch { return ''; } }
+/* v10.79 : cooldown Qwen — apres une erreur de quota ZeroGPU on n'insiste
+   PAS pendant 3 minutes (chaque join retombe sur le meme echec) */
+let qwenCooldownUntil = 0, qwenGuided = false;
+function qwenQuotaWait(){ return !getQwenKey() && Date.now() < qwenCooldownUntil; }
+/* v10.79 : WARMOUT Qwen — le premier clic/tap utilisateur lance une
+   generation courte en arriere-plan (seulement avec token HF, pour ne pas
+   gaspiller le quota anonyme) : GPU prechauffe -> la 1re reponse vocale
+   reelle arrive beaucoup plus vite. */
+let qwenWarmed = false;
+function warmUpQwen(){
+  if (qwenWarmed || !getQwenKey() || Date.now() < qwenCooldownUntil) return;
+  qwenWarmed = true;
+  console.log('[QWEN] prechauffage GPU...');
+  try { speakQwen('Bonjour.', 'Ryan', null).catch(() => {}); } catch {}
+}
 function qwenHeaders(extra){
   const h = Object.assign({ 'Origin': 'https://tomaiofficial.github.io' }, extra || {});
   const key = getQwenKey();
@@ -220,6 +235,7 @@ function qwenHeaders(extra){
 }
 async function speakQwen(text, speaker, onChunk){
   try {
+    if (qwenQuotaWait()){ console.warn('[QWEN] cooldown quota — bascule rapide'); return false; }
     const chunks = splitSentences(text, 160);
     for (const c of chunks){
       if (activeSpeechEpoch !== speechEpoch){ console.warn('[QWEN] parole interrompue'); return false; }
@@ -229,7 +245,7 @@ async function speakQwen(text, speaker, onChunk){
         method: 'POST',
         headers: qwenHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ data: [c, 'French', speaker, null, '1.7B'], fn_index: 2, session_hash: hash }),
-        signal: abortSignal(15000)
+        signal: abortSignal(12000)
       });
       if (!rj.ok){
         const et = (await rj.text().catch(() => '')).slice(0, 120);
@@ -237,12 +253,12 @@ async function speakQwen(text, speaker, onChunk){
         if (rj.status === 401 || rj.status === 403) setStatus('Token HF invalide — Réglages');
         return false;
       }
-      /* SSE de la file : data: {msg: estimation|process_starts|process_completed}
-         -> output.data[0] = {path,url,...} -> blob audio */
+      /* v10.79 : SSE de la file, timeout 35s (90s avant = trop long si le
+         Space rame -> on bascule au filet vocal plutot que d'attendre) */
       let audioUrl = null, gerr = null;
       const rd = await fetch(QWEN_API + '/gradio_api/queue/data?session_hash=' + hash, {
         headers: qwenHeaders(),
-        signal: abortSignal(90000)
+        signal: abortSignal(35000)
       });
       const reader = rd.body && rd.body.getReader();
       if (!reader){ console.warn('[QWEN] pas de flux SSE'); return false; }
@@ -270,7 +286,16 @@ async function speakQwen(text, speaker, onChunk){
       if (gerr){
         const e = String(gerr);
         console.warn('[QWEN] erreur generation:', e.slice(0, 120));
-        if (/quota/i.test(e)) setStatus('Quota ZeroGPU : ajoute un token HF gratuit a vie dans Reglages');
+        if (/quota/i.test(e)){
+          /* v10.79 : cooldown de 3 min + guidance vocal UNE fois vers le
+             token HF gratuit (30 s a creer) au lieu de rejouer l'echec */
+          qwenCooldownUntil = Date.now() + 180000;
+          setStatus('Quota ZeroGPU — token HF gratuit conseillé, voix de secours');
+          if (!getQwenKey() && !qwenGuided){
+            qwenGuided = true;
+            try { await speakGoogle("Pour activer ma voix réaliste, crée un compte gratuit sur hugging face point co et colle ton token dans les réglages. En attendant, je parle avec cette voix de secours.", null); } catch {}
+          }
+        }
         return false;
       }
       if (!audioUrl){ console.warn('[QWEN] pas d audio'); return false; }
@@ -1524,6 +1549,7 @@ async function startRecorder(){
   if (isSpeaking) return;
   recorderBusy = true;
   warmUpBrain();
+  warmUpQwen(); /* v10.79 : GPU Qwen prechauffe au premier micro */
   /* v10.48 : diagnostic permission — si Chrome a refuse le micro sur ce domaine,
      tous les moteurs restent en attente sans jamais rien dire -> on le dit tout de suite. */
   try {
@@ -3574,28 +3600,33 @@ function speak(text, onChunk){
     /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 30s sans son
        (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
         v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (60s)'); fail(); }, 60000);
+    /* guard-source v10.79 : timeout global — si AUCUNE voix n'a e
+       produit de son en 40s, on lache (avant : 60s tres long pour l'utilisateur) */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (40s)'); fail(); }, 40000);
     /* VOIX : v10.78 — VOIX IA SEULEMENT. Cartesia supprime.
        Moteurs : Qwen3-TTS (gratuit A VIE, token HF optionnel) + Mistral
        Voxtral (cle gratuite). Secours final : Qwen Ryan sans token. */
     const voiceMode = getVoice();
+    const SAFE = ['Google Translate (filet)', (t) => speakGoogle(t, onChunk)]; /* v10.79 : jamais muet */
     let chain;
     if (voiceMode.startsWith('qwen:')) {
       const qv = voiceMode.substring(5) || 'Ryan';
       /* FORCER Qwen3-TTS (#1 realisme gratuit a vie) */
-      chain = [['Qwen3: ' + qv, (t) => speakQwen(t, qv, onChunk)]];
+      chain = [['Qwen3: ' + qv, (t) => speakQwen(t, qv, onChunk)], SAFE];
     } else if (voiceMode.startsWith('voxtral:')) {
       const voiceId = voiceMode.substring(8);
       /* FORCER VOXTRAL si la cle est valide ; secours final Qwen Ryan */
       chain = [
         [shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)],
-        ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)]
+        ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)],
+        SAFE
       ];
     } else {
       /* voix par defaut : Voxtral Paul puis Qwen Ryan */
       chain = [
         ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-        ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)]
+        ['Qwen3: Ryan (secours)', (t) => speakQwen(t, 'Ryan', onChunk)],
+        SAFE
       ];
     }
     let i = 0;
