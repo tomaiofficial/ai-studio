@@ -2,7 +2,7 @@
 'use strict';
 
 /* ============ CONFIG IA ============ */
-const APP_VERSION = '5.5';
+const APP_VERSION = '5.6';
 const PROVIDERS = {
   openai: {
     label: 'OpenAI — GPT (qualité max)',
@@ -38,7 +38,7 @@ const PROVIDERS = {
   }
 };
 const TTS_MODEL  = 'gpt-4o-mini-tts';
-const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+const TTS_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer', 'coral', 'sage', 'ash', 'marin', 'cedar'];
 const hasAI = () => !!localStorage.getItem('va_apikey');
 const getProviderId = () => localStorage.getItem('va_provider') || 'openai';
 const getProvider = () => PROVIDERS[getProviderId()] || PROVIDERS.openai;
@@ -140,11 +140,12 @@ function splitText(text){
 }
 
 /* Convertit du PCM brut (audio/L16) en WAV lisible par le navigateur */
-function l16ToWav(base64){
+function l16ToWav(base64, mimeType = 'audio/L16;rate=24000'){
   const bin = atob(base64);
   const pcm = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) pcm[i] = bin.charCodeAt(i);
-  const sampleRate = 24000, numChannels = 1, bitsPerSample = 16;
+  const rate = /rate=(\d+)/i.exec(mimeType);
+  const sampleRate = rate ? Number(rate[1]) : 24000, numChannels = 1, bitsPerSample = 16;
   const byteRate = sampleRate * numChannels * bitsPerSample / 8;
   const blockAlign = numChannels * bitsPerSample / 8;
   const dataSize = pcm.length;
@@ -180,8 +181,7 @@ function geminiStyleInstruction(){
   return GEMINI_STYLES[k] || GEMINI_STYLES.naturel;
 }
 
-async function speakGemini(text){
-  const key = localStorage.getItem(LS.ttskey);
+async function speakGemini(text, key = getTtsKey(), session = speechSession){
   if (!key) return false;
   try {
     const t = String(text).slice(0, 4000);
@@ -190,6 +190,7 @@ async function speakGemini(text){
     const chunks = splitText(t);
     let ok = false;
     for (const c of chunks){
+      if (session !== speechSession) return true;
       const res = await fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_TTS_MODEL + ':generateContent?key=' + encodeURIComponent(key),
         {
@@ -220,18 +221,15 @@ async function speakGemini(text){
         return false;
       }
       const j = await res.json();
-      const part = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      const part = j?.candidates?.[0]?.content?.parts?.find(p => p.inlineData?.data)?.inlineData;
       if (!part || !part.data) return false;
-      const url = part.mimeType === 'audio/L16'
-        ? l16ToWav(part.data)
+      const url = /^audio\/(L16|pcm)(;|$)/i.test(part.mimeType || '')
+        ? l16ToWav(part.data, part.mimeType)
         : 'data:' + (part.mimeType || 'audio/mpeg') + ';base64,' + part.data;
       const audio = new Audio(url);
       audio.volume = 1.0;
-      if (chunks.length === 1){
-        playAudio(audio);
-      } else {
-        await playAndWait(audio);
-      }
+      if (session !== speechSession){ releaseAudio(audio); return true; }
+      await playAndWait(audio);
       ok = true;
     }
     return ok;
@@ -239,21 +237,22 @@ async function speakGemini(text){
 }
 
 /* Joue un audio et attend la fin (pour enchaîner les morceaux sans coupure) */
+function releaseAudio(a){
+  if (a.src.startsWith('blob:')) URL.revokeObjectURL(a.src);
+}
 function playAndWait(a){
-  return new Promise(resolve => {
-    let done = false;
-    const finish = () => { if (!done){ done = true; resolve(); } };
+  return new Promise((resolve, reject) => {
+    const finish = () => { activeAudios.delete(a); releaseAudio(a); resolve(); };
     a.addEventListener('ended', finish, { once: true });
-    a.addEventListener('error', finish, { once: true });
-    setTimeout(finish, Math.max(4000, (a.duration || 10) * 1000));
+    a.addEventListener('error', () => { finish(); reject(new Error('Lecture audio impossible')); }, { once: true });
+    a.addEventListener('voicecancel', finish, { once: true });
     playAudio(a);
   });
 }
 
 /* Voix IA réaliste (OpenAI TTS) — avec une clé OpenAI.
    Retourne true si la voix a été jouée, false sinon. */
-async function speakAI(text){
-  const key = localStorage.getItem(LS.ttskey);
+async function speakAI(text, key = getTtsKey(), session = speechSession){
   if (!key) return false;
   try {
     const res = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -263,7 +262,8 @@ async function speakAI(text){
         model: TTS_MODEL,
         voice: localStorage.getItem(LS.ttsvoice) || 'nova',
         input: String(text).slice(0, 4000),
-        instructions: 'Parle de façon naturelle, chaleureuse et expressive, comme un vrai humain. Pas de robot.'
+        instructions: geminiStyleInstruction(),
+        response_format: 'mp3'
       })
     });
     if (!res.ok) return false;
@@ -271,15 +271,15 @@ async function speakAI(text){
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     audio.volume = 1.0;
-    playAudio(audio);
+    if (session !== speechSession){ releaseAudio(audio); return true; }
+    await playAndWait(audio);
     return true;
   } catch { return false; }
 }
 
 /* Voix IA réaliste (Mistral Voxtral TTS) — avec une clé Mistral.
    Retourne true si la voix a été jouée, false sinon. */
-async function speakMistral(text){
-  const key = localStorage.getItem(LS.ttskey);
+async function speakMistral(text, key = getTtsKey(), session = speechSession){
   if (!key) return false;
   try {
     const res = await fetch('https://api.mistral.ai/v1/audio/speech', {
@@ -297,7 +297,8 @@ async function speakMistral(text){
     if (!j.audio_data) return false;
     const audio = new Audio('data:audio/mpeg;base64,' + j.audio_data);
     audio.volume = 1.0;
-    playAudio(audio);
+    if (session !== speechSession){ releaseAudio(audio); return true; }
+    await playAndWait(audio);
     return true;
   } catch { return false; }
 }
@@ -328,11 +329,15 @@ function populateVoiceSelect(kind){
     ].map(v => `<option value="${v[0]}">${v[1]}</option>`).join('');
   } else if (kind === 'openai'){
     sel.innerHTML = [
-      ['nova','Nova (femme, chaleureuse)'],['alloy','Alloy (neutre)'],
+      ['marin','Marin — naturelle'],['cedar','Cedar — naturelle'],['coral','Coral — expressive'],['sage','Sage — posée'],['ash','Ash — douce'],
+      ['nova','Nova (chaleureuse)'],['alloy','Alloy (neutre)'],
       ['echo','Echo (homme)'],['fable','Fable (britannique)'],
       ['onyx','Onyx (homme grave)'],['shimmer','Shimmer (femme, douce)']
     ].map(v => `<option value="${v[0]}">${v[1]}</option>`).join('');
   }
+  const saved = localStorage.getItem(LS.ttsvoice);
+  if ([...sel.options].some(o => o.value === saved)) sel.value = saved;
+  localStorage.setItem(LS.ttsvoice, sel.value);
 }
 
 /* ============ DÉBLOCAGE AUDIO MOBILE ============ */
@@ -355,87 +360,60 @@ function unlockAudio(){
 /* Joue un audio ; si le navigateur bloque (autoplay mobile), on relance
    automatiquement au prochain toucher d'écran. PAS de secours ici :
    sinon la voix se répète deux fois. */
+let speechSession = 0;
 const pendingAudios = [];
+const activeAudios = new Set();
+function getTtsKey(){
+  const dedicated = localStorage.getItem(LS.ttskey);
+  if (dedicated) return dedicated;
+  const key = localStorage.getItem(LS.apikey) || '';
+  return ['openai', 'gemini'].includes(getProviderId()) ? key : '';
+}
+function stopSpeaking(){
+  speechSession++;
+  pendingAudios.length = 0;
+  for (const a of activeAudios){ a.pause(); a.dispatchEvent(new Event('voicecancel')); releaseAudio(a); }
+  activeAudios.clear();
+  window.speechSynthesis?.cancel();
+}
 function playAudio(a){
   unlockAudio();
-  a.play().catch(() => {
-    pendingAudios.push(a);
+  activeAudios.add(a);
+  a.play().catch(error => {
+    if (error.name === 'NotAllowedError'){
+      if (!pendingAudios.includes(a)) pendingAudios.push(a);
+      toast('Appuie sur l’écran pour lancer la voix.');
+    } else a.dispatchEvent(new Event('error'));
   });
 }
-/* Un seul écouteur global : au prochain toucher, on joue tout ce qui attend.
-   (Évite les doubles lectures si plusieurs audios sont en attente.) */
 function flushPending(){
-  if (!pendingAudios.length) return;
-  const batch = pendingAudios.splice(0);
-  batch.forEach(a => a.play().catch(() => {}));
+  const a = pendingAudios.shift();
+  if (a && activeAudios.has(a)) a.play().catch(() => a.dispatchEvent(new Event('error')));
 }
-['touchend', 'click'].forEach(ev =>
-  document.addEventListener(ev, flushPending, { passive: true })
-);
-
+['touchend', 'click'].forEach(ev => document.addEventListener(ev, flushPending, { passive: true }));
 async function speak(text){
-  /* Clé TTS dédiée → voix IA réaliste.
-     - AIza… → Gemini TTS (gratuit)
-     - sk-… → OpenAI TTS
-     - Sinon → Mistral Voxtral TTS
-     Si la clé IA est Gemini (AIza…), on l'utilise aussi pour la voix.
-     Si ça échoue → voix gratuite (Wavenet neuronale). */
-  let ttsKey = localStorage.getItem(LS.ttskey);
-  if (!ttsKey){
-    const aiKey = localStorage.getItem(LS.apikey);
-    if (aiKey && aiKey.startsWith('AIza')) ttsKey = aiKey;
-  }
-  if (ttsKey){
+  stopSpeaking();
+  const session = speechSession;
+  const key = getTtsKey();
+  if (key){
     let ok;
-    if (ttsKey.startsWith('AIza')) ok = await speakGemini(text);
-    else if (ttsKey.startsWith('sk-')) ok = await speakAI(text);
-    else ok = await speakMistral(text);
-    if (ok) return;
+    if (key.startsWith('AIza')) ok = await speakGemini(text, key, session);
+    else if (key.startsWith('sk-') && !key.startsWith('sk-or-')) ok = await speakAI(text, key, session);
+    else ok = await speakMistral(text, key, session);
+    if (ok || session !== speechSession) return;
+    toast('Voix IA indisponible : vérifie la clé, les quotas et le fournisseur. Repli sur la voix système.');
   }
-  speakCloud(text);
+  if (session === speechSession) speakCloud(text);
 }
-
-/* Voix gratuite : cyzon WAV (voix neuronale Google, réaliste) avec retry sur
-   plusieurs voix. AUCUNE voix robotique : si tout échoue, message clair. */
-const FREE_VOICES = ['fr-FR-Chirp3-HD-Aoede', 'fr-FR-Neural2-A', 'fr-FR-Wavenet-A'];
-let voiceFailShown = false;
+/* Repli explicite : voix système, sans envoyer le texte à un relais tiers. */
 function speakCloud(text){
-  try {
-    const chunks = splitText(text);
-    let vi = 0;
-    const tryVoice = () => {
-      if (vi >= FREE_VOICES.length){
-        if (!voiceFailShown){
-          voiceFailShown = true;
-          toast('🔇 Voix indisponible — ajoute une clé Google AI Studio dans ⚙️ pour la voix IA');
-          setTimeout(() => { voiceFailShown = false; }, 15000);
-        }
-        return;
-      }
-      const voice = FREE_VOICES[vi++];
-      const audios = chunks.map(c => {
-        const a = new Audio('https://tts.cyzon.us/tts?text=' + encodeURIComponent(c) + '&voice=' + voice);
-        a.preload = 'auto';
-        return a;
-      });
-      let i = 0;
-      const playNext = () => {
-        if (i >= audios.length) return;
-        const a = audios[i++];
-        a.onended = playNext;
-        a.onerror = () => { if (i === 1) tryVoice(); else playNext(); };
-        playAudio(a);
-      };
-      playNext();
-    };
-    tryVoice();
-  } catch {
-    if (!voiceFailShown){
-      voiceFailShown = true;
-      toast('🔇 Voix indisponible — ajoute une clé Google AI Studio dans ⚙️ pour la voix IA');
-      setTimeout(() => { voiceFailShown = false; }, 15000);
-    }
-  }
+  if (!window.speechSynthesis){ toast('Voix indisponible sur ce navigateur.'); return; }
+  const utterance = new SpeechSynthesisUtterance(String(text));
+  utterance.lang = 'fr-FR';
+  utterance.rate = 1;
+  const voices = speechSynthesis.getVoices();
+  utterance.voice = voices.find(v => v.lang === 'fr-FR') || voices.find(v => v.lang.startsWith('fr')) || null;
+  speechSynthesis.speak(utterance);
 }
 
 function htmlToText(html){
@@ -495,6 +473,7 @@ function startListening(){
     return;
   }
   if (listening) return;
+  stopSpeaking();
   const rec = new SR();
   rec.lang = 'fr-FR';
   rec.interimResults = false;
@@ -1373,12 +1352,13 @@ $('settingsBtn').addEventListener('click', () => {
   fillModels();
   $('apiKey').value = localStorage.getItem(LS.apikey) || '';
   $('ttsKey').value = localStorage.getItem(LS.ttskey) || '';
-  const savedTts = localStorage.getItem(LS.ttskey) || '';
+  const savedTts = getTtsKey();
   if (savedTts.startsWith('AIza')) populateVoiceSelect('gemini');
   else if (savedTts.startsWith('sk-')) populateVoiceSelect('openai');
   else if (savedTts) populateVoiceSelect('mistral');
   /* Voix par défaut : Kore (Gemini) */
-  $('ttsVoice').value = localStorage.getItem(LS.ttsvoice) || 'Kore';
+  const savedVoice = localStorage.getItem(LS.ttsvoice);
+  if ([...$('ttsVoice').options].some(o => o.value === savedVoice)) $('ttsVoice').value = savedVoice;
   const st = $('ttsStyle');
   if (st) st.value = localStorage.getItem(LS.ttsstyle) || 'naturel';
   $('keyLink').href = getProvider().keyUrl;
@@ -1462,10 +1442,10 @@ $('ttsKey').addEventListener('change', async e => {
     if (k.startsWith('AIza')){
       populateVoiceSelect('gemini');
       localStorage.setItem(LS.ttsvoice, localStorage.getItem(LS.ttsvoice) || 'Kore');
-      toast('✅ Voix IA naturelle (Gemini) activée !');
+      toast('Voix Gemini configurée — teste-la pour vérifier la clé.');
     } else if (k.startsWith('sk-')){
       populateVoiceSelect('openai');
-      toast('✅ Voix IA réaliste (OpenAI) activée !');
+      toast('Voix OpenAI configurée — teste-la pour vérifier la clé.');
     } else {
       /* Clé Mistral : on charge les vraies voix disponibles */
       populateVoiceSelect('mistral');
@@ -1538,3 +1518,4 @@ fetch('version.json?v=' + Date.now()).then(r => r.json()).then(j => {
     }
   }
 }).catch(()=>{});
+$('stopVoice')?.addEventListener('click', stopSpeaking);
