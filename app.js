@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.12';
+const APP_VERSION = '11.13';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -455,6 +455,24 @@ function getPiperLib(){
 async function speakPiper(text, voiceId, onChunk){
   try {
     const lib = await getPiperLib();
+    /* v11.13 : si le modele n est pas encore en cache, on le telecharge ICI
+       (progression throtlee) avant d Islamabad, sinon le 1er chunk semblerait muet */
+    const vid = voiceId || 'fr_FR-siwis-medium';
+    let cached = false;
+    try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
+    if (!cached){
+      try {
+        let lastP = -1;
+        await lib.download(vid, (p) => {
+          try {
+            if (p && p.total){
+              const pc = Math.round((p.loaded || 0) * 100 / p.total);
+              if (pc !== lastP && pc % 5 === 0){ setStatus('Piper : modele ' + pc + ' % (une seule fois, apres ca marche hors-ligne)...'); lastP = pc; }
+            }
+          } catch(e){}
+        });
+      } catch(e){ console.warn('[PIPER] telechargement modele echec:', e && e.message); }
+    }
     const chunks = splitSentences(text, 230);
     let any = false;
     for (const chunk of chunks){
@@ -462,15 +480,11 @@ async function speakPiper(text, voiceId, onChunk){
       if (onChunk) onChunk(chunk);
       let wav = null;
       try {
-        wav = await lib.predict({ text: chunk, voiceId: voiceId || 'fr_FR-siwis-medium' }, (p) => {
-          try {
-            if (p && p.total) setStatus('Piper : modele ' + Math.round((p.loaded || 0) * 100 / p.total) + ' % (1re fois seulement)...');
-          } catch(e){}
-        });
+        wav = await lib.predict({ text: chunk, voiceId: vid });
       } catch(e){ console.warn('[PIPER] chunk echec:', e && e.message); }
       if (!wav){ if (any) return false; break; } /* 1er morceau rate -> moteur suivant */
       any = true;
-      const blob = (wav instanceof Blob && wav.type && wav.type.indexOf('wav') >= 0) ? wav : new Blob([wav], { type: 'audio/wav' });
+      const blob = (wav instanceof Blob) && wav.type && wav.type.indexOf('wav') >= 0 ? wav : new Blob([wav], { type: 'audio/wav' });
       const ok = await playAudioBlob(blob);
       if (!ok) return false;
       await new Promise(r => setTimeout(r, 80));
@@ -1454,6 +1468,29 @@ ttsVoiceSel.addEventListener('change', () => {
   const val = ttsVoiceSel.value;
   localStorage.setItem(LS.voice, val);
   toast('Voix choisie');
+  /* v11.13 : voix Piper -> on telecharge TOUT DE SUITE le modele (~60 Mo,
+     une seule fois) pendant que l'utilisateur reste dans les reglages */
+  if (val && val.startsWith('piper:')){
+    const vid = val.substring(7);
+    getPiperLib().then(async lib => {
+      let cached = false;
+      try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
+      if (cached){ toast('Voix Piper deja prete (hors-ligne OK)'); return; }
+      toast('Telechargement de la voix Piper en cours... (une seule fois)');
+      let lastP = -1;
+      try {
+        await lib.download(vid, (p) => {
+          try {
+            if (p && p.total){
+              const pc = Math.round((p.loaded || 0) * 100 / p.total);
+              if (pc !== lastP && pc % 10 === 0){ setStatus('Modele Piper : ' + pc + ' %...'); lastP = pc; }
+            }
+          } catch(e){}
+        });
+        toast('Voix Piper prete ! Illimitee, meme hors-ligne.');
+      } catch(e){ console.warn('[PIPER] pretelechargement echec:', e && e.message); toast('Telechargement Piper echoue (reessaie plus tard)'); }
+    }).catch(e => { console.warn('[PIPER] lib echec:', e && e.message); });
+  }
 });
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
@@ -2406,6 +2443,29 @@ document.addEventListener('DOMContentLoaded',()=>{
   scheduleIdleGames();
   /* v11.07 : jauge du quota Inworld sur l ecran vocal */
   try { initQuotaHud(); } catch(e){ console.warn('[QUOTA] init:', e && e.message); }
+  /* v11.13 : au demarrage, si la voix memorisee est une voix Piper, on
+     verifie/repare son modele en arriere-plan (1er lancement ou cache vide) */
+  try {
+    const sv = getVoice();
+    if (sv.startsWith('piper:')){
+      const vid = sv.substring(7);
+      getPiperLib().then(async lib => {
+        let cached = false;
+        try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
+        if (!cached){
+          let lastP = -1;
+          await lib.download(vid, (p) => {
+            try {
+              if (p && p.total){
+                const pc = Math.round((p.loaded || 0) * 100 / p.total);
+                if (pc !== lastP && pc % 10 === 0){ setStatus('Modele Piper : ' + pc + ' % (1re fois)...'); lastP = pc; }
+              }
+            } catch(e){}
+          });
+        }
+      }).catch(() => {});
+    }
+  } catch(e){}
 });
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.
