@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.16';
+const APP_VERSION = '11.17';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -4149,13 +4149,14 @@ function speak(text, onChunk){
         v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
     /* guard-source v10.79 : timeout global — si AUCUNE voix n'a e
        produit de son en 40s, on lache (avant : 60s tres long pour l'utilisateur) */
-    /* v11.16 : XTTS = synthese realiste COTE CPU public : budget elargi */
-    const globalBudget = voiceMode.startsWith('xtts:') ? 200000 : 40000;
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (' + Math.round(globalBudget / 1000) + 's)'); fail(); }, globalBudget);
     /* VOIX : v10.85 — Voxtral SUSPENDU (trop lent 10-15 s). La chaîne =
        INWORLD TTS-2 (realiste, ~2-4 s) puis Google Translate (rapide, jamais muet).
        voxtral:* (memorise ancien) ->Trait comme le defaut. */
     const voiceMode = getVoice();
+    /* v11.17 : XTTS = synthese realiste COTE CPU public : budget elargi
+       (declare APRES voiceMode, sinon TDZ ReferenceError) */
+    const globalBudget = voiceMode.startsWith('xtts:') ? 200000 : 40000;
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (' + Math.round(globalBudget / 1000) + 's)'); fail(); }, globalBudget);
     /* v10.99 : deux versions du texte —
        - tagged : balises Inworld ([sigh] [laugh] ...) pour la voix reelle
        - plain  : SANS les mots-markers, pour le filet Google / voix systeme
