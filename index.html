@@ -536,21 +536,16 @@ select.wide-input{appearance:none}
           <span class="quota-bar"><i id="quotaFill"></i></span>
         </button>
         <div class="quota-detail" id="quotaDetail" hidden>
-          <h5>🎙️ Quota vocal — ce mois-ci</h5>
-          <div id="qGcloud" style="display:none">
-            <div class="qrow"><span>Caractères Google Cloud TTS</span><span id="qGchars">0 / 1 000 000</span></div>
-            <div class="qrow"><span>Réponses vocales (Google)</span><span id="qGreq">0</span></div>
-            <p class="qnote" style="margin-bottom:6px">Google Cloud TTS offre <b>1 M caractères/mois</b> en Neural2/Chirp3-HD et <b>4 M</b> en Standard (palier gratuit, sans carte bancaire).</p>
-          </div>
+          <h5>🎙️ Quota Inworld TTS-2 — ce mois-ci</h5>
           <div id="qInw">
-            <div class="qrow"><span>Minutes de parole Inworld</span><span id="qMin">0 / 70</span></div>
+            <div class="qrow"><span>Minutes de parole</span><span id="qMin">0 / 70</span></div>
             <div class="qrow"><span>Caractères envoyés</span><span id="qChars">0</span></div>
             <div class="qrow"><span>Réponses vocales</span><span id="qReq">0</span></div>
             <div class="qrow"><span>Restant estimé</span><span id="qLeft">70 min</span></div>
             <div class="qrow"><span>Moyenne / jour</span><span id="qAvg">0 min</span></div>
             <div class="qrow"><span>Projection fin de mois</span><span id="qProj">70 min</span></div>
           </div>
-          <p class="qnote">Le palier gratuit Inworld offre <b>70 min de TTS par mois</b> (plan On-Demand, sans carte bancaire). Au-delà, chaque minute est facturée $25/1M caractères — Astra bascule alors automatiquement sur <b>Google Cloud TTS</b> (1 M caractères offerts/mois) puis sur Google Translate.</p>
+          <p class="qnote">Le palier gratuit Inworld offre <b>70 min de TTS par mois</b> (plan On-Demand, sans carte bancaire). Au-delà, chaque minute est facturée $25/1M caractères — Astra bascule alors automatiquement sur la voix Google Translate (gratuite, illimitée).</p>
         </div>
       </div>
     </div>
@@ -643,11 +638,6 @@ select.wide-input{appearance:none}
     <input type="password" id="inworldKey" class="wide-input" placeholder="Colle le credential Base64 Inworld ici... optionnel" autocomplete="off">
     <button class="primary" id="saveInworldKey" style="margin-top:6px">💾 Enregistrer la clé Inworld</button>
     <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
-
-    <h4 class="settings-title">☁️ Voix Google Cloud TTS (réalistes, 1 à 4 M caractères/mois offerts)</h4>
-    <p class="muted">Les voices les plus naturelles d'Astra : <b>Chirp3-HD</b> (Denise, Chloé, Rémi, Thomas…), <b>Neural2</b> et Standard. Palier gratuit : <b>1 000 000 caractères/mois</b> en Neural2/Chirp3 (≈ 15-20 h de parole) et 4 M en Standard — sans carte bancaire, le quota se recharge chaque mois. <br>Clé : <b>console.cloud.google.com</b> → créer un projet → activer <b>Cloud Text-to-Speech API</b> → <b>Identifiants API</b> → Créer des identifiants → <b>Clé API</b> (sans contrainte = simple).</p>
-    <input type="password" id="gcloudKey" class="wide-input" placeholder="Colle ta clé API Google Cloud ici... optionnel" autocomplete="off">
-    <button class="primary" id="saveGcloudKey" style="margin-top:6px">💾 Enregistrer la clé Google Cloud</button>
 
     <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
     <p class="muted">Un seul cerveau : <b>Pollinations GPT</b> — gratuit, sans clé, répond comme ChatGPT.</p>
@@ -783,9 +773,9 @@ select.wide-input{appearance:none}
   <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
 </div>
 
-<script src="websearch.js?v=11.10"></script>
+<script src="websearch.js?v=11.11"></script>
 <script>
 </script>
-<script src="app.js?v=11.10"></script>
+<script src="app.js?v=11.11"></script>
 </body>
 </html>

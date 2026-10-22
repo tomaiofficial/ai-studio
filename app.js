@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.10';
+const APP_VERSION = '11.11';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1019,19 +1019,9 @@ function quotaUsage(){
   try {
     const d = JSON.parse(localStorage.getItem(INWORLD_USAGE_LS) || 'null');
     const mk = usageMonthKey();
-    if (!d || d.m !== mk) return { m: mk, chars: 0, req: 0, gchars: 0, greq: 0 };
-    return { m: mk, chars: d.chars || 0, req: d.req || 0, gchars: d.gchars || 0, greq: d.greq || 0 };
-  } catch(e){ return { m: usageMonthKey(), chars: 0, req: 0, gchars: 0, greq: 0 }; }
-}
-function trackGcloudUsage(nChars){
-  try {
-    const mk = usageMonthKey();
-    const d = quotaUsage();
-    d.gchars = (d.gchars || 0) + Math.max(0, nChars | 0);
-    d.greq = (d.greq || 0) + 1;
-    localStorage.setItem(INWORLD_USAGE_LS, JSON.stringify(d));
-    refreshQuotaHud();
-  } catch(e){}
+    if (!d || d.m !== mk) return { m: mk, chars: 0, req: 0 };
+    return { m: mk, chars: d.chars || 0, req: d.req || 0 };
+  } catch(e){ return { m: usageMonthKey(), chars: 0, req: 0 }; }
 }
 function trackInworldUsage(nChars){
   try {
@@ -1058,34 +1048,19 @@ function refreshQuotaHud(){
   try {
     const hud = $('quotaHud');
     if (!hud) return;
-    const gcloud = isGcloudVoice();
-    if (!getInworldKey() && !gcloud){ hud.hidden = true; return; }
+    if (!getInworldKey()){ hud.hidden = true; return; }
     hud.hidden = false;
     const d = quotaUsage();
     const mins = d.chars / INWORLD_CHARS_PER_MIN;
     const pct = Math.min(100, (mins / INWORLD_FREE_MIN) * 100);
     const pill = $('quotaPill'), fill = $('quotaFill'), minEl = $('quotaMin');
-    const lab = pill ? pill.querySelector('span:nth-child(2)') : null;
-    if (gcloud){
-      /* v11.10 : Google Cloud TTS — quota en caracteres (1 M/mois en
-         Neural2/Chirp3, 4 M en Standard) */
-      const lim = 1000000;
-      const gp = Math.min(100, ((d.gchars || 0) / lim) * 100);
-      if (minEl) minEl.textContent = Math.round((d.gchars || 0) / 1000) + 'k';
-      if (fill){ fill.style.width = gp.toFixed(1) + '%'; fill.className = gp >= 95 ? 'danger' : gp >= 80 ? 'warn' : ''; }
-      if (pill){
-        pill.className = 'quota-pill' + (gp >= 95 ? ' danger' : gp >= 80 ? ' warn' : '');
-        if (lab) lab.innerHTML = 'Google <b>' + Math.round((d.gchars || 0) / 1000) + 'k</b>/1M car.';
-        pill.title = 'Quota Google Cloud TTS (1 M caractères/mois offerts en Neural2/Chirp3)';
-      }
-    } else {
-      if (minEl) minEl.textContent = mins >= 10 ? Math.round(mins) : mins.toFixed(1);
-      if (fill){ fill.style.width = pct.toFixed(1) + '%'; fill.className = pct >= 95 ? 'danger' : pct >= 80 ? 'warn' : ''; }
-      if (pill){
-        pill.className = 'quota-pill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '');
-        if (lab) lab.innerHTML = 'Inworld <b>' + (mins >= 10 ? Math.round(mins) : mins.toFixed(1)) + '</b>/70 min';
-        pill.title = 'Quota Inworld TTS-2 (clique pour le détail)';
-      }
+    if (minEl) minEl.textContent = mins >= 10 ? Math.round(mins) : mins.toFixed(1);
+    if (fill){ fill.style.width = pct.toFixed(1) + '%'; fill.className = pct >= 95 ? 'danger' : pct >= 80 ? 'warn' : ''; }
+    if (pill){
+      pill.className = 'quota-pill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '');
+      const lab = pill.querySelector('span:nth-child(2)');
+      if (lab) lab.innerHTML = 'Inworld <b>' + (mins >= 10 ? Math.round(mins) : mins.toFixed(1)) + '</b>/70 min';
+      pill.title = 'Quota Inworld TTS-2 (clique pour le détail)';
     }
     const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
     set('qMin', mins.toFixed(1) + ' / ' + INWORLD_FREE_MIN);
@@ -1098,16 +1073,7 @@ function refreshQuotaHud(){
     const avg = daysPassed > 0 ? mins / daysPassed : 0;
     set('qAvg', avg.toFixed(1) + ' min');
     set('qProj', (avg * daysInMonth).toFixed(0) + ' min' + (avg * daysInMonth > INWORLD_FREE_MIN ? ' ⚠️' : ''));
-    set('qGchars', (d.gchars || 0).toLocaleString('fr-FR') + ' / 1 000 000');
-    set('qGreq', String(d.greq || 0));
-    const inwBox = $('qInw');
-    if (inwBox) inwBox.style.display = gcloud ? 'none' : '';
-    const gBox = $('qGcloud');
-    if (gBox) gBox.style.display = gcloud ? '' : 'none';
   } catch(e){}
-}
-function isGcloudVoice(){
-  try { return String(getVoice() || '').startsWith('gcloud:'); } catch(e){ return false; }
 }
 function quotaSnapshot(){
   const d = quotaUsage();
@@ -1135,16 +1101,10 @@ function quotaSpoken(){
   const m = s.mins < 10 ? s.mins.toFixed(1) : String(Math.round(s.mins));
   const l = s.left < 10 ? s.left.toFixed(1) : String(Math.round(s.left));
   const p = Math.round(s.proj);
-  /* v11.10 : si la voix Google Cloud est active, on parle de son quota */
-  if (isGcloudVoice()){
-    const s = quotaSnapshot();
-    const gk = s.gchars || 0;
-    return 'Tu as choisi ma voix Google Cloud TTS : elle est realiste et son palier gratuit offre un million de caracteres par mois en Neural2 et Chirp3, quatre millions en Standard. J en ai utilise ' + gk.toLocaleString('fr-FR') + ' caracteres ce mois-ci. Ton quota Inworld reste a ' + (s.mins < 10 ? s.mins.toFixed(1) : Math.round(s.mins)) + ' minute sur ' + s.freeMin + ', donc ' + (s.left < 10 ? s.left.toFixed(1) : Math.round(s.left)) + ' minutes restent disponibles si tu veux repasser sur Inworld.';
-  }
   let out = 'Ce mois-ci, j ai utilise ' + m + ' minute de parole sur les ' + s.freeMin + ' offertes par Inworld, soit ' + s.chars.toLocaleString('fr-FR') + ' caracteres et ' + s.req + ' reponses vocales. Il te reste environ ' + l + ' minutes. ';
   out += 'Moyenne aujourd hui : ' + s.avg.toFixed(1) + ' minute par jour, projection de fin de mois : ' + p + ' minutes. ';
   if (s.pct >= 80) out += 'Attention, on approche de la limite du palier gratuit. ';
-  out += 'Au-dela des ' + s.freeMin + ' minutes, Inworld facture 25 dollars par million de caracteres, et je bascule automatiquement sur ma voix Google Cloud TTS, qui offre un million de caracteres offerts par mois, puis sur Google Translate.';
+  out += 'Au-dela des ' + s.freeMin + ' minutes, Inworld facture 25 dollars par million de caracteres, et je bascule automatiquement sur la voix Google Translate, gratuite et illimitee.';
   return out;
 }
 function isQuotaQuestion(q){
@@ -1304,14 +1264,12 @@ function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
   /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/Puter/
       SpeechT5/Edge/Qwen/Piper/anciens system: et systeme) -> Voxtral defaut */
-  /* v11.10 : Google Cloud TTS est REAJOUTE (prefixe gcloud:) : voix FR
-     realistes (Chirp3-HD / Neural2) avec 1 a 4 M caracteres/mois offerts */
   /* v10.81 : Qwen3-TTS et Edge neural SUPPRIMES -> Mistral Voxtral reste
      la seule voix IA realiste gratuite a vie ; 'edge:'/'qwen:' sont
      redevenus des prefixes obsolètes -> basculement au defaut Voxtral */
   if (v.startsWith('speecht5:') || v.startsWith('piper:')
-      || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
-      || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
+    || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
+    || v.startsWith('gcloud:') || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
       || v.startsWith('edge:') || v.startsWith('edg:') || v.startsWith('qwen:')
       || v === 'systeme') return DEFAULT_VOICE;
   /* v10.85 : Voxtral SUSPENDU (trop lent, 10-15 s) -> TOUTE voxtral:* bascule
@@ -1334,13 +1292,7 @@ function getVoice(){
       return 'iw:' + id;
     }
   }
-  /* v11.10 : voix Google Cloud TTS (prefixe gcloud:) */
-  if (v.startsWith('gcloud:')){
-    const id = v.substring(7);
-    if (id === '__needkey__') return DEFAULT_VOICE;
-    if (GCLOUD_VOICES.some(x => x.id === id)) return 'gcloud:' + id;
-    return 'gcloud:fr-FR-Chirp3-HD-Denise';
-  }
+  /* v11.11 : voix Google Cloud TTS retirees (prefixe gcloud:) -> defaut */
   /* v9.64 : les anciens IDs Voxtral par nom (marie/paul/oliver) sont invalides
      -> les vraies voix preset utilisent des UUID */
   if (v.startsWith('voxtral:')){
@@ -2391,23 +2343,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   scheduleIdleGames();
   /* v11.07 : jauge du quota Inworld sur l ecran vocal */
   try { initQuotaHud(); } catch(e){ console.warn('[QUOTA] init:', e && e.message); }
-  /* v11.10 : champ de cle Google Cloud TTS (reglages) */
-  try {
-    const gk = $('gcloudKey'), gb = $('saveGcloudKey');
-    if (gk) gk.value = getGcloudKey();
-    if (gb) gb.addEventListener('click', async () => {
-      localStorage.setItem(GCLOUD_KEY_LS, (gk.value || '').trim());
-      toast('Clé Google Cloud TTS enregistrée ✓');
-      try {
-        populateVoices();
-        refreshQuotaHud();
-        const v = getVoice();
-        if (String(v).startsWith('gcloud:') && getGcloudKey()){
-          await speakGcloud('Bonjour Tom, voici ma nouvelle voix Google Cloud.', 'fr-FR-Chirp3-HD-Denise');
-        }
-      } catch(e){}
-    });
-  } catch(e){ console.warn('[GCLOUD] init:', e && e.message); }
 });
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.
@@ -3879,25 +3814,6 @@ async function populateVoices(){
     }
     ttsVoiceSel.appendChild(grpI);
   }
-  /* v11.10 : VOIX GOOGLE CLOUD TTS — realistes, 1 a 4 M caracteres/mois offerts */
-  {
-    const grpG = document.createElement('optgroup');
-    grpG.label = '☁️ Google Cloud TTS — 🇫🇷 réalistes (1 à 4 M caractères/mois offerts)';
-    if (getGcloudKey()){
-      GCLOUD_VOICES.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = 'gcloud:' + v.id;
-        opt.textContent = '☁️ ' + v.n;
-        grpG.appendChild(opt);
-      });
-    } else {
-      const opt = document.createElement('option');
-      opt.value = 'gcloud:__needkey__';
-      opt.textContent = '☁️ Ajoute ta clé Google Cloud TTS (Réglages) pour ces voix réalistes';
-      grpG.appendChild(opt);
-    }
-    ttsVoiceSel.appendChild(grpG);
-  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
@@ -4169,15 +4085,7 @@ function speak(text, onChunk){
         SAFE
       ];
     }
-    /* v11.10 : voix Google Cloud TTS choisie -> elle passe en tete de chaine */
-    if (voiceModeFinal.startsWith('gcloud:')){
-      const gv = voiceModeFinal.substring(7) || 'fr-FR-Chirp3-HD-Denise';
-      chain = [
-        ['Google Cloud TTS: ' + gv, (t) => speakGcloud(t, gv, onChunk)],
-        (getInworldKey() && frDef) ? ['Inworld: ' + frDef, (t) => speakInworld(t, frDef, onChunk, taggedText)] : null,
-        SAFE
-      ].filter(Boolean);
-    }
+    /* v11.11 : Google Cloud TTS retire -> plus de branche dedicated */
     let i = 0;
     const next = () => {
       if (i >= chain.length) return fail();
