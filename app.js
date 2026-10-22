@@ -2,9 +2,9 @@
    ASSISTANT VOCAL IA - 100% vocal, sans chat
    v9.48 : UN SEUL cerveau : Pollinations GPT (gratuit, sans cle,
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
-   Piper TTS = voix locales (gratuites, sans cle) par defaut
+   v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.14';
+const APP_VERSION = '11.15';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -427,70 +427,6 @@ async function loadInworldFrenchVoices(force){
 function getInworldKey(){
   try { return (localStorage.getItem(INWORLD_KEY_LS) || '').trim().replace(/^Basic /i, ''); }
   catch { return ''; }
-}
-/* ===== v11.12 : PIPER — voix locales francaises dans le navigateur =====
-   Open-source (modele MIT Rhasspy), la synthese tourne SUR l appareil via
-   WASM (onnxruntime-web + espeak-ng) : sans compte, sans cle, SANS QUOTA,
-   fonctionne meme hors-ligne. Le modele (~60 Mo pour medium) est telecharge
-   depuis HuggingFace au 1er usage puis stocke dans le navigateur (OPFS). */
-const PIPER_API = 'https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@1.0.5/dist/piper-tts-web.js';
-const PIPER_VOICES = [
-  { id: 'fr_FR-siwis-medium', n: 'Siwis (femme, la plus naturelle)' },
-  { id: 'fr_FR-tom-medium', n: 'Tom (homme, naturel)' },
-  { id: 'fr_FR-upmc-medium', n: 'UPMC (voix professeur)' },
-  { id: 'fr_FR-mls-medium', n: 'MLS (femme, lisibilite)' },
-  { id: 'fr_FR-gilles-low', n: 'Gilles (homme, leger)' },
-  { id: 'fr_FR-siwis-low', n: 'Siwis Lite (femme, rapide)' }
-];
-let piperLib = null, piperLibPromise = null;
-function getPiperLib(){
-  if (piperLib) return Promise.resolve(piperLib);
-  if (!piperLibPromise) {
-    /* v11.12 : import ESM charge depuis un script "classique" */
-    piperLibPromise = import(PIPER_API).then(m => { piperLib = m; return m; })
-      .catch(e => { console.warn('[PIPER] chargement lib echec:', e && e.message); piperLibPromise = null; throw e; });
-  }
-  return piperLibPromise;
-}
-async function speakPiper(text, voiceId, onChunk){
-  try {
-    const lib = await getPiperLib();
-    /* v11.13 : si le modele n est pas encore en cache, on le telecharge ICI
-       (progression throtlee) avant d Islamabad, sinon le 1er chunk semblerait muet */
-    const vid = voiceId || 'fr_FR-siwis-medium';
-    let cached = false;
-    try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
-    if (!cached){
-      try {
-        let lastP = -1;
-        await lib.download(vid, (p) => {
-          try {
-            if (p && p.total){
-              const pc = Math.round((p.loaded || 0) * 100 / p.total);
-              if (pc !== lastP && pc % 5 === 0){ setStatus('Piper : modele ' + pc + ' % (une seule fois, apres ca marche hors-ligne)...'); lastP = pc; }
-            }
-          } catch(e){}
-        });
-      } catch(e){ console.warn('[PIPER] telechargement modele echec:', e && e.message); }
-    }
-    const chunks = splitSentences(text, 230);
-    let any = false;
-    for (const chunk of chunks){
-      if (activeSpeechEpoch !== speechEpoch){ console.warn('[PIPER] interrompu'); return false; }
-      if (onChunk) onChunk(chunk);
-      let wav = null;
-      try {
-        wav = await lib.predict({ text: chunk, voiceId: vid });
-      } catch(e){ console.warn('[PIPER] chunk echec:', e && e.message); }
-      if (!wav){ if (any) return false; break; } /* 1er morceau rate -> moteur suivant */
-      any = true;
-      const blob = (wav instanceof Blob) && wav.type && wav.type.indexOf('wav') >= 0 ? wav : new Blob([wav], { type: 'audio/wav' });
-      const ok = await playAudioBlob(blob);
-      if (!ok) return false;
-      await new Promise(r => setTimeout(r, 80));
-    }
-    return any;
-  } catch(e){ console.warn('[PIPER] echec:', e && e.message); return false; }
 }
 async function speakInworld(text, voiceId, onChunk, taggedText){
   const key = getInworldKey();
@@ -1161,10 +1097,6 @@ function quotaSnapshot(){
   };
 }
 function quotaSpoken(){
-  /* v11.12 : la voix Piper locale n a AUCUN quota (tourne sur l appareil) */
-  if (getVoice().startsWith('piper:')){
-    return 'Avec ma voix Piper, il y a zéro limitation, zéro quota, aucune minute a compter : la synthese tourne directement sur ton appareil, tu peux me faire parler des heures, c est gratuit pour toujours et ca marche même hors-ligne.';
-  }
   const s = quotaSnapshot();
   const m = s.mins < 10 ? s.mins.toFixed(1) : String(Math.round(s.mins));
   const l = s.left < 10 ? s.left.toFixed(1) : String(Math.round(s.left));
@@ -1335,17 +1267,11 @@ function getVoice(){
   /* v10.81 : Qwen3-TTS et Edge neural SUPPRIMES -> Mistral Voxtral reste
      la seule voix IA realiste gratuite a vie ; 'edge:'/'qwen:' sont
      redevenus des prefixes obsolètes -> basculement au defaut Voxtral */
-  if (v.startsWith('speecht5:')
+  if (v.startsWith('speecht5:') || v.startsWith('piper:')
     || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
     || v.startsWith('gcloud:') || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
       || v.startsWith('edge:') || v.startsWith('edg:') || v.startsWith('qwen:')
       || v === 'systeme') return DEFAULT_VOICE;
-  /* v11.12 : PIPER redevient un vrai moteur (voix locales, sans quota) :
-     un ancien id invalide bascule au defaut, un id FR valide est garde. */
-  if (v.startsWith('piper:')){
-    const pid = v.substring(6);
-    return PIPER_VOICES.some(x => x.id === pid) ? 'piper:' + pid : DEFAULT_VOICE;
-  }
   /* v10.85 : Voxtral SUSPENDU (trop lent, 10-15 s) -> TOUTE voxtral:* bascule
      sur le defaut = Inworld TTS-2. La cle Mistral reste utilisee pour la
      TRANSCRIPTION et le cerveau, uniquement. */
@@ -1468,30 +1394,8 @@ ttsVoiceSel.addEventListener('change', () => {
   const val = ttsVoiceSel.value;
   localStorage.setItem(LS.voice, val);
   toast('Voix choisie');
-  /* v11.13 : voix Piper -> on telecharge TOUT DE SUITE le modele (~60 Mo,
-     une seule fois) pendant que l'utilisateur reste dans les reglages */
-  if (val && val.startsWith('piper:')){
-    const vid = val.substring(6);
-    getPiperLib().then(async lib => {
-      let cached = false;
-      try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
-      if (cached){ toast('Voix Piper deja prete (hors-ligne OK)'); return; }
-      toast('Telechargement de la voix Piper en cours... (une seule fois)');
-      let lastP = -1;
-      try {
-        await lib.download(vid, (p) => {
-          try {
-            if (p && p.total){
-              const pc = Math.round((p.loaded || 0) * 100 / p.total);
-              if (pc !== lastP && pc % 10 === 0){ setStatus('Modele Piper : ' + pc + ' %...'); lastP = pc; }
-            }
-          } catch(e){}
-        });
-        toast('Voix Piper prete ! Illimitee, meme hors-ligne.');
-      } catch(e){ console.warn('[PIPER] pretelechargement echec:', e && e.message); toast('Telechargement Piper echoue (reessaie plus tard)'); }
-    }).catch(e => { console.warn('[PIPER] lib echec:', e && e.message); });
-  }
 });
+
 testVoiceBtn.addEventListener('click', async () => {
   localStorage.setItem(LS.voice, ttsVoiceSel.value);
   setStatus('Test de la voix...', true);
@@ -2257,12 +2161,9 @@ function getSystemPrompt(){
     let nbSavoir = 0;
     try { nbSavoir = (JSON.parse(localStorage.getItem('astra_savoir') || '[]')).length; } catch {}
     base += `\nETAT TEMPS REEL — Ta conscience du moment: tu es Astra et tu SAIS ou tu vis et comment tu te portes. Ton createur tom point a i t'heberge sur son repo "ai-studio" en hebergement statique gratuit (Cloudflare Pages et GitHub Pages). Ton adresse du moment est ${location.host}${location.hash && location.hash.length > 1 ? location.hash : ''}. On est le ${new Date().toLocaleString('fr-FR')} (fuseau horaire ${Intl.DateTimeFormat().resolvedOptions().timeZone}). La version actuelle de l'app est ${APP_VERSION}. Aujourd'hui ta autonomie a deja ajoute ${autoN} fonctionnalite(s) sur 3 possibles par jour, toutes seules et ton carnet d'apprentissage des autres IA contient ${nbSavoir} note(s).`;
-    /* v11.05 : TON QUOTA VOCAL — Astra sait dire ou elle en est
-       v11.12 : la voix Piper locale est sans aucun quota (tourne sur l appareil) */
-    if (getVoice().startsWith('piper:')){
-      base += ` TA VOIX ACTUELLE = PIPER (voix locale Piper du navigateur) : la synthese tourne directement sur l'appareil, SANS QUOTA, sans compte, aucune minute a compter — illimitee pour toujours, meme hors-ligne. Si l'utilisateur demande ton quota/tes minutes avec cette voix : dis que Piper est totalement illimitee, gratuit pour toujours.`;
-    } else try {
-      const q = quotaSnapshot();
+    /* v11.05 : TON QUOTA VOCAL — Astra sait dire ou elle en est */
+    try {
+            const q = quotaSnapshot();
       base += ` TON QUOTA VOCAL INWORLD (ce mois-ci) : ${q.mins < 10 ? q.mins.toFixed(1) : Math.round(q.mins)} minute de parole utilisee sur les ${q.freeMin} minutes offertes, soit ${q.chars} caracteres et ${q.req} reponses vocales. Il reste environ ${q.left < 10 ? q.left.toFixed(1) : Math.round(q.left)} minutes. Moyenne par jour : ${q.avg.toFixed(1)} minute. Projection fin de mois : ${Math.round(q.proj)} minutes. Si l'utilisateur demande son quota, combien de minutes il lui reste, la consommation, les credits, ou s il va epuiser sa voix : reponds avec CES CHIFFRES EXACTS, a voix haute, sans tableau. Au-dela de ${q.freeMin} minutes, Inworld facture 25 dollars par million de caracteres et tu bascules sur la voix Google Translate (gratuite, illimitee) — dis-le.`;
     } catch(e){}
     base += ` Si l'utilisateur te demande ou tu es, qui t'heberge, l'heure, la date, ta version de l'app ou ton etat d'autonomie, reponds avec ces informations naturellement, comme quelqu'un qui connait sa maison.`;
@@ -2443,30 +2344,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   scheduleIdleGames();
   /* v11.07 : jauge du quota Inworld sur l ecran vocal */
   try { initQuotaHud(); } catch(e){ console.warn('[QUOTA] init:', e && e.message); }
-  /* v11.13 : au demarrage, si la voix memorisee est une voix Piper, on
-     verifie/repare son modele en arriere-plan (1er lancement ou cache vide) */
-  try {
-    const sv = getVoice();
-    if (sv.startsWith('piper:')){
-      const vid = sv.substring(6);
-      getPiperLib().then(async lib => {
-        let cached = false;
-        try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
-        if (!cached){
-          let lastP = -1;
-          await lib.download(vid, (p) => {
-            try {
-              if (p && p.total){
-                const pc = Math.round((p.loaded || 0) * 100 / p.total);
-                if (pc !== lastP && pc % 10 === 0){ setStatus('Modele Piper : ' + pc + ' % (1re fois)...'); lastP = pc; }
-              }
-            } catch(e){}
-          });
-        }
-      }).catch(() => {});
-    }
-  } catch(e){}
-});
+  });
 
 /* Suggestions d'amelioration non techniques, sans publication automatique.
    La cle d'administration reste cote serveur; le navigateur ne la recoit jamais. */
@@ -3937,19 +3815,6 @@ async function populateVoices(){
     }
     ttsVoiceSel.appendChild(grpI);
   }
-  /* v11.12 : GROUPE PIPER — voix locales illimitees (tourne sur l appareil,
-     sans compte, sans quota ; 1er usage = telechargement du modele ~60 Mo) */
-  {
-    const grpP = document.createElement('optgroup');
-    grpP.label = '🎧 Piper local — 🇫🇷 françaises (illimitées à vie, hors-ligne)';
-    PIPER_VOICES.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = 'piper:' + v.id;
-      opt.textContent = '🎧 ' + v.n;
-      grpP.appendChild(opt);
-    });
-    ttsVoiceSel.appendChild(grpP);
-  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
@@ -4221,14 +4086,7 @@ function speak(text, onChunk){
         SAFE
       ];
     }
-    /* v11.12 : voix Piper locale -> seule dans la chaine, Google en filet */
-    if (voiceModeFinal.startsWith('piper:')){
-      const pid = voiceModeFinal.substring(6);
-      chain = [
-        ['Piper: ' + pid, (t) => speakPiper(t, pid, onChunk)],
-        SAFE
-      ];
-    }
+    /* v11.15 : PIPER retire (moteur + chaine) */
     /* v11.11 : Google Cloud TTS retire -> plus de branche dedicated */
     let i = 0;
     const next = () => {
