@@ -1,0 +1,10 @@
+=== node --check app.js ===
+APP OK
+
+=== scripts inline index.html ===
+INDEX OK
+
+=== contexte de l erreur app.js ===
+
+
+=== contexte index.html si erreur ===
