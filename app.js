@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.18';
+const APP_VERSION = '11.19';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5365,4 +5365,103 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
   } catch (e) {
     console.warn('[Astra] Web desactive :', e);
   }
+})();
+
+
+/* ============================================================
+   v11.19 : MODE VOCAL PLEIN ECRAN — style ChatGPT Voice Mode
+   Orbe bleue geante sur fond noir, voix-presentees-comme-
+   personnalites (nom + character + pagination), micro integre.
+   Reutilise : setState()/#orb (etats), startRecorder() (flow),
+   stopBtn handler (stop), LS.voice (selection).
+   ============================================================ */
+(function voiceMode(){
+  try {
+    const ov = document.getElementById('vmOverlay');
+    if (!ov) return;
+    const orbM = document.getElementById('vmOrb');
+    const nmM = document.getElementById('vmName');
+    const tgM = document.getElementById('vmTag');
+    const dotsM = document.getElementById('vmDots');
+    const VM_TAGS = ['chaleureuse et solaire', 'douce et posée', 'vive et taquine', 'claire et élégante', 'profonde et affirmée'];
+    const HUES = [0, 40, 90, 190, 260, 310];
+    let vmList = [];
+    let vmIdx = 0;
+
+    function buildList(){
+      vmList = [];
+      if (typeof INWORLD_VOICES !== 'undefined' && INWORLD_VOICES.length){
+        INWORLD_VOICES.forEach((v, i) => {
+          vmList.push({ v: 'iw:' + v.id, n: v.n || v.id, d: VM_TAGS[i % VM_TAGS.length], key: true });
+        });
+      } else {
+        vmList.push({ v: 'iw:Ashley', n: 'Astra', d: 'française, libre et gratuite' });
+      }
+      /* la voix Google filet reste disponible pour tous */
+      vmList.push({ v: '', n: 'Céleste', d: 'voix Google, gratuite et sans limite' });
+    }
+
+    function render(){
+      dotsM.innerHTML = '';
+      vmList.forEach((p, i) => {
+        const b = document.createElement('button');
+        b.className = 'vm-dot' + (i === vmIdx ? ' on' : '');
+        b.title = p.n + ' — ' + p.d;
+        b.onclick = () => selectVoice(i);
+        dotsM.appendChild(b);
+      });
+      const p = vmList[vmIdx];
+      nmM.textContent = p.n;
+      tgM.textContent = p.d;
+      orbM.style.filter = 'hue-rotate(' + (HUES[vmIdx % HUES.length] || 0) + 'deg)';
+    }
+
+    function selectVoice(i){
+      vmIdx = Math.max(0, Math.min(vmList.length - 1, i));
+      try { localStorage.setItem(LS.voice, vmList[vmIdx].v); } catch(e){}
+      render();
+    }
+
+    function syncIdxFromLS(){
+      const cur = getVoice();
+      vmIdx = vmList.findIndex(p => p.v === cur);
+      if (vmIdx < 0) vmIdx = vmList.length - 1; /* defaut -> dernier (Céleste) si introuvable */
+    }
+
+    /* miroir des etats de l orbe principale (listening/thinking/speaking) */
+    const mainOrb = document.getElementById('orb');
+    if (mainOrb){
+      new MutationObserver(() => {
+        const st = ['listening', 'thinking', 'speaking'].find(c => mainOrb.classList.contains(c));
+        orbM.className = orbM.className.replace(/\b(listening|thinking|speaking)\b/g, '').trim();
+        if (st) orbM.classList.add(st);
+      }).observe(mainOrb, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    function open(){
+      ov.hidden = false;
+      buildList();
+      syncIdxFromLS();
+      render();
+      if (typeof loadInworldFrenchVoices === 'function'){
+        loadInworldFrenchVoices().then(() => { buildList(); syncIdxFromLS(); render(); }).catch(() => {});
+      }
+      /* status discret */
+      try { setStatus('Mode vocal plein écran — tape l orbe ou le micro'); } catch(e){}
+    }
+    function close(){
+      ov.hidden = true;
+      try { stopAudio(); stopRecorder(); stt && stt.stop && stt.stop(); } catch(e){}
+      try { setState('idle'); } catch(e){}
+      try { setStatus('Appuie sur le micro et parle'); } catch(e){}
+    }
+
+    orbM.onclick = () => { if (typeof startRecorder === 'function') startRecorder(); };
+    document.getElementById('vmMic').onclick = () => { if (typeof startRecorder === 'function') startRecorder(); };
+    document.getElementById('vmClose').onclick = close;
+    document.getElementById('vmKb').onclick = () => { close(); const ti = document.getElementById('textInput'); if (ti) ti.focus(); };
+    document.getElementById('vmOpen').onclick = open;
+
+    console.log('[Astra] Mode vocal plein écran (ChatGPT style) actif.');
+  } catch (e) { console.warn('[Astra] Mode vocal non chargé:', e && e.message); }
 })();
