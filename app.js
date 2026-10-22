@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.17';
+const APP_VERSION = '11.18';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -513,88 +513,6 @@ async function speakInworld(text, voiceId, onChunk, taggedText){
    Reutilise la cle API Mistral deja configuree pour la voix. */
 /* v10.52 : si la cle est expiree (401 "expired"), on ne rapelle pas l'API a
    chaque essai et on guide clairement vers Reglages pour la nouvelle cle. */
-/* ===== v11.16 : Coqui XTTS — 3e moteur realiste, gratuit pour tous =====
-   Via la demo publique CPU (Space HuggingFace actif) : AUCUNE cle, AUCUN
-   compte, pas de quota. Realiste (voix clonee), mais lent : 30-60 s par
-   morceau (CPU libre + file d attente partagee). POST /gradio_api/queue/join
-   puis SSE /gradio_api/queue/data jusqu a process_completed (CORS ouvert). */
-const XTTS_API = 'https://olivier-truong-xtts-v1-cpu-working.hf.space';
-let xttsRefPromise = null;
-function getXTTSRef(){
-  if (!xttsRefPromise) {
-    xttsRefPromise = fetch(XTTS_API + '/config', { signal: abortSignal(15000) }).then(r => r.json())
-      .then(j => {
-        const c = (j.components || []).find(x => x.id === 2);
-        const v = c && c.props && c.props.value;
-        if (!v || !v.path) throw new Error('reference XTTS absente');
-        return v;
-      }).catch(e => { console.warn('[XTTS] ref non recuperee:', e && e.message); xttsRefPromise = null; throw e; });
-  }
-  return xttsRefPromise;
-}
-let xttsSessN = 0;
-async function xttsSynth(text, ref){
-  const sess = 'astra' + Date.now().toString(36) + (xttsSessN++) + Math.random().toString(36).slice(2, 6);
-  const t0 = Date.now();
-  try {
-    const join = await fetch(XTTS_API + '/gradio_api/queue/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: abortSignal(15000),
-      body: JSON.stringify({ data: [text, 'fr', ref, ref, false, true], event_data: null, fn_index: 0, trigger_id: 17, session_hash: sess, state_hash: {} })
-    });
-    if (!join.ok){ console.warn('[XTTS] join HTTP', join.status); return null; }
-    const res = await fetch(XTTS_API + '/gradio_api/queue/data?session_hash=' + sess);
-    if (!res.ok || !res.body || !res.body.getReader){ console.warn('[XTTS] sse indisponible'); return null; }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = '';
-    const deadline = Date.now() + 200000;
-    let lastPing = 0;
-    while (Date.now() < deadline){
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value);
-      const parts = buf.split('\n\n'); buf = parts.pop();
-      if (Date.now() - lastPing > 12000){
-        try { setStatus('Coqui XTTS en synthese (' + Math.round((Date.now() - t0) / 1000) + ' s)...'); } catch(e){}
-        lastPing = Date.now();
-      }
-      for (const ev of parts){
-        if (/^event: complete/.test(ev)){
-          const m = ev.match(/data: (.*)/);
-          const o = m && JSON.parse(m[1]);
-          const out = o && o.output && o.output.data && o.output.data[0];
-          if (out && out.url){
-            try { return await fetch(out.url, { signal: abortSignal(40000) }).then(r => r.blob()); } catch(e){ return null; }
-          }
-          return null;
-        }
-        if (/event: error|process_error/.test(ev)){ console.warn('[XTTS] erreur stream'); return null; }
-      }
-    }
-    console.warn('[XTTS] timeout 200s');
-    return null;
-  } catch(e){ console.warn('[XTTS] synth echec:', e && e.message); return null; }
-}
-async function speakXtts(text, onChunk){
-  try {
-    const ref = await getXTTSRef();
-    const chunks = splitSentences(text, 200);
-    let any = false;
-    for (const chunk of chunks){
-      if (activeSpeechEpoch !== speechEpoch){ console.warn('[XTTS] interrompu'); return false; }
-      if (onChunk) onChunk(chunk);
-      const blob = await xttsSynth(chunk, ref);
-      if (!blob){ if (any) return false; break; }
-      any = true;
-      const ok2 = await playAudioBlob(blob);
-      if (!ok2) return false;
-      await new Promise(r => setTimeout(r, 60));
-    }
-    return any;
-  } catch(e){ console.warn('[XTTS] echec:', e && e.message); return false; }
-}
 async function transcribeWithMistral(blob, key){
   try {
     const type = (blob && blob.type) || 'audio/webm';
@@ -1179,9 +1097,6 @@ function quotaSnapshot(){
   };
 }
 function quotaSpoken(){
-  if (getVoice().startsWith('xtts:')){
-    return 'Avec ma voix Coqui XTTS, il n y a aucun quota ni aucune cle : la demonstration publique de Hugging Face est gratuite pour tout le monde. En contrepartie, elle est lente, il se peut que trente a soixante secondes passent avant que je reponde.';
-  }
   const s = quotaSnapshot();
   const m = s.mins < 10 ? s.mins.toFixed(1) : String(Math.round(s.mins));
   const l = s.left < 10 ? s.left.toFixed(1) : String(Math.round(s.left));
@@ -1357,8 +1272,8 @@ function getVoice(){
     || v.startsWith('gcloud:') || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
       || v.startsWith('edge:') || v.startsWith('edg:') || v.startsWith('qwen:')
       || v === 'systeme') return DEFAULT_VOICE;
-  /* v11.16 : XTTS = 3e moteur (realiste public, lent, sans cle) */
-  if (v.startsWith('xtts:')) return 'xtts:' + (v.substring(5) || 'female');
+  /* v11.18 : XTTS retire (Space HuggingFace casse serveur) -> redirection legacy */
+  if (v.startsWith('xtts:')) return DEFAULT_VOICE;
   /* v10.85 : Voxtral SUSPENDU (trop lent, 10-15 s) -> TOUTE voxtral:* bascule
      sur le defaut = Inworld TTS-2. La cle Mistral reste utilisee pour la
      TRANSCRIPTION et le cerveau, uniquement. */
@@ -2249,10 +2164,8 @@ function getSystemPrompt(){
     try { nbSavoir = (JSON.parse(localStorage.getItem('astra_savoir') || '[]')).length; } catch {}
     base += `\nETAT TEMPS REEL — Ta conscience du moment: tu es Astra et tu SAIS ou tu vis et comment tu te portes. Ton createur tom point a i t'heberge sur son repo "ai-studio" en hebergement statique gratuit (Cloudflare Pages et GitHub Pages). Ton adresse du moment est ${location.host}${location.hash && location.hash.length > 1 ? location.hash : ''}. On est le ${new Date().toLocaleString('fr-FR')} (fuseau horaire ${Intl.DateTimeFormat().resolvedOptions().timeZone}). La version actuelle de l'app est ${APP_VERSION}. Aujourd'hui ta autonomie a deja ajoute ${autoN} fonctionnalite(s) sur 3 possibles par jour, toutes seules et ton carnet d'apprentissage des autres IA contient ${nbSavoir} note(s).`;
     /* v11.05 : TON QUOTA VOCAL — Astra sait dire ou elle en est
-       v11.16 : la voix Coqui XTTS (demo publique gratuite) est sans quota mais LENTE */
-    if (getVoice().startsWith('xtts:')){
-      base += ` TA VOIX ACTUELLE = COQUI XTTS (voix realiste clonée via la demonstration publique gratuite de Hugging Face) : sans quota, sans cle, pour tout le monde, mais LENTE (30 a 60 secondes par reponse, cpu public partage). Si l'utilisateur se plaint de la lenteur ou demande ton quota avec cette voix : dis gentiment que XTTS est gratuite et sans limite, l'attente est le prix de la gratuité.`;
-    } else try {
+       v11.18 : bloc XTTS retire */
+    try {
             const q = quotaSnapshot();
       base += ` TON QUOTA VOCAL INWORLD (ce mois-ci) : ${q.mins < 10 ? q.mins.toFixed(1) : Math.round(q.mins)} minute de parole utilisee sur les ${q.freeMin} minutes offertes, soit ${q.chars} caracteres et ${q.req} reponses vocales. Il reste environ ${q.left < 10 ? q.left.toFixed(1) : Math.round(q.left)} minutes. Moyenne par jour : ${q.avg.toFixed(1)} minute. Projection fin de mois : ${Math.round(q.proj)} minutes. Si l'utilisateur demande son quota, combien de minutes il lui reste, la consommation, les credits, ou s il va epuiser sa voix : reponds avec CES CHIFFRES EXACTS, a voix haute, sans tableau. Au-dela de ${q.freeMin} minutes, Inworld facture 25 dollars par million de caracteres et tu bascules sur la voix Google Translate (gratuite, illimitee) — dis-le.`;
     } catch(e){}
@@ -3905,16 +3818,6 @@ async function populateVoices(){
     }
     ttsVoiceSel.appendChild(grpI);
   }
-  /* v11.16 : GROUPE COQUI XTTS — realiste via demo publique gratuite */
-  {
-    const grpX = document.createElement('optgroup');
-    grpX.label = '🔊 Coqui XTTS — réaliste (démonstration gratuite pour tous)';
-    const optX = document.createElement('option');
-    optX.value = 'xtts:female';
-    optX.textContent = '🔊 XTTS : femme (voix clonée, lent ~30-60 s)';
-    grpX.appendChild(optX);
-    ttsVoiceSel.appendChild(grpX);
-  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
@@ -4153,10 +4056,8 @@ function speak(text, onChunk){
        INWORLD TTS-2 (realiste, ~2-4 s) puis Google Translate (rapide, jamais muet).
        voxtral:* (memorise ancien) ->Trait comme le defaut. */
     const voiceMode = getVoice();
-    /* v11.17 : XTTS = synthese realiste COTE CPU public : budget elargi
-       (declare APRES voiceMode, sinon TDZ ReferenceError) */
-    const globalBudget = voiceMode.startsWith('xtts:') ? 200000 : 40000;
-    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (' + Math.round(globalBudget / 1000) + 's)'); fail(); }, globalBudget);
+    /* v11.18 : budget standard 40s (XTTS retire) */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (40s)'); fail(); }, 40000);
     /* v10.99 : deux versions du texte —
        - tagged : balises Inworld ([sigh] [laugh] ...) pour la voix reelle
        - plain  : SANS les mots-markers, pour le filet Google / voix systeme
@@ -4186,13 +4087,6 @@ function speak(text, onChunk){
       const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
       chain = [
         ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk, taggedText)],
-        SAFE
-      ];
-    }
-    /* v11.16 : la voix Coqui XTTS va en tete de chaine (Google filet) */
-    if (voiceModeFinal.startsWith('xtts:')){
-      chain = [
-        ['Coqui XTTS', (t) => speakXtts(t, onChunk)],
         SAFE
       ];
     }
