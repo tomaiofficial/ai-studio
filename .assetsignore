@@ -1,0 +1,11 @@
+resource
+agentsh-local
+tests
+docs
+scripts
+models
+utils
+core
+node_modules
+.opencode
+.git

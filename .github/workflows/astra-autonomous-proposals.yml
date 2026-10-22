@@ -1,0 +1,58 @@
+name: Astra autonomous feature proposals
+
+'on':
+  workflow_dispatch:
+  schedule:
+    - cron: '17 10 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: astra-autonomous-proposals
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: github.repository == 'tomaiofficial/ai-studio'
+    environment: MISTRAL_API_KEY
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check current baseline
+        run: npm test
+
+      - name: Generate and test one feature proposal
+        id: proposal
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MISTRAL_MODEL: mistral-small-latest
+        run: python3 -u .github/scripts/propose_astra_feature.py
+
+      - name: Open a pull request for review
+        if: steps.proposal.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_TITLE: ${{ steps.proposal.outputs.title }}
+          PR_BODY: ${{ steps.proposal.outputs.body }}
+          BRANCH_NAME: ${{ steps.proposal.outputs.branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH_NAME"
+          git add app.js index.html
+          git commit -m "$PR_TITLE"
+          git push --set-upstream origin "$BRANCH_NAME"
+          gh pr create --base main --head "$BRANCH_NAME" --title "$PR_TITLE" --body "$PR_BODY"

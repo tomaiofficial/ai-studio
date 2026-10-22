@@ -1,22 +1,29 @@
 services:
   - type: web
-    name: agnes-ia
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    name: astra-vocal-server
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
     envVars:
-      - key: AGNES_API_KEY
+      - key: ASTRA_API_TOKEN
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://tomaiofficial.github.io
+      - key: PUBLIC_SUGGESTIONS
+        value: "true"
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: AUTONOMY_ENABLED
+        value: "true"
+      - key: AUTONOMY_INTERVAL_HOURS
+        value: "12"
+      - key: AUTONOMY_START_DELAY_MINUTES
+        value: "5"
+      - key: AUTONOMY_REPOSITORY
+        value: tomaiofficial/ai-studio
+      - key: AUTONOMY_WORKFLOW
+        value: astra-autonomous-proposals.yml
+      - key: AUTONOMY_GITHUB_TOKEN
         sync: false
-      - key: PORT
-        value: 10000
-      # Stockage persistant (galerie communautaire + metadonnees de taches)
-      # Creer un projet gratuit sur https://supabase.com (voir SUPABASE_SETUP.md)
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: SUPABASE_DATABASE_URL
-        sync: false
-      - key: SUPABASE_STORAGE_BUCKET
-        value: agnes-community
-    healthCheckPath: /

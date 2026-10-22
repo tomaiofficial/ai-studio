@@ -1,0 +1,40 @@
+name: Scan settings voix (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan reglages et voix
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          {
+            echo "=== MISTRAL_KEY / cles API dans app.js ==="
+            grep -n "MISTRAL_KEY_LS\|getMistralKey\|localStorage.getItem.*KEY\|apiKey\|api_key" app.js | head -30
+            echo ""
+            echo "=== panneau reglages dans index.html (ids) ==="
+            grep -n "id="va_\|id='va_\|id=\"settings\|reglage\|réglage\|Reglage\|Réglage" index.html | head -30
+            echo ""
+            echo "=== section cles / api dans index.html ==="
+            grep -n -i "clé\|cle mistral\|api" index.html | head -30
+            echo ""
+            echo "=== voix : populateVoices / liste / options ==="
+            grep -n "populateVoices\|voiceSelect\|ttsVoice\|va_ttsvoice\|option.*voice\|voix" app.js | head -40
+          } > astra-voices-scan.txt
+          git add astra-voices-scan.txt
+          git commit -m "chore: scan voix+reglages [skip ci]"
+          git rm -f .github/workflows/scan-voices.yml
+          git commit -m "chore: supp workflow [skip ci]"
+          git push
