@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.20';
+const APP_VERSION = '11.21';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5463,5 +5463,19 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     document.getElementById('vmOpen').onclick = open;
 
     console.log('[Astra] Mode vocal plein écran (ChatGPT style) actif.');
+
+    /* v11.21 : les appels DIRECTS de speak() (sans setState) doivent aussi
+       faire pulser l orbe : on nappote un hook d'entree/sortie de promesse */
+    try {
+      const origSpeak = speak;
+      speak = function(t, oc){
+        try { orbM.classList.remove('listening', 'thinking', 'speaking'); orbM.classList.add('speaking'); } catch(e){}
+        const r = origSpeak(t, oc);
+        if (r && typeof r.finally === 'function'){
+          return r.finally(() => { try { orbM.classList.remove('listening', 'thinking', 'speaking'); } catch(e){} });
+        }
+        return r;
+      };
+    } catch(e){ console.warn('[Astra] hook orbe vocal ignoré:', e && e.message); }
   } catch (e) { console.warn('[Astra] Mode vocal non chargé:', e && e.message); }
 })();
