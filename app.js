@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    Piper TTS = voix locales (gratuites, sans cle) par defaut
    ============================================================ */
-const APP_VERSION = '11.13';
+const APP_VERSION = '11.14';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -1343,7 +1343,7 @@ function getVoice(){
   /* v11.12 : PIPER redevient un vrai moteur (voix locales, sans quota) :
      un ancien id invalide bascule au defaut, un id FR valide est garde. */
   if (v.startsWith('piper:')){
-    const pid = v.substring(7);
+    const pid = v.substring(6);
     return PIPER_VOICES.some(x => x.id === pid) ? 'piper:' + pid : DEFAULT_VOICE;
   }
   /* v10.85 : Voxtral SUSPENDU (trop lent, 10-15 s) -> TOUTE voxtral:* bascule
@@ -1471,7 +1471,7 @@ ttsVoiceSel.addEventListener('change', () => {
   /* v11.13 : voix Piper -> on telecharge TOUT DE SUITE le modele (~60 Mo,
      une seule fois) pendant que l'utilisateur reste dans les reglages */
   if (val && val.startsWith('piper:')){
-    const vid = val.substring(7);
+    const vid = val.substring(6);
     getPiperLib().then(async lib => {
       let cached = false;
       try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
@@ -2448,7 +2448,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   try {
     const sv = getVoice();
     if (sv.startsWith('piper:')){
-      const vid = sv.substring(7);
+      const vid = sv.substring(6);
       getPiperLib().then(async lib => {
         let cached = false;
         try { cached = ((await lib.stored()) || []).indexOf(vid) >= 0; } catch(e){}
@@ -4223,7 +4223,7 @@ function speak(text, onChunk){
     }
     /* v11.12 : voix Piper locale -> seule dans la chaine, Google en filet */
     if (voiceModeFinal.startsWith('piper:')){
-      const pid = voiceModeFinal.substring(7);
+      const pid = voiceModeFinal.substring(6);
       chain = [
         ['Piper: ' + pid, (t) => speakPiper(t, pid, onChunk)],
         SAFE
