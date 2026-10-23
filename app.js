@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.21';
+const APP_VERSION = '11.22';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5460,7 +5460,6 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
     document.getElementById('vmMic').onclick = () => { if (typeof startRecorder === 'function') startRecorder(); };
     document.getElementById('vmClose').onclick = close;
     document.getElementById('vmKb').onclick = () => { close(); const ti = document.getElementById('textInput'); if (ti) ti.focus(); };
-    document.getElementById('vmOpen').onclick = open;
 
     console.log('[Astra] Mode vocal plein écran (ChatGPT style) actif.');
 
