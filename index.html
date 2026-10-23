@@ -513,7 +513,11 @@ select.wide-input{appearance:none}
 #nvFrame{width:100%;height:100%;border:none;background:#fff}
 #nvNote{padding:8px 16px;font-size:11.5px;color:#7d7fa6;background:#121021;border-top:1px solid rgba(124,92,255,.2)}
 #nvAns{position:absolute;left:12px;right:12px;top:12px;z-index:2;background:#151332ee;border:1px solid rgba(124,92,255,.45);border-radius:14px;padding:14px 16px;color:#e8e6ff;font-size:13.5px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.55);white-space:pre-wrap}
-#nvAns .nvAnsX{float:right;cursor:pointer;color:#9d9abf;border:none;background:none;font-size:15px}
+#nvAns .nvAnsX{float:right;cursor:pointer;color:#9d9abf;border:none;background:none;font-size:</style>
+</head>
+<body>
+  <style>
+15px}
 
 
 /* ==== v11.29 : GENERIQUE D'OUVERTURE D'ASTRA (continuer obligatoire) ==== */
@@ -532,9 +536,16 @@ select.wide-input{appearance:none}
 #IntroCTA:active{transform:scale(.97)}
 @keyframes IntroGlow{0%,100%{box-shadow:0 8px 30px rgba(84,110,255,.45),0 2px 8px rgba(0,0,0,.6)}50%{box-shadow:0 8px 42px rgba(96,130,255,.75),0 2px 10px rgba(0,0,0,.6)}}
 #IntroVer{position:absolute;bottom:18px;color:#565b7a;font-size:11px;letter-spacing:.22em}
-</style>
-</head>
-<body>
+  </style>
+  <div id="introIntro">
+    <div id="IntroStars"><i style="left:60%;top:76%;width:3.4px;height:3.4px;animation-delay:4.84s"></i><i style="left:25%;top:89%;width:3.9px;height:3.9px;animation-delay:3.64s"></i><i style="left:46%;top:35%;width:1.3px;height:1.3px;animation-delay:0.80s"></i><i style="left:56%;top:79%;width:4.1px;height:4.1px;animation-delay:0.61s"></i><i style="left:8%;top:83%;width:2.9px;height:2.9px;animation-delay:2.04s"></i><i style="left:40%;top:27%;width:2.7px;height:2.7px;animation-delay:4.97s"></i><i style="left:8%;top:28%;width:4.4px;height:4.4px;animation-delay:2.00s"></i><i style="left:85%;top:41%;width:2.5px;height:2.5px;animation-delay:4.32s"></i><i style="left:28%;top:87%;width:2.9px;height:2.9px;animation-delay:0.52s"></i><i style="left:32%;top:37%;width:3.3px;height:3.3px;animation-delay:0.21s"></i><i style="left:11%;top:87%;width:2.8px;height:2.8px;animation-delay:3.00s"></i><i style="left:96%;top:24%;width:3.2px;height:3.2px;animation-delay:4.47s"></i><i style="left:81%;top:49%;width:4.2px;height:4.2px;animation-delay:1.67s"></i><i style="left:47%;top:66%;width:3.8px;height:3.8px;animation-delay:3.72s"></i><i style="left:78%;top:60%;width:3.1px;height:3.1px;animation-delay:3.48s"></i><i style="left:91%;top:24%;width:4.3px;height:4.3px;animation-delay:4.61s"></i><i style="left:20%;top:80%;width:3.4px;height:3.4px;animation-delay:0.45s"></i><i style="left:50%;top:28%;width:2.1px;height:2.1px;animation-delay:0.05s"></i><i style="left:68%;top:56%;width:3.1px;height:3.1px;animation-delay:4.50s"></i><i style="left:69%;top:60%;width:4.4px;height:4.4px;animation-delay:4.97s"></i><i style="left:91%;top:56%;width:2.6px;height:2.6px;animation-delay:4.14s"></i><i style="left:9%;top:55%;width:3.5px;height:3.5px;animation-delay:1.37s"></i><i style="left:23%;top:72%;width:2.2px;height:2.2px;animation-delay:0.33s"></i><i style="left:4%;top:45%;width:2.1px;height:2.1px;animation-delay:4.99s"></i><i style="left:17%;top:33%;width:3.9px;height:3.9px;animation-delay:2.97s"></i><i style="left:28%;top:64%;width:1.6px;height:1.6px;animation-delay:4.20s"></i></div>
+    <div id="IntroOrb"></div>
+    <div id="IntroName">ASTRA</div>
+    <div id="IntroTag">Ton assistante vocale · gratuite · réelle · à toi</div>
+    <button id="IntroCTA" onclick="var o=this.parentNode;o.classList.add('out');setTimeout(function(){o.remove()},820)">Continuer</button>
+    <div id="IntroVer">ASTRA · Assistant IA personnel</div>
+  </div>
+
 
 <!-- FOND ANIME -->
 <div class="bg">
@@ -871,10 +882,10 @@ select.wide-input{appearance:none}
   </div>
   <div id="nvNote">Le navigateur d'Astra affiche vraiment les sites (Bing, Wikipédia, searx…). Certains sites (YouTube, GitHub…) refusent l'affichage intégré : utilise ↗ pour les ouvrir dans un onglet.</div>
 </div>
-<script src="websearch.js?v=11.32"></script>
+<script src="websearch.js?v=11.33"></script>
 <script>
 </script>
-<script src="app.js?v=11.32"></script>
+<script src="app.js?v=11.33"></script>
 
 </body>
 </html>

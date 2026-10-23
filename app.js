@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.32';
+const APP_VERSION = '11.33';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5642,33 +5642,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    passer. S'efface seul (fade) et libere le DOM.
    ============================================================ */
 (function astraIntro(){
-  try {
-    /* genérique a CHAQUE lancement ; l'utilisateur appuie sur CONTINUER */
-    const ov = document.createElement('div');
-    ov.id = 'introIntro';
-    let stars = '<div id="IntroStars">';
-    for (let i = 0; i < 26; i++){
-      const x = Math.floor(Math.random() * 96) + 2;
-      const y = Math.floor(Math.random() * 70) + 22;
-      const s = (Math.random() * 3.2 + 1.2).toFixed(1);
-      const d = (Math.random() * 5).toFixed(2);
-      stars += '<i style="left:' + x + '%;top:' + y + '%;width:' + s + 'px;height:' + s + 'px;animation-delay:' + d + 's"></i>';
-    }
-    stars += '</div>';
-    ov.innerHTML = stars +
-      '<div id="IntroOrb"></div>' +
-      '<div id="IntroName">ASTRA</div>' +
-      '<div id="IntroTag">Ton assistante vocale · gratuite · réelle · à toi</div>' +
-      '<button id="IntroCTA">Continuer</button>' +
-      '<div id="IntroVer">ASTRA · Assistant IA personnel</div>';
-    document.body.appendChild(ov);
-    let gone = false;
-    const finish = () => {
-      if (gone) return;
-      gone = true;
-      try { ov.classList.add('out'); setTimeout(() => ov.remove(), 820); } catch(e){ try { ov.remove(); } catch(e2){} }
-    };
-    document.getElementById('IntroCTA').onclick = finish;
-    ov.addEventListener('keydown', e => { if (e.key === 'Enter') finish(); });
-  } catch (e) { console.warn('[Astra] générique ignoré:', e && e.message); }
+  /* v11.33 : le generique vit maintenant DANS le HTML (debut du body) :
+     affiche des le premier paint, avant app.js. Le bouton Continuer a son
+     onclick inline. Ce module ne fait plus rien d actif. */
 })();
