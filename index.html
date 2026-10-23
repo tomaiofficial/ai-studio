@@ -486,34 +486,6 @@ select.wide-input{appearance:none}
 #vmMic:hover{background:rgba(255,255,255,.14)}
 #vmHint{position:absolute;bottom:22px;font-size:12px;color:#6c7391}
 
-/* ==== v11.23 : MISSIONS (agent personnel, style Muse) ==== */
-#miOverlay{position:fixed;inset:0;background:#0b0b16;z-index:9998;display:flex;flex-direction:column}
-#miOverlay[hidden]{display:none}
-#miTop{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid rgba(124,92,255,.25)}
-#miTop h2{margin:0;font-size:19px;color:#fff;font-weight:700}
-#miClose{margin-left:auto;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#fff;font-size:18px;cursor:pointer}
-#miClose:hover{background:rgba(255,255,255,.16)}
-#miNewRow{display:flex;gap:10px;padding:16px 22px}
-#miGoal{flex:1;padding:13px 16px;border-radius:14px;border:1px solid rgba(124,92,255,.35);background:#151427;color:#fff;font-size:15px;outline:none}
-#miGoal:focus{border-color:#8b6cff}
-#miGo{padding:13px 20px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5cff,#4f8bf5);color:#fff;font-weight:600;cursor:pointer}
-#miList{flex:1;overflow-y:auto;padding:6px 22px 30px;display:flex;flex-direction:column;gap:14px}
-.miCard{background:#131224;border:1px solid rgba(124,92,255,.22);border-radius:18px;padding:16px 18px}
-.miCardHead{display:flex;align-items:baseline;gap:10px}
-.miCardHead b{color:#fff;font-size:16px}
-.miCardHead small{color:#7b7fa0;font-weight:400}
-.miBar{height:5px;border-radius:3px;background:#26244a;margin:12px 0;overflow:hidden}
-.miBarFill{height:100%;background:linear-gradient(90deg,#7c5cff,#4f8bf5);width:0;transition:width .4s}
-.miStep{display:flex;gap:10px;padding:7px 0;color:#c9cbe8;font-size:14px;line-height:1.45}
-.miStep .st{flex:none;width:22px}
-.miStep.done{color:#8be29f}
-.miStep.doing{color:#ffd479}
-.miStep.fail{color:#ff8f8f}
-.miRes{margin:6px 0 2px 32px;padding:10px 12px;background:#1a1936;border-radius:10px;color:#e6e6f7;font-size:13px;white-space:pre-wrap;line-height:1.5}
-.miActs{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
-.miActs button{padding:8px 14px;border-radius:10px;border:1px solid rgba(124,92,255,.4);background:rgba(124,92,255,.12);color:#dcd6ff;font-size:13px;cursor:pointer}
-.miActs button:hover{background:rgba(124,92,255,.25)}
-#miHint{padding:10px 22px;font-size:12px;color:#6d7093;border-top:1px solid rgba(124,92,255,.18)}
 </style>
 </head>
 <body>
@@ -557,7 +529,7 @@ select.wide-input{appearance:none}
 
 <!-- v10.13 : les boutons passent dans une barre laterale GAUCHE.
      Le mode vocal reste identique, seul le conteneur change. -->
-<header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgba(124,92,255,.16);display:flex;align-items:center;justify-content:space-between;"><h1 style="font-size:18px;font-weight:700;color:#fff;">Assistant IA</h1><div style="display:flex;gap:8px;"><button class="icon-btn" id="miOpen" title="Missions">🧭</button><button class="icon-btn" id="aboutBtn" title="À propos d'Astra">💜</button><button class="icon-btn" id="historyBtn" title="Historique">📜</button><button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button></div></header>
+<header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgba(124,92,255,.16);display:flex;align-items:center;justify-content:space-between;"><h1 style="font-size:18px;font-weight:700;color:#fff;">Assistant IA</h1><div style="display:flex;gap:8px;"><button class="icon-btn" id="aboutBtn" title="À propos d'Astra">💜</button><button class="icon-btn" id="historyBtn" title="Historique">📜</button><button class="icon-btn" id="settingsBtn" title="Réglages">⚙️</button></div></header>
 <div style="padding:6px 18px;background:rgba(124,92,255,.08);text-align:center;font-size:12px;color:#9a9ab5;border-bottom:1px solid rgba(124,92,255,.12);">
   <b style="color:#fff;">Astra</b> — assistante vocale par <b>Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">@tom.ai.official</a>
 </div>
@@ -837,16 +809,10 @@ select.wide-input{appearance:none}
   <div id="vmHint">tape l orbe ou le micro pour parler</div>
 </div>
 
-<div id="miOverlay" hidden>
-  <div id="miTop"><h2>🧭 Missions — agent personnel</h2><button id="miClose">✕</button></div>
-  <div id="miNewRow"><input id="miGoal" placeholder="Décris ta mission (ex : prépare mon week-end à Lyon, trouve-moi un job d'été...)"><button id="miGo">Lancer</button></div>
-  <div id="miList"></div>
-  <div id="miHint">Astra décompose ta mission en étapes, les exécute une par une (recherche web, textes, checklists) ; garde la main : pause, reprise ou suppression.</div>
-</div>
-<script src="websearch.js?v=11.23"></script>
+<script src="websearch.js?v=11.24"></script>
 <script>
 </script>
-<script src="app.js?v=11.23"></script>
+<script src="app.js?v=11.24"></script>
 
 </body>
 </html>
