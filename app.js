@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.29';
+const APP_VERSION = '11.30';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
