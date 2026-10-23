@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.24';
+const APP_VERSION = '11.25';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -4418,6 +4418,12 @@ async function handleQuestion(question){
   scheduleIdleGames();
   if (handleMiniGameAnswer(question)) return;
   /* v10.28 : autonomie locale uniquement si active dans Reglages */
+  /* v11.25 : NAVIGATEUR — commandes web (ouvre / cherche X sur internet) */
+  if (window.navMaybeCommand){
+    try {
+      if (await window.navMaybeCommand(question)){ setState('idle'); return; }
+    } catch (eNav){ console.warn('[NAV] commande:', eNav && eNav.message); }
+  }
   const autonomyEnabled = (typeof localStorage !== 'undefined' && localStorage.getItem('va_autonomy') === '1');
   const normalizedCommand = String(question || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   if (ASTRA_LOCAL_FEATURES.repeatLastReply && /^(repete|repete ca|repete encore|redis|redis ca|peux-tu repeter|peux tu repeter)[.!? ]*$/.test(normalizedCommand)) {
@@ -5486,3 +5492,119 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    etapes, executees une par une, sauvées en localStorage.
    Interface : overlay #miOverlay (voir index.html v11.23).
    ============================================================ */
+
+
+/* ============================================================
+   v11.25 : NAVIGATEUR D'ASTRA — browser intégré réel
+   Fenêtre web DANS le site : Bing/searx/Wikipédia s'y affichent
+   réellement (testé). Commande vocale/chat : « ouvre le navigateur
+   sur X », « cherche X sur internet » → Astra affiche la page ET
+   répond à voix haute. Frameability testée le 23/10/2026 :
+   OK = bing.com, fr.wikipedia.org, searx.be — KO = DDG, GitHub, YouTube.
+   ============================================================ */
+(function navAstraModule(){
+  try {
+    const ov = document.getElementById('nvOverlay');
+    if (!ov) return;
+    const urlIn = document.getElementById('nvUrl');
+    const fr = document.getElementById('nvFrame');
+    const ans = document.getElementById('nvAns');
+    const ansTxt = document.getElementById('nvAnsTxt');
+    let nvHistory = [];
+    const HOME = 'https://www.bing.com';
+
+    function showAns(t){
+      if (!t) return ans.style.display = 'none';
+      ansTxt.textContent = t;
+      ans.style.display = 'block';
+    }
+    document.querySelector('#nvAns .nvAnsX').onclick = () => showAns(null);
+
+    let NV_SRC = HOME;
+    function isUrl(s){
+      return /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/|$)/i.test(String(s || '').trim()) && !/\s/.test(String(s || '').trim());
+    }
+    function goto(u){
+      if (!/^https?:/i.test(u)) u = 'https://' + u;
+      nvHistory.push({ u: urlIn.value || '', src: NV_SRC });
+      NV_SRC = u;
+      urlIn.value = u;
+      fr.src = u;
+      showAns(null);
+    }
+
+    async function search(q){
+      showAns("Astra cherche…");
+      let webText = '';
+      try { webText = await Promise.race([webSearch(q), new Promise(r => setTimeout(() => r(''), 6000))]); } catch(e){}
+      const line = webText ? stripBrands(String(webText)) : '';
+      if (line) showAns('🔎 ' + line.slice(0, 500));
+      /* affiche réellement les résultats (Bing encadrable) */
+      goto('https://www.bing.com/search?q=' + encodeURIComponent(q));
+      await voiceReply(q, line);
+    }
+
+    function stripBrands(t){ return String(t || '').replace(/\s+/g, ' ').trim(); }
+
+    async function voiceReply(q, webText){
+      try {
+        let rep = '';
+        if (webText){
+          const backup = (typeof session !== 'undefined' && Array.isArray(session)) ? session.slice(0) : null;
+          const r = await askAI('Question : "' + q + '". Infos du web : ' + String(webText).slice(0, 500) + '. Réponds brièvement en français (2 phrases max), direct, sans préambule.');
+          if (Array.isArray(backup)){ try { session.length = 0; backup.forEach(m => session.push(m)); } catch(e){} }
+          rep = (r && !r.error) ? String(r.text || '') : '';
+        }
+        if (!rep) rep = 'J ' + 'ai ouvert le navigateur sur « ' + q + ' » — les résultats s affichent dans la fenêtre.';
+        if (typeof speak === 'function' && !isSpeaking) speak(rep);
+      } catch(e){}
+    }
+
+    function submit(){
+      const v = urlIn.value.trim();
+      if (!v) return;
+      if (isUrl(v)) goto(v); else search(v);
+    }
+
+    document.getElementById('nvGo').onclick = submit;
+    urlIn.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    document.getElementById('nvBack').onclick = () => {
+      const prev = nvHistory.pop();
+      if (prev){ NV_SRC = prev.src; urlIn.value = prev.u; fr.src = prev.src; }
+      else { NV_SRC = HOME; urlIn.value = ''; fr.src = HOME; }
+      showAns(null);
+    };
+    document.getElementById('nvHome').onclick = () => { NV_SRC = HOME; urlIn.value = ''; fr.src = HOME; showAns(null); };
+    document.getElementById('nvTab').onclick = () => window.open(NV_SRC || HOME, '_blank');
+    document.getElementById('nvClose').onclick = () => { ov.hidden = true; };
+    document.getElementById('nvOpen').onclick = () => { ov.hidden = false; if (!NV_SRC) { NV_SRC = HOME; fr.src = HOME; } };
+
+    /* Commande vocale/chat : « ouvre/cherche/affiche X » avec contexte web
+       (internet, web, navigateur, google, bing, wikipedia...) */
+    function bindNavCommand(){
+      const NAVVERB = /^(?:ouvre|affiche|montre(?:-moi)?|cherche(?:r)?(?:\s+moi)?|navigu(?:e|er)|va\s+(?:sur|à|au|aux))\s*/i;
+      const NAVCTX  = /\b(?:navigateur|internet|web|google|bing|searx|wikip[eé]dia|MOTEUR)\b/i;
+      function targetOf(q){
+        const s = String(q || '').trim();
+        if (!NAVVERB.test(s)) return '';
+        if (!NAVCTX.test(s)) return '';
+        let t = s.replace(NAVVERB, '').replace(/^(?:le\s+|la\s+)?(?:navigateur|page|site)\s*(?:sur\s+|dans\s+|:\s*)?/i, '');
+        t = t.replace(/\s*(?:sur|dans|avec|via)\s+(?:le\s+)?(?:marche\s+)?(?:navigateur|internet|web|google|bing|searx|wikip[eé]dia|MOTEUR)\s*[.?!]?\s*$/i, '').trim();
+        t = t.replace(/^(?:sur|dans)\s+(?:le\s+)?(?:navigateur|web|internet)\s*/i, '').trim();
+        t = t.replace(/[.?!]+$/, '').trim();
+        return t;
+      }
+      window.navMaybeCommand = async function(q){
+        const target = targetOf(q);
+        if (!target) return false;
+        ov.hidden = false;
+        if (isUrl(target)) goto(target);
+        else await search(target || 'actualités du jour');
+        return true;
+      };
+    }
+    bindNavCommand();
+
+    console.log('[Astra] Navigateur intégré actif (Bing/Wikipédia/searx encadrables).');
+  } catch (e) { console.warn('[Astra] Navigateur non actif:', e && e.message); }
+})();
