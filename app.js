@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.22';
+const APP_VERSION = '11.23';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5477,4 +5477,166 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
       };
     } catch(e){ console.warn('[Astra] hook orbe vocal ignoré:', e && e.message); }
   } catch (e) { console.warn('[Astra] Mode vocal non chargé:', e && e.message); }
+})();
+
+
+/* ============================================================
+   v11.23 : MISSIONS — agent personnel style Muse
+   Une mission = un objectif decoupe par le cerveau (askAI) en
+   etapes, executees une par une, sauvées en localStorage.
+   Interface : overlay #miOverlay (voir index.html v11.23).
+   ============================================================ */
+(function missionsModule(){
+  try {
+    const M_LS = 'astra_missions_v1';
+    const ov = document.getElementById('miOverlay');
+    if (!ov) return;
+    const list = document.getElementById('miList');
+    const goalIn = document.getElementById('miGoal');
+    let missions = [];
+    let miBusy = false;
+
+    function load(){ try { missions = JSON.parse(localStorage.getItem(M_LS) || '[]'); } catch(e){ missions = []; } }
+    function save(){ try { localStorage.setItem(M_LS, JSON.stringify(missions.slice(-40))); } catch(e){} }
+
+    function loadBrainBackup(){ return (typeof session !== 'undefined' && Array.isArray(session)) ? session.slice(0) : null; }
+    function restoreBrain(b){ try { if (Array.isArray(b)){ session.length = 0; b.forEach(m => session.push(m)); } } catch(e){} }
+    /* askAI pousse la question dans la session du chat principal : on
+       nappote le contexte autour de chaque demande de mission */
+    async function brain(prompt){
+      const backup = loadBrainBackup();
+      const r = await askAI(prompt, null);
+      restoreBrain(backup);
+      return (r && !r.error) ? String(r.text || '') : '';
+    }
+
+    function steps(m){ return m.steps; }
+    function prog(m){
+      const s = steps(m);
+      return { done: s.filter(x => x.status === 'done').length, total: s.length };
+    }
+
+    function render(){
+      list.innerHTML = '';
+      if (!missions.length){
+        list.innerHTML = '<div style="color:#6d7093;text-align:center;margin-top:60px">Aucune mission encore. Écris ton objectif ci-dessus : Astra va le découper puis l exécuter pour toi.</div>';
+        return;
+      }
+      missions.slice().reverse().forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'miCard';
+        const p = prog(m);
+        const head = document.createElement('div');
+        head.className = 'miCardHead';
+        const b = document.createElement('b');
+        b.textContent = m.title || m.goal.slice(0, 60);
+        const sm = document.createElement('small');
+        sm.textContent = new Date(m.created).toLocaleDateString('fr-FR') + ' · ' + p.done + '/' + p.total + (m.status === 'done' ? ' · ✅' : (miBusy && m.status === 'run' ? ' · en cours' : ''));
+        head.appendChild(b); head.appendChild(sm);
+        const bar = document.createElement('div');
+        bar.className = 'miBar';
+        const fill = document.createElement('div');
+        fill.className = 'miBarFill';
+        fill.style.width = (p.total ? Math.round(100 * p.done / p.total) : 0) + '%';
+        bar.appendChild(fill);
+        card.appendChild(head); card.appendChild(bar);
+        m.steps.forEach(s => {
+          const row = document.createElement('div');
+          row.className = 'miStep ' + s.status;
+          const st = document.createElement('span');
+          st.className = 'st';
+          st.textContent = { todo: '○', doing: '⏳', done: '✅', fail: '❌' }[s.status] || '●';
+          const tx = document.createElement('span');
+          tx.textContent = s.t;
+          row.appendChild(st); row.appendChild(tx);
+          card.appendChild(row);
+          if (s.result){
+            const res = document.createElement('div');
+            res.className = 'miRes';
+            res.textContent = s.result.slice(0, 700);
+            card.appendChild(res);
+          }
+        });
+        const acts = document.createElement('div');
+        acts.className = 'miActs';
+        if (m.status !== 'done'){
+          const bp = document.createElement('button');
+          bp.textContent = m.status === 'paused' ? '▶ Continuer' : '⏸ Pause';
+          bp.onclick = () => { if (m.status === 'paused'){ m.status = 'run'; run(m); } else { m.status = 'paused'; statusNote('Mission en pause.'); render(); } };
+          acts.appendChild(bp);
+        }
+        const bg = document.createElement('button');
+        bg.textContent = '🗑 Supprimer';
+        bg.onclick = () => { missions = missions.filter(x => x.id !== m.id); save(); render(); };
+        acts.appendChild(bg);
+        card.appendChild(acts);
+        list.appendChild(card);
+      });
+    }
+
+    function statusNote(t){ try { setStatus(t); } catch(e){} }
+
+    async function parsePlan(goal){
+      const txt = await brain('Tu es l agent de missions d Astra, une assistante française. Objectif de l utilisateur : "' + goal + '". Décompose-le en étapes CONCRÈTES et courtes (max 6). Réponds UNIQUEMENT par une liste JSON comme {[{t:"Titre de l étape"}]}, sans rien d autre. Chaque t doit commencer par un verbe.');
+      const out = [];
+      try {
+        const raw = txt.slice(txt.indexOf('['), txt.lastIndexOf(']') + 1);
+        const arr = JSON.parse(raw);
+        arr.forEach(x => { const t = (x && (typeof x === 'string' ? x : x.t)) || ''; if (t.trim()) out.push({ t: t.trim().slice(0, 120), status: 'todo', result: '' }); });
+      } catch(e){}
+      if (!out.length){
+        txt.split(/\r?\n/).slice(0, 6).forEach(l => {
+          const s = l.replace(/^[-*•\d.\s]+/, '').trim();
+          if (s.length > 4) out.push({ t: s.slice(0, 120), status: 'todo', result: '' });
+        });
+      }
+      return out;
+    }
+
+    async function run(m){
+      if (miBusy || m.status !== 'run') return;
+      miBusy = true;
+      try {
+        for (const s of m.steps){
+          if (m.status !== 'run') break;
+          if (s.status !== 'todo') continue;
+          s.status = 'doing'; save(); render();
+          const res = await brain('Mission : "' + (m.title || m.goal) + '". Étape à exécuter : "' + s.t + '". Donne le résultat utile et concret de CETTE étape (données utiles, texte prêt à copier, recherche simplifiée, checklist). Sois direct et francophone, maximum 130 mots.');
+          s.status = res ? 'done' : 'fail';
+          s.result = res || 'Étape échouée (cerveau indisponible) — réessaie.';
+          s.tts = false;
+          save(); render();
+          await new Promise(r => setTimeout(r, 1200));
+        }
+        if (m.status === 'run'){
+          m.status = 'done';
+          const fin = await brain('Mission : "' + (m.title || m.goal) + '" terminée. Résume en 2 phrases ce qui a été accompli et ce qui reste à faire par l humain, en français.');
+          m.steps.push({ t: '📅 Synthèse finale', status: 'done', result: fin || 'Mission terminée.', tts: false });
+          save(); render();
+        }
+      } catch(e){ console.warn('[Missions] echec', e && e.message); }
+      miBusy = false;
+      render();
+    }
+
+    async function create(){
+      const g = goalIn.value.trim();
+      if (!g || miBusy) { if (!g) goalIn.focus(); return; }
+      goalIn.value = '';
+      statusNote('Astra décompose ta mission...');
+      const stepsArr = await parsePlan(g);
+      if (!stepsArr.length){ statusNote("Je n'ai pas réussi à découper — réessaie autrement."); return; }
+      const m = { id: Date.now(), goal: g, title: g.slice(0, 60), created: Date.now(), status: 'run', steps: stepsArr };
+      missions.push(m); save(); render();
+      run(m);
+    }
+
+    document.getElementById('miClose').onclick = () => { ov.hidden = true; };
+    document.getElementById('miOpen').onclick = () => { ov.hidden = false; load(); render(); goalIn && goalIn.focus(); };
+    document.getElementById('miGo').onclick = create;
+    goalIn.addEventListener('keydown', e => { if (e.key === 'Enter') create(); });
+
+    load(); render();
+    console.log('[Astra] Missions (agent personnel) actives.');
+  } catch (e) { console.warn('[Astra] Missions non chargées:', e && e.message); }
 })();
