@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.33';
+const APP_VERSION = '11.34';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5642,7 +5642,6 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    passer. S'efface seul (fade) et libere le DOM.
    ============================================================ */
 (function astraIntro(){
-  /* v11.33 : le generique vit maintenant DANS le HTML (debut du body) :
-     affiche des le premier paint, avant app.js. Le bouton Continuer a son
-     onclick inline. Ce module ne fait plus rien d actif. */
+  /* v11.34 : le generique vit DANS le HTML du body avec onclick inline;
+     affiche au premier paint, indispensable, sans dependance a app.js */
 })();
