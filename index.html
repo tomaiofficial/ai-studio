@@ -501,6 +501,19 @@ select.wide-input{appearance:none}
 #nvNote{padding:8px 16px;font-size:11.5px;color:#7d7fa6;background:#121021;border-top:1px solid rgba(124,92,255,.2)}
 #nvAns{position:absolute;left:12px;right:12px;top:12px;z-index:2;background:#151332ee;border:1px solid rgba(124,92,255,.45);border-radius:14px;padding:14px 16px;color:#e8e6ff;font-size:13.5px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.55);white-space:pre-wrap}
 #nvAns .nvAnsX{float:right;cursor:pointer;color:#9d9abf;border:none;background:none;font-size:15px}
+
+/* ==== v11.28 : GENERIQUE D'OUVERTURE D'ASTRA (2 premieres sessions) ==== */
+#introIntro{position:fixed;inset:0;background:radial-gradient(circle at 50% 46%,#0d1526 0%,#050810 60%,#000 100%);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:1;transition:opacity .65s ease}
+#introIntro.out{opacity:0;pointer-events:none}
+#IntroOrb{width:130px;height:130px;border-radius:50%;background:radial-gradient(circle at 35% 28%,#f2fbff 0%,#a8d4ff 20%,#4f8bf5 52%,#1746b8 78%,#0a2260 100%);box-shadow:0 0 90px rgba(80,140,255,.45),0 0 30px rgba(120,170,255,.3);animation:IntroGrow 1.75s cubic-bezier(.2,.8,.25,1) both}
+@keyframes IntroGrow{0%{transform:scale(.1);opacity:0}55%{opacity:1}100%{transform:scale(1);opacity:1}}
+#IntroName{margin-top:30px;color:#fff;font-weight:700;font-size:34px;letter-spacing:14px;text-indent:14px;opacity:0;animation:IntroLetters 1.2s .7s ease both}
+@keyframes IntroLetters{0%{opacity:0;letter-spacing:28px;text-indent:28px}100%{opacity:1;letter-spacing:14px;text-indent:14px}}
+#IntroTag{margin-top:12px;color:#8f95b3;font-size:13px;letter-spacing:2px;opacity:0;animation:IntroLetters 1s 1.35s ease both}
+#IntroLine{margin-top:26px;width:180px;height:2px;background:rgba(124,92,255,.22);border-radius:2px;overflow:hidden}
+#IntroLineFill{height:100%;width:0;background:linear-gradient(90deg,#7c5cff,#4f8bf5);animation:IntroFill 2.15s .25s linear both}
+@keyframes IntroFill{0%{width:0}100%{width:100%}}
+#IntroSkip{position:absolute;bottom:22px;color:#5c607e;font-size:11.5px;letter-spacing:1px}
 </style>
 </head>
 <body>
@@ -840,10 +853,10 @@ select.wide-input{appearance:none}
   </div>
   <div id="nvNote">Le navigateur d'Astra affiche vraiment les sites (Bing, Wikipédia, searx…). Certains sites (YouTube, GitHub…) refusent l'affichage intégré : utilise ↗ pour les ouvrir dans un onglet.</div>
 </div>
-<script src="websearch.js?v=11.27"></script>
+<script src="websearch.js?v=11.28"></script>
 <script>
 </script>
-<script src="app.js?v=11.27"></script>
+<script src="app.js?v=11.28"></script>
 
 </body>
 </html>

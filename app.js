@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.27';
+const APP_VERSION = '11.28';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5633,4 +5633,32 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
 
     console.log('[Astra] Navigateur intégré actif (Bing/Wikipédia/searx encadrables).');
   } catch (e) { console.warn('[Astra] Navigateur non actif:', e && e.message); }
+})();
+
+
+/* ============================================================
+   v11.28 : GENERIQUE D'OUVERTURE — joue aux 2 PREMIERES
+   sessions (compteur localStorage astra_intro_v1). Clic =
+   passer. S'efface seul (fade) et libere le DOM.
+   ============================================================ */
+(function astraIntro(){
+  try {
+    let plays = 0;
+    try { plays = parseInt(localStorage.getItem('astra_intro_v1') || '0', 10) || 0; } catch(e){}
+    if (plays >= 2) return; /* apres 2 sessions : disparu */
+    try { localStorage.setItem('astra_intro_v1', String(plays + 1)); } catch(e){}
+
+    const ov = document.createElement('div');
+    ov.id = 'introIntro';
+    ov.innerHTML = '<div id="IntroOrb"></div><div id="IntroName">ASTRA</div><div id="IntroTag">Ton assistant vocal — gratuit, réel, à toi</div><div id="IntroLine"><div id="IntroLineFill"></div></div><div id="IntroSkip">clique pour commencer</div>';
+    document.body.appendChild(ov);
+    let gone = false;
+    const finish = () => {
+      if (gone) return;
+      gone = true;
+      try { ov.classList.add('out'); setTimeout(() => ov.remove(), 750); } catch(e){ try { ov.remove(); } catch(e2){} }
+    };
+    ov.onclick = finish;
+    setTimeout(finish, 2600);
+  } catch (e) { console.warn('[Astra] genérique ignoré:', e && e.message); }
 })();
