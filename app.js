@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.26';
+const APP_VERSION = '11.27';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5589,7 +5589,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
           .replace(/^\s*hey\s*[,.!:]?\s*astra\b[,.!:]?\s*/i, '')
           .replace(/^[\s,.!?:;"'\u201c\u201d(-]+/, '')
           .trim();
-        const NAVCTX = /\b(?:navigateur|internet|web|google|bing|searx|wikip[eé]dia|MOTEUR)\b/i;
+        const NAVCTX = /\b(?:navigateur|internet|web|google|bing|searx|wikip[eé]dia|youtube|you\s+tube)\b/i;
         if (!NAVCTX.test(s)) return '';
         const m = s.match(/^(?:ouvre|affiches?[-\`a-z]*|montre(?:[-\`]moi)?|cherche(?:r)?(?:[-\`]moi)?|navigu(?:e|er)(?:[-\`]vers)?|file[-\`]?moi|donne[-\`]?moi|va\s+(?:voir\s+)?(?:sur|à|au|aux))\b/i);
         if (!m) return '';
@@ -5599,6 +5599,7 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
           .replace(/^(?:le\s+|la\s+|les\s+)(?=\S)/i, '');
         /* contexte AVANT le sujet : « le web sur X », « internet : X », « sur le web X » */
         t = t.replace(/^(?:sur\s+)?(?:le\s+|la\s+)?(?:web|internet|navigateur)\b[.:\s]*/i, '');
+        t = t.replace(/^(?:sur|dans)\s+(?:le\s+|la\s+|les\s+)?/i, '');
         t = t.replace(/^(?:web|internet|navigateur)\s+sur\s+/i, '');
         /* contexte APRES le sujet : « X sur (le) web/internet/google... » */
         t = t.replace(/\s+(?:sur|dans|avec|via|du|de\s+la\s+)\s*(?:le\s+|la\s+)?(?:web|internet|navigateur|google|bing|searx)\s*[.?!]*$/i, '');
