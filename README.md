@@ -4,6 +4,8 @@
 
 🌐 **En ligne** : https://tomaiofficial.github.io/ai-studio/
 
+🌐 **Astra** — assistant vocale : https://ai-studio.tom16112008.workers.dev
+
 ## ✨ Fonctionnalités
 
 - 🎙️ **Reconnaissance vocale** en français (gratuite, via le navigateur — Chrome Android recommandé)
