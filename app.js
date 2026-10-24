@@ -115,6 +115,7 @@ resolve((finalTranscript.trim() || this.transcript.trim()));
 }
 const stt = new SpeechToTextHandler();
 const LS = { voice: 'va_ttsvoice' };
+const BARK_URL = 'http://localhost:8888';
 
 /* v9.99.1 : ETAT DU TABLEAU DE MATHS — declare EN HAUT car getSystemPrompt()
    (appele pendant le chargement) y accede via getMathContext(). Un `let`
@@ -3818,6 +3819,16 @@ async function populateVoices(){
     }
     ttsVoiceSel.appendChild(grpI);
   }
+  /* v11.99 : option vocale Bark (voix vocale locale) */
+  {
+    const grpB = document.createElement('optgroup');
+    grpB.label = 'Bark - voix vocale locale (gratuite, systeme)';
+    const opt = document.createElement('option');
+    opt.value = 'bark';
+    opt.textContent = 'Bark - voix vocale locale (gratuite)';
+    grpB.appendChild(opt);
+    ttsVoiceSel.appendChild(grpB);
+  }
   /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
      branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
@@ -3898,6 +3909,53 @@ function speakSystem(text, specificVoiceName, onChunk){
       } else startSpeak();
     } catch(e){ resolve(false); }
   });
+}
+
+/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
+   vocale » (navigateur) ne sont plus listées dans le sélecteur. speakSystem
+   reste défini plus haut pour le secours silencieux de speak(). */
+
+/* v10.99 : VOIX BARK (Suno) — voix locale, gratuite, hors connexion optionnelle. ===== */
+async function speakBark(text, onChunk){
+  if (!text || !text.trim()) return true;
+  try {
+    const res = await fetch(BARK_URL + '/bark/tts', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const b64 = data.audio || '';
+    if (!b64) return false;
+    // WAV PCM16 mono 24kHz → Float32
+    const raw = new Uint8Array(b64.length);
+    for (let i = 0; i < b64.length; i++) raw[i] = b64.charCodeAt(i);
+    const offset = 44; // en-tête WAV standard (16-bit mono)
+    const n = (raw.length - offset) >> 1;
+    const sr = data.sr || 24000;
+    const ctx = new(window.AudioContext || window.webkitAudioContext)();
+    const float32 = new Float32Array(n);
+    for (let i = 0; i < n; i++){
+      const s = raw[offset + 2*i] | (raw[offset + 2*i + 1] << 8);
+      float32[i] = s / 32768;
+    }
+    const buf = ctx.createBuffer(1, n, sr);
+    buf.getChannelData(0).set(float32);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.55;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    ctx.resume();
+    src.start();
+    if (onChunk) onChunk('Bark');
+    return true;
+  } catch(e){
+    console.warn('[VOIX] Bark echoue:', e && e.message);
+    return false;
+  }
 }
 
 /* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
@@ -4056,6 +4114,12 @@ function speak(text, onChunk){
        INWORLD TTS-2 (realiste, ~2-4 s) puis Google Translate (rapide, jamais muet).
        voxtral:* (memorise ancien) ->Trait comme le defaut. */
     const voiceMode = getVoice();
+    /* v11.99 : BARK (Suno, locale) — on route d'abord la voix vocale Bark. */
+    if (voiceMode.startsWith('bark')){
+      const ok = await speakBark(plainText, onChunk);
+      done(ok);
+      return;
+    }
     /* v11.18 : budget standard 40s (XTTS retire) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (40s)'); fail(); }, 40000);
     /* v10.99 : deux versions du texte —
