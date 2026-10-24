@@ -4,7 +4,7 @@
    comme ChatGPT). Les autres cerveaux ont ete supprimes.
    v10.85 : Voxtral suspendu (trop lent). Inworld TTS-2 + Google filet.
    ============================================================ */
-const APP_VERSION = '11.34';
+const APP_VERSION = '11.33';
 console.log('[APP] v' + APP_VERSION + ' loading...');
 
 /* ============================================
@@ -5641,7 +5641,46 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
    sessions (compteur localStorage astra_intro_v1). Clic =
    passer. S'efface seul (fade) et libere le DOM.
    ============================================================ */
+
+/* ============================================================
+   v11.33 : GENERIQUE — une SEULE fois par navigateur/device
+   (compteur localStorage astra_intro_v1). apres le premier
+   affichage, les prochaines ouvertures passent DIRECT au
+   generique skipping (le contenu apparait directement).
+   ============================================================ */
 (function astraIntro(){
-  /* v11.34 : le generique vit DANS le HTML du body avec onclick inline;
-     affiche au premier paint, indispensable, sans dependance a app.js */
+  try {
+    let done = false;
+    let count = 0;
+    try {
+      count = parseInt(localStorage.getItem('astra_intro_v1') || '0', 10) || 0;
+      if (count > 0) done = true; // jamais vu -> skip
+      else localStorage.setItem('astra_intro_v1', String(count + 1));
+    } catch(e){}
+    if (done) return;
+
+    const ov = document.createElement('div');
+    ov.id = 'introIntro';
+    let stars = '<div id="IntroStars">';
+    for (let i = 0; i < 26; i++){
+      stars += '<i style="left:' + Math.floor(Math.random() * 96) + '%;top:' + Math.floor(Math.random() * 70) + '%;width:' + (Math.random() * 3.2 + 1.2).toFixed(1) + 'px;height:' + (Math.random() * 3.2 + 1.2).toFixed(1) + 'px;animation-delay:' + (Math.random() * 5).toFixed(2) + 's"></i>';
+    }
+    stars += '</div>';
+    ov.innerHTML = stars +
+      '<div id="IntroOrb"></div>' +
+      '<div id="IntroName">ASTRA</div>' +
+      '<div id="IntroTag">Ton assistante vocale · gratuite · réelle · à toi</div>' +
+      '<button id="IntroCTA">Continuer</button>' +
+      '<div id="IntroVer">ASTRA · Assistant IA personnel</div>';
+    document.body.appendChild(ov);
+    let gone = false;
+    const finish = () => {
+      if (gone) return;
+      gone = true;
+      try { ov.classList.add('out'); setTimeout(() => ov.remove(), 820); } catch(e){ try { ov.remove(); } catch(e2){} }
+    };
+    document.getElementById('IntroCTA').onclick = finish;
+    ov.addEventListener('keydown', e => { if (e.key === 'Enter') finish(); });
+  } catch (e) { console.warn('[Astra] générique ignoré:', e && e.message); }
 })();
+;
