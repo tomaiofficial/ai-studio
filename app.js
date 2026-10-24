@@ -115,7 +115,7 @@ resolve((finalTranscript.trim() || this.transcript.trim()));
 }
 const stt = new SpeechToTextHandler();
 const LS = { voice: 'va_ttsvoice' };
-const BARK_URL = 'http://localhost:8888';
+const BARK_URL = (window.__BARK_URL__ || 'http://localhost:8888').replace(/\/$/, '');
 
 /* v9.99.1 : ETAT DU TABLEAU DE MATHS — declare EN HAUT car getSystemPrompt()
    (appele pendant le chargement) y accede via getMathContext(). Un `let`
