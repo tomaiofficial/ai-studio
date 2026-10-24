@@ -4114,12 +4114,6 @@ function speak(text, onChunk){
        INWORLD TTS-2 (realiste, ~2-4 s) puis Google Translate (rapide, jamais muet).
        voxtral:* (memorise ancien) ->Trait comme le defaut. */
     const voiceMode = getVoice();
-    /* v11.99 : BARK (Suno, locale) — on route d'abord la voix vocale Bark. */
-    if (voiceMode.startsWith('bark')){
-      const ok = await speakBark(plainText, onChunk);
-      done(ok);
-      return;
-    }
     /* v11.18 : budget standard 40s (XTTS retire) */
     const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (40s)'); fail(); }, 40000);
     /* v10.99 : deux versions du texte —
@@ -4128,10 +4122,16 @@ function speak(text, onChunk){
        (on part du texte BRUT : cleanMarkdown aurait transforme *soupir* en
        simple mot "soupir" que Google lirait a voix haute) */
     const taggedText = toInworldTags(text);
-    const rawNoMarkers = String(text || '').replace(/\*([^*\n]{1,26})\*/g, '');
+    const rawNoMarkers = String(text || '').replace(/\*([^*\\n]{1,26})\*/g, '');
     let plainText = rawNoMarkers;
     try { plainText = normalizeForTTS(rawNoMarkers); } catch(e){}
     plainText = plainText.replace(/[ \t]{2,}/g, ' ').trim();
+    /* v11.99 : BARK (Suno, locale) — on route d'abord la voix vocale Bark. */
+    if (voiceMode.startsWith('bark')){
+      const ok = await speakBark(plainText, onChunk);
+      done(ok);
+      return;
+    }
     const SAFE = ['Google Translate (filet)', (t) => speakGoogle(stripExprMarkers(t), onChunk)]; /* v10.79 : jamais muet */
     /* v10.98 : voix FRANCAISES — on charge la liste FR (cachee) avant de
      parler, pour n utiliser QUE des voix natives francaises. */
