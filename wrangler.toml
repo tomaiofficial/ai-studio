@@ -2,4 +2,7 @@ name = "ai-studio"
 compatibility_date = "2026-01-01"
 
 [assets]
-directory = "./"
+directory = "./static/"
+
+[build]
+command = ""
