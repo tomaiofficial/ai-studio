@@ -2,876 +2,96 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<!-- v10.32 : AUCUN Referer envoye pour les requetes de la page (audio inclus).
-     Google Translate TTS renvoie 404 text/html des qu'il voit le Referer de la
-     page -> MEDIA_ELEMENT_ERROR. Sans Referer : 200 audio/mpeg (verifie par
-     curl). C'est LE fix des voix Google. -->
-<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f0f1a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Astra">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="application-name" content="Astra">
-<meta name="mobile-web-app-capable" content="yes">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>Assistant IA</title>
+<title>Astra — Assistant Vocal IA</title>
 <link rel="icon" href="icon-192.png" type="image/png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
 <style>
+:root{--bg:#0b0b14;--surface:#12102a;--surface-2:#18153a;--text:#f0f0f8;--text-dim:#9a9ab5;--accent:#7c5cff;--accent-2:#ff5ca8;--gold:#ffc107;--radius:20px;--shadow:0 20px 60px rgba(124,92,255,.18);}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
-html{background:#0b0b16;-webkit-text-size-adjust:100%}
-/* v11.30 : FULL-SCREEN iOS — le fond couvre la zone sous la barre d'etat
-   (viewport-fit=cover) et le contenu utile commence sous l'encoche */
-@supports (padding: env(safe-area-inset-top)) {
-  body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
-}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;user-select:none}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center}
 
-body{
-  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
-  text-rendering:optimizeLegibility;
-  background:linear-gradient(160deg,#0a0a14 0%,#12102a 50%,#0a0a14 100%);
-  color:#e8e8f0;
-  display:flex;flex-direction:column;
-  overflow:hidden;text-size-adjust:100%;
-}
-/* ===== BANNIERE AUTONOMIE (v10.57) : notification dans l'ecran de l'app ===== */
-.auto-banner{display:flex;align-items:center;gap:10px;max-width:560px;margin:0 auto 10px;padding:10px 12px;
-  background:rgba(255,193,7,.09);border:1px solid rgba(255,193,7,.3);border-radius:14px;
-  font-size:12.5px;color:#cfd2e0;flex-wrap:wrap}
-.auto-banner.hidden{display:none}
-.auto-badge{flex:none;background:rgba(255,193,7,.18);color:#ffc107;font-weight:700;font-size:11px;
-  padding:3px 8px;border-radius:8px;letter-spacing:.3px}
-.auto-text{flex:1;min-width:160px;line-height:1.35;color:#c8c8dd}
-.auto-text b{color:#ffc107}
-.auto-more{flex:none;background:rgba(255,193,7,.16);color:#ffc107;border:1px solid rgba(255,193,7,.35);
-  border-radius:10px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer}
-.auto-close{flex:none;background:transparent;border:0;color:#8a8aa0;font-size:14px;cursor:pointer;padding:2px 4px}
-/* ===== FOND FÉERIQUE (v9.71 : aurora colorée + particules lumineuses) ===== */
-.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-.bg-aurora{position:absolute;border-radius:50%;filter:blur(70px);animation:drift 18s ease-in-out infinite alternate}
-.bg-aurora.a1{width:70vmax;height:70vmax;left:-24vmax;top:-24vmax;background:radial-gradient(circle,rgba(124,92,255,.45),transparent 62%);opacity:.5}
-.bg-aurora.a2{width:58vmax;height:58vmax;right:-20vmax;bottom:-20vmax;background:radial-gradient(circle,rgba(255,92,168,.3),transparent 62%);animation-delay:-6s;opacity:.45}
-.bg-aurora.a3{width:46vmax;height:46vmax;left:30%;top:36%;background:radial-gradient(circle,rgba(61,220,160,.22),transparent 62%);animation-delay:-12s;opacity:.4}
-@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(5vmax,4vmax) scale(1.14)}}
-.bg-stars{position:absolute;inset:0;opacity:.5;
-  background-image:
-    radial-gradient(1.5px 1.5px at 12% 22%,rgba(255,255,255,.6),transparent 100%),
-    radial-gradient(1px 1px at 32% 68%,rgba(255,255,255,.4),transparent 100%),
-    radial-gradient(1.5px 1.5px at 55% 15%,rgba(255,255,255,.5),transparent 100%),
-    radial-gradient(1px 1px at 72% 45%,rgba(255,255,255,.35),transparent 100%),
-    radial-gradient(1.5px 1.5px at 88% 75%,rgba(255,255,255,.55),transparent 100%),
-    radial-gradient(1px 1px at 42% 88%,rgba(255,255,255,.35),transparent 100%),
-    radial-gradient(1px 1px at 8% 55%,rgba(255,255,255,.3),transparent 100%),
-    radial-gradient(1.5px 1.5px at 95% 20%,rgba(255,255,255,.45),transparent 100%);
-  animation:twinkle 5s ease-in-out infinite alternate;
-}
-@keyframes twinkle{from{opacity:.5}to{opacity:1}}
-/* particules lumineuses qui montent doucement */
-.bg-particles{position:absolute;inset:0}
-.bg-particles span{
-  position:absolute;bottom:-12px;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,255,255,.9),rgba(124,92,255,.4) 60%,transparent);
-  animation:rise linear infinite;
-  opacity:0;
-}
-@keyframes rise{
-  0%{transform:translateY(0) scale(.6);opacity:0}
-  12%{opacity:.8}
-  85%{opacity:.5}
-  100%{transform:translateY(-110vh) scale(1.1);opacity:0}
-}
-.chat,.voice-stage,.shell,.rail,.main-col{position:relative;z-index:1}
-/* ===== v10.13 : COQUILLE APPLICATIVE = rail gauche + colonne principale =====
-   Les boutons ne sont plus en haut a droite : ils sont dans une barre
-   laterale fixe a GAUCHE, rangees verticalement dans le bon sens. */
-.shell{
-  flex:1;display:flex;align-items:stretch;min-height:0;width:100%;
-}
-.rail{
-  flex-shrink:0;width:64px;
-  display:flex;flex-direction:column;align-items:center;gap:10px;
-  padding:14px 0 calc(14px + env(safe-area-inset-bottom));
-  background:rgba(18,16,42,.55);backdrop-filter:blur(16px);
-  border-right:1px solid rgba(124,92,255,.16);
-  z-index:12;
-}
-.rail-top{
-  display:flex;align-items:center;justify-content:center;
-  width:40px;height:40px;border-radius:50%;
-  background:linear-gradient(135deg,#7c5cff,#5a3fd6);
-  box-shadow:0 0 18px rgba(124,92,255,.5);flex-shrink:0;
-}
-.rail-top .dot{
-  width:11px;height:11px;border-radius:50%;background:#3cdca0;
-  box-shadow:0 0 10px #3cdca0;display:block;
-}
-.rail-sep{width:26px;height:1px;background:rgba(124,92,255,.22);margin:2px 0;flex-shrink:0}
-.rail-spacer{flex:1;min-height:8px}
-/* boutons du rail : pile verticale, meme taille, bien alignes a gauche */
-.icon-btn{
-  width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.07);
-  border:1px solid rgba(124,92,255,.16);color:#c8c8dd;font-size:19px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;text-decoration:none;
-  flex-shrink:0;transition:background .15s ease,transform .12s ease;
-}
-.icon-btn:hover{background:rgba(124,92,255,.22);color:#fff}
-.icon-btn:active{transform:scale(.92)}
-.icon-btn.is-on{background:rgba(124,92,255,.3);color:#fff;border-color:rgba(124,92,255,.5)}
-.main-col{
-  flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;align-items:center;
-}
-/* ===== HEADER v11.33 ===== */
-.header{
-  position:fixed;top:0;left:64px;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(11,11,22,.8);backdrop-filter:blur(12px);border-bottom:1px solid rgba(124,92,255,.12);z-index:15;font-size:13px;color:#9a9ab5;
-}
-.header b{color:#fff}
-/* ===== FIN COQUILLE v10.13 ===== */
+/* Fond aurora */
+.aurora{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.aurora::before{content:'';position:absolute;width:120vmax;height:120vmax;left:-30vmax;top:-30vmax;background:radial-gradient(circle,rgba(124,92,255,.35),transparent 60%);animation:drift1 20s ease-in-out infinite alternate;border-radius:50%}
+.aurora::after{content:'';position:absolute;width:100vmax;height:100vmax;right:-20vmax;bottom:-20vmax;background:radial-gradient(circle,rgba(255,92,168,.25),transparent 60%);animation:drift2 25s ease-in-out infinite alternate;border-radius:50%}
+@keyframes drift1{from{transform:translate(0,0) scale(1)}to{transform:translate(10vmax,8vmax) scale(1.1)}}
+@keyframes drift2{from{transform:translate(0,0) scale(1)}to{transform:translate(-8vmax,-6vmax) scale(1.15)}}
 
-/* ===== ZONE DE CHAT du mode vocal (v10.18 : toujours masquee) =====
-   L'interface chat separee a ete supprimee : l'app ne garde plus
-   que le mode vocal, comme a l'origine. */
-.chat{
-  display:none;
-  flex:1;overflow-y:auto;padding:16px 12px;
-  flex-direction:column;gap:8px;
-  width:100%;max-width:760px;margin:0 auto;
-  scroll-behavior:smooth;
-}
-.msg{
-  max-width:82%;padding:10px 14px;border-radius:16px;
-  font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word;
-  animation:msgIn .25s ease;
-}
-.msg.user{
-  align-self:flex-end;background:linear-gradient(135deg,#7c5cff,#5a3fd6);
-  color:#fff;border-bottom-right-radius:4px;
-}
-.msg.ai{
-  align-self:flex-start;background:rgba(30,30,51,.85);backdrop-filter:blur(8px);
-  color:#e8e8f0;border-bottom-left-radius:4px;border:1px solid rgba(124,92,255,.12);
-}
-.msg-diag{
-  margin-top:6px;padding-top:6px;border-top:1px solid rgba(124,92,255,.15);
-  font-size:11px;color:#8a8aa5;
-}
-.msg.agent{
-  align-self:flex-start;background:#14202e;color:#8fd0ff;border-bottom-left-radius:4px;
-  font-size:13px;border:1px solid #1e3a52;
-}
-@keyframes msgIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.chat-empty{
-  margin:auto;text-align:center;color:#5a5a75;font-size:14px;line-height:1.6;
-  padding:0 24px;
-}
-/* ===== SCENE VOCALE : orbe arc-en-ciel animé (v9.71) =====
-   v10.18 : le mode vocal est seul, exactement comme a l'origine
-   (plein ecran, orbe 230px, aucun chat visible). */
-.voice-stage{
-  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:28px;flex-shrink:0;padding:0 24px;position:relative;z-index:1;
-}
-.status{font-size:15px;color:#9a9ab5;text-align:center;min-height:20px;max-width:90%}
-.status.active{color:#fff;font-weight:600}
-.idle-games{position:fixed;left:50%;bottom:94px;transform:translateX(-50%);width:min(92vw,440px);z-index:18;padding:16px;border:1px solid rgba(255,196,61,.45);border-radius:18px;background:rgba(20,20,38,.96);box-shadow:0 12px 42px #0009;color:#f2f2fb}
-.idle-games.hidden{display:none}.idle-games h3{font-size:16px;margin:0 28px 6px 0}.idle-games p{font-size:13px;color:#b8b8cf;margin:0 0 12px;line-height:1.4}.idle-game-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.idle-game-grid button{margin:0;padding:10px 8px;border:1px solid rgba(124,92,255,.3);border-radius:10px;background:#22213a;color:#fff;font-size:13px;cursor:pointer}.idle-games .idle-close{position:absolute;right:8px;top:8px;background:transparent;border:0;color:#b8b8cf;font-size:18px;cursor:pointer}
-.mic-btn{
-  width:230px;height:230px;border-radius:50%;border:none;cursor:pointer;
-  position:relative;overflow:hidden;flex-shrink:0;
-  background:#0d0d10;
-  box-shadow:0 0 60px rgba(124,92,255,.4),0 0 140px rgba(255,92,168,.18);
-  transition:transform .15s ease;
-}
-.mic-btn:active{transform:scale(.92)}
-/* anneau arc-en-ciel animé (couleurs qui tournent en continu) */
-.mic-btn::before{
-  content:'';position:absolute;inset:-30%;
-  background:conic-gradient(from 0deg,
-    #7c5cff, #ff5ca8, #ff9f2e, #3cdca0, #4da3ff, #7c5cff);
-  animation:vortexSpin 7s linear infinite;
-  filter:saturate(1.25);
-}
+/* Rail gauche */
+.rail{position:fixed;left:0;top:0;bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;padding:18px 0;gap:14px;background:rgba(18,16,42,.65);backdrop-filter:blur(20px) saturate(1.2);border-right:1px solid rgba(124,92,255,.12);z-index:20}
+.rail-top{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#7c5cff,#5a3fd6);box-shadow:0 0 20px rgba(124,92,255,.5);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff}
+.rail-btn{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(124,92,255,.15);color:#c8c8dd;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:all .2s ease;position:relative}
+.rail-btn:hover{background:rgba(124,92,255,.25);color:#fff;border-color:rgba(124,92,255,.5);transform:translateY(-2px)}
+.rail-btn::after{content:attr(title);position:absolute;left:56px;top:50%;transform:translateY(-50%);background:#171728;padding:6px 10px;border-radius:8px;font-size:11px;color:#fff;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.rail-btn:hover::after{opacity:1}
+
+/* Header */
+.header{position:fixed;top:0;left:72px;right:0;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(11,11,22,.7);backdrop-filter:blur(16px);border-bottom:1px solid rgba(124,92,255,.1);z-index:15;font-size:13px;color:#9a9ab5}
+.header b{color:#fff;font-weight:600}
+.header a{color:#fff;text-decoration:underline;text-underline-offset:3px}
+
+/* Main */
+.main{margin-left:72px;margin-top:56px;flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;position:relative;z-index:1}
+
+/* Status */
+.status{font-family:'Playfair Display',serif;font-size:22px;color:#fff;text-align:center;margin-bottom:40px;letter-spacing:.5px;line-height:1.3;text-shadow:0 2px 30px rgba(124,92,255,.3)}
+.status span{display:block;font-family:'Inter',sans-serif;font-size:14px;color:#9a9ab5;margin-top:8px;font-weight:300;letter-spacing:0}
+
+/* Mic button */
+.mic-btn{width:260px;height:260px;border-radius:50%;border:none;cursor:pointer;background:#0d0d10;position:relative;overflow:hidden;box-shadow:0 0 80px rgba(124,92,255,.35),0 0 160px rgba(255,92,168,.15),inset 0 0 60px rgba(124,92,255,.15);transition:transform .15s ease,box-shadow .3s ease}
+.mic-btn:hover{transform:scale(1.03);box-shadow:0 0 100px rgba(124,92,255,.45),0 0 180px rgba(255,92,168,.2),inset 0 0 80px rgba(124,92,255,.2)}
+.mic-btn:active{transform:scale(.95)}
+.mic-btn::before{content:'';position:absolute;inset:-30%;background:conic-gradient(from 0deg,#7c5cff,#ff5ca8,#ff9f2e,#3cdca0,#4da3ff,#7c5cff);animation:vortexSpin 7s linear infinite;filter:saturate(1.3)}
+.mic-btn::after{content:'';position:absolute;inset:14%;border-radius:50%;background:radial-gradient(circle at 35% 28%,#23233c 0%,#0d0d10 70%);box-shadow:inset 0 0 40px rgba(124,92,255,.3)}
 @keyframes vortexSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-/* centre sombre avec reflet */
-.mic-btn::after{
-  content:'';position:absolute;inset:13%;border-radius:50%;
-  background:radial-gradient(circle at 35% 28%,#23233c 0%,#0d0d10 68%);
-  box-shadow:inset 0 0 30px rgba(124,92,255,.25);
-}
-/* icone micro : blanc lumineux au centre */
-.orb-icon{
-  position:relative;z-index:2;font-size:40px;filter:drop-shadow(0 0 10px rgba(255,255,255,.6));
-  pointer-events:none;
-}
-/* ONDES SONORES : anneaux lumineux qui pulsent */
-.orb-waves{position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:1}
-.orb-waves::before,.orb-waves::after{
-  content:'';position:absolute;inset:0;border-radius:50%;
-  border:2px solid rgba(124,92,255,.5);opacity:0;
-}
-.mic-btn.listening .orb-waves::before{animation:wave 1.5s ease-out infinite}
-.mic-btn.listening .orb-waves::after{animation:wave 1.5s ease-out .5s infinite}
-.mic-btn.speaking .orb-waves::before{animation:wave 1s ease-out infinite;border-color:rgba(61,220,160,.6)}
-.mic-btn.speaking .orb-waves::after{animation:wave 1s ease-out .33s infinite;border-color:rgba(61,220,160,.6)}
-.mic-btn.thinking .orb-waves::before{animation:wave 2s ease-out infinite;border-color:rgba(255,159,46,.6)}
-@keyframes wave{0%{transform:scale(1);opacity:.8}100%{transform:scale(1.5);opacity:0}}
-/* etats : l'anneau accelere et le halo change de couleur */
-.mic-btn.listening::before{animation-duration:4s}
-.mic-btn.speaking::before{animation-duration:2.5s}
-.mic-btn.thinking::before{animation-duration:5s}
-.mic-btn.listening{box-shadow:0 0 70px rgba(124,92,255,.6),0 0 160px rgba(124,92,255,.3)}
-.mic-btn.speaking{box-shadow:0 0 70px rgba(61,220,160,.55),0 0 160px rgba(61,220,160,.28)}
-.mic-btn.thinking{box-shadow:0 0 70px rgba(255,159,46,.5),0 0 160px rgba(255,159,46,.25)}
-/* BOUTON STOP : rond élégant en bas */
-.stop-btn{
-  width:56px;height:56px;border-radius:50%;border:1px solid rgba(124,92,255,.35);
-  background:rgba(124,92,255,.15);color:#fff;font-size:18px;cursor:pointer;
-  display:none;align-items:center;justify-content:center;flex-shrink:0;
-  box-shadow:0 0 20px rgba(124,92,255,.25);
-  transition:transform .15s ease;
-}
-.stop-btn.show{display:flex}
-.stop-btn:active{transform:scale(.9)}
-/* ===== SOUS-TITRES : glassmorphism (v9.88 : plus nets, police Inter premium) ===== */
-.subtitle{
-  position:relative;bottom:auto;left:auto;transform:none;z-index:15;
-  max-width:100%;text-align:center;font-size:13px;line-height:1.35;color:#3cdca0;
-  font-weight:600;letter-spacing:.2px;
-  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
-  text-rendering:optimizeLegibility;
-  text-shadow:0 1px 3px rgba(0,0,0,.55);
-  margin:0 auto;
-  padding:6px 0;
-  white-space:pre-wrap;word-break:break-word;
-  animation:subIn .3s ease;
-}
-.subtitle:empty{display:none}
-@keyframes subIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-/* ===== RÉGLAGES / MODALS ===== */
-.modal{
-  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;
-  display:flex;align-items:flex-end;justify-content:center;
-}
-.modal.hidden{display:none}
-.modal-card{
-  background:#171728;width:100%;max-width:480px;border-radius:20px 20px 0 0;
-  padding:24px;max-height:85vh;overflow-y:auto;
-}
-.modal-close{
-  position:absolute;top:14px;right:14px;background:none;border:none;
-  color:#9a9ab5;font-size:22px;cursor:pointer;
-}
-/* ===== FENETRE D'ACCUEIL (prénom + âge, une seule fois pour la vie) ===== */
-#welcomeModal{align-items:center}
-.welcome-card{
-  border-radius:24px;text-align:center;animation:popIn .35s ease;
-  border:1px solid rgba(124,92,255,.25);
-  box-shadow:0 0 60px rgba(124,92,255,.15);
-}
-.welcome-card h3{font-size:22px;margin-bottom:6px}
-.welcome-card .wide-input{text-align:center;font-size:18px;border-radius:14px}
-@keyframes popIn{from{opacity:0;transform:scale(.88) translateY(10px)}to{opacity:1;transform:none}}
-.modal-card h3{font-size:18px;margin-bottom:16px;color:#fff}
-.settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
- .version-tag{
-   font-size:11px;color:#5a5a75;text-align:center;padding-top:4px;
-   pointer-events:none;
- }
- /* v11.04 : jauge du quota Inworld TTS-2 (sous la version, ecran vocal) */
- .quota-hud{position:relative;display:flex;justify-content:center;margin-top:7px;z-index:5}
- .quota-hud[hidden]{display:none}
- .quota-pill{
-   display:inline-flex;align-items:center;gap:7px;cursor:pointer;
-   background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.22);
-   color:#9a9ab5;border-radius:999px;padding:4px 11px;font:600 11px system-ui;
-   transition:border-color .2s,background .2s;
- }
- .quota-pill:hover{background:rgba(124,92,255,.16);border-color:rgba(124,92,255,.45)}
- .quota-pill b{color:#c8c8dd;font-weight:700}
- .quota-pill.warn{border-color:rgba(255,159,46,.55);color:#ffb066}
- .quota-pill.warn b{color:#ffb066}
- .quota-pill.danger{border-color:rgba(240,110,110,.6);color:#f08e8e}
- .quota-pill.danger b{color:#f08e8e}
- .quota-bar{display:block;width:52px;height:4px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
- .quota-bar i{display:block;height:100%;width:0%;border-radius:3px;background:linear-gradient(90deg,#3cdca0,#7c5cff);transition:width .4s}
- .quota-bar i.warn{background:linear-gradient(90deg,#ffb066,#ff8a3d)}
- .quota-bar i.danger{background:linear-gradient(90deg,#f08e8e,#e1306c)}
- .quota-detail{
-   position:absolute;bottom:30px;left:50%;transform:translateX(-50%);
-   width:252px;background:rgba(16,13,38,.96);border:1px solid rgba(124,92,255,.3);
-   border-radius:13px;padding:11px 12px;box-shadow:0 12px 34px rgba(0,0,0,.5);
-   font:12px/1.55 system-ui;color:#c8c8dd;text-align:left;z-index:30;
- }
- .quota-detail[hidden]{display:none}
- .quota-detail h5{margin:0 0 7px;font-size:12.5px;color:#b79cff}
- .quota-detail .qrow{display:flex;justify-content:space-between;gap:10px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05)}
- .quota-detail .qrow span:last-child{color:#fff;font-weight:600}
- .quota-detail .qnote{margin:7px 0 0;font-size:11px;color:#7a7a99;line-height:1.5}
-.muted{font-size:12.5px;color:#8a8aa5;line-height:1.5;margin-bottom:10px}
-.wide-input{
-  width:100%;padding:13px 14px;border-radius:12px;border:1px solid #2a2a45;
-  background:#10101e;color:#fff;font-size:16px;margin-bottom:10px;outline:none;
-}
-.wide-input:focus{border-color:#7c5cff}
-select.wide-input{appearance:none}
-.primary{
-  width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;
-  background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;
-  font-size:16px;font-weight:600;margin-top:6px;
-}
-.primary:active{transform:scale(.98)}
-.secondary{
-  display:block;width:100%;padding:12px;border-radius:12px;border:1px solid #2a2a45;
-  background:#10101e;color:#c8c8dd;text-align:center;text-decoration:none;
-  font-size:14px;margin-top:8px;
-}
-.toggle-row{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  background:#10101e;border:1px solid #2a2a45;border-radius:12px;
-  padding:12px 14px;margin-bottom:10px;cursor:pointer;
-}
-.toggle-row input{width:20px;height:20px;accent-color:#7c5cff;flex-shrink:0;cursor:pointer}
-.toggle-row span{font-size:14px;color:#c8c8dd}
-/* ===== SAISIE TEXTE (poser une question par ecrit) ===== */
-.text-input-row{
-  display:flex;align-items:center;gap:8px;padding:10px 14px 14px;
-  max-width:420px;margin:0 auto;width:100%;
-}
-.text-input-row input{
-  flex:1;padding:13px 16px;border-radius:24px;border:1px solid #2a2a45;
-  background:#10101e;color:#fff;font-size:15px;outline:none;min-width:0;
-}
-.text-input-row input:focus{border-color:#7c5cff}
-.text-input-row input::placeholder{color:#5a5a75}
-.send-btn{
-  width:46px;height:46px;border-radius:50%;border:none;cursor:pointer;flex-shrink:0;
-  background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;font-size:18px;
-  display:flex;align-items:center;justify-content:center;
-}
-.send-btn:active{transform:scale(.94)}
-.toast{
-  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-  background:#2a2a45;color:#fff;padding:12px 20px;border-radius:30px;
-  font-size:14px;z-index:50;opacity:0;transition:opacity .3s;pointer-events:none;
-  max-width:90%;text-align:center;
-}
-.toast.show{opacity:1}
-#updateBanner{
-  position:fixed;top:0;left:0;right:0;background:#ff9f2e;color:#1a1245;
-  text-align:center;padding:12px;font-size:14px;font-weight:600;z-index:60;
-  cursor:pointer;display:none;
-}
-#updateBanner.show{display:block}
-/* ===== BANNIERE INFO TEMPORAIRE (bug actualisation auto, visible jusqu'au 23/09/2026) ===== */
-#infoBanner{
-  position:fixed;top:0;left:0;right:0;background:#3b82f6;color:#fff;
-  text-align:center;padding:12px 44px;font-size:14px;font-weight:600;z-index:59;
-  display:none;line-height:1.4;
-}
-#infoBanner.show{display:block}
-#infoBanner .info-close{
-  position:absolute;right:10px;top:50%;transform:translateY(-50%);
-  background:none;border:none;color:#fff;font-size:18px;cursor:pointer;
-  padding:4px 8px;line-height:1;
-}
-/* ===== HISTORIQUE ===== */
-.conv-item{
-  background:rgba(255,255,255,.05);border-radius:14px;padding:12px 14px;
-  margin-bottom:10px;cursor:pointer;border-left:3px solid #7c5cff;
-}
-.conv-item:active{background:rgba(255,255,255,.1)}
-.conv-date{font-size:11px;color:#6a6a85;margin-bottom:4px}
-.conv-preview{font-size:14px;color:#c8c8dd;line-height:1.4}
-.conv-msg{
-  background:rgba(255,255,255,.05);border-radius:14px;padding:10px 14px;
-  font-size:14px;line-height:1.45;color:#c8c8dd;margin-bottom:8px;
-  border-left:3px solid #7c5cff;white-space:pre-wrap;word-break:break-word;
-}
-.conv-msg.user{border-left-color:#ff9f2e}
-.conv-msg.ai{border-left-color:#3cdca0}
-/* ===== TABLEAU DE MATHS + CALCULATRICE (v9.98) ===== */
-.math-panel{
-  position:fixed;right:16px;top:70px;bottom:16px;width:300px;z-index:20;
-  background:rgba(16,16,30,.94);backdrop-filter:blur(14px);
-  border:1px solid rgba(124,92,255,.3);border-radius:18px;
-  display:flex;flex-direction:column;overflow:hidden;
-  box-shadow:0 8px 40px rgba(0,0,0,.5);
-}
-.math-panel.hidden{display:none}
-.math-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 14px;background:rgba(124,92,255,.15);
-  border-bottom:1px solid rgba(124,92,255,.2);font-weight:700;font-size:14px;color:#fff;
-  flex-shrink:0;
-}
-.math-close{
-  background:none;border:none;color:#9a9ab5;font-size:18px;cursor:pointer;padding:2px 6px;
-}
-.math-close:active{transform:scale(.9)}
-.math-board{
-  flex:1;overflow-y:auto;padding:14px;font-family:'Courier New',monospace;
-  background:rgba(8,22,14,.55);
-  border-bottom:1px solid rgba(124,92,255,.15);
-}
-.math-empty{color:#5a8a6a;font-size:13px;font-family:'Inter',sans-serif;text-align:center;margin-top:20px;line-height:1.5}
-.math-line{
-  color:#c8f0d8;font-size:15px;line-height:1.7;padding:3px 0;
-  border-bottom:1px dashed rgba(200,240,216,.12);
-  white-space:pre-wrap;word-break:break-word;
-}
-.math-line.result{color:#7cffb0;font-weight:700;font-size:17px}
-.math-line.q{color:#ffd27c;font-weight:600}
-.calc{padding:10px;background:#10101e;flex-shrink:0}
-.calc-screen{
-  background:#0a0a14;border:1px solid #2a2a45;border-radius:10px;
-  padding:12px;text-align:right;font-size:22px;font-weight:600;color:#fff;
-  margin-bottom:10px;min-height:48px;overflow:hidden;white-space:nowrap;
-  font-family:'Courier New',monospace;
-}
-.calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.calc-btn{
-  padding:12px 0;border-radius:10px;border:none;cursor:pointer;
-  background:#1c1c33;color:#e8e8f0;font-size:17px;font-weight:600;
-  transition:transform .1s ease;
-}
-.calc-btn:active{transform:scale(.94)}
-.calc-btn.op{background:#2a2145;color:#b9a6ff}
-.calc-btn.eq{background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;grid-column:span 2}
-/* mobile : le panneau prend le bas de l'ecran */
-@media (max-width:640px){
-  .math-panel{left:10px;right:10px;top:auto;bottom:10px;height:48vh;width:auto}
-}
-/* ===== BLOC-NOTES (v10.0) : l'IA y ecrit (lettres, textes, notes...) ===== */
-.note-panel{
-  position:fixed;left:16px;top:70px;bottom:16px;width:300px;z-index:20;
-  background:rgba(16,16,30,.94);backdrop-filter:blur(14px);
-  border:1px solid rgba(255,159,46,.3);border-radius:18px;
-  display:flex;flex-direction:column;overflow:hidden;
-  box-shadow:0 8px 40px rgba(0,0,0,.5);
-}
-.note-panel.hidden{display:none}
-.note-header{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 14px;background:rgba(255,159,46,.15);
-  border-bottom:1px solid rgba(255,159,46,.2);font-weight:700;font-size:14px;color:#fff;
-  flex-shrink:0;
-}
-.note-actions{display:flex;align-items:center;gap:6px}
-.note-btn{
-  background:rgba(255,159,46,.2);border:1px solid rgba(255,159,46,.35);
-  color:#ffd27c;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;
-  cursor:pointer;
-}
-.note-btn:active{transform:scale(.94)}
-.note-area{
-  flex:1;resize:none;border:none;outline:none;background:#10101e;color:#e8e8f0;
-  padding:14px;font-size:14px;line-height:1.6;font-family:'Inter',sans-serif;
-}
-.note-area::placeholder{color:#5a5a7a}
-/* mobile : le bloc-notes prend le haut de l'ecran */
-@media (max-width:640px){
-  .note-panel{left:10px;right:10px;top:10px;bottom:auto;height:40vh;width:auto}
-}
+.orb-icon{position:relative;z-index:2;font-size:48px;filter:drop-shadow(0 0 12px rgba(255,255,255,.7));pointer-events:none}
 
-/* ==== v11.19 : MODE VOCAL PLEIN ECRAN (style ChatGPT) ==== */
-#vmOverlay{position:fixed;inset:0;background:radial-gradient(circle at 50% 42%,#0d1526 0%,#050810 55%,#000 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0}
-#vmOverlay[hidden]{display:none}
-#vmClose,#vmKb{position:absolute;top:18px;width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:#fff;font-size:20px;cursor:pointer}
-#vmClose{left:18px}#vmKb{right:18px}
-#vmClose:hover,#vmKb:hover{background:rgba(255,255,255,.16)}
-#vmOrb{width:min(46vmin,320px);height:min(46vmin,320px);border-radius:50%;cursor:pointer;background:radial-gradient(circle at 35% 28%,#f2fbff 0%,#a8d4ff 20%,#4f8bf5 52%,#1746b8 78%,#0a2260 100%);box-shadow:0 0 90px rgba(80,140,255,.35),0 0 30px rgba(120,170,255,.25);animation:vmIdle 6s ease-in-out infinite;transition:filter .6s}
-@keyframes vmIdle{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
-#vmOrb.listening{animation:vmListen 1.6s ease-in-out infinite;box-shadow:0 0 120px rgba(80,180,255,.55),0 0 40px rgba(120,200,255,.35)}
-@keyframes vmListen{0%,100%{transform:scale(1)}50%{transform:scale(1.09)}}
-#vmOrb.thinking{animation:vmThink 1.1s ease-in-out infinite}
-@keyframes vmThink{0%,100%{transform:scale(.97)}50%{transform:scale(1.06)}}
-#vmOrb.speaking{animation:vmSpeak .55s ease-in-out infinite}
-@keyframes vmSpeak{0%,100%{transform:scale(1.02)}50%{transform:scale(1.12)}}
-#vmName{margin-top:38px;font-size:24px;font-weight:600;color:#fff;letter-spacing:.3px}
-#vmTag{margin-top:8px;font-size:14px;color:#98a0b8}
-#vmDots{display:flex;gap:12px;margin-top:26px}
-#vmDots .vm-dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.32);border:none;cursor:pointer;padding:0;transition:all .25s}
-#vmDots .vm-dot.on{background:#fff;transform:scale(1.5)}
-#vmMic{margin-top:34px;width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-size:26px;cursor:pointer}
-#vmMic:hover{background:rgba(255,255,255,.14)}
-#vmHint{position:absolute;bottom:22px;font-size:12px;color:#6c7391}
+/* Input */
+.input-row{display:flex;align-items:center;gap:12px;margin-top:40px;width:min(92vw,480px);background:rgba(255,255,255,.05);border:1px solid rgba(124,92,255,.2);border-radius:50px;padding:6px 6px 6px 18px;backdrop-filter:blur(8px);transition:border-color .2s}
+.input-row:focus-within{border-color:rgba(124,92,255,.5);box-shadow:0 0 20px rgba(124,92,255,.15)}
+.input-row input{flex:1;background:transparent;border:none;color:#fff;font-size:15px;outline:none;font-family:inherit}
+.input-row input::placeholder{color:#7a7a9a}
+.send-btn{width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(135deg,#7c5cff,#5a3fd6);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 15px rgba(124,92,255,.4);transition:transform .15s,box-shadow .2s}
+.send-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(124,92,255,.5)}
 
-
-/* ==== v11.25 : NAVIGATEUR D'ASTRA (browser integre) ==== */
-#nvAns{position:absolute;left:12px;right:12px;top:12px;z-index:2;background:#151332ee;border:1px solid rgba(124,92,255,.45);border-radius:14px;padding:14px 16px;color:#e8e6ff;font-size:13.5px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.55);white-space:pre-wrap}
-#nvAns .nvAnsX{float:right;cursor:pointer;color:#9d9abf;border:none;background:none;font-size:15px}
-
-
-/* ==== v11.29 : GENERIQUE D'OUVERTURE D'ASTRA (continuer obligatoire) ==== */
-#introIntro{position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:1;transition:opacity .7s ease;background:radial-gradient(ellipse at 50% 38%,#101a33 0%,#070c18 55%,#000 100%);overflow:hidden}
-#introIntro.out{opacity:0;pointer-events:none}
-#IntroStars{position:absolute;inset:0;pointer-events:none}
-#IntroStars i{position:absolute;display:block;border-radius:50%;background:#9db4ff;opacity:.35;animation:IntroSpark 5.5s linear infinite}
-@keyframes IntroSpark{0%{transform:translateY(28px) scale(.6);opacity:0}30%{opacity:.5}100%{transform:translateY(-95px) scale(1);opacity:0}}
-#IntroOrb{position:relative;width:clamp(120px,22vmin,190px);height:clamp(120px,22vmin,190px);border-radius:50%;background:radial-gradient(circle at 33% 28%,#f4fcff 0%,#a9d5ff 18%,#4f8bf5 50%,#1746b8 76%,#081c56 100%);box-shadow:0 0 110px rgba(80,140,255,.5),0 0 40px rgba(120,170,255,.35),inset -12px -18px 46px rgba(2,10,35,.55);animation:IntroBreath 3.4s ease-in-out infinite}
-@keyframes IntroBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.055)}}
-#IntroName{position:relative;margin-top:clamp(24px,5vh,44px);color:#fff;font-weight:800;font-size:clamp(44px,10vw,84px);letter-spacing:.34em;text-indent:.34em;text-shadow:0 0 26px rgba(110,150,255,.55),0 2px 22px rgba(0,0,0,.8);font-family:'Inter',system-ui,sans-serif;animation:IntroUp 1s .35s cubic-bezier(.2,.8,.25,1) both}
-#IntroTag{position:relative;margin-top:14px;color:#aeb6d8;font-size:clamp(13px,2.4vw,17px);letter-spacing:.18em;text-indent:.18em;text-transform:uppercase;animation:IntroUp 1s .75s cubic-bezier(.2,.8,.25,1) both}
-@keyframes IntroUp{0%{opacity:0;transform:translateY(26px)}100%{opacity:1;transform:translateY(0)}}
-#IntroCTA{position:relative;margin-top:clamp(30px,6.5vh,56px);padding:15px 46px;border:none;border-radius:999px;cursor:pointer;color:#fff;font-weight:700;font-size:clamp(15px,2.6vw,18px);letter-spacing:.07em;background:linear-gradient(135deg,#7c5cff 0%,#4f8bf5 100%);box-shadow:0 8px 30px rgba(84,110,255,.45),0 2px 8px rgba(0,0,0,.6);transition:transform .2s,box-shadow .2s;animation:IntroUp 1s 1.1s cubic-bezier(.2,.8,.25,1) both,IntroGlow 2.6s 1.6s ease-in-out infinite;font-family:'Inter',system-ui,sans-serif}
-#IntroCTA:hover{transform:scale(1.055);box-shadow:0 10px 40px rgba(96,120,255,.6),0 2px 10px rgba(0,0,0,.6)}
-#IntroCTA:active{transform:scale(.97)}
-@keyframes IntroGlow{0%,100%{box-shadow:0 8px 30px rgba(84,110,255,.45),0 2px 8px rgba(0,0,0,.6)}50%{box-shadow:0 8px 42px rgba(96,130,255,.75),0 2px 10px rgba(0,0,0,.6)}}
-#IntroVer{position:absolute;bottom:18px;color:#565b7a;font-size:11px;letter-spacing:.22em}
+/* Version */
+.version{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);font-size:11px;color:#5a5a75;z-index:10;letter-spacing:.3px}
 </style>
 </head>
 <body>
+<div class="aurora"></div>
 
-<!-- FOND ANIME -->
-<div class="bg">
-  <div class="bg-aurora a1"></div>
-  <div class="bg-aurora a2"></div>
-  <div class="bg-aurora a3"></div>
-  <div class="bg-stars"></div>
-  <div class="bg-particles" id="bgParticles"></div>
-</div>
+<!-- Rail -->
+<nav class="rail" aria-label="Navigation">
+  <a href="#" class="rail-top" aria-label="Astra">💜</a>
+  <a href="#" class="rail-btn" title="Réglages" aria-label="Réglages">⚙️</a>
+  <a href="#" class="rail-btn" title="Historique" aria-label="Historique">📜</a>
+  <a href="#" class="rail-btn" title="À propos d'Astra" aria-label="À propos d'Astra">💡</a>
+</nav>
 
-<div id="englishPanel" class="math-panel hidden" style="left:auto;right:16px;top:70px;bottom:16px;width:300px;">
-  <div class="math-header"><span>🇬🇧 Anglais</span><button class="math-close" onclick="document.getElementById('englishPanel').classList.add('hidden')" aria-label="Fermer">✕</button></div>
-  <div class="math-board" id="englishBoard" style="font-family:'Inter',sans-serif;font-size:14px;color:#e8e8f0;line-height:1.6;padding:14px;">
-    <b>Bonjour</b> = Hello<br>
-    <b>Merci</b> = Thank you<br>
-    <b>Comment ça va ?</b> = How are you?<br>
-    <b>Je t'aime</b> = I love you<br>
-    <b>Au revoir</b> = Goodbye<br>
-    <b>Oui / Non</b> = Yes / No<br>
-    <b>Je ne comprends pas</b> = I don't understand<br>
-    <b>Parle plus lentement</b> = Speak more slowly<br>
-  </div>
-</div>
-<div id="visionOverlay" class="modal hidden" style="align-items:center;justify-content:center;background:rgba(0,0,0,.7);">
-  <div style="background:#171728;border-radius:20px;padding:20px;max-width:90vw;max-height:70vh;display:flex;flex-direction:column;align-items:center;gap:12px;">
-    <h3 style="font-size:18px;color:#fff;">📷 Vision caméra</h3>
-    <video id="visionVideo" autoplay playsinline muted style="width:100%;max-width:320px;height:auto;border-radius:12px;background:#0a0a14;" poster=""></video>
-    <button class="primary" onclick="document.getElementById('visionOverlay').classList.add('hidden'); document.getElementById('visionVideo').src='';">Fermer</button>
-  </div>
-</div>
-<div id="updateBanner">🔄 Nouvelle version disponible — appuie ici pour recharger</div>
-
-<!-- INFO TEMPORAIRE : bug actualisation auto (ancien service worker). Visible jusqu'au mercredi 23/09/2026 inclus. -->
-<div id="infoBanner">
-  ℹ️ Info : l'IA actualisait la page toute seule (bug d'un ancien service worker) alors que tout était correct dans le code. Corrigé — recharge la page une fois.
-  <button class="info-close" id="infoClose" aria-label="Fermer">✕</button>
-</div>
-
-<!-- v10.13 : les boutons passent dans une barre laterale GAUCHE.
-     Le mode vocal reste identique, seul le conteneur change. -->
-<div style="padding:6px 18px;background:rgba(124,92,255,.08);text-align:center;font-size:12px;color:#9a9ab5;border-bottom:1px solid rgba(124,92,255,.12);">
-  <b style="color:#fff;">Astra</b> — assistante vocale par <b>Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">@tom.ai.official</a>
-</div>
-
-<!-- RAIL GAUCHE v11.33 -->
-<div class="rail" aria-label="Navigation">
-  <a href="#" class="icon-btn" title="Réglages" aria-label="Réglages">⚙️</a>
-  <a href="#" class="icon-btn" title="Historique" aria-label="Historique">📜</a>
-  <a href="#" class="icon-btn" title="À propos d'Astra" aria-label="À propos d'Astra">💡</a>
-</div>
-
-<!-- EN-TÊTE v11.33 -->
+<!-- Header -->
 <header class="header">
-  <div><b>Astra</b> — assistante vocale par <b>Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#fff;text-decoration:underline;">@tom.ai.official</a></div>
+  <div><b>Astra</b> — assistante vocale par <b>Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer">@tom.ai.official</a></div>
   <div>v11.33</div>
 </header>
 
-<div class="shell">
-  
-
-  <div class="main-col">
-    <div class="voice-stage">
-      <div id="autoBanner" class="auto-banner hidden">
-        <span class="auto-badge">🤖 Nouveau</span>
-        <span class="auto-text">Astra est <b>autonome</b> : 3 nouveautés par jour, elle apprend d'autres IA et s'améliore toute seule.</span>
-        <button id="autoBannerMore" class="auto-more">Tout savoir</button>
-        <button id="autoBannerClose" class="auto-close" aria-label="Masquer">✕</button>
-      </div>
-      <div class="status" id="status">Appuie sur le micro et parle</div>
-      <button class="icon-btn" id="settingsBtn" title="Réglages" aria-label="Réglages">⚙️</button>
-      <button class="mic-btn" id="orb" role="button" aria-label="Parler">
-        <span class="orb-waves"></span>
-        <span class="orb-icon" id="orbIcon">🎙️</span>
-      </button>
-      <div class="subtitle" id="subtitle" style="font-size:13px;color:#3cdca0;font-weight:600;padding:6px 0;text-align:center;line-height:1.35;display:block;width:100%;margin:0 auto;"></div>
-      <button class="stop-btn" id="stopBtn" aria-label="Arrêter">■</button>
-      <div class="version-tag" id="versionTag"></div>
-      <div class="quota-hud" id="quotaHud" hidden>
-        <button class="quota-pill" id="quotaPill" type="button" title="Quota Inworld TTS-2 (clique pour le détail)">
-          <span>🎙️</span>
-          <span>Inworld <b id="quotaMin">0</b>/70 min</span>
-          <span class="quota-bar"><i id="quotaFill"></i></span>
-        </button>
-        <div class="quota-detail" id="quotaDetail" hidden>
-          <h5>🎙️ Quota Inworld TTS-2 — ce mois-ci</h5>
-          <div id="qInw">
-            <div class="qrow"><span>Minutes de parole</span><span id="qMin">0 / 70</span></div>
-            <div class="qrow"><span>Caractères envoyés</span><span id="qChars">0</span></div>
-            <div class="qrow"><span>Réponses vocales</span><span id="qReq">0</span></div>
-            <div class="qrow"><span>Restant estimé</span><span id="qLeft">70 min</span></div>
-            <div class="qrow"><span>Moyenne / jour</span><span id="qAvg">0 min</span></div>
-            <div class="qrow"><span>Projection fin de mois</span><span id="qProj">70 min</span></div>
-          </div>
-          <p class="qnote">Le palier gratuit Inworld offre <b>70 min de TTS par mois</b> (plan On-Demand, sans carte bancaire). Au-delà, chaque minute est facturée $25/1M caractères — Astra bascule alors automatiquement sur la voix Google Translate (gratuite, illimitée).</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- SAISIE TEXTE -->
-    <div class="text-input-row">
-      <input type="text" id="textInput" placeholder="Écris ta question ici…" autocomplete="off" maxlength="500">
-      <button class="send-btn" id="sendBtn" aria-label="Envoyer">➤</button>
-    </div>
+<main class="main">
+  <div class="status">Appuie sur le micro et parle <span>Mode vocal — 100% gratuit, sans compte</span></div>
+  <button class="mic-btn" aria-label="Parler" onclick="this.classList.toggle('listening')">
+    <span class="orb-icon">🎙️</span>
+  </button>
+  <div class="input-row">
+    <input type="text" placeholder="Écris ta question ici…" aria-label="Question">
+    <button class="send-btn" aria-label="Envoyer">➤</button>
   </div>
-</div>
+</main>
 
-<aside id="idleGames" class="idle-games hidden" aria-live="polite">
-  <button id="idleGamesClose" class="idle-close" aria-label="Masquer les jeux">×</button>
-  <h3>🎲 Une petite pause ?</h3>
-  <p>On peut jouer ensemble. Choisis un jeu ou dis son nom à voix haute.</p>
-  <div class="idle-game-grid">
-    <button data-idle-game="devinette">🧩 Devinette</button>
-    <button data-idle-game="quiz">🧠 Quiz rapide</button>
-    <button data-idle-game="mots">🔤 Chaîne de mots</button>
-    <button data-idle-game="pile">🪙 Pile ou face</button>
-  </div>
-</aside>
-
-<!-- CHAT MASQUE du mode vocal (conserve : existant d'origine, non visible) -->
-<div class="chat" id="chat">
-  <div class="chat-empty" id="chatEmpty">Appuie sur le micro 🎙️ et parle.</div>
-</div>
-
-<!-- MODAL HISTORIQUE -->
-<div id="historyModal" class="modal hidden">
-  <div class="modal-card">
-    <button class="modal-close" id="closeHistory">✕</button>
-    <h3>📜 Conversations</h3>
-    <p class="muted">Elle se souvient de tout ce que tu lui dis. Appuie sur une conversation pour la relire.</p>
-    <button class="primary" id="newConvBtn" style="margin-bottom:14px">➕ Nouvelle conversation</button>
-    <div id="convList"></div>
-    <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
-  </div>
-</div>
-
-<!-- MODAL ACCUEIL : prénom + âge (une seule fois pour la vie) -->
-<div id="welcomeModal" class="modal hidden">
-  <div class="modal-card welcome-card" style="max-width:520px;padding:28px 24px;">
-    <h3 style="font-size:26px;margin-bottom:4px;">👋 Salut, moi c'est Astra</h3>
-    <p style="font-size:13px;color:#9a9ab5;margin-bottom:14px;">Assistante vocale créée par <b>Tom AI</b> — mode vocal seul, pas de salon.</p>
-    <div style="display:flex;gap:10px;margin-bottom:14px;justify-content:center;">
-      <div style="flex:1;background:rgba(124,92,255,.12);border-radius:12px;padding:10px;text-align:center;border:1px solid rgba(124,92,255,.2);">
-        <div style="font-size:22px;margin-bottom:4px;">🎙️</div>
-        <div style="font-size:12px;color:#fff;font-weight:600;">Vocal</div>
-        <div style="font-size:11px;color:#9a9ab5;">Répond à la voix</div>
-      </div>
-      <div style="flex:1;background:rgba(124,92,255,.12);border-radius:12px;padding:10px;text-align:center;border:1px solid rgba(124,92,255,.2);">
-        <div style="font-size:22px;margin-bottom:4px;">🧠</div>
-        <div style="font-size:12px;color:#fff;font-weight:600;">IA</div>
-        <div style="font-size:11px;color:#9a9ab5;">Pollinations GPT</div>
-      </div>
-      <div style="flex:1;background:rgba(124,92,255,.12);border-radius:12px;padding:10px;text-align:center;border:1px solid rgba(124,92,255,.2);">
-        <div style="font-size:22px;margin-bottom:4px;">🎵</div>
-        <div style="font-size:12px;color:#fff;font-weight:600;">TikTok</div>
-        <div style="font-size:11px;color:#9a9ab5;"><a href="https://www.tiktok.com/@tom.ai.official" target="_blank" style="color:#fff;text-decoration:underline;">@tom.ai.official</a></div>
-      </div>
-    </div>
-    <p class="muted">Et toi, c'est quoi ton prénom ?</p>
-    <input type="text" id="userName" class="wide-input" placeholder="Ton prénom..." maxlength="30" autocomplete="off">
-    <p class="muted">Et ton âge ?</p>
-    <input type="number" id="userAge" class="wide-input" placeholder="Ton âge..." min="1" max="120" inputmode="numeric">
-    <button class="primary" id="welcomeOk">C'est parti 🚀</button>
-  </div>
-</div>
-
-<!-- MODAL RÉGLAGES -->
-<div id="settingsModal" class="modal hidden">
-  <div class="modal-card">
-    <button class="modal-close" id="closeSettings">✕</button>
-<h3>⚙️ Réglages</h3>
-
-    <h4 class="settings-title">🧠 Cerveau IA</h4>
-    <p class="muted">Astra répond avec <b>Pollinations GPT</b> (gratuit, sans clé, comme ChatGPT).</p>
-
-    <h4 class="settings-title">🗣️ Voix</h4>
-    <p class="muted">🎭 <b>Inworld TTS-2</b> (#1, réaliste, ~70 min/mois à vie) + filet Google Translate (rapide, jamais muet). 🇫🇷 <b>Voix françaises uniquement</b> (natives, sans accent anglais) — la liste est détectée automatiquement dès que ta clé est enregistrée. ⚠️ Voxtral/Mistral suspendu (trop lent) — la clé Mistral sert toujours à la transcription et au cerveau. Qwen/Microsoft/Puter/Kokoro retirés. Inworld = clé type <b>Standard</b> (pas Realtime-only, type fixe à la création !).</p>
-    <select id="ttsVoice" class="wide-input">
-      <option value="iw:__fr__" selected>🇫🇷 Inworld : voix françaises (chargement…)</option>
-    </select>
-    <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> — transcription vocale mobile + cerveau IA (console.mistral.ai → API Keys) :</p>
-    <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
-    <button class="primary" id="saveMistralKey" style="margin-top:6px">💾 Enregistrer la clé</button>
-    <p class="muted" style="margin-top:10px">🎭 <b>2e moteur — Inworld TTS-2</b> (réaliste, arena #7 mondial) — gratuit à vie (~70 min/mois renouvelées) : <b>platform.inworld.ai</b> → compte gratuit → <b>API Keys → Generate new key → type STANDARD</b> ⚠️ (pas "Realtime-only" ! une clé Realtime-only est refusée par TTS avec 403 no scopes, et son type est fixe à la création) → copie le <b>Basic (Base64)</b> et colle-le ici :</p>
-    <input type="password" id="inworldKey" class="wide-input" placeholder="Colle le credential Base64 Inworld ici... optionnel" autocomplete="off">
-    <button class="primary" id="saveInworldKey" style="margin-top:6px">💾 Enregistrer la clé Inworld</button>
-    <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
-
-    <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
-    <p class="muted">Un seul cerveau : <b>Pollinations GPT</b> — gratuit, sans clé, répond comme ChatGPT.</p>
-    <select id="brainSel" class="wide-input">
-      <option value="pollinations" selected>⚡ Pollinations GPT — le cerveau unique, gratuit à vie</option>
-    </select>
-    <h4 class="settings-title">🎤 Réveil vocal</h4>
-    <p class="muted">Dis « Hey Astra » pour la réveiller sans toucher la bulle. Le micro reste actif en arrière-plan.</p>
-    <label class="toggle-row">
-      <input type="checkbox" id="wakeToggle">
-      <span>Réveil « Hey Astra »</span>
-    </label>
-
-    <h4 class="settings-title">🎤 Mode vocal continu</h4>
-    <p class="muted">Après chaque réponse, Astra réécoute automatiquement : parle sans toucher à rien. Arrête avec le bouton stop.</p>
-    <label class="toggle-row">
-      <input type="checkbox" id="continuousToggle">
-      <span>Mode continu non stop</span>
-    </label>
-
-    <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
-  </div>
-</div>
-
-<!-- MODALE À PROPOS D'ASTRA -->
-<div id="aboutModal" class="modal hidden">
-  <div class="modal-card" style="max-width:520px">
-    <button class="modal-close" id="closeAbout">✕</button>
-    <div style="text-align:center;margin-bottom:18px">
-      <div style="font-size:52px;margin-bottom:6px">💜</div>
-      <h3 style="font-size:24px;margin-bottom:4px">Astra</h3>
-      <p style="font-size:13px;color:#9a9ab5">Assistante vocale IA — créée par <b style="color:#c8c8dd">Tom AI</b></p>
-      <p style="font-size:11px;color:#5a5a75;margin-top:2px" id="aboutVersion"></p>
-    </div>
-
-    <h4 class="settings-title">✨ Qu'est-ce que c'est ?</h4>
-    <p class="muted">Astra est une assistante vocale intelligente qui vit dans ton navigateur. Elle t'écoute, comprend ta question, réfléchit avec une IA, et te répond avec une voix réaliste. <b>100% gratuit, sans compte, sans abonnement.</b></p>
-
-    <h4 class="settings-title">🎙️ Comment l'utiliser</h4>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
-      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>🎙️ Micro</b><br>Appuie et parle</div>
-      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>⌨️ Texte</b><br>Écris ta question</div>
-      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>📐 Maths</b><br>« 15 × 7 ? » + tableau</div>
-      <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:10px;font-size:12.5px;color:#c8c8dd"><b>📝 Notes</b><br>« Écris un poème »</div>
-    </div>
-
-    <h4 class="settings-title">🧠 Cerveau IA</h4>
-    <p class="muted">Astra réfléchit avec <b>Pollinations GPT</b> — gratuit, sans clé API, comme ChatGPT. Un seul cerveau, zéro frais.</p>
-
-    <h4 class="settings-title">🗣️ Voix réalistes</h4>
-    <p class="muted">Deux moteurs IA premium, du plus réaliste au plus accessible :</p>
-    <p class="muted" style="margin-top:4px">🔷 <b>Microsoft Neural</b> — <b>la voix par défaut</b>, réaliste, gratuite à vie, zéro clé (Vivienne, Remy, Denise, Henri, Remy...)</p>
-    <p class="muted" style="margin-top:4px">🎙️ <b>Voxtral (Mistral AI)</b> — voix premium, gratuite avec une clé Mistral</p>
-
-    <h4 class="settings-title">🎮 Bonus</h4>
-    <p class="muted">Jeux quand tu attends (devinette, quiz, chaîne de mots, pile ou face) · Réveil vocal « Hey Astra » · Mode continu non-stop · Historique des conversations · Bloc-notes · Calculatrice</p>
-
-    <h4 class="settings-title">🔒 Vie privée</h4>
-    <p class="muted">Tout se passe dans ton navigateur. Les clés API restent sur ton appareil, rien n'est envoyé à un serveur Tom AI.</p>
-
-    <h4 class="settings-title">🤖 Autonomie — elle s'améliore toute seule</h4>
-    <p class="muted">Astra est <b>autonome</b> : elle peut modifier son propre code et se redéployer toute seule. Voici exactement ce que ça signifie :</p>
-    <div style="background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);border-radius:12px;padding:12px;margin:8px 0;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛠️ Elle s'améliore pendant ton absence</div>
-      <div style="font-size:12px;color:#9a9ab5;">Quand tu ne fais rien ou es parti, elle explore le web, tient son journal, <b>et ajoute elle-même au moins 3 nouvelles fonctionnalités par jour</b> à cette appli. Pas plus de 3 par jour, jamais de modifications sur les fonctions vitales (micro, voix, cerveau, mémoire).</div>
-    </div>
-    <div style="background:rgba(0,220,130,.07);border:1px solid rgba(0,220,130,.25);border-radius:12px;padding:12px;margin:8px 0;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">💬 Tu peux simplement lui demander</div>
-      <div style="font-size:12px;color:#9a9ab5;">Dis-lui par exemple « ajoute un bouton de blague du jour ». Elle écrit le code elle-même, l'applique, le déploie automatiquement et te confirme la modification à voix haute. <b>Recharge la page</b> quelques minutes après pour voir la nouveauté.</div>
-    </div>
-    <div style="background:rgba(124,92,255,.08);border:1px solid rgba(124,92,255,.2);border-radius:12px;padding:12px;margin:8px 0;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🧠 Conseil d'IA — elle apprend d'autres IA</div>
-      <div style="font-size:12px;color:#9a9ab5;">En continu, elle consulte d'autres IA (openai, mistral, llama) qui lui apprennent des faits et des idées. Tout est noté dans son journal et sert à inventer ses nouveautés.</div>
-    </div>
-    <div style="background:rgba(0,220,130,.07);border:1px solid rgba(0,220,130,.25);border-radius:12px;padding:12px;margin:8px 0;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:6px;">🛡️ Tu restes en sécurité</div>
-      <div style="font-size:12px;color:#9a9ab5;">Chaque modification passe par des garde-fous : extrait de code exact et unique, sauvegarde locale avant déploiement, et si une modification casse la page, GitHub refuse le déploiement et <b>l'ancienne version reste en ligne</b>. Tu peux lui dire « annule ta dernière modification » à tout moment.</div>
-    </div>
-
-    <div style="text-align:center;margin-top:16px;padding-top:14px;border-top:1px solid rgba(124,92,255,.15)">
-      <p style="font-size:12px;color:#5a5a75">Fait avec 💜 par <b style="color:#c8c8dd">Tom AI</b> · <a href="https://www.tiktok.com/@tom.ai.official" target="_blank" rel="noopener noreferrer" style="color:#7c5cff;text-decoration:underline">@tom.ai.official</a></p>
-    </div>
-  </div>
-</div>
-
-<div id="toast" class="toast"></div>
-
-<!-- TABLEAU DE MATHS + CALCULATRICE (v9.98) : s'ouvre quand l'IA fait des maths -->
-<div id="mathPanel" class="math-panel hidden">
-  <div class="math-header">
-    <span>📐 Tableau de maths</span>
-    <button class="math-close" id="mathClose" aria-label="Fermer">✕</button>
-  </div>
-  <div class="math-board" id="mathBoard">
-    <div class="math-empty">Pose une question de maths :<br>« combien font 15 × 7 ? »</div>
-  </div>
-  <div class="calc">
-    <div class="calc-screen" id="calcScreen">0</div>
-    <div class="calc-grid">
-      <button class="calc-btn op" data-k="C">C</button>
-      <button class="calc-btn op" data-k="⌫">⌫</button>
-      <button class="calc-btn op" data-k="%">%</button>
-      <button class="calc-btn op" data-k="÷">÷</button>
-      <button class="calc-btn" data-k="7">7</button>
-      <button class="calc-btn" data-k="8">8</button>
-      <button class="calc-btn" data-k="9">9</button>
-      <button class="calc-btn op" data-k="×">×</button>
-      <button class="calc-btn" data-k="4">4</button>
-      <button class="calc-btn" data-k="5">5</button>
-      <button class="calc-btn" data-k="6">6</button>
-      <button class="calc-btn op" data-k="-">−</button>
-      <button class="calc-btn" data-k="1">1</button>
-      <button class="calc-btn" data-k="2">2</button>
-      <button class="calc-btn" data-k="3">3</button>
-      <button class="calc-btn op" data-k="+">+</button>
-      <button class="calc-btn" data-k="0">0</button>
-      <button class="calc-btn" data-k=".">.</button>
-      <button class="calc-btn eq" data-k="=">=</button>
-    </div>
-  </div>
-</div>
-
-<!-- BLOC-NOTES (v10.0) : l'IA y ecrit (lettres, textes, notes, poemes...) -->
-<div id="notePanel" class="note-panel hidden">
-  <div class="note-header">
-    <span>📝 Bloc-notes</span>
-    <div class="note-actions">
-      <button class="note-btn" id="noteCopy">Copier</button>
-      <button class="note-btn" id="noteClear">Effacer</button>
-      <button class="math-close" id="noteClose" aria-label="Fermer">✕</button>
-    </div>
-  </div>
-  <textarea id="noteArea" class="note-area" readonly placeholder="L'IA écrira ici : lettres, textes, notes, poèmes..."></textarea>
-</div>
-
-
-<div id="vmOverlay" hidden>
-  <button id="vmClose" title="Fermer">✕</button>
-  <button id="vmKb" title="Clavier">⌨</button>
-  <div id="vmOrb"></div>
-  <div id="vmName">Astra</div>
-  <div id="vmTag">française, libre et gratuite</div>
-  <div id="vmDots"></div>
-  <button id="vmMic" title="Parler">🎤</button>
-  <div id="vmHint">tape l orbe ou le micro pour parler</div>
-</div>
-
-
-</div>
-<script src="websearch.js?v=11.33"></script>
-<script>
-  // 🎙️ URL du serveur Bark (par défaut localhost:8888).
-  // Si le site et le serveur ne tournent pas sur le même PC, change cette
-  // valeur par l'IP du PC, ex. : 'http://192.168.1.45:8888'
-  window.__BARK_URL__ = 'http://localhost:8888';
-</script>
-<script src="app.js?v=11.33"></script>
-
+<div class="version">Assistant Vocal IA — v11.33 · Créé par Tom AI</div>
 </body>
 </html>
