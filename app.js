@@ -1263,11 +1263,11 @@ function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
   /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/Puter/
-      SpeechT5/Edge/Qwen/Piper/anciens system: et systeme) -> Voxtral defaut */
+
   /* v10.81 : Qwen3-TTS et Edge neural SUPPRIMES -> Mistral Voxtral reste
      la seule voix IA realiste gratuite a vie ; 'edge:'/'qwen:' sont
      redevenus des prefixes obsolÃ¨tes -> basculement au defaut Voxtral */
-  if (v.startsWith('speecht5:') || v.startsWith('piper:')
+  if (v.startsWith('speecht5:') 
     || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
     || v.startsWith('gcloud:') || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
       || v.startsWith('edge:') || v.startsWith('edg:') || v.startsWith('qwen:')
@@ -3826,14 +3826,7 @@ async function populateVoices(){
   });
   /* v12.0 : VOIX PIPER (Mozilla TTS, ultra-rapide ~2s, franc) \u00e7ais) */
   {
-    const grpP = document.createElement('optgroup');
-    grpP.label = 'Piper - voix vocale rapide (~2s, systeme)';
-    const optP = document.createElement('option');
-    optP.value = 'piper';
-    optP.textContent = 'Piper - voix franÃ©aise rapide (gratuite, instantanÃ©e)';
-    grpP.appendChild(optP);
-    ttsVoiceSel.appendChild(grpP);
-  }
+    }
   Array.from(ttsVoiceSel.options).forEach(o => {
     if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
   });
@@ -4090,11 +4083,7 @@ function speak(text, onChunk){
     try { plainText = normalizeForTTS(rawNoMarkers); } catch(e){}
     plainText = plainText.replace(/[ \t]{2,}/g, ' ').trim();
     /* v12.0 : VOIX PIPER (Mozilla TTS, ultra-rapide, ~2s, franÃ§ais). */
-    if (voiceMode.startsWith('piper')){
-      const ok = await speakPiper(plainText, onChunk);
-      done(ok);
-      return;
-    }
+    
     const SAFE = ['Google Translate (filet)', (t) => speakGoogle(stripExprMarkers(t), onChunk)]; /* v10.79 : jamais muet */
     /* v10.98 : voix FRANCAISES â on charge la liste FR (cachee) avant de
      parler, pour n utiliser QUE des voix natives francaises. */
