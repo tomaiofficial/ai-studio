@@ -33,7 +33,7 @@ app.add_middleware(
 )
 
 # Chemin vers le modèle Piper voix française
-MODEL_DIR = os.path.expanduser("~/.local/share/piper/voices")
+MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(MODEL_DIR, "fr_FR-siwis-medium.onnx")
 CONFIG_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "fr_FR-siwis-medium.onnx.json"
