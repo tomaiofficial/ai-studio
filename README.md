@@ -89,3 +89,4 @@ L'ancien site **TechHelp** est conservé dans `_backup-techhelp/`.touching for d
 Supertonic voice option added
 Supertonic voice option added
 Deployment fix
+Supertonic voice option
