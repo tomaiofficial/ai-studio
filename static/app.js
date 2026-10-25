@@ -3828,6 +3828,16 @@ async function populateVoices(){
   Array.from(ttsVoiceSel.options).forEach(o => {
     if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
   });
+  /* v11.35 : GROUPE SUPTRONIC HD — 🎙️ voix IA de haute qualité (WebGPU) */
+  {
+    const grpS = document.createElement('optgroup');
+    grpS.label = '🔊 Supertonic HD — 🇫🇷 voix IA réalistes (WebGPU)';
+    const opt = document.createElement('option');
+    opt.value = 'supertonic';
+    opt.textContent = '🎙️ Supertonic HD (qualite studio, WebGPU)';
+    grpS.appendChild(opt);
+    ttsVoiceSel.appendChild(grpS);
+  }
   /* re-selection de la voix memorisee si elle existe encore */
   const stored = getVoice();
   const found = Array.from(ttsVoiceSel.options).some(o => o.value === stored);
@@ -4097,6 +4107,14 @@ function speak(text, onChunk){
       const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
       chain = [
         ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk, taggedText)],
+        SAFE
+      ];
+    }
+    /* v11.35 : Supertonic HD voice option */
+    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
+      chain = [
+        ['Supertonic HD: qualite studio', (t) => speakSupertonic(t, onChunk)],
+        ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
         SAFE
       ];
     }
