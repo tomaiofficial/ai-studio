@@ -115,7 +115,6 @@ resolve((finalTranscript.trim() || this.transcript.trim()));
 }
 const stt = new SpeechToTextHandler();
 const LS = { voice: 'va_ttsvoice' };
-const BARK_URL = (window.__BARK_URL__ || 'http://localhost:8888').replace(/\/$/, '');
 
 /* v9.99.1 : ETAT DU TABLEAU DE MATHS — declare EN HAUT car getSystemPrompt()
    (appele pendant le chargement) y accede via getMathContext(). Un `let`
@@ -1264,11 +1263,11 @@ function getBrain(){ return 'pollinations'; }
 function getVoice(){
   const v = localStorage.getItem(LS.voice) || DEFAULT_VOICE;
   /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/Puter/
-      SpeechT5/Edge/Qwen/Piper/anciens system: et systeme) -> Voxtral defaut */
+        SpeechT5/Edge/Qwen/) -> Voxtral defaut */
   /* v10.81 : Qwen3-TTS et Edge neural SUPPRIMES -> Mistral Voxtral reste
      la seule voix IA realiste gratuite a vie ; 'edge:'/'qwen:' sont
      redevenus des prefixes obsolètes -> basculement au defaut Voxtral */
-  if (v.startsWith('speecht5:') || v.startsWith('piper:')
+  if (v.startsWith('speecht5:')
     || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
     || v.startsWith('gcloud:') || v.startsWith('kokoro:') || v.startsWith('puter:') || v.startsWith('system:')
       || v.startsWith('edge:') || v.startsWith('edg:') || v.startsWith('qwen:')
@@ -3819,31 +3818,13 @@ async function populateVoices(){
     }
     ttsVoiceSel.appendChild(grpI);
   }
-  /* v11.99 : option vocale Bark (voix vocale locale) */
-  {
-    const grpB = document.createElement('optgroup');
-    grpB.label = 'Bark - voix vocale locale (gratuite, systeme)';
-    const opt = document.createElement('option');
-    opt.value = 'bark';
-    opt.textContent = 'Bark - voix vocale locale (gratuite)';
-    grpB.appendChild(opt);
-    ttsVoiceSel.appendChild(grpB);
-  }
-    /* v10.27 : VOIX SYSTéME RETIRéES du s�lecteur \u2014 la lecture syst�me reste
-  branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
+  /* v10.27 : VOIX SYSTM-CM-)ME RETIRM-CM-)ES du sM-ilecteur \\u2014 la lecture systM-hme reste
+  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
     if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
   });
-  /* v12.0 : VOIX PIPER (Mozilla TTS, ultra-rapide ~2s, franc) \u00e7ais) */
-  {
-    const grpP = document.createElement('optgroup');
-    grpP.label = 'Piper - voix vocale rapide (~2s, systeme)';
-    const optP = document.createElement('option');
-    optP.value = 'piper';
-    optP.textContent = 'Piper - voix franéaise rapide (gratuite, instantanée)';
-    grpP.appendChild(optP);
-    ttsVoiceSel.appendChild(grpP);
-  }
+  /* v10.27 : VOIX SYSTM-CM-)ME RETIRM-CM-)ES du sM-ilecteur \\u2014 la lecture systM-hme reste
+  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
   Array.from(ttsVoiceSel.options).forEach(o => {
     if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
   });
@@ -3928,86 +3909,6 @@ function speakSystem(text, specificVoiceName, onChunk){
    vocale » (navigateur) ne sont plus listées dans le sélecteur. speakSystem
    reste défini plus haut pour le secours silencieux de speak(). */
 
-/* v10.99 : VOIX BARK (Suno) — voix locale, gratuite, hors connexion optionnelle. ===== */
-async function speakBark(text, onChunk){
-  if (!text || !text.trim()) return true;
-  try {
-    const res = await fetch(BARK_URL + '/bark/tts', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text: text})
-    });
-    if (!res.ok) return false;
-    const data = await res.json();
-    const b64 = data.audio || '';
-    if (!b64) return false;
-    // WAV PCM16 mono 24kHz → Float32
-    const raw = new Uint8Array(b64.length);
-    for (let i = 0; i < b64.length; i++) raw[i] = b64.charCodeAt(i);
-    const offset = 44; // en-tête WAV standard (16-bit mono)
-    const n = (raw.length - offset) >> 1;
-    const sr = data.sr || 24000;
-    const ctx = new(window.AudioContext || window.webkitAudioContext)();
-    const float32 = new Float32Array(n);
-    for (let i = 0; i < n; i++){
-      const s = raw[offset + 2*i] | (raw[offset + 2*i + 1] << 8);
-      float32[i] = s / 32768;
-    }
-    const buf = ctx.createBuffer(1, n, sr);
-    buf.getChannelData(0).set(float32);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const gain = ctx.createGain();
-    gain.gain.value = 0.55;
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    ctx.resume();
-    src.start();
-    if (onChunk) onChunk('Bark');
-    return true;
-  } catch(e){
-    console.warn('[VOIX] Bark echoue:', e && e.message);
-    return false;
-  }
-}
-
-/* v12.0 : VOIX PIPER (Mozilla TTS, ~2s, franc) — serveur local sur 8888. */
-async function speakPiper(text, onChunk){
-  if (!text || !text.trim()) return true;
-  try {
-    const res = await fetch(BARK_URL + '/piper/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim() })
-    });
-    if (!res.ok){
-      console.warn('[VOIX] Piper echoue:', res.status, await res.text());
-      return false;
-    }
-    const data = await res.json();
-    const buf = atob(data.audio);
-    const chars = new Uint8Array(buf.length);
-    for (let i = 0; i < buf.length; i++) chars[i] = buf.charCodeAt(i);
-    const raw = new Int16Array(chars.buffer);
-    const float = new Float32Array(raw.length);
-    for (let i = 0; i < raw.length; i++) float[i] = raw[i] / 32768;
-    const ctx = new(window.AudioContext || window.webkitAudioContext)();
-    const src = ctx.createBufferSource();
-    src.buffer = ctx.createBuffer(1, float.length, data.sr);
-    src.buffer.getChannelData(0).set(float);
-    const gain = ctx.createGain();
-    gain.gain.value = 0.55;
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    ctx.resume();
-    src.start();
-    if (onChunk) onChunk('Piper');
-    return true;
-  } catch(e){
-    console.warn('[VOIX] Piper echoue:', e && e.message);
-    return false;
-  }
-}
 
 /* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
    vocale » (navigateur) ne sont plus listées dans le sélecteur. speakSystem
@@ -4177,19 +4078,7 @@ function speak(text, onChunk){
     let plainText = rawNoMarkers;
     try { plainText = normalizeForTTS(rawNoMarkers); } catch(e){}
     plainText = plainText.replace(/[ \t]{2,}/g, ' ').trim();
-    /* v11.99 : BARK (Suno, locale) — on route d'abord la voix vocale Bark. */
-    if (voiceMode.startsWith('bark')){
-      const ok = await speakBark(plainText, onChunk);
-      done(ok);
-      return;
-    }
-    /* v12.0 : VOIX PIPER (Mozilla TTS, ultra-rapide, ~2s, français). */
-    if (voiceMode.startsWith('piper')){
-      const ok = await speakPiper(plainText, onChunk);
-      done(ok);
-      return;
-    }
-    const SAFE = ['Google Translate (filet)', (t) => speakGoogle(stripExprMarkers(t), onChunk)]; /* v10.79 : jamais muet */
+    /* v10.98 : voix FRANCAISES — on charge la liste FR (cachee) avant de
     /* v10.98 : voix FRANCAISES — on charge la liste FR (cachee) avant de
      parler, pour n utiliser QUE des voix natives francaises. */
     if (getInworldKey()){
