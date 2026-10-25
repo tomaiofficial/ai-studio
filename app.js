@@ -3971,6 +3971,44 @@ async function speakBark(text, onChunk){
   }
 }
 
+/* v12.0 : VOIX PIPER (Mozilla TTS, ~2s, franc) — serveur local sur 8888. */
+async function speakPiper(text, onChunk){
+  if (!text || !text.trim()) return true;
+  try {
+    const res = await fetch(BARK_URL + '/piper/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text.trim() })
+    });
+    if (!res.ok){
+      console.warn('[VOIX] Piper echoue:', res.status, await res.text());
+      return false;
+    }
+    const data = await res.json();
+    const buf = atob(data.audio);
+    const chars = new Uint8Array(buf.length);
+    for (let i = 0; i < buf.length; i++) chars[i] = buf.charCodeAt(i);
+    const raw = new Int16Array(chars.buffer);
+    const float = new Float32Array(raw.length);
+    for (let i = 0; i < raw.length; i++) float[i] = raw[i] / 32768;
+    const ctx = new(window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, float.length, data.sr);
+    src.buffer.getChannelData(0).set(float);
+    const gain = ctx.createGain();
+    gain.gain.value = 0.55;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    ctx.resume();
+    src.start();
+    if (onChunk) onChunk('Piper');
+    return true;
+  } catch(e){
+    console.warn('[VOIX] Piper echoue:', e && e.message);
+    return false;
+  }
+}
+
 /* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
    vocale » (navigateur) ne sont plus listées dans le sélecteur. speakSystem
    reste défini plus haut pour le secours silencieux de speak(). */
@@ -4142,6 +4180,12 @@ function speak(text, onChunk){
     /* v11.99 : BARK (Suno, locale) — on route d'abord la voix vocale Bark. */
     if (voiceMode.startsWith('bark')){
       const ok = await speakBark(plainText, onChunk);
+      done(ok);
+      return;
+    }
+    /* v12.0 : VOIX PIPER (Mozilla TTS, ultra-rapide, ~2s, français). */
+    if (voiceMode.startsWith('piper')){
+      const ok = await speakPiper(plainText, onChunk);
       done(ok);
       return;
     }
