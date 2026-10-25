@@ -1,71 +1,385 @@
-=== cles API app.js ===
-181: const key = getMistralKey();
-201: const MISTRAL_KEY_LS = 'va_mistral_key';
-202: function getMistralKey(){ try { return (localStorage.getItem(MISTRAL_KEY_LS) || '').trim(); } catch { return ''; } }
-241: const key = getMistralKey();
-847: if (mistralKeyInput) mistralKeyInput.value = getMistralKey();
-849: localStorage.setItem(MISTRAL_KEY_LS, (mistralKeyInput.value || '').trim());
-1152: const mistralKey = getMistralKey();
-1743: const mistralKey = getMistralKey();
-1813: if (getMistralKey()) return;
-3850: console.log('[VOXTRAL] Prêt — clé API Mistral ' + (getMistralKey() ? 'configurée' : 'MANQUANTE (Réglages → Clé API Mistral)'));
-=== voix app.js ===
-117: const LS = { voice: 'va_ttsvoice' };
-154: const VOXTRAL_FALLBACK_VOICES = [
-163: const all = voxtralVoicesCache || VOXTRAL_FALLBACK_VOICES;
-182: if (!key) return VOXTRAL_FALLBACK_VOICES;
-188: if (!res.ok) return VOXTRAL_FALLBACK_VOICES;
-191: if (!items.length) return VOXTRAL_FALLBACK_VOICES;
-199: } catch(e){ console.warn('[VOXTRAL] Liste voix échouée:', e && e.message); return VOXTRAL_FALLBACK_VOICES; }
-240: async function speakVoxtral(text, voiceId, onChunk){
-823: populateVoices();
-2830: async function populateVoices(){
-2835: const voices = await fetchVoxtralVoices();
-2855: let voices = window.speechSynthesis.getVoices();
-2900: voices = window.speechSynthesis.getVoices();
-2903: setTimeout(() => { if (!waited) { waited = true; voices = window.speechSynthesis.getVoices(); startSpeak(); } }, 1000);
-2912: const voices = window.speechSynthesis.getVoices();
-2918: const voices = getSystemVoices();
-3078: chain = [[shortVoiceName(voiceId), (t) => speakVoxtral(t, voiceId, onChunk)]];
-3087: ['Voxtral: Paul', (t) => speakVoxtral(t, 'c69964a6-ab8b-4f8a-9465-ec0925096ec8', onChunk)],
-3884: if (typeof speakVoxtral === 'function') { speakVoxtral(txt); return; }
-=== reglages index.html ===
-249: .settings-title{font-size:14px;color:#7c5cff;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
-462: <header style="position:sticky;top:0;z-index:12;padding:14px 18px;background:rgba(18,16,42,.55);backdrop-filter:blur(14px);border-bottom:1px solid rgb
-561: <div id="settingsModal" class="modal hidden">
-566: <h4 class="settings-title">🧠 Cerveau IA</h4>
-569: <h4 class="settings-title">🗣️ Voix</h4>
-581: <h4 class="settings-title">🧠 Cerveau IA (gratuit à vie, sans clé)</h4>
-586: <h4 class="settings-title">🎤 Réveil vocal</h4>
-593: <h4 class="settings-title">🎤 Mode vocal continu</h4>
-600: <p class="muted settings-version" id="appVersion" style="margin-top:16px"></p>
-=== cles index.html ===
-30: .bg-aurora.a1{width:70vmax;height:70vmax;left:-24vmax;top:-24vmax;background:radial-gradient(circle,rgba(124,92,255,.45),transparent 62%);opacity:.5}
-31: .bg-aurora.a2{width:58vmax;height:58vmax;right:-20vmax;bottom:-20vmax;background:radial-gradient(circle,rgba(255,92,168,.3),transparent 62%);animation
-32: .bg-aurora.a3{width:46vmax;height:46vmax;left:30%;top:36%;background:radial-gradient(circle,rgba(61,220,160,.22),transparent 62%);animation-delay:-12s
-48: .bg-particles{position:absolute;inset:0}
-49: .bg-particles span{
-51: background:radial-gradient(circle,rgba(255,255,255,.9),rgba(124,92,255,.4) 60%,transparent);
-171: background:radial-gradient(circle at 35% 28%,#23233c 0%,#0d0d10 68%);
-429: <div class="bg-particles" id="bgParticles"></div>
-506: <article class="recipe-page"><img id="recipeImage" class="recipe-photo" alt="Photo du plat" referrerpolicy="no-referrer"><span id="recipeCategory" cla
-507: <article class="recipe-page"><h3>Étapes</h3><ol id="recipeSteps"></ol><p style="font-size:12px;color:#665e50;">Adapte les quantités selon ton appétit 
-526: <button class="secondary" id="clearHistoryBtn" style="border-color:#a33;color:#f88;margin-top:14px">🗑️ Effacer tout l'historique</button>
-570: <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium, 9 langues, zéro-shot voice cloning. Nécessite une clé API Mistral (gratuite sur
-576: <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> (obtiens-la sur <b>console.mistral.ai</b> → API Keys) :</p>
-577: <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
-=== voix index.html ===
-61: .chat,.voice-stage,.shell,.rail,.main-col{position:relative;z-index:1}
-142: .voice-stage{
-260: select.wide-input{appearance:none}
-471: <div class="voice-stage">
-493: <p>On peut jouer ensemble. Choisis un jeu ou dis son nom à voix haute.</p>
-539: <div style="font-size:11px;color:#9a9ab5;">Répond à la voix</div>
-570: <p class="muted">🎙️ <b>Voxtral TTS (Mistral AI)</b> — voix IA premium, 9 langues, zéro-shot voice cloning. Nécessite une clé API Mistral (gratuite sur
-571: <select id="ttsVoice" class="wide-input">
-572: <option value="voxtral:c69964a6-ab8b-4f8a-9465-ec0925096ec8" selected>🎙️ Voxtral: Paul (anglais US, neutre)</option>
-575: </select>
-579: <button class="primary" id="testVoice" style="margin-top:6px">🔊 Tester la voix</button>
-583: <select id="brainSel" class="wide-input">
-584: <option value="pollinations" selected>⚡ Pollinations GPT — le cerveau unique, gratuit à vie</option>
-585: </select>
+=== APP_VERSION ===
+7:const APP_VERSION = '11.33';
+8:console.log('[APP] v' + APP_VERSION + ' loading...');
+946:if (aboutBtn) aboutBtn.addEventListener('click', () => { const av = $('aboutVersion'); if (av) av.textContent = 'Version ' + APP_VERSION; aboutModal.classList.remove('hidden'); });
+956:  const av = $('aboutVersion'); if (av) av.textContent = 'Version ' + APP_VERSION;
+1465:   automatiquement (APP_VERSION, version.json, ?v=, cache SW), commite via
+=== supertonic dans app.js ===
+3834:    grpS.label = '🔊 Supertonic HD — 🇫🇷 voix IA réalistes (WebGPU)';
+3836:    opt.value = 'supertonic';
+3837:    opt.textContent = '🎙️ Supertonic HD (qualite studio, WebGPU)';
+4113:    /* v11.35 : Supertonic HD voice option */
+4114:    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
+4116:        ['Supertonic HD: qualite studio', (t) => speakSupertonic(t, onChunk)],
+=== gemini dans app.js ===
+576:           Gemini (WAV fort, clippait) descend a 1.2 avec LIMITEUR : plus de
+1265:  /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/Puter/
+1271:    || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
+1434:/* v10.43 : GEMINI RETIRÉ — quota journalier trop court (10/j/model) au
+1436:   anciennes sélections gemini: reviennent à la voix par défaut. */
+1439:  if (prevVoice.startsWith('gemini:')){
+1442:  localStorage.removeItem('va_gemini_key');
+1443:  localStorage.removeItem('va_gemini_quota');
+=== speak / voiceMode / populate ===
+173:  if (v === 'voxtral:' + id){ localStorage.setItem(LS.voice, DEFAULT_VOICE); populateVoices(); }
+268:async function speakVoxtral(text, voiceId, onChunk){
+431:async function speakInworld(text, voiceId, onChunk, taggedText){
+1124:          try { speak(quotaSpoken()); } catch(err){}
+1385:  populateVoices();
+1404:  const ok = await speak("Bonjour ! Moi, je suis là, à l'écoute. Comment puis-je t'aider ?");
+1428:    populateVoices();
+2025:  await speak(spoken);
+2292:    addAiMsg(text,'Jeu local'); speak(text); return;
+2298:    addAiMsg(text,'Quiz local'); speak(text); return;
+2302:    addAiMsg(text,'Jeu local'); speak(text); return;
+2307:    addAiMsg(text,'Jeu local'); speak(text); return;
+2334:  if(reply){ addAiMsg(reply,'Jeu local'); speak(reply); return true; }
+3653:    /* iOS : reveille la synthese vocale avec un speak() silencieux dans le geste
+3659:        window.speechSynthesis.speak(u);
+3742:async function speakGoogle(text, onChunk){
+3791:async function populateVoices(){
+3822:  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
+3827:  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
+3849:      if (list && list.length) populateVoices();
+3855:function speakSystem(text, specificVoiceName, onChunk){
+3899:          window.speechSynthesis.speak(u);
+3918:/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
+3920:   reste défini plus haut pour le secours silencieux de speak(). */
+3923:/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
+3925:   reste défini plus haut pour le secours silencieux de speak(). */
+4022:function speak(text, onChunk){
+4078:    const voiceMode = getVoice();
+4098:    const voiceModeFinal = (voiceMode.startsWith('iw:') && INWORLD_VOICES.length && !INWORLD_VOICES.some(x => x.id === voiceMode.substring(3)))
+4099:      ? ('iw:' + (frDef || voiceMode.substring(3)))
+4100:      : voiceMode;
+4106:    if (voiceModeFinal.startsWith('iw:')){
+4107:      const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
+4114:    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
+4145:   Chaque speak() prend un nouvel epoch ; stopAudio() et toute nouvelle
+4147:   (speakVoxtral/Google/Systeme) immediatement. Sans ca, une longue
+4462:    speak(lesson);
+4492:        await speak('Je n’ai pas pu préparer la proposition. Vérifie que le serveur Render est à jour et qu’il a sa clé IA.');
+4498:        await speak(spokenSummary);
+4505:      await speak('La proposition a échoué pendant sa préparation ou ses tests. Aucun changement n’a été publié.');
+4562:    await speak(repSpokenMood);
+4594:    await speak(rep);
+4605:    await speak(rep);
+4617:    await speak(rep);
+4628:    await speak(rep);
+4639:    await speak(rep);
+4654:    await speak(rep);
+4671:    await speak(rep);
+4683:    speak(reply);
+4739:    await speak(fallback);
+4746:     erreur, on répond avec la réponse locale au lieu de planter speak() */
+4756:    await speak(fallback);
+4763:     definitive ; speak() la remplit chunk par chunk (sous-titre + bulle). */
+4768:  await speak(r.text, (chunk) => {
+4951:    function speakSoft(txt){
+4956:        if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(txt); u.lang = 'fr-FR'; u.volume = 0.9; speechSynthesis.speak(u); }
+5380:                try { speak(cor); } catch(e){}
+5406:(function voiceMode(){
+5494:    /* v11.21 : les appels DIRECTS de speak() (sans setState) doivent aussi
+=== tts select dans index.html ===
+51:.mic-btn::after{content:'';position:absolute;inset:14%;border-radius:50%;background:radial-gradient(circle at 35% 28%,#23233c 0%,#0d0d10 70%);box-shadow:inset 0 0 40px rgba(124,92,255,.3)}
+=== tail app.js (300 dernieres lignes) ===
+       fait ENCORE : le passe-relais en arriere-plan. */
+      return 'Oui ! Parfois, quand tu n es pas la, je discute avec une autre IA en arriere-plan, et je le note dans mon journal.';
+    }
+
+    /* ---- 2) WEB ---- */
+    async function astraWeb(question){
+      const sujet = (question || '')
+        .replace(/^(cherchez?|trouve|trouvez|va\s+sur\s+(le\s+)?(web|internet)|documentez?-toi|renseignez?-toi)\s*/i, '')
+        .replace(/\s*(sur|de|pour)\s+(le\s+)?(web|internet)\s*$/i, '')
+        .replace(/^[\s,.:;!?-]+|[\s,.:;!?-]+$/g, '')
+        .trim() || 'l\u2019actualite de l\u2019intelligence artificielle';
+      tst('\u{1F310} Je fouille le web sur "' + sujet + '"...');
+      let contexte = '';
+      try {
+        const r = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(sujet) + '&format=json&no_html=1&skip_disambig=1');
+        if (r.ok) {
+          const j = await r.json();
+          const bits = [];
+          if (j.AbstractText) bits.push(j.AbstractText);
+          (j.RelatedTopics || []).slice(0, 4).forEach(t => { if (t && t.Text) bits.push(t.Text); });
+          contexte = bits.join(' ');
+        }
+      } catch(e){}
+      if (!contexte) {
+        try {
+          const w = await fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(sujet) + '&format=json&origin=*&srlimit=3');
+          if (w.ok) {
+            const j = await w.json();
+            const hits = (j.query && j.query.search) || [];
+            contexte = hits.map(h => (h.snippet || '').replace(/<[^>]+>/g, '')).join(' ');
+          }
+        } catch(e){}
+      }
+      let reponse;
+      if (contexte) {
+        const syn = await askModel('openai',
+          'Tu es Astra, assistance vocale vive et taquine. Reponds en francais en 4 phrases maximum, a la premiere personne, uniquement a partir du contexte fourni. Pas de politesse, pas de "d\u2019apres le contexte".',
+          'Sujet : ' + sujet + '\nContexte web : ' + contexte.slice(0, 1200));
+        reponse = syn ? ('\u{1F310} ' + syn) : ('\u{1F310} Voila ce que j\u2019ai trouve : ' + contexte.slice(0, 300));
+      } else {
+        const syn = await askModel('openai',
+          'Tu es Astra, assistance vocale. La recherche web a echoue. Reponds en francais en 3 phrases max avec ce que tu sais.',
+          sujet);
+        reponse = '\u{1F310} Le web ne m\u2019a rien donne de lisible la-dessus, mais voila ce que je sais : ' + (syn || 'je seche, repose-moi la question.');
+      }
+      jrn('Web : recherche sur ' + sujet);
+      return reponse;
+    }
+
+    /* ---- 3) AUTOCORRECTION ---- */
+    const FACT = /(combien|quand\b|quelle\s+(date|ann\u00e9e|est)|qui\s+(est|etait|\u00e9tait)|capitale|population|prix|taille|distance|temp\u00e9rature|invent)/i;
+    async function verifier(q, reponse){
+      /* v10.21 : la reponse peut etre un OBJET { text, diag }, pas une
+         chaine -> String() donnait "[object Object]" et l'IA verifiait
+         n'importe quoi. On extrait le texte reel. */
+      const txt = aiText(typeof reponse === 'string' ? reponse : ((reponse && reponse.text) || (reponse && reponse.content) || reponse));
+      if (!txt || txt.length < 5) return null;
+      try {
+        if (typeof isSecoursReply === 'function' && isSecoursReply(txt)) return null;
+      } catch(e){}
+      const v = await askModel('mistral',
+        'Tu es un verificateur strict. On te donne une question et la reponse d\u2019une IA. Si la reponse est correcte, reponds exactement : OK. Sinon, donne uniquement la bonne reponse en une phrase concise en francais, sans commentaire.',
+        'Question : ' + q + '\nReponse : ' + txt.slice(0, 600));
+      if (!v) return null;
+      const t = v.trim();
+      if (t.length < 4) return null;
+      if (/^ok\b/i.test(t)) return null;
+      return t;
+    }
+
+    /* ---- WRAPPER askAI ---- */
+    if (typeof window.askAI === 'function') {
+      const orig = window.askAI;
+      window.askAI = async function(question){
+        try {
+          const q = (question || '').trim();
+          const low = q.toLowerCase();
+          /* verite sur les autres IA */
+          if (/(parle|discut|communiqu|\u00e9chang)/i.test(low)
+              && /(autre|autres)/.test(low)
+              && /\b(ia|ias)\b|intelligence artificielle/.test(low)) {
+            const r = reponseAutresIA();
+            jrn('Verite : a explique qu elle parle aux autres IA');
+            return { text: r };
+          }
+          /* recherche web obligatoire : maire, ville, politique, etc. */
+          if (/(maire|maire de|maire d|maire du|maire de la|ville|village|commune|député|députée|président|présidente|ministre|gouvernement|politique|élections|élu|élue)/i.test(low)) {
+            const r = await astraWeb(q);
+            return { text: r };
+          }
+          /* commande web */
+          if (/^(cherche|trouve|va\s+sur|documente|renseigne)/i.test(q) || /(sur\s+(le\s+)?(web|internet))/i.test(low)) {
+            const r = await astraWeb(q);
+            jrn('Web : ' + q.slice(0, 80));
+            return { text: r };
+          }
+          /* reponse normale + verification arriere-plan */
+          const reponse = await orig.apply(this, arguments);
+          if (FACT.test(q)) {
+            verifier(q, reponse).then(cor => {
+              if (cor) {
+                tst('\u{1F527} Astra se corrige : ' + cor);
+                try { if (typeof addAiMsg === 'function') addAiMsg('\u{1F527} Autocorrection : ' + cor); } catch(e){}
+                try { speak(cor); } catch(e){}
+                jrn('Autocorrection sur : ' + q.slice(0, 80));
+              }
+            }).catch(() => {});
+          }
+          return reponse;
+        } catch(e) {
+          return orig.apply(this, arguments);
+        }
+      };
+      console.log('[Astra] Module web + autocorrection + verite autres IA actif.');
+    }
+    window.astraWeb = astraWeb;
+  } catch (e) {
+    console.warn('[Astra] Web desactive :', e);
+  }
+})();
+
+
+/* ============================================================
+   v11.19 : MODE VOCAL PLEIN ECRAN — style ChatGPT Voice Mode
+   Orbe bleue geante sur fond noir, voix-presentees-comme-
+   personnalites (nom + character + pagination), micro integre.
+   Reutilise : setState()/#orb (etats), startRecorder() (flow),
+   stopBtn handler (stop), LS.voice (selection).
+   ============================================================ */
+(function voiceMode(){
+  try {
+    const ov = document.getElementById('vmOverlay');
+    if (!ov) return;
+    const orbM = document.getElementById('vmOrb');
+    const nmM = document.getElementById('vmName');
+    const tgM = document.getElementById('vmTag');
+    const dotsM = document.getElementById('vmDots');
+    const VM_TAGS = ['chaleureuse et solaire', 'douce et posée', 'vive et taquine', 'claire et élégante', 'profonde et affirmée'];
+    const HUES = [0, 40, 90, 190, 260, 310];
+    let vmList = [];
+    let vmIdx = 0;
+
+    function buildList(){
+      vmList = [];
+      if (typeof INWORLD_VOICES !== 'undefined' && INWORLD_VOICES.length){
+        INWORLD_VOICES.forEach((v, i) => {
+          vmList.push({ v: 'iw:' + v.id, n: v.n || v.id, d: VM_TAGS[i % VM_TAGS.length], key: true });
+        });
+      } else {
+        vmList.push({ v: 'iw:Ashley', n: 'Astra', d: 'française, libre et gratuite' });
+      }
+      /* la voix Google filet reste disponible pour tous */
+      vmList.push({ v: '', n: 'Céleste', d: 'voix Google, gratuite et sans limite' });
+    }
+
+    function render(){
+      dotsM.innerHTML = '';
+      vmList.forEach((p, i) => {
+        const b = document.createElement('button');
+        b.className = 'vm-dot' + (i === vmIdx ? ' on' : '');
+        b.title = p.n + ' — ' + p.d;
+        b.onclick = () => selectVoice(i);
+        dotsM.appendChild(b);
+      });
+      const p = vmList[vmIdx];
+      nmM.textContent = p.n;
+      tgM.textContent = p.d;
+      orbM.style.filter = 'hue-rotate(' + (HUES[vmIdx % HUES.length] || 0) + 'deg)';
+    }
+
+    function selectVoice(i){
+      vmIdx = Math.max(0, Math.min(vmList.length - 1, i));
+      try { localStorage.setItem(LS.voice, vmList[vmIdx].v); } catch(e){}
+      render();
+    }
+
+    function syncIdxFromLS(){
+      const cur = getVoice();
+      vmIdx = vmList.findIndex(p => p.v === cur);
+      if (vmIdx < 0) vmIdx = vmList.length - 1; /* defaut -> dernier (Céleste) si introuvable */
+    }
+
+    /* miroir des etats de l orbe principale (listening/thinking/speaking) */
+    const mainOrb = document.getElementById('orb');
+    if (mainOrb){
+      new MutationObserver(() => {
+        const st = ['listening', 'thinking', 'speaking'].find(c => mainOrb.classList.contains(c));
+        orbM.className = orbM.className.replace(/\b(listening|thinking|speaking)\b/g, '').trim();
+        if (st) orbM.classList.add(st);
+      }).observe(mainOrb, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    function open(){
+      ov.hidden = false;
+      buildList();
+      syncIdxFromLS();
+      render();
+      if (typeof loadInworldFrenchVoices === 'function'){
+        loadInworldFrenchVoices().then(() => { buildList(); syncIdxFromLS(); render(); }).catch(() => {});
+      }
+      /* status discret */
+      try { setStatus('Mode vocal plein écran — tape l orbe ou le micro'); } catch(e){}
+    }
+    function close(){
+      ov.hidden = true;
+      try { stopAudio(); stopRecorder(); stt && stt.stop && stt.stop(); } catch(e){}
+      try { setState('idle'); } catch(e){}
+      try { setStatus('Appuie sur le micro et parle'); } catch(e){}
+    }
+
+    orbM.onclick = () => { if (typeof startRecorder === 'function') startRecorder(); };
+    document.getElementById('vmMic').onclick = () => { if (typeof startRecorder === 'function') startRecorder(); };
+    document.getElementById('vmClose').onclick = close;
+    document.getElementById('vmKb').onclick = () => { close(); const ti = document.getElementById('textInput'); if (ti) ti.focus(); };
+
+    console.log('[Astra] Mode vocal plein écran (ChatGPT style) actif.');
+
+    /* v11.21 : les appels DIRECTS de speak() (sans setState) doivent aussi
+       faire pulser l orbe : on nappote un hook d'entree/sortie de promesse */
+    try {
+      const origSpeak = speak;
+      speak = function(t, oc){
+        try { orbM.classList.remove('listening', 'thinking', 'speaking'); orbM.classList.add('speaking'); } catch(e){}
+        const r = origSpeak(t, oc);
+        if (r && typeof r.finally === 'function'){
+          return r.finally(() => { try { orbM.classList.remove('listening', 'thinking', 'speaking'); } catch(e){} });
+        }
+        return r;
+      };
+    } catch(e){ console.warn('[Astra] hook orbe vocal ignoré:', e && e.message); }
+  } catch (e) { console.warn('[Astra] Mode vocal non chargé:', e && e.message); }
+})();
+
+
+/* ============================================================
+   v11.23 : MISSIONS — agent personnel style Muse
+   Une mission = un objectif decoupe par le cerveau (askAI) en
+   etapes, executees une par une, sauvées en localStorage.
+   Interface : overlay #miOverlay (voir index.html v11.23).
+   ============================================================ */
+
+
+/* ============================================================
+   v11.25 : NAVIGATEUR D'ASTRA — browser intégré réel
+   Fenêtre web DANS le site : Bing/searx/Wikipédia s'y affichent
+   réellement (testé). Commande vocale/chat : « ouvre le navigateur
+   sur X », « cherche X sur internet » → Astra affiche la page ET
+   répond à voix haute. Frameability testée le 23/10/2026 :
+   OK = bing.com, fr.wikipedia.org, searx.be — KO = DDG, GitHub, YouTube.
+   ============================================================ */
+
+
+/* ============================================================
+   v11.28 : GENERIQUE D'OUVERTURE — joue aux 2 PREMIERES
+   sessions (compteur localStorage astra_intro_v1). Clic =
+   passer. S'efface seul (fade) et libere le DOM.
+   ============================================================ */
+
+/* ============================================================
+   v11.33 : GENERIQUE — une SEULE fois par navigateur/device
+   (compteur localStorage astra_intro_v1). apres le premier
+   affichage, les prochaines ouvertures passent DIRECT au
+   generique skipping (le contenu apparait directement).
+   ============================================================ */
+(function astraIntro(){
+  try {
+    let done = false;
+    let count = 0;
+    try {
+      count = parseInt(localStorage.getItem('astra_intro_v1') || '0', 10) || 0;
+      if (count > 0) done = true; // jamais vu -> skip
+      else localStorage.setItem('astra_intro_v1', String(count + 1));
+    } catch(e){}
+    if (done) return;
+
+    const ov = document.createElement('div');
+    ov.id = 'introIntro';
+    let stars = '<div id="IntroStars">';
+    for (let i = 0; i < 26; i++){
+      stars += '<i style="left:' + Math.floor(Math.random() * 96) + '%;top:' + Math.floor(Math.random() * 70) + '%;width:' + (Math.random() * 3.2 + 1.2).toFixed(1) + 'px;height:' + (Math.random() * 3.2 + 1.2).toFixed(1) + 'px;animation-delay:' + (Math.random() * 5).toFixed(2) + 's"></i>';
+    }
+    stars += '</div>';
+    ov.innerHTML = stars +
+      '<div id="IntroOrb"></div>' +
+      '<div id="IntroName">ASTRA</div>' +
+      '<div id="IntroTag">Ton assistante vocale · gratuite · réelle · à toi</div>' +
+      '<button id="IntroCTA">Continuer</button>' +
+      '<div id="IntroVer">ASTRA · Assistant IA personnel</div>';
+    document.body.appendChild(ov);
+    let gone = false;
+    const finish = () => {
+      if (gone) return;
+      gone = true;
+      try { ov.classList.add('out'); setTimeout(() => ov.remove(), 820); } catch(e){ try { ov.remove(); } catch(e2){} }
+    };
+    document.getElementById('IntroCTA').onclick = finish;
+    ov.addEventListener('keydown', e => { if (e.key === 'Enter') finish(); });
+  } catch (e) { console.warn('[Astra] générique ignoré:', e && e.message); }
+})();
+;
