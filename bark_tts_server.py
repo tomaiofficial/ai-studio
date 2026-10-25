@@ -16,6 +16,7 @@ Dépendances (requirements-bark.txt) :
 
 import base64
 import io
+import json
 import os
 
 import bark
@@ -80,7 +81,14 @@ def _text_to_pcm16(text: str) -> bytes:
 
 @app.post("/bark/tts")
 async def bark_tts(request: Request):
-    data = await request.json()
+    raw = await request.body()
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except Exception:
+        try:
+            data = json.loads(raw.decode("latin-1"))
+        except Exception:
+            return {"error": "corps requete invalide", "audio": ""}
     text = str(data.get("text", "") or "").strip()
     if not text:
         return {"error": "text requis", "audio": ""}
