@@ -86,3 +86,4 @@ _backup-techhelp/     → ancien site TechHelp (sauvegarde)
 ## 🗂️ Sauvegarde
 
 L'ancien site **TechHelp** est conservé dans `_backup-techhelp/`.touching for deploy
+Supertonic voice option added
