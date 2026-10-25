@@ -1,385 +1,350 @@
-=== APP_VERSION ===
-7:const APP_VERSION = '11.33';
-8:console.log('[APP] v' + APP_VERSION + ' loading...');
-946:if (aboutBtn) aboutBtn.addEventListener('click', () => { const av = $('aboutVersion'); if (av) av.textContent = 'Version ' + APP_VERSION; aboutModal.classList.remove('hidden'); });
-956:  const av = $('aboutVersion'); if (av) av.textContent = 'Version ' + APP_VERSION;
-1465:   automatiquement (APP_VERSION, version.json, ?v=, cache SW), commite via
-=== supertonic dans app.js ===
-3834:    grpS.label = '🔊 Supertonic HD — 🇫🇷 voix IA réalistes (WebGPU)';
-3836:    opt.value = 'supertonic';
-3837:    opt.textContent = '🎙️ Supertonic HD (qualite studio, WebGPU)';
-4113:    /* v11.35 : Supertonic HD voice option */
-4114:    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
-4116:        ['Supertonic HD: qualite studio', (t) => speakSupertonic(t, onChunk)],
-=== gemini dans app.js ===
-576:           Gemini (WAV fort, clippait) descend a 1.2 avec LIMITEUR : plus de
-1265:  /* v10.71 : retours aux moteurs retires (Gemini/ElevenLabs/Puter/
-1271:    || v.startsWith('gemini:') || v.startsWith('eleven:') || v.startsWith('gcloudtts:')
-1434:/* v10.43 : GEMINI RETIRÉ — quota journalier trop court (10/j/model) au
-1436:   anciennes sélections gemini: reviennent à la voix par défaut. */
-1439:  if (prevVoice.startsWith('gemini:')){
-1442:  localStorage.removeItem('va_gemini_key');
-1443:  localStorage.removeItem('va_gemini_quota');
-=== speak / voiceMode / populate ===
-173:  if (v === 'voxtral:' + id){ localStorage.setItem(LS.voice, DEFAULT_VOICE); populateVoices(); }
-268:async function speakVoxtral(text, voiceId, onChunk){
-431:async function speakInworld(text, voiceId, onChunk, taggedText){
-1124:          try { speak(quotaSpoken()); } catch(err){}
-1385:  populateVoices();
-1404:  const ok = await speak("Bonjour ! Moi, je suis là, à l'écoute. Comment puis-je t'aider ?");
-1428:    populateVoices();
-2025:  await speak(spoken);
-2292:    addAiMsg(text,'Jeu local'); speak(text); return;
-2298:    addAiMsg(text,'Quiz local'); speak(text); return;
-2302:    addAiMsg(text,'Jeu local'); speak(text); return;
-2307:    addAiMsg(text,'Jeu local'); speak(text); return;
-2334:  if(reply){ addAiMsg(reply,'Jeu local'); speak(reply); return true; }
-3653:    /* iOS : reveille la synthese vocale avec un speak() silencieux dans le geste
-3659:        window.speechSynthesis.speak(u);
-3742:async function speakGoogle(text, onChunk){
-3791:async function populateVoices(){
-3822:  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
-3827:  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
-3849:      if (list && list.length) populateVoices();
-3855:function speakSystem(text, specificVoiceName, onChunk){
-3899:          window.speechSynthesis.speak(u);
-3918:/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
-3920:   reste défini plus haut pour le secours silencieux de speak(). */
-3923:/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
-3925:   reste défini plus haut pour le secours silencieux de speak(). */
-4022:function speak(text, onChunk){
-4078:    const voiceMode = getVoice();
-4098:    const voiceModeFinal = (voiceMode.startsWith('iw:') && INWORLD_VOICES.length && !INWORLD_VOICES.some(x => x.id === voiceMode.substring(3)))
-4099:      ? ('iw:' + (frDef || voiceMode.substring(3)))
-4100:      : voiceMode;
-4106:    if (voiceModeFinal.startsWith('iw:')){
-4107:      const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
-4114:    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
-4145:   Chaque speak() prend un nouvel epoch ; stopAudio() et toute nouvelle
-4147:   (speakVoxtral/Google/Systeme) immediatement. Sans ca, une longue
-4462:    speak(lesson);
-4492:        await speak('Je n’ai pas pu préparer la proposition. Vérifie que le serveur Render est à jour et qu’il a sa clé IA.');
-4498:        await speak(spokenSummary);
-4505:      await speak('La proposition a échoué pendant sa préparation ou ses tests. Aucun changement n’a été publié.');
-4562:    await speak(repSpokenMood);
-4594:    await speak(rep);
-4605:    await speak(rep);
-4617:    await speak(rep);
-4628:    await speak(rep);
-4639:    await speak(rep);
-4654:    await speak(rep);
-4671:    await speak(rep);
-4683:    speak(reply);
-4739:    await speak(fallback);
-4746:     erreur, on répond avec la réponse locale au lieu de planter speak() */
-4756:    await speak(fallback);
-4763:     definitive ; speak() la remplit chunk par chunk (sous-titre + bulle). */
-4768:  await speak(r.text, (chunk) => {
-4951:    function speakSoft(txt){
-4956:        if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(txt); u.lang = 'fr-FR'; u.volume = 0.9; speechSynthesis.speak(u); }
-5380:                try { speak(cor); } catch(e){}
-5406:(function voiceMode(){
-5494:    /* v11.21 : les appels DIRECTS de speak() (sans setState) doivent aussi
-=== tts select dans index.html ===
-51:.mic-btn::after{content:'';position:absolute;inset:14%;border-radius:50%;background:radial-gradient(circle at 35% 28%,#23233c 0%,#0d0d10 70%);box-shadow:inset 0 0 40px rgba(124,92,255,.3)}
-=== tail app.js (300 dernieres lignes) ===
-       fait ENCORE : le passe-relais en arriere-plan. */
-      return 'Oui ! Parfois, quand tu n es pas la, je discute avec une autre IA en arriere-plan, et je le note dans mon journal.';
-    }
-
-    /* ---- 2) WEB ---- */
-    async function astraWeb(question){
-      const sujet = (question || '')
-        .replace(/^(cherchez?|trouve|trouvez|va\s+sur\s+(le\s+)?(web|internet)|documentez?-toi|renseignez?-toi)\s*/i, '')
-        .replace(/\s*(sur|de|pour)\s+(le\s+)?(web|internet)\s*$/i, '')
-        .replace(/^[\s,.:;!?-]+|[\s,.:;!?-]+$/g, '')
-        .trim() || 'l\u2019actualite de l\u2019intelligence artificielle';
-      tst('\u{1F310} Je fouille le web sur "' + sujet + '"...');
-      let contexte = '';
-      try {
-        const r = await fetch('https://api.duckduckgo.com/?q=' + encodeURIComponent(sujet) + '&format=json&no_html=1&skip_disambig=1');
-        if (r.ok) {
-          const j = await r.json();
-          const bits = [];
-          if (j.AbstractText) bits.push(j.AbstractText);
-          (j.RelatedTopics || []).slice(0, 4).forEach(t => { if (t && t.Text) bits.push(t.Text); });
-          contexte = bits.join(' ');
-        }
-      } catch(e){}
-      if (!contexte) {
-        try {
-          const w = await fetch('https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(sujet) + '&format=json&origin=*&srlimit=3');
-          if (w.ok) {
-            const j = await w.json();
-            const hits = (j.query && j.query.search) || [];
-            contexte = hits.map(h => (h.snippet || '').replace(/<[^>]+>/g, '')).join(' ');
-          }
-        } catch(e){}
-      }
-      let reponse;
-      if (contexte) {
-        const syn = await askModel('openai',
-          'Tu es Astra, assistance vocale vive et taquine. Reponds en francais en 4 phrases maximum, a la premiere personne, uniquement a partir du contexte fourni. Pas de politesse, pas de "d\u2019apres le contexte".',
-          'Sujet : ' + sujet + '\nContexte web : ' + contexte.slice(0, 1200));
-        reponse = syn ? ('\u{1F310} ' + syn) : ('\u{1F310} Voila ce que j\u2019ai trouve : ' + contexte.slice(0, 300));
-      } else {
-        const syn = await askModel('openai',
-          'Tu es Astra, assistance vocale. La recherche web a echoue. Reponds en francais en 3 phrases max avec ce que tu sais.',
-          sujet);
-        reponse = '\u{1F310} Le web ne m\u2019a rien donne de lisible la-dessus, mais voila ce que je sais : ' + (syn || 'je seche, repose-moi la question.');
-      }
-      jrn('Web : recherche sur ' + sujet);
-      return reponse;
-    }
-
-    /* ---- 3) AUTOCORRECTION ---- */
-    const FACT = /(combien|quand\b|quelle\s+(date|ann\u00e9e|est)|qui\s+(est|etait|\u00e9tait)|capitale|population|prix|taille|distance|temp\u00e9rature|invent)/i;
-    async function verifier(q, reponse){
-      /* v10.21 : la reponse peut etre un OBJET { text, diag }, pas une
-         chaine -> String() donnait "[object Object]" et l'IA verifiait
-         n'importe quoi. On extrait le texte reel. */
-      const txt = aiText(typeof reponse === 'string' ? reponse : ((reponse && reponse.text) || (reponse && reponse.content) || reponse));
-      if (!txt || txt.length < 5) return null;
-      try {
-        if (typeof isSecoursReply === 'function' && isSecoursReply(txt)) return null;
-      } catch(e){}
-      const v = await askModel('mistral',
-        'Tu es un verificateur strict. On te donne une question et la reponse d\u2019une IA. Si la reponse est correcte, reponds exactement : OK. Sinon, donne uniquement la bonne reponse en une phrase concise en francais, sans commentaire.',
-        'Question : ' + q + '\nReponse : ' + txt.slice(0, 600));
-      if (!v) return null;
-      const t = v.trim();
-      if (t.length < 4) return null;
-      if (/^ok\b/i.test(t)) return null;
-      return t;
-    }
-
-    /* ---- WRAPPER askAI ---- */
-    if (typeof window.askAI === 'function') {
-      const orig = window.askAI;
-      window.askAI = async function(question){
-        try {
-          const q = (question || '').trim();
-          const low = q.toLowerCase();
-          /* verite sur les autres IA */
-          if (/(parle|discut|communiqu|\u00e9chang)/i.test(low)
-              && /(autre|autres)/.test(low)
-              && /\b(ia|ias)\b|intelligence artificielle/.test(low)) {
-            const r = reponseAutresIA();
-            jrn('Verite : a explique qu elle parle aux autres IA');
-            return { text: r };
-          }
-          /* recherche web obligatoire : maire, ville, politique, etc. */
-          if (/(maire|maire de|maire d|maire du|maire de la|ville|village|commune|député|députée|président|présidente|ministre|gouvernement|politique|élections|élu|élue)/i.test(low)) {
-            const r = await astraWeb(q);
-            return { text: r };
-          }
-          /* commande web */
-          if (/^(cherche|trouve|va\s+sur|documente|renseigne)/i.test(q) || /(sur\s+(le\s+)?(web|internet))/i.test(low)) {
-            const r = await astraWeb(q);
-            jrn('Web : ' + q.slice(0, 80));
-            return { text: r };
-          }
-          /* reponse normale + verification arriere-plan */
-          const reponse = await orig.apply(this, arguments);
-          if (FACT.test(q)) {
-            verifier(q, reponse).then(cor => {
-              if (cor) {
-                tst('\u{1F527} Astra se corrige : ' + cor);
-                try { if (typeof addAiMsg === 'function') addAiMsg('\u{1F527} Autocorrection : ' + cor); } catch(e){}
-                try { speak(cor); } catch(e){}
-                jrn('Autocorrection sur : ' + q.slice(0, 80));
-              }
-            }).catch(() => {});
-          }
-          return reponse;
-        } catch(e) {
-          return orig.apply(this, arguments);
-        }
-      };
-      console.log('[Astra] Module web + autocorrection + verite autres IA actif.');
-    }
-    window.astraWeb = astraWeb;
-  } catch (e) {
-    console.warn('[Astra] Web desactive :', e);
-  }
-})();
-
-
-/* ============================================================
-   v11.19 : MODE VOCAL PLEIN ECRAN — style ChatGPT Voice Mode
-   Orbe bleue geante sur fond noir, voix-presentees-comme-
-   personnalites (nom + character + pagination), micro integre.
-   Reutilise : setState()/#orb (etats), startRecorder() (flow),
-   stopBtn handler (stop), LS.voice (selection).
-   ============================================================ */
-(function voiceMode(){
-  try {
-    const ov = document.getElementById('vmOverlay');
-    if (!ov) return;
-    const orbM = document.getElementById('vmOrb');
-    const nmM = document.getElementById('vmName');
-    const tgM = document.getElementById('vmTag');
-    const dotsM = document.getElementById('vmDots');
-    const VM_TAGS = ['chaleureuse et solaire', 'douce et posée', 'vive et taquine', 'claire et élégante', 'profonde et affirmée'];
-    const HUES = [0, 40, 90, 190, 260, 310];
-    let vmList = [];
-    let vmIdx = 0;
-
-    function buildList(){
-      vmList = [];
-      if (typeof INWORLD_VOICES !== 'undefined' && INWORLD_VOICES.length){
-        INWORLD_VOICES.forEach((v, i) => {
-          vmList.push({ v: 'iw:' + v.id, n: v.n || v.id, d: VM_TAGS[i % VM_TAGS.length], key: true });
+=== app.js 3700-3960 ===
+    const finish = v => { if (done) return; done = true; res(v); };
+    /* v10.31 : 2 RONDES complètes (chaque host à son tour). Le blocage Google
+       Translate est souvent TRANSITOIRE (rafale de requêtes) : un 2e essai
+       2,5 s après passe nue-ête alors que le 1er a été rejeté. */
+    const attempt = (hostIdx, round) => {
+      if (done) return;
+      const audio = new Audio(mkUrl(hosts[hostIdx]));
+      /* v10.33 : PAS de routing WebAudio ici — MediaElementSource sur une
+         source cross-origin SANS CORS = sortie zéro (silence) + le warning
+         "MediaElementAudioSource outputs zeroes". L'élément joue en direct. */
+       audio.volume = 1.0;
+      currentAudios.push(audio);
+      audio.onplaying = () => { started = true; voiceStartedFlag = true; };
+      audio.onended = () => finish(true);
+      const tryPlay = n => {
+        audio.play().then(() => {}).catch(() => {
+          if (n < 2) setTimeout(() => tryPlay(n + 1), 400);
+          else if (hostIdx + 1 < hosts.length) attempt(hostIdx + 1, round);
+          else if (round === 1) setTimeout(() => attempt(0, 2), 2500);
+          else finish(false);
         });
-      } else {
-        vmList.push({ v: 'iw:Ashley', n: 'Astra', d: 'française, libre et gratuite' });
-      }
-      /* la voix Google filet reste disponible pour tous */
-      vmList.push({ v: '', n: 'Céleste', d: 'voix Google, gratuite et sans limite' });
-    }
-
-    function render(){
-      dotsM.innerHTML = '';
-      vmList.forEach((p, i) => {
-        const b = document.createElement('button');
-        b.className = 'vm-dot' + (i === vmIdx ? ' on' : '');
-        b.title = p.n + ' — ' + p.d;
-        b.onclick = () => selectVoice(i);
-        dotsM.appendChild(b);
-      });
-      const p = vmList[vmIdx];
-      nmM.textContent = p.n;
-      tgM.textContent = p.d;
-      orbM.style.filter = 'hue-rotate(' + (HUES[vmIdx % HUES.length] || 0) + 'deg)';
-    }
-
-    function selectVoice(i){
-      vmIdx = Math.max(0, Math.min(vmList.length - 1, i));
-      try { localStorage.setItem(LS.voice, vmList[vmIdx].v); } catch(e){}
-      render();
-    }
-
-    function syncIdxFromLS(){
-      const cur = getVoice();
-      vmIdx = vmList.findIndex(p => p.v === cur);
-      if (vmIdx < 0) vmIdx = vmList.length - 1; /* defaut -> dernier (Céleste) si introuvable */
-    }
-
-    /* miroir des etats de l orbe principale (listening/thinking/speaking) */
-    const mainOrb = document.getElementById('orb');
-    if (mainOrb){
-      new MutationObserver(() => {
-        const st = ['listening', 'thinking', 'speaking'].find(c => mainOrb.classList.contains(c));
-        orbM.className = orbM.className.replace(/\b(listening|thinking|speaking)\b/g, '').trim();
-        if (st) orbM.classList.add(st);
-      }).observe(mainOrb, { attributes: true, attributeFilter: ['class'] });
-    }
-
-    function open(){
-      ov.hidden = false;
-      buildList();
-      syncIdxFromLS();
-      render();
-      if (typeof loadInworldFrenchVoices === 'function'){
-        loadInworldFrenchVoices().then(() => { buildList(); syncIdxFromLS(); render(); }).catch(() => {});
-      }
-      /* status discret */
-      try { setStatus('Mode vocal plein écran — tape l orbe ou le micro'); } catch(e){}
-    }
-    function close(){
-      ov.hidden = true;
-      try { stopAudio(); stopRecorder(); stt && stt.stop && stt.stop(); } catch(e){}
-      try { setState('idle'); } catch(e){}
-      try { setStatus('Appuie sur le micro et parle'); } catch(e){}
-    }
-
-    orbM.onclick = () => { if (typeof startRecorder === 'function') startRecorder(); };
-    document.getElementById('vmMic').onclick = () => { if (typeof startRecorder === 'function') startRecorder(); };
-    document.getElementById('vmClose').onclick = close;
-    document.getElementById('vmKb').onclick = () => { close(); const ti = document.getElementById('textInput'); if (ti) ti.focus(); };
-
-    console.log('[Astra] Mode vocal plein écran (ChatGPT style) actif.');
-
-    /* v11.21 : les appels DIRECTS de speak() (sans setState) doivent aussi
-       faire pulser l orbe : on nappote un hook d'entree/sortie de promesse */
-    try {
-      const origSpeak = speak;
-      speak = function(t, oc){
-        try { orbM.classList.remove('listening', 'thinking', 'speaking'); orbM.classList.add('speaking'); } catch(e){}
-        const r = origSpeak(t, oc);
-        if (r && typeof r.finally === 'function'){
-          return r.finally(() => { try { orbM.classList.remove('listening', 'thinking', 'speaking'); } catch(e){} });
-        }
-        return r;
       };
-    } catch(e){ console.warn('[Astra] hook orbe vocal ignoré:', e && e.message); }
-  } catch (e) { console.warn('[Astra] Mode vocal non chargé:', e && e.message); }
-})();
-
-
-/* ============================================================
-   v11.23 : MISSIONS — agent personnel style Muse
-   Une mission = un objectif decoupe par le cerveau (askAI) en
-   etapes, executees une par une, sauvées en localStorage.
-   Interface : overlay #miOverlay (voir index.html v11.23).
-   ============================================================ */
-
-
-/* ============================================================
-   v11.25 : NAVIGATEUR D'ASTRA — browser intégré réel
-   Fenêtre web DANS le site : Bing/searx/Wikipédia s'y affichent
-   réellement (testé). Commande vocale/chat : « ouvre le navigateur
-   sur X », « cherche X sur internet » → Astra affiche la page ET
-   répond à voix haute. Frameability testée le 23/10/2026 :
-   OK = bing.com, fr.wikipedia.org, searx.be — KO = DDG, GitHub, YouTube.
-   ============================================================ */
-
-
-/* ============================================================
-   v11.28 : GENERIQUE D'OUVERTURE — joue aux 2 PREMIERES
-   sessions (compteur localStorage astra_intro_v1). Clic =
-   passer. S'efface seul (fade) et libere le DOM.
-   ============================================================ */
-
-/* ============================================================
-   v11.33 : GENERIQUE — une SEULE fois par navigateur/device
-   (compteur localStorage astra_intro_v1). apres le premier
-   affichage, les prochaines ouvertures passent DIRECT au
-   generique skipping (le contenu apparait directement).
-   ============================================================ */
-(function astraIntro(){
-  try {
-    let done = false;
-    let count = 0;
-    try {
-      count = parseInt(localStorage.getItem('astra_intro_v1') || '0', 10) || 0;
-      if (count > 0) done = true; // jamais vu -> skip
-      else localStorage.setItem('astra_intro_v1', String(count + 1));
-    } catch(e){}
-    if (done) return;
-
-    const ov = document.createElement('div');
-    ov.id = 'introIntro';
-    let stars = '<div id="IntroStars">';
-    for (let i = 0; i < 26; i++){
-      stars += '<i style="left:' + Math.floor(Math.random() * 96) + '%;top:' + Math.floor(Math.random() * 70) + '%;width:' + (Math.random() * 3.2 + 1.2).toFixed(1) + 'px;height:' + (Math.random() * 3.2 + 1.2).toFixed(1) + 'px;animation-delay:' + (Math.random() * 5).toFixed(2) + 's"></i>';
-    }
-    stars += '</div>';
-    ov.innerHTML = stars +
-      '<div id="IntroOrb"></div>' +
-      '<div id="IntroName">ASTRA</div>' +
-      '<div id="IntroTag">Ton assistante vocale · gratuite · réelle · à toi</div>' +
-      '<button id="IntroCTA">Continuer</button>' +
-      '<div id="IntroVer">ASTRA · Assistant IA personnel</div>';
-    document.body.appendChild(ov);
-    let gone = false;
-    const finish = () => {
-      if (gone) return;
-      gone = true;
-      try { ov.classList.add('out'); setTimeout(() => ov.remove(), 820); } catch(e){ try { ov.remove(); } catch(e2){} }
+      audio.onerror = () => {
+        audio.pause();
+        if (hostIdx + 1 < hosts.length){
+          console.warn('[VOIX] GoogleTTS host KO -> bascule', hosts[hostIdx + 1]);
+          attempt(hostIdx + 1, round);
+        } else if (round === 1){
+          console.warn('[VOIX] GoogleTTS bloque -> 2e essai dans 2,5 s');
+          setTimeout(() => attempt(0, 2), 2500);
+        } else finish(false);
+      };
+      tryPlay(0);
     };
-    document.getElementById('IntroCTA').onclick = finish;
-    ov.addEventListener('keydown', e => { if (e.key === 'Enter') finish(); });
-  } catch (e) { console.warn('[Astra] générique ignoré:', e && e.message); }
-})();
-;
+    attempt(0, 1);
+    /* si rien ne joue apres 7s (reseau bloque, 2 rondes comprises) -> voix suivante */
+    setTimeout(() => { if (!done && !started) finish(false); }, 7000);
+    /* garde-fou : audio lance mais bloque -> on passe (le son continue) */
+    setTimeout(() => { if (!done) finish(true); }, 20000);
+  });
+}
+/* v9.64 : Google TTS = dernier recours universel (gratuit, sans clé, marche partout) */
+async function speakGoogle(text, onChunk){
+  try {
+    const chunks = splitSentences(text, 200);
+    for (const chunk of chunks){
+      if (activeSpeechEpoch !== speechEpoch){ console.warn('[VOIX] Google TTS interrompu'); return false; }
+      if (onChunk) onChunk(chunk);
+      const ok = await playGoogleChunk(chunk);
+      if (!ok) return false;
+      /* v10.31 : respir court entre chaque chunk — evite de declencher le
+         blocage transitoire de Google Translate (rafale de requetes) */
+      await new Promise(r => setTimeout(r, 150));
+    }
+    return true;
+  } catch(e){ console.warn('[VOIX] Google TTS échec:', e && e.message); return false; }
+}
+/* Decoupe aux fins de phrases (prosodie naturelle), max caracteres par chunk.
+   Les phrases PLUS LONGUES que max sont decoupees en sous-chunks (sinon Google
+   TTS echoue au-dela de ~200 caracteres et prononce mal). */
+function splitSentences(text, max){
+  const out = [];
+  let cur = '';
+  const sentences = text.split(/(?<=[.!?…])\s+/);
+  for (const s of sentences){
+    const next = (cur + ' ' + s).trim();
+    if (next.length > max && cur){ out.push(cur.trim()); cur = s; }
+    else cur = next;
+  }
+  if (cur.trim()) out.push(cur.trim());
+    /* sous-decoupage des chunks trop longs : coupe au dernier point/virgule
+       avant max (pas au milieu d'une phrase)
+       de pause bizarre au milieu d'une phrase */
+    const final = [];
+    for (const c of out){
+      if (c.length <= max){ final.push(c); continue; }
+      let part = '';
+      for (const word of c.split(/(\s+)/)){
+        if ((part + word).length > max && part){
+          /* cherche le dernier separateur dans part pour couper proprement */
+          const lastSep = Math.max(part.lastIndexOf('.'), part.lastIndexOf(','), part.lastIndexOf(':'));
+          if (lastSep > 20){ final.push(part.slice(0, lastSep + 1).trim()); part = part.slice(lastSep + 1).trim() + word; }
+          else { final.push(part.trim()); part = word; }
+        } else part += word;
+      }
+      if (part.trim()) final.push(part.trim());
+    }
+  return final.length ? final : [text];
+}
+/* Remplit le sélecteur de voix — v10.85 : Voxtral SUSPENDU (trop lent) :
+   plus aucune option Voxtral. Inworld TTS-2 + filet Google uniquement. */
+async function populateVoices(){
+  if (!ttsVoiceSel) return;
+  const currentValue = ttsVoiceSel.value;
+  Array.from(ttsVoiceSel.options).forEach(o => { o.remove(); });
+  /* v10.85 : Voxtral suspendu -> on NE charge PAS la liste Mistral (aucune
+     option voxtral:*). Les anciennes options memorisees sont ecartees par
+     getVoice() qui bascule sur iw:Ashley. */
+  /* v10.98 : GROUPE INWORLD TTS-2 — UNIQUEMENT les voix FRANCAISES natives
+     (aucun accent anglais). La liste est chargee depuis l API Inworld
+     (filtre lang_code=fr) des que la cle est presente. */
+  {
+    const grpI = document.createElement('optgroup');
+    grpI.label = '🎭 Inworld TTS-2 — 🇫🇷 voix françaises (réalistes, gratuites à vie)';
+    const fr = INWORLD_VOICES;
+    if (fr.length){
+      const def = inworldFrDefault();
+      fr.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = 'iw:' + v.id;
+        opt.textContent = '🇫🇷 ' + v.n + (v.id === def ? ' — défaut' : '');
+        grpI.appendChild(opt);
+      });
+    } else {
+      const opt = document.createElement('option');
+      opt.value = 'iw:__fr__';
+      opt.textContent = getInworldKey() ? '🇫🇷 Chargement des voix françaises…' : '🇫🇷 Ajoute ta clé Inworld (Réglages) pour les voix françaises';
+      grpI.appendChild(opt);
+    }
+    ttsVoiceSel.appendChild(grpI);
+  }
+  /* v10.27 : VOIX SYSTM-CM-)ME RETIRM-CM-)ES du sM-ilecteur \\u2014 la lecture systM-hme reste
+  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
+  Array.from(ttsVoiceSel.options).forEach(o => {
+    if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
+  });
+  /* v10.27 : VOIX SYSTM-CM-)ME RETIRM-CM-)ES du sM-ilecteur \\u2014 la lecture systM-hme reste
+  branchM-CM-)e UNIQUEMENT comme secours silencieux automatique dans speak(). */
+  Array.from(ttsVoiceSel.options).forEach(o => {
+    if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
+  });
+  /* v11.35 : GROUPE SUPTRONIC HD — 🎙️ voix IA de haute qualité (WebGPU) */
+  {
+    const grpS = document.createElement('optgroup');
+    grpS.label = '🔊 Supertonic HD — 🇫🇷 voix IA réalistes (WebGPU)';
+    const opt = document.createElement('option');
+    opt.value = 'supertonic';
+    opt.textContent = '🎙️ Supertonic HD (qualite studio, WebGPU)';
+    grpS.appendChild(opt);
+    ttsVoiceSel.appendChild(grpS);
+  }
+  /* re-selection de la voix memorisee si elle existe encore */
+  const stored = getVoice();
+  const found = Array.from(ttsVoiceSel.options).some(o => o.value === stored);
+  ttsVoiceSel.value = found ? stored : (inworldFrDefault() ? 'iw:' + inworldFrDefault() : DEFAULT_VOICE);
+  /* v10.98 : si la liste FR n est pas encore chargee (cle ajoutee a l instant),
+     on la charge en arriere-plan puis on rafraichit le selecteur. */
+  if (!INWORLD_VOICES.length && getInworldKey()){
+    loadInworldFrenchVoices().then(list => {
+      if (list && list.length) populateVoices();
+    }).catch(() => {});
+  }
+}
+
+/* ===== VOIX SYSTÈME SEULE : navigateur, hors ligne, 100% fiable, sans clé. ===== */
+function speakSystem(text, specificVoiceName, onChunk){
+  return new Promise(resolve => {
+    try {
+      if (!('speechSynthesis' in window)) return resolve(false);
+      let voices = window.speechSynthesis.getVoices();
+      const startSpeak = () => {
+    const chunks = splitSentences(text, 150);
+        let i = 0;
+        let done = false;
+        let hasSpoken = false;
+        const finish = ok => { if (done) return; done = true; resolve(ok); };
+        const speakNext = () => {
+          if (i >= chunks.length) return finish(true);
+          if (activeSpeechEpoch !== speechEpoch){ console.warn('[VOIX] systeme interrompu'); return finish(false); }
+          const chunk = chunks[i++];
+          /* v9.50 : callback AVANT de parler le chunk -> sous-titre synchronisé */
+          if (onChunk) onChunk(chunk);
+          const u = new SpeechSynthesisUtterance(chunk);
+          u.lang = 'fr-FR';
+          u.rate = 1.0;
+          u.pitch = 1.0;
+          const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
+          let pick = null;
+          /* v10.62 : on choisit TOUJOURS la meilleure voix — les voix
+             Microsoft "Natural / Online" sont des vox neurales gratuites a vie
+             incluses gratuitement dans le navigateur (quasi-realistes).
+             Priorite : Natural/Online > Neural/Premium > Denise/Amelie > autre FR */
+          const naturalVoice = fr.find(v => /natural|online/i.test(v.name))
+            || fr.find(v => /premium|enhanced/i.test(v.name))
+            || fr.find(v => /denise|neural/i.test(v.name));
+          if (specificVoiceName){
+            pick = naturalVoice || fr.find(v => v.name === specificVoiceName) || fr[0] || voices[0];
+          } else {
+            pick = naturalVoice || fr[0] || voices[0];
+          }
+          if (pick) u.voice = pick;
+          u.onend = () => { hasSpoken = true; speakNext(); };
+          u.onerror = e => { 
+            const err = e.error || 'unknown';
+            if (err !== 'interrupted') console.warn('[VOIX] Systeme erreur:', err);
+            // Ne pas échouer si on a déjà parlé au moins un chunk
+            if (hasSpoken) finish(true); else finish(false); 
+          };
+          try { window.speechSynthesis.resume(); } catch {}
+          window.speechSynthesis.speak(u);
+        };
+        speakNext();
+        setTimeout(() => finish(hasSpoken), chunks.length * 20000 + 10000);
+      };
+      if (voices.length === 0) {
+        let waited = false;
+        window.speechSynthesis.onvoiceschanged = () => {
+          if (waited) return;
+          waited = true;
+          voices = window.speechSynthesis.getVoices();
+          startSpeak();
+        };
+        setTimeout(() => { if (!waited) { waited = true; voices = window.speechSynthesis.getVoices(); startSpeak(); } }, 1000);
+      } else startSpeak();
+    } catch(e){ resolve(false); }
+  });
+}
+
+/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
+   vocale » (navigateur) ne sont plus listées dans le sélecteur. speakSystem
+   reste défini plus haut pour le secours silencieux de speak(). */
+
+
+/* v10.27 : populateSystemVoices / getSystemVoices RETIRÉES — les voix « synthèse
+   vocale » (navigateur) ne sont plus listées dans le sélecteur. speakSystem
+   reste défini plus haut pour le secours silencieux de speak(). */
+
+/* ===== VOIX KOKORO : RETIREE en v8.66 (l'utilisateur prefere Edge TTS,
+   Microsoft Neural, plus naturelle et instantanee). Les fichiers
+   lib/kokoro.* et models/kokoro/ ont ete supprimes du repo. ===== */
+
+/* ===== TRANSCRIPTION LOCALE WHISPER : si la reconnaissance vocale du navigateur
+   echoue (service Google indisponible, reseau bloque...), Whisper transcrit
+   l'audio DIRECTEMENT sur l'appareil : hors ligne, gratuit, a vie, meme partout.
+   Modele Xenova/whisper-base (148 Mo, 1 seule fois, puis cache navigateur). ===== */
+let whisperASR = null, whisperLoading = false, whisperLoaded = false;
+function loadWhisper(){
+  if (whisperLoading || whisperLoaded) return;
+  whisperLoading = true;
+  // Charge transformers.js en module ES
+  import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3/dist/transformers.min.js')
+    .then(async (transformers) => {
+      try {
+        const { pipeline } = transformers;
+        whisperASR = await pipeline('automatic-speech-recognition', 'Xenova/whisper-base', { dtype: 'q8' });
+        whisperLoaded = true;
+        console.log('[STT] Whisper pret : transcription locale dispo');
+      } catch(e){ console.warn('[STT] Whisper echec:', e && e.message); }
+      whisperLoading = false;
+    })
+    .catch(() => { whisperLoading = false; console.warn('[STT] Whisper CDN indisponible'); });
+}
+async function transcribeBlob(blob){
+  if (!whisperLoaded || !whisperASR) return '';
+  try {
+    const audioBuf = await blob.arrayBuffer();
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const dctx = new AC();
+    const decoded = await dctx.decodeAudioData(audioBuf);
+    const pcm = decoded.getChannelData(0);
+    try { dctx.close(); } catch {}
+=== app.js 4060-4145 ===
+      setState('idle');
+      if (ok) setStatus("Appuie sur le micro et parle");
+      maybeRestartWake(); /* app inactive -> l'oreille "hey astra" se rallume */
+      resolve(ok);
+    };
+    const fail = () => {
+      console.warn('[VOIX] Timeout global — mais le son a peut-être déjà joué');
+      if (!voiceStartedFlag) setStatus("Appuie sur le micro et parle");
+      done(true); /* ne pas bloquer l'utilisateur */
+    };
+    /* garde-fou GLOBAL : quoi qu'il arrive, on ne tourne JAMAIS plus de 30s sans son
+       (v9.66 : réduit de 45s -> la génération Voxtral est parallélisée, 20s est large.
+        v9.94 : 20s -> 30s, le retry 1x de v9.92 peut légitimement prendre ~31s) */
+    /* guard-source v10.79 : timeout global — si AUCUNE voix n'a e
+       produit de son en 40s, on lache (avant : 60s tres long pour l'utilisateur) */
+    /* VOIX : v10.85 — Voxtral SUSPENDU (trop lent 10-15 s). La chaîne =
+       INWORLD TTS-2 (realiste, ~2-4 s) puis Google Translate (rapide, jamais muet).
+       voxtral:* (memorise ancien) ->Trait comme le defaut. */
+    const voiceMode = getVoice();
+    /* v11.18 : budget standard 40s (XTTS retire) */
+    const globalTimer = setTimeout(() => { console.warn('[VOIX] timeout global (40s)'); fail(); }, 40000);
+    /* v10.99 : deux versions du texte —
+       - tagged : balises Inworld ([sigh] [laugh] ...) pour la voix reelle
+       - plain  : SANS les mots-markers, pour le filet Google / voix systeme
+       (on part du texte BRUT : cleanMarkdown aurait transforme *soupir* en
+       simple mot "soupir" que Google lirait a voix haute) */
+    const taggedText = toInworldTags(text);
+    const rawNoMarkers = String(text || '').replace(/\*([^*\\n]{1,26})\*/g, '');
+    let plainText = rawNoMarkers;
+    try { plainText = normalizeForTTS(rawNoMarkers); } catch(e){}
+    plainText = plainText.replace(/[ \t]{2,}/g, ' ').trim();
+    /* v10.98 : voix FRANCAISES — on charge la liste FR (cachee) avant de
+    /* v10.98 : voix FRANCAISES — on charge la liste FR (cachee) avant de
+     parler, pour n utiliser QUE des voix natives francaises. */
+    if (getInworldKey()){
+      try { await loadInworldFrenchVoices(); } catch(e){}
+    }
+    const frDef = inworldFrDefault();
+    const voiceModeFinal = (voiceMode.startsWith('iw:') && INWORLD_VOICES.length && !INWORLD_VOICES.some(x => x.id === voiceMode.substring(3)))
+      ? ('iw:' + (frDef || voiceMode.substring(3)))
+      : voiceMode;
+    /* v10.85 : default + voxtral:* -> Inworld d'abord (pas de Voxtral partout) */
+    chain = [
+      ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
+      SAFE
+    ];
+    if (voiceModeFinal.startsWith('iw:')){
+      const ivv = voiceModeFinal.substring(3) || (frDef || 'Ashley');
+      chain = [
+        ['Inworld: ' + ivv, (t) => speakInworld(t, ivv, onChunk, taggedText)],
+        SAFE
+      ];
+    }
+    /* v11.35 : Supertonic HD voice option */
+    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
+      chain = [
+        ['Supertonic HD: qualite studio', (t) => speakSupertonic(t, onChunk)],
+        ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
+        SAFE
+      ];
+    }
+    /* v11.15 : PIPER retire (moteur + chaine) */
+    /* v11.11 : Google Cloud TTS retire -> plus de branche dedicated */
+    let i = 0;
+    const next = () => {
+      if (i >= chain.length) return fail();
+      const [name, fn] = chain[i++];
+      setStatus('Voix ' + name + '...');
+      Promise.resolve().then(() => fn(name.indexOf('Inworld') === 0 ? taggedText : plainText)).then(ok => {
+        if (ok) { console.log('[VOIX] ' + name + ' OK'); done(true); }
+        /* v9.92 : si une voix a DEJA joue du son mais echoue en cours de route
+           (chunk suivant), on ne bascule PAS sur la voix suivante -> sinon la
+           voix systeme rejoue tout en double par-dessus */
+        else if (voiceStartedFlag) { console.warn('[VOIX] ' + name + ' partiel -> on garde'); done(true); }
+        else { console.warn('[VOIX] ' + name + ' bloque'); next(); }
+      }).catch(e => { console.warn('[VOIX] ' + name + ' erreur:', e && e.message); next(); });
+    };
+    next();
+  });
+}
+let currentAudios = [];
+/* v8.86 : passe a true des qu'une voix a COMMENCE a jouer -> le timeout
+   global ne doit pas afficher "Voix indisponible" si du son est deja sorti */
+let voiceStartedFlag = false;
+/* v10.74 : EPOCH DE PAROLE — retire toute synthese vocale en arriere-plan.
+   Chaque speak() prend un nouvel epoch ; stopAudio() et toute nouvelle
+=== index.html 560-600 ===
