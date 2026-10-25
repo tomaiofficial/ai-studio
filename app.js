@@ -3829,8 +3829,21 @@ async function populateVoices(){
     grpB.appendChild(opt);
     ttsVoiceSel.appendChild(grpB);
   }
-  /* v10.27 : VOIX SYSTÈME RETIRÉES du sélecteur — la lecture système reste
-     branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
+    /* v10.27 : VOIX SYSTéME RETIRéES du s�lecteur \u2014 la lecture syst�me reste
+  branchée UNIQUEMENT comme secours silencieux automatique dans speak(). */
+  Array.from(ttsVoiceSel.options).forEach(o => {
+    if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
+  });
+  /* v12.0 : VOIX PIPER (Mozilla TTS, ultra-rapide ~2s, franc) \u00e7ais) */
+  {
+    const grpP = document.createElement('optgroup');
+    grpP.label = 'Piper - voix vocale rapide (~2s, systeme)';
+    const optP = document.createElement('option');
+    optP.value = 'piper';
+    optP.textContent = 'Piper - voix franéaise rapide (gratuite, instantanée)';
+    grpP.appendChild(optP);
+    ttsVoiceSel.appendChild(grpP);
+  }
   Array.from(ttsVoiceSel.options).forEach(o => {
     if (o.value === 'systeme' || o.value.indexOf('system:') === 0 || o.value.indexOf('kokoro:') === 0 || o.value.indexOf('puter:') === 0) o.remove();
   });
