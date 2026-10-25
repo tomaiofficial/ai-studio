@@ -688,7 +688,12 @@ select.wide-input{appearance:none}
     <h4 class="settings-title">🗣️ Voix</h4>
     <p class="muted">🎭 <b>Inworld TTS-2</b> (#1, réaliste, ~70 min/mois à vie) + filet Google Translate (rapide, jamais muet). 🇫🇷 <b>Voix françaises uniquement</b> (natives, sans accent anglais) — la liste est détectée automatiquement dès que ta clé est enregistrée. ⚠️ Voxtral/Mistral suspendu (trop lent) — la clé Mistral sert toujours à la transcription et au cerveau. Qwen/Microsoft/Puter/Kokoro retirés. Inworld = clé type <b>Standard</b> (pas Realtime-only, type fixe à la création !).</p>
     <select id="ttsVoice" class="wide-input">
-      <option value="iw:__fr__" selected>🇫🇷 Inworld : voix françaises (chargement…)</option>
+      <optgroup label="🎭 Inworld TTS-2">
+        <option value="iw:__fr__" selected>🇫🇷 Inworld : voix françaises (chargement…)</option>
+      </optgroup>
+      <optgroup label="🔊 Supertonic HD">
+        <option value="supertonic">🎙️ Supertonic HD (qualite studio, WebGPU)</option>
+      </optgroup>
     </select>
     <p class="muted" style="margin-top:8px">🔑 <b>Clé API Mistral</b> — transcription vocale mobile + cerveau IA (console.mistral.ai → API Keys) :</p>
     <input type="password" id="mistralKey" class="wide-input" placeholder="Colle ta clé API Mistral ici..." autocomplete="off">
