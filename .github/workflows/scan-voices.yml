@@ -1,0 +1,32 @@
+name: Scan voices detail (one-shot)
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan
+        run: |
+          git config user.name "tomai-bot"
+          git config user.email "actions@users.noreply.github.com"
+          {
+            echo "=== app.js 3700-3960 ==="
+            sed -n '3700,3960p' app.js
+            echo "=== app.js 4060-4145 ==="
+            sed -n '4060,4145p' app.js
+            echo "=== index.html 560-600 ==="
+            sed -n '560,600p' index.html
+          } > astra-voices-scan.txt
+          git add astra-voices-scan.txt
+          git commit -m "chore: scan detail voix [skip ci]"
+          git rm -f .github/workflows/scan-voices.yml
+          git commit -m "chore: supp workflow [skip ci]"
+          git push
