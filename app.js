@@ -1408,6 +1408,15 @@ testVoiceBtn.addEventListener('click', async () => {
 /* v9.64 : clé API Mistral (Voxtral TTS) — stockée localement, jamais envoyée ailleurs */
 const mistralKeyInput = $('mistralKey'), saveMistralKeyBtn = $('saveMistralKey');
 if (mistralKeyInput) mistralKeyInput.value = getMistralKey();
+/* SUPERTONIC : clé Supertone (voix IA réalistes) — sauvegardée au changement */
+const supertoneKeyInput = $('supertoneKey');
+if (supertoneKeyInput) supertoneKeyInput.value = getSupertoneKey();
+if (supertoneKeyInput) supertoneKeyInput.addEventListener('change', () => {
+  localStorage.setItem('va_supertone_key', (supertoneKeyInput.value || '').trim());
+  supertoneVoicesCache = null;
+  try { toast('Clé Supertone enregistrée ✓'); } catch(e){}
+  try { populateVoices(); } catch(e){}
+});
 if (saveMistralKeyBtn) saveMistralKeyBtn.addEventListener('click', () => {
   localStorage.setItem(MISTRAL_KEY_LS, (mistralKeyInput.value || '').trim());
   toast('Clé API Mistral enregistrée ✓');
@@ -3788,6 +3797,108 @@ function splitSentences(text, max){
 }
 /* Remplit le sélecteur de voix — v10.85 : Voxtral SUSPENDU (trop lent) :
    plus aucune option Voxtral. Inworld TTS-2 + filet Google uniquement. */
+
+/* ===== SUPERTONIC HD — voix IA réalistes (Supertone API, supertonic_api_3) =====
+   Clé : console.supertoneapi.com (plan Free, sans carte) -> Réglages.
+   Sans clé : bascule automatique sur Inworld puis Google (rien ne casse). */
+function getSupertoneKey(){ try { return (localStorage.getItem('va_supertone_key') || '').trim(); } catch(e){ return ''; } }
+function getSupertoneVoiceId(){ try { return (localStorage.getItem('va_supertone_voice') || '').trim(); } catch(e){ return ''; } }
+let supertoneVoicesCache = null;
+const SUPERTONE_MODEL = 'supertonic_api_3';
+async function loadSupertoneVoices(){
+  const key = getSupertoneKey();
+  if (!key) return [];
+  if (supertoneVoicesCache) return supertoneVoicesCache;
+  try {
+    const r = await fetch('https://api.supertoneapi.com/v1/voices', {
+      headers: { 'Authorization': 'Bearer ' + key, 'x-api-key': key }
+    });
+    if (!r.ok) { console.warn('[SUPERTONIC] /voices HTTP', r.status); return []; }
+    const j = await r.json();
+    const arr = j.voices || j.data || j.items || (Array.isArray(j) ? j : []);
+    supertoneVoicesCache = arr.map(function(v){
+      return { id: String(v.voice_id || v.id || v.name || ''), n: String(v.name || v.display_name || v.voice_id || v.id || '?') };
+    }).filter(function(v){ return v.id; });
+    console.log('[SUPERTONIC] ' + supertoneVoicesCache.length + ' voix chargees');
+    return supertoneVoicesCache;
+  } catch(e){ console.warn('[SUPERTONIC] liste voix echouee:', e && e.message); return []; }
+}
+function findAudioB64(o, depth){
+  if (depth > 6 || o == null) return null;
+  if (typeof o === 'string'){
+    if (o.length > 200 && /^[A-Za-z0-9+\/=]+$/.test(o.slice(0, 100))) return o;
+    return null;
+  }
+  if (Array.isArray(o)){ for (var i = 0; i < o.length; i++){ var r = findAudioB64(o[i], depth + 1); if (r) return r; } return null; }
+  if (typeof o === 'object'){
+    for (var k in o){ var r2 = findAudioB64(o[k], depth + 1); if (r2) return r2; }
+  }
+  return null;
+}
+async function playSupertoneChunk(chunk, key, voiceId){
+  const body = JSON.stringify({ model: SUPERTONE_MODEL, text: chunk, voice: voiceId, language: 'fr' });
+  const endpoints = ['/speech', '/tts', '/audio/speech'];
+  for (const ep of endpoints){
+    try {
+      const r = await fetch('https://api.supertoneapi.com/v1' + ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key, 'x-api-key': key },
+        body: body
+      });
+      if (!r.ok){ console.warn('[SUPERTONIC] ' + ep + ' HTTP ' + r.status); continue; }
+      const ct = (r.headers.get('content-type') || '');
+      let blob = null;
+      if (ct.indexOf('json') >= 0){
+        const j = await r.json();
+        const b64 = findAudioB64(j, 0);
+        if (!b64){ console.warn('[SUPERTONIC] ' + ep + ': pas d audio JSON'); continue; }
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        blob = new Blob([bytes], { type: 'audio/wav' });
+      } else {
+        blob = await r.blob();
+      }
+      if (!blob || blob.size < 200){ console.warn('[SUPERTONIC] blob vide'); continue; }
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudios.push(audio);
+      const ok = await new Promise(function(res){
+        let done = false;
+        const fin = function(v){ if (!done){ done = true; res(v); } };
+        audio.onplaying = function(){ try { voiceStartedFlag = true; } catch(e){} };
+        audio.onended = function(){ fin(true); };
+        audio.onerror = function(){ fin(false); };
+        audio.play().catch(function(){ fin(false); });
+        setTimeout(function(){ fin(true); }, 30000);
+      });
+      try { URL.revokeObjectURL(url); } catch(e){}
+      return ok;
+    } catch(e){ console.warn('[SUPERTONIC] ' + ep + ' echec:', e && e.message); }
+  }
+  return false;
+}
+async function speakSupertonic(text, onChunk){
+  const key = getSupertoneKey();
+  if (!key){ console.warn('[SUPERTONIC] pas de cle Supertone (Reglages)'); return false; }
+  let voiceId = getSupertoneVoiceId();
+  if (!voiceId){
+    const list = await loadSupertoneVoices();
+    voiceId = (list[0] && list[0].id) || 'M1';
+  }
+  const clean = String(text || '').trim();
+  if (!clean) return true;
+  const chunks = splitSentences(clean, 250);
+  for (const chunk of chunks){
+    try { if (activeSpeechEpoch !== speechEpoch) return false; } catch(e){}
+    if (onChunk) onChunk(chunk);
+    const ok = await playSupertoneChunk(chunk, key, voiceId);
+    if (!ok) return false;
+    await new Promise(function(r){ setTimeout(r, 120); });
+  }
+  return true;
+}
+
 async function populateVoices(){
   if (!ttsVoiceSel) return;
   const currentValue = ttsVoiceSel.value;
@@ -3832,9 +3943,18 @@ async function populateVoices(){
   {
     const grpS = document.createElement('optgroup');
     grpS.label = '🔊 Supertonic HD — 🇫🇷 voix IA réalistes (WebGPU)';
+    const stVoices = supertoneVoicesCache || [];
+    if (stVoices.length){
+      stVoices.slice(0, 25).forEach(function(v){
+        const o = document.createElement('option');
+        o.value = 'supertonic:' + v.id;
+        o.textContent = '🎙️ ' + v.n;
+        grpS.appendChild(o);
+      });
+    }
     const opt = document.createElement('option');
     opt.value = 'supertonic';
-    opt.textContent = '🎙️ Supertonic HD (qualite studio, WebGPU)';
+    opt.textContent = getSupertoneKey() ? '🎙️ Supertonic HD (voix par défaut)' : '🎙️ Supertonic HD — ajoute ta clé Supertone (Réglages)';
     grpS.appendChild(opt);
     ttsVoiceSel.appendChild(grpS);
   }
@@ -3844,6 +3964,9 @@ async function populateVoices(){
   ttsVoiceSel.value = found ? stored : (inworldFrDefault() ? 'iw:' + inworldFrDefault() : DEFAULT_VOICE);
   /* v10.98 : si la liste FR n est pas encore chargee (cle ajoutee a l instant),
      on la charge en arriere-plan puis on rafraichit le selecteur. */
+  if (getSupertoneKey() && !supertoneVoicesCache){
+    loadSupertoneVoices().then(list => { if (list && list.length) populateVoices(); }).catch(() => {});
+  }
   if (!INWORLD_VOICES.length && getInworldKey()){
     loadInworldFrenchVoices().then(list => {
       if (list && list.length) populateVoices();
@@ -4111,7 +4234,9 @@ function speak(text, onChunk){
       ];
     }
     /* v11.35 : Supertonic HD voice option */
-    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
+    if (voiceModeFinal.indexOf('supertonic') === 0 || (getVoice().indexOf('supertonic') === 0 && voiceModeFinal === voiceMode)) {
+      const stSel = voiceModeFinal.indexOf('supertonic:') === 0 ? voiceModeFinal.substring(11) : '';
+      if (stSel){ try { localStorage.setItem('va_supertone_voice', stSel); } catch(e){} }
       chain = [
         ['Supertonic HD: qualite studio', (t) => speakSupertonic(t, onChunk)],
         ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
