@@ -4222,6 +4222,7 @@ function speak(text, onChunk){
       ? ('iw:' + (frDef || voiceMode.substring(3)))
       : voiceMode;
     /* v10.85 : default + voxtral:* -> Inworld d'abord (pas de Voxtral partout) */
+    const SAFE = () => {};
     chain = [
       ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
       SAFE
