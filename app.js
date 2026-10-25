@@ -5556,23 +5556,3 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
   } catch (e) { console.warn('[Astra] générique ignoré:', e && e.message); }
 })();
 ;
-// ===== GESTION DES BOUTONS (v11.34) =====
-document.getElementById('historyBtn')?.addEventListener('click', () => {
-  const modal = document.getElementById('historyModal');
-  if (modal) modal.classList.remove('hidden');
-});
-
-document.getElementById('aboutBtn')?.addEventListener('click', () => {
-  const modal = document.getElementById('aboutModal');
-  if (modal) modal.classList.remove('hidden');
-});
-
-document.getElementById('mathBtn')?.addEventListener('click', () => {
-  const modal = document.getElementById('mathPanel');
-  if (modal) modal.classList.remove('hidden');
-});
-
-document.getElementById('notesBtn')?.addEventListener('click', () => {
-  const modal = document.getElementById('notesPanel');
-  if (modal) modal.classList.remove('hidden');
-});
