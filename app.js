@@ -4100,6 +4100,14 @@ function speak(text, onChunk){
         SAFE
       ];
     }
+    /* v11.35 : Supertonic HD voice option */
+    if (voiceModeFinal === 'supertonic' || (getVoice() === 'supertonic' && voiceModeFinal === voiceMode)) {
+      chain = [
+        ['Supertonic HD: qualite studio', (t) => speakSupertonic(t, onChunk)],
+        ['Inworld: ' + (frDef || 'Ashley'), (t) => speakInworld(t, frDef || 'Ashley', onChunk, taggedText)],
+        SAFE
+      ];
+    }
     /* v11.15 : PIPER retire (moteur + chaine) */
     /* v11.11 : Google Cloud TTS retire -> plus de branche dedicated */
     let i = 0;
