@@ -1,0 +1,162 @@
+commit 69006d24cf7e68977be777b100c3ea6a4ed3197e
+Author: Tom Guegane <tom.guegane@example.com>
+Date:   Sun Oct 25 14:24:27 2026 +0100
+
+    supprime le navigateur (navAstraModule) et references mortes
+
+diff --git a/app.js b/app.js
+index 8366015..9c54013 100644
+--- a/app.js
++++ b/app.js
+@@ -4429,12 +4429,6 @@ async function handleQuestion(question){
+   if (handleMiniGameAnswer(question)) return;
+   /* v10.28 : autonomie locale uniquement si active dans Reglages */
+   /* v11.25 : NAVIGATEUR — commandes web (ouvre / cherche X sur internet) */
+-  if (window.navMaybeCommand){
+-    try {
+-      if (await window.navMaybeCommand(question)){ setState('idle'); return; }
+-    } catch (eNav){ console.warn('[NAV] commande:', eNav && eNav.message); }
+-  }
+-  const autonomyEnabled = (typeof localStorage !== 'undefined' && localStorage.getItem('va_autonomy') === '1');
+   const normalizedCommand = String(question || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+   if (ASTRA_LOCAL_FEATURES.repeatLastReply && /^(repete|repete ca|repete encore|redis|redis ca|peux-tu repeter|peux tu repeter)[.!? ]*$/.test(normalizedCommand)) {
+     const reply = repeatLastAstraReply();
+@@ -5512,138 +5506,6 @@ function buildUserProfile(){ try{ const vocab=JSON.parse(localStorage.getItem('a
+    répond à voix haute. Frameability testée le 23/10/2026 :
+    OK = bing.com, fr.wikipedia.org, searx.be — KO = DDG, GitHub, YouTube.
+    ============================================================ */
+-(function navAstraModule(){
+-  try {
+-    const ov = document.getElementById('nvOverlay');
+-    if (!ov) return;
+-    const urlIn = document.getElementById('nvUrl');
+-    const fr = document.getElementById('nvFrame');
+-    const ans = document.getElementById('nvAns');
+-    const ansTxt = document.getElementById('nvAnsTxt');
+-    let nvHistory = [];
+-    const HOME = 'https://www.bing.com';
+-
+-    function showAns(t){
+-      if (!t) return ans.style.display = 'none';
+-      ansTxt.textContent = t;
+-      ans.style.display = 'block';
+-    }
+-    document.querySelector('#nvAns .nvAnsX').onclick = () => showAns(null);
+-
+-    let NV_SRC = HOME;
+-    function isUrl(s){
+-      return /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/|$)/i.test(String(s || '').trim()) && !/\s/.test(String(s || '').trim());
+-    }
+-    function goto(u){
+-      if (!/^https?:/i.test(u)) u = 'https://' + u;
+-      nvHistory.push({ u: urlIn.value || '', src: NV_SRC });
+-      NV_SRC = u;
+-      urlIn.value = u;
+-      fr.src = u;
+-      showAns(null);
+-    }
+-
+-    async function search(q){
+-      showAns("Astra cherche…");
+-      let webText = '';
+-      try { webText = await Promise.race([webSearch(q), new Promise(r => setTimeout(() => r(''), 6000))]); } catch(e){}
+-      const line = webText ? stripBrands(String(webText)) : '';
+-      if (line) showAns('🔎 ' + line.slice(0, 500));
+-      /* affiche réellement les résultats (Bing encadrable) */
+-      goto('https://www.bing.com/search?q=' + encodeURIComponent(q));
+-      await voiceReply(q, line);
+-    }
+-
+-    function stripBrands(t){ return String(t || '').replace(/\s+/g, ' ').trim(); }
+-
+-    async function voiceReply(q, webText){
+-      try {
+-        let rep = '';
+-        if (webText){
+-          const backup = (typeof session !== 'undefined' && Array.isArray(session)) ? session.slice(0) : null;
+-          const r = await askAI('Question : "' + q + '". Infos du web : ' + String(webText).slice(0, 500) + '. Réponds brièvement en français (2 phrases max), direct, sans préambule.');
+-          if (Array.isArray(backup)){ try { session.length = 0; backup.forEach(m => session.push(m)); } catch(e){} }
+-          rep = (r && !r.error) ? String(r.text || '') : '';
+-        }
+-        if (!rep) rep = 'J ' + 'ai ouvert le navigateur sur « ' + q + ' » — les résultats s affichent dans la fenêtre.';
+-        if (typeof speak === 'function' && !isSpeaking) speak(rep);
+-      } catch(e){}
+-    }
+-
+-    function submit(){
+-      const v = urlIn.value.trim();
+-      if (!v) return;
+-      if (isUrl(v)) goto(v); else search(v);
+-    }
+-
+-    document.getElementById('nvGo').onclick = submit;
+-    urlIn.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+-    document.getElementById('nvBack').onclick = () => {
+-      const prev = nvHistory.pop();
+-      if (prev){ NV_SRC = prev.src; urlIn.value = prev.u; fr.src = prev.src; }
+-      else { NV_SRC = HOME; urlIn.value = ''; fr.src = HOME; }
+-      showAns(null);
+-    };
+-    document.getElementById('nvHome').onclick = () => { NV_SRC = HOME; urlIn.value = ''; fr.src = HOME; showAns(null); };
+-    document.getElementById('nvTab').onclick = () => window.open(NV_SRC || HOME, '_blank');
+-    document.getElementById('nvClose').onclick = () => { ov.hidden = true; };
+-    document.getElementById('nvOpen').onclick = () => { ov.hidden = false; if (!NV_SRC) { NV_SRC = HOME; fr.src = HOME; } };
+-
+-    /* Commande vocale/chat : « ouvre/cherche/affiche X » avec contexte web
+-       (internet, web, navigateur, google, bing, wikipedia...) */
+-    function bindNavCommand(){
+-      const NAVVERB = /^(?:ouvre|affiche|montre(?:-moi)?|cherche(?:r)?(?:\s+moi)?|navigu(?:e|er)|va\s+(?:sur|à|au|aux))\s*/i;
+-      const NAVCTX  = /\b(?:navigateur|internet|web|google|bing|searx|wikip[eé]dia|MOTEUR)\b/i;
+-      function targetOf(q){
+-        const s = String(q || '').trim()
+-          .replace(/^\s*hey\s*[,.!:]?\s*astra\b[,.!:]?\s*/i, '')
+-          .replace(/^[\s,.!?:;"'\u201c\u201d(-]+/, '')
+-          .trim();
+-        const NAVCTX = /\b(?:navigateur|internet|web|google|bing|searx|wikip[eé]dia|youtube|you\s+tube)\b/i;
+-        if (!NAVCTX.test(s)) return '';
+-        const m = s.match(/^(?:ouvre|affiches?[-\`a-z]*|montre(?:[-\`]moi)?|cherche(?:r)?(?:[-\`]moi)?|navigu(?:e|er)(?:[-\`]vers)?|file[-\`]?moi|donne[-\`]?moi|va\s+(?:voir\s+)?(?:sur|à|au|aux))\b/i);
+-        if (!m) return '';
+-        let t = s.slice(m[0].length).replace(/^[\s,.!?:;\u201c\u201d'"(-]+/, '');
+-        if (/^wikip[eé]dia\b/i.test(t)) { t = t.replace(/^wikip[eé]dia\s*(?:sur\s+|le\s+sujet\s+(?:de\s+|du\s+|de\s+la\s+|des\s+))?[:.\s]*/i, ''); }
+-        t = t.replace(/^(?:moi\s+)?/i, '')
+-          .replace(/^(?:le\s+|la\s+|les\s+)(?=\S)/i, '');
+-        /* contexte AVANT le sujet : « le web sur X », « internet : X », « sur le web X » */
+-        t = t.replace(/^(?:sur\s+)?(?:le\s+|la\s+)?(?:web|internet|navigateur)\b[.:\s]*/i, '');
+-        t = t.replace(/^(?:sur|dans)\s+(?:le\s+|la\s+|les\s+)?/i, '');
+-        t = t.replace(/^(?:web|internet|navigateur)\s+sur\s+/i, '');
+-        /* contexte APRES le sujet : « X sur (le) web/internet/google... » */
+-        t = t.replace(/\s+(?:sur|dans|avec|via|du|de\s+la\s+)\s*(?:le\s+|la\s+)?(?:web|internet|navigateur|google|bing|searx)\s*[.?!]*$/i, '');
+-        return t.replace(/[.?!]+$/, '').trim();
+-      }
+-      window.navMaybeCommand = async function(q){
+-        const target = targetOf(q);
+-        if (!target) {
+-          /* « ouvre le web » / « ouvre le navigateur » seuls -> page d accueil */
+-          const s = String(q || '').trim().replace(/^\s*hey\s*[,.!:]?\s*astra\b[,.!:]?\s*/i, '').trim();
+-          if (/^(?:ouvre|affiche)\b/i.test(s) && /\b(?:navigateur|web|internet)\b/i.test(s) && s.replace(/^\w+\s*(?:le\s+)?(navigateur|web|internet)\b.*$/i, '$1').match(/^(?:navigateur|web|internet)$/i)){
+-            ov.hidden = false;
+-            NV_SRC = HOME; urlIn.value = ''; fr.src = HOME; showAns(null);
+-            return true;
+-          }
+-          return false;
+-        }
+-        ov.hidden = false;
+-        /* youtube refuse l iframe -> nouvel onglet avec recherche */
+-        if (/\b(?:youtube|you tube)\b/i.test(target)){
+-          const qq = target.replace(/^.*\b(?:youtube|you tube)\b[:.\s]*(?:sur\s+|sur\s+la\s+)?/i, '').trim() || '';
+-          window.open('https://www.youtube.com/results' + (qq ? '?search_query=' + encodeURIComponent(qq) : ''), '_blank');
+-          return true;
+-        }
+-        if (isUrl(target)) goto(target);
+-        else await search(target || 'actualités du jour');
+-        return true;
+-      };
+-    }
+-    bindNavCommand();
+-
+-    console.log('[Astra] Navigateur intégré actif (Bing/Wikipédia/searx encadrables).');
+-  } catch (e) { console.warn('[Astra] Navigateur non actif:', e && e.message); }
+-})();
+ 
+ 
+ /* ============================================================
